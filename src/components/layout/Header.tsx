@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, GraduationCap } from "lucide-react";
+import { Menu, X, GraduationCap, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -13,6 +14,15 @@ const navLinks = [
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, role, signOut } = useAuth();
+
+  const dashboardPath = role === "admin" ? "/dashboard/admin" : role === "tutor" ? "/dashboard/tutor" : "/dashboard/student";
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
 
   return (
     <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
@@ -21,7 +31,7 @@ const Header = () => {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <GraduationCap className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="font-serif text-xl text-foreground">TutorHub</span>
+          <span className="font-serif text-xl text-foreground">Cuvasol Tutor</span>
         </Link>
 
         {/* Desktop nav */}
@@ -42,12 +52,25 @@ const Header = () => {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button variant="ghost" asChild>
-            <Link to="/login">Log in</Link>
-          </Button>
-          <Button asChild>
-            <Link to="/register/student">Sign up</Link>
-          </Button>
+          {user ? (
+            <>
+              <Button variant="ghost" asChild>
+                <Link to={dashboardPath}>Dashboard</Link>
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" /> Sign out
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" asChild>
+                <Link to="/login">Log in</Link>
+              </Button>
+              <Button asChild>
+                <Link to="/register/student">Sign up</Link>
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Mobile toggle */}
@@ -79,12 +102,25 @@ const Header = () => {
               </Link>
             ))}
             <div className="mt-2 flex flex-col gap-2">
-              <Button variant="ghost" asChild>
-                <Link to="/login" onClick={() => setMobileOpen(false)}>Log in</Link>
-              </Button>
-              <Button asChild>
-                <Link to="/register/student" onClick={() => setMobileOpen(false)}>Sign up</Link>
-              </Button>
+              {user ? (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link to={dashboardPath} onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                  </Button>
+                  <Button variant="outline" onClick={() => { handleSignOut(); setMobileOpen(false); }}>
+                    <LogOut className="mr-2 h-4 w-4" /> Sign out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild>
+                    <Link to="/login" onClick={() => setMobileOpen(false)}>Log in</Link>
+                  </Button>
+                  <Button asChild>
+                    <Link to="/register/student" onClick={() => setMobileOpen(false)}>Sign up</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </nav>
         </div>

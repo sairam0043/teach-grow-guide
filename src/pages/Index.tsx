@@ -39,7 +39,7 @@ const Index = () => {
             className="mx-auto max-w-3xl text-center"
           >
             <h1 className="mb-6 text-4xl font-bold text-primary-foreground md:text-5xl lg:text-6xl">
-              Learn from the Best Tutors, Anytime
+              Find the Perfect Tutor with Cuvasol Tutor
             </h1>
             <p className="mb-8 text-lg text-primary-foreground/80 md:text-xl">
               Find expert tutors in academics, music, art, and more. Book a demo, schedule classes, and start your personalized learning journey today.
@@ -145,7 +145,7 @@ const Index = () => {
         <div className="container">
           <div className="rounded-2xl bg-primary p-10 text-center md:p-16">
             <h2 className="mb-4 text-3xl font-bold text-primary-foreground md:text-4xl">Ready to Start Learning?</h2>
-            <p className="mb-8 text-lg text-primary-foreground/80">Join thousands of students already learning with TutorHub</p>
+            <p className="mb-8 text-lg text-primary-foreground/80">Join thousands of students already learning with Cuvasol Tutor</p>
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Button size="lg" variant="secondary" asChild>
                 <Link to="/register/student">Get Started Free</Link>

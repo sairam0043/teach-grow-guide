@@ -11,7 +11,7 @@ const Footer = () => {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
                 <GraduationCap className="h-4 w-4 text-primary-foreground" />
               </div>
-              <span className="font-serif text-lg text-foreground">TutorHub</span>
+              <span className="font-serif text-lg text-foreground">Cuvasol Tutor</span>
             </Link>
             <p className="text-sm text-muted-foreground">
               Connecting students with expert tutors for personalized learning experiences.
@@ -45,7 +45,7 @@ const Footer = () => {
         </div>
 
         <div className="mt-8 border-t pt-8 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} TutorHub. All rights reserved.
+          © {new Date().getFullYear()} Cuvasol Tutor. All rights reserved.
         </div>
       </div>
     </footer>

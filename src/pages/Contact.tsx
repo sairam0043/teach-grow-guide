@@ -37,7 +37,7 @@ const Contact = () => {
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <Mail className="h-5 w-5 text-primary" />
-                  <span>support@tutorhub.com</span>
+                  <span>support@cuvasoltutor.com</span>
                 </div>
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <Phone className="h-5 w-5 text-primary" />

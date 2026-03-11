@@ -23,7 +23,7 @@ const About = () => (
       <div className="container">
         <div className="mx-auto max-w-3xl space-y-6 text-muted-foreground leading-relaxed">
           <p>
-            TutorHub was founded with a simple belief: every student deserves access to great teachers. We connect students with vetted, experienced tutors across academics and extracurricular activities.
+            Cuvasol Tutor was founded with a simple belief: every student deserves access to great teachers. We connect students with vetted, experienced tutors across academics and extracurricular activities.
           </p>
           <p>
             Our platform makes it easy to discover tutors, book demo classes, and schedule weekly learning sessions — all with transparent pricing and secure payments.
