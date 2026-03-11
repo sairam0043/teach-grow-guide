@@ -12,7 +12,7 @@ const About = () => (
   <PageLayout>
     <section className="bg-primary py-16">
       <div className="container text-center">
-        <h1 className="mb-4 text-4xl font-bold text-primary-foreground">About TutorHub</h1>
+        <h1 className="mb-4 text-4xl font-bold text-primary-foreground">About Cuvasol Tutor</h1>
         <p className="mx-auto max-w-2xl text-lg text-primary-foreground/80">
           We're on a mission to make quality education accessible to every student by connecting them with expert tutors.
         </p>
