@@ -71,3 +71,45 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Demo credentials (Admin / Student / Tutor)
+
+This project routes dashboards based on the `user_roles` table:
+
+- Admin: `/dashboard/admin`
+- Tutor: `/dashboard/tutor`
+- Student: `/dashboard/student`
+
+### Create the demo users
+
+You need a Supabase **service role key** (do not commit it).
+
+In PowerShell:
+
+```powershell
+$env:SUPABASE_URL="YOUR_SUPABASE_URL"
+$env:SUPABASE_SERVICE_ROLE_KEY="YOUR_SUPABASE_SERVICE_ROLE_KEY"
+npm run demo:users
+```
+
+Optional (override the default password):
+
+```powershell
+$env:DEMO_PASSWORD="TempPass123!"
+npm run demo:users
+```
+
+Note: the script also accepts `VITE_SUPABASE_URL` (from your existing `.env`) if you don’t want to set `SUPABASE_URL` separately.
+It will also automatically read `.env` from the project root (it won’t print your keys).
+
+### Demo logins
+
+- **Admin**
+  - Email: `admin.demo@teachgrow.local`
+  - Password: `TempPass123!` (or your `DEMO_PASSWORD`)
+- **Student**
+  - Email: `student.demo@teachgrow.local`
+  - Password: `TempPass123!` (or your `DEMO_PASSWORD`)
+- **Tutor**
+  - Email: `tutor.demo@teachgrow.local`
+  - Password: `TempPass123!` (or your `DEMO_PASSWORD`)

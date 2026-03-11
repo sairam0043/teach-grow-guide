@@ -25,8 +25,14 @@ interface PendingTutor {
 const AdminDashboard = () => {
   const [pendingTutors, setPendingTutors] = useState<PendingTutor[]>([]);
   const [loading, setLoading] = useState(true);
+  const useSupabase = import.meta.env.VITE_USE_SUPABASE !== "false";
 
   const fetchPendingTutors = async () => {
+    if (!useSupabase) {
+      setPendingTutors([]);
+      setLoading(false);
+      return;
+    }
     const { data: tutors } = await supabase
       .from("tutors")
       .select("*")
@@ -54,6 +60,10 @@ const AdminDashboard = () => {
   }, []);
 
   const handleApproval = async (tutorId: string, status: "approved" | "rejected") => {
+    if (!useSupabase) {
+      toast.message("Supabase is disabled in demo mode.");
+      return;
+    }
     const { error } = await supabase
       .from("tutors")
       .update({ approval_status: status })
