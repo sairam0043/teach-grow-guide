@@ -25,11 +25,18 @@ const Login = () => {
       toast.error(error.message);
     } else {
       toast.success("Logged in successfully!");
-      // Role may not be set yet due to async, use a small delay
-      setTimeout(() => {
-        // Re-read role from context after state update
-        navigate("/");
-      }, 500);
+      // Wait for auth state to propagate, then redirect
+      const checkAndRedirect = async () => {
+        const { data } = await (await import("@/integrations/supabase/client")).supabase
+          .from("user_roles")
+          .select("role")
+          .maybeSingle();
+        const userRole = data?.role;
+        if (userRole === "admin") navigate("/dashboard/admin");
+        else if (userRole === "tutor") navigate("/dashboard/tutor");
+        else navigate("/dashboard/student");
+      };
+      setTimeout(checkAndRedirect, 300);
     }
   };
 
