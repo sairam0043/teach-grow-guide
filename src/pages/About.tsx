@@ -12,7 +12,7 @@ const About = () => (
   <PageLayout>
     <section className="bg-primary py-16">
       <div className="container text-center">
-        <h1 className="mb-4 text-4xl font-bold text-primary-foreground">About TutorHub</h1>
+        <h1 className="mb-4 text-4xl font-bold text-primary-foreground">About Cuvasol Tutor</h1>
         <p className="mx-auto max-w-2xl text-lg text-primary-foreground/80">
           We're on a mission to make quality education accessible to every student by connecting them with expert tutors.
         </p>
@@ -23,7 +23,7 @@ const About = () => (
       <div className="container">
         <div className="mx-auto max-w-3xl space-y-6 text-muted-foreground leading-relaxed">
           <p>
-            TutorHub was founded with a simple belief: every student deserves access to great teachers. We connect students with vetted, experienced tutors across academics and extracurricular activities.
+            Cuvasol Tutor was founded with a simple belief: every student deserves access to great teachers. We connect students with vetted, experienced tutors across academics and extracurricular activities.
           </p>
           <p>
             Our platform makes it easy to discover tutors, book demo classes, and schedule weekly learning sessions — all with transparent pricing and secure payments.
