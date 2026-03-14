@@ -1,15 +1,47 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import axios from "axios";
 import { Link } from "react-router-dom";
 import { Calendar, BookOpen, CreditCard, User, Search, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSelector, useDispatch } from "react-redux";
+import { fetchStudentStats } from "@/redux/slices/dashboardSlice";
+import { RootState, AppDispatch } from "@/redux/store";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const StudentDashboard = () => {
   const { user } = useAuth();
-  const name = user?.user_metadata?.full_name || "Student";
+  const name = String(user?.user_metadata?.full_name || "Student");
+  
+  const dispatch = useDispatch<AppDispatch>();
+  const { studentStats, loading: statsLoading } = useSelector((state: RootState) => state.dashboard);
+
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
+
+  useEffect(() => {
+    if (user?.id) {
+      dispatch(fetchStudentStats(user.id));
+      axios.get(`${API_URL}/dashboard/student/${user.id}/bookings`)
+        .then(res => setBookings(res.data))
+        .catch(err => console.error(err))
+        .finally(() => setLoadingBookings(false));
+    }
+  }, [dispatch, user?.id]);
+
+  const handleBookingAction = async (bookingId: string, status: string) => {
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { status });
+      setBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status } : b));
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
 
   return (
     <PageLayout>
@@ -21,10 +53,10 @@ const StudentDashboard = () => {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
           {[
-            { icon: Calendar, label: "Upcoming Classes", value: "0" },
-            { icon: Clock, label: "Demo Bookings", value: "0" },
-            { icon: BookOpen, label: "Total Classes", value: "0" },
-            { icon: CreditCard, label: "Total Spent", value: "₹0" },
+            { icon: Calendar, label: "Upcoming Classes", value: studentStats?.upcomingClasses || 0 },
+            { icon: Clock, label: "Demo Bookings", value: studentStats?.completedSessions || 0 }, // mapped
+            { icon: BookOpen, label: "Enrolled Courses", value: studentStats?.enrolledCourses || 0 }, // mapped
+            { icon: CreditCard, label: "Saved Tutors", value: studentStats?.savedTutors || 0 }, // mapped
           ].map((stat) => (
             <Card key={stat.label}>
               <CardContent className="flex items-center gap-4 p-6">
@@ -32,7 +64,13 @@ const StudentDashboard = () => {
                   <stat.icon className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                  {statsLoading ? (
+                    <Skeleton className="h-8 w-16 mb-1" />
+                  ) : (
+                    <p className="text-2xl font-bold text-foreground">
+                      {String(stat.value)}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">{stat.label}</p>
                 </div>
               </CardContent>
@@ -63,13 +101,42 @@ const StudentDashboard = () => {
 
           <TabsContent value="demos">
             <Card>
-              <CardHeader><CardTitle>Demo Bookings</CardTitle></CardHeader>
+              <CardHeader><CardTitle>My Demo Bookings</CardTitle></CardHeader>
               <CardContent>
-                <div className="py-12 text-center text-muted-foreground">
-                  <Clock className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                  <p>No demo bookings yet. Book a demo with a tutor to get started!</p>
-                  <Button asChild className="mt-4"><Link to="/tutors">Find a Tutor</Link></Button>
-                </div>
+                {loadingBookings ? (
+                  <div className="space-y-4 py-4">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : bookings.length === 0 ? (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <Clock className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                    <p>No demo bookings yet. Book a demo with a tutor to get started!</p>
+                    <Button asChild className="mt-4"><Link to="/tutors">Find a Tutor</Link></Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {bookings.map((booking: any) => (
+                      <div key={booking._id} className="flex justify-between items-center bg-secondary p-4 rounded-lg border">
+                        <div>
+                          <p className="font-semibold text-foreground">Tutor: {booking.tutorName}</p>
+                          <p className="text-sm text-muted-foreground">Timing: {booking.timing}</p>
+                        </div>
+                        <div className="text-right flex flex-col items-end gap-2">
+                          <div>
+                            <p className={`text-sm font-medium ${booking.status === 'confirmed' ? 'text-green-600' : 'text-red-600'}`}>
+                              {booking.status.toUpperCase()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</p>
+                          </div>
+                          {booking.status === 'confirmed' && (
+                             <Button size="sm" variant="outline" className="text-red-500 border-red-500 hover:bg-red-50" onClick={() => handleBookingAction(booking._id, 'cancelled')}>Cancel</Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -97,7 +164,7 @@ const StudentDashboard = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium text-foreground">{user?.email}</p>
+                    <p className="font-medium text-foreground">{String(user?.email || "")}</p>
                   </div>
                 </div>
               </CardContent>

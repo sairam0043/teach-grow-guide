@@ -26,6 +26,7 @@ const RegisterTutor = () => {
   const [teachingMode, setTeachingMode] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [bio, setBio] = useState("");
+  const [timingsInput, setTimingsInput] = useState("");
   const [password, setPassword] = useState("");
   const { signUp } = useAuth();
   const navigate = useNavigate();
@@ -61,6 +62,7 @@ const RegisterTutor = () => {
       qualification,
       city,
       teaching_mode: teachingMode.toLowerCase(),
+      availableTimings: JSON.stringify(timingsInput.split(",").map(t => t.trim()).filter(t => t.length > 0))
     });
 
     if (error) {
@@ -167,6 +169,12 @@ const RegisterTutor = () => {
                   </div>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <Label htmlFor="timings">Available Demo Timings (Optional)</Label>
+                <Input id="timings" placeholder="E.g., Mon 5PM - 6PM, Sat 10AM (comma separated)" value={timingsInput} onChange={(e) => setTimingsInput(e.target.value)} />
+                <p className="text-xs text-muted-foreground">You can also manage these later in your dashboard.</p>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="bio">Bio</Label>

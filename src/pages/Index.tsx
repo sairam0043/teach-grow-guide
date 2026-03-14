@@ -1,10 +1,14 @@
-import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
+import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, BookOpen, Calendar, CreditCard, Star, Users, Award, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
 import TutorCard from "@/components/tutors/TutorCard";
-import { mockTutors } from "@/data/mockTutors";
+import type { Tutor } from "@/data/mockTutors";
+import { useAuth } from "@/contexts/AuthContext";
 
 const steps = [
   { icon: Search, title: "Find Your Tutor", description: "Browse expert tutors by subject, category, or location." },
@@ -20,8 +24,24 @@ const stats = [
   { icon: BookOpen, value: "50+", label: "Subjects" },
 ];
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 const Index = () => {
-  const featuredTutors = mockTutors.slice(0, 3);
+  const { user, role } = useAuth();
+  
+  const { data: featuredTutors = [], isLoading } = useQuery<Tutor[]>({
+    queryKey: ['tutors', 'featured'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_URL}/tutors?status=approved&featured=true`);
+      return res.data;
+    }
+  });
+
+  if (user) {
+    if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
+    if (role === 'tutor') return <Navigate to="/dashboard/tutor" replace />;
+    if (role === 'student') return <Navigate to="/dashboard/student" replace />;
+  }
 
   return (
     <PageLayout>
@@ -127,9 +147,23 @@ const Index = () => {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredTutors.map((tutor) => (
-              <TutorCard key={tutor.id} tutor={tutor} />
-            ))}
+            {isLoading ? (
+              [1, 2, 3].map((i) => (
+                <div key={i} className="rounded-xl border bg-card p-4 shadow-card">
+                  <Skeleton className="mb-4 h-48 w-full rounded-lg" />
+                  <Skeleton className="mb-2 h-6 w-2/3" />
+                  <Skeleton className="mb-4 h-4 w-1/3" />
+                </div>
+              ))
+            ) : featuredTutors.length > 0 ? (
+              featuredTutors.map((tutor) => (
+                <TutorCard key={tutor.id} tutor={tutor} />
+              ))
+            ) : (
+              <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center text-muted-foreground py-10">
+                No featured tutors available yet.
+              </div>
+            )}
           </div>
 
           <div className="mt-8 text-center md:hidden">

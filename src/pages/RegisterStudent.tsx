@@ -8,7 +8,6 @@ import PageLayout from "@/components/layout/PageLayout";
 import { GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 
 const RegisterStudent = () => {
   const [name, setName] = useState("");

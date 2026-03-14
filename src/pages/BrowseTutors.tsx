@@ -1,15 +1,17 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
 import TutorCard from "@/components/tutors/TutorCard";
-import { mockTutors, type TutorCategory, type TeachingMode } from "@/data/mockTutors";
+import type { Tutor } from "@/data/mockTutors";
 
-const allSubjects = Array.from(new Set(mockTutors.flatMap((t) => t.subjects)));
-const allCities = Array.from(new Set(mockTutors.map((t) => t.city)));
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const BrowseTutors = () => {
   const [search, setSearch] = useState("");
@@ -19,25 +21,35 @@ const BrowseTutors = () => {
   const [city, setCity] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
 
+  const { data: tutors = [], isLoading } = useQuery<Tutor[]>({
+    queryKey: ['tutors', 'approved'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_URL}/tutors?status=approved`);
+      return res.data;
+    }
+  });
+
+  const allSubjects = useMemo(() => Array.from(new Set(tutors.flatMap((t) => t.subjects || []))), [tutors]);
+  const allCities = useMemo(() => Array.from(new Set(tutors.map((t) => t.city).filter(Boolean))), [tutors]);
+
   const filtered = useMemo(() => {
-    return mockTutors
-      .filter((t) => t.approvalStatus === "Approved")
+    return tutors
       .filter((t) => {
         if (search) {
           const q = search.toLowerCase();
           return (
-            t.name.toLowerCase().includes(q) ||
-            t.subjects.some((s) => s.toLowerCase().includes(q)) ||
-            t.city.toLowerCase().includes(q)
+            t.name?.toLowerCase().includes(q) ||
+            t.subjects?.some((s) => s.toLowerCase().includes(q)) ||
+            (t.city && t.city.toLowerCase().includes(q))
           );
         }
         return true;
       })
       .filter((t) => category === "all" || t.category === category)
-      .filter((t) => subject === "all" || t.subjects.includes(subject))
+      .filter((t) => subject === "all" || (t.subjects && t.subjects.includes(subject)))
       .filter((t) => mode === "all" || t.mode === mode || t.mode === "Both")
       .filter((t) => city === "all" || t.city === city);
-  }, [search, category, subject, mode, city]);
+  }, [search, category, subject, mode, city, tutors]);
 
   const clearFilters = () => {
     setSearch("");
@@ -139,7 +151,22 @@ const BrowseTutors = () => {
             {filtered.length} tutor{filtered.length !== 1 ? "s" : ""} found
           </div>
 
-          {filtered.length > 0 ? (
+          {isLoading ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="rounded-xl border bg-card p-4 shadow-card">
+                  <Skeleton className="mb-4 h-48 w-full rounded-lg" />
+                  <Skeleton className="mb-2 h-6 w-2/3" />
+                  <Skeleton className="mb-4 h-4 w-1/3" />
+                  <div className="mb-4 flex gap-2">
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                  </div>
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length > 0 ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((tutor) => (
                 <TutorCard key={tutor.id} tutor={tutor} />

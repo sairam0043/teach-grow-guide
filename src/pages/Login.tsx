@@ -16,11 +16,6 @@ const Login = () => {
   const { signIn, role } = useAuth();
   const navigate = useNavigate();
 
-  const fillDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword("TempPass123!");
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -29,21 +24,24 @@ const Login = () => {
     if (error) {
       toast.error(
         error.message === "Invalid login credentials"
-          ? "Invalid login credentials. If you're trying demo accounts, run `npm run demo:users` (with SUPABASE_SERVICE_ROLE_KEY set) first, then use the demo password."
+          ? "Invalid login credentials. Check your email/password."
           : error.message,
       );
     } else {
       toast.success("Logged in successfully!");
-      // Wait for auth state to propagate, then redirect
       const checkAndRedirect = async () => {
-        const { data } = await (await import("@/integrations/supabase/client")).supabase
-          .from("user_roles")
-          .select("role")
-          .maybeSingle();
-        const userRole = data?.role;
-        if (userRole === "admin") navigate("/dashboard/admin");
-        else if (userRole === "tutor") navigate("/dashboard/tutor");
-        else navigate("/dashboard/student");
+        try {
+          const raw = localStorage.getItem("demo_auth");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const userRole = parsed.role;
+            if (userRole === "admin") navigate("/dashboard/admin");
+            else if (userRole === "tutor") navigate("/dashboard/tutor");
+            else navigate("/dashboard/student");
+            return;
+          }
+        } catch { }
+        navigate("/");
       };
       setTimeout(checkAndRedirect, 300);
     }
@@ -74,24 +72,6 @@ const Login = () => {
                 {loading ? "Logging in..." : "Log In"}
               </Button>
             </form>
-
-            <div className="mt-4 rounded-lg border bg-muted/30 p-3">
-              <p className="text-sm font-medium text-foreground">Demo accounts</p>
-              <p className="text-xs text-muted-foreground">
-                Password defaults to <span className="font-mono">TempPass123!</span> (unless you set <span className="font-mono">DEMO_PASSWORD</span>).
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" size="sm" onClick={() => fillDemo("admin.demo@teachgrow.local")}>
-                  Use Admin
-                </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => fillDemo("student.demo@teachgrow.local")}>
-                  Use Student
-                </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => fillDemo("tutor.demo@teachgrow.local")}>
-                  Use Tutor
-                </Button>
-              </div>
-            </div>
 
             <div className="mt-6 text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
