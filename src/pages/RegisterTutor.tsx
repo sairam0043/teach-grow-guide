@@ -10,6 +10,7 @@ import PageLayout from "@/components/layout/PageLayout";
 import { GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import axios from "axios";
 
 const academicSubjects = ["Mathematics", "Physics", "Chemistry", "Biology", "Coding", "English"];
 const extracurricularSubjects = ["Music", "Dance", "Art", "Chess", "Yoga", "Public Speaking"];
@@ -27,8 +28,11 @@ const RegisterTutor = () => {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [bio, setBio] = useState("");
   const [timingsInput, setTimingsInput] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const { signUp } = useAuth();
+
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
   const navigate = useNavigate();
 
   const subjects = category === "Academic" ? academicSubjects : category === "Extracurricular" ? extracurricularSubjects : [];
@@ -51,6 +55,23 @@ const RegisterTutor = () => {
     }
     setLoading(true);
 
+    let photoUrl: string | undefined;
+    if (photoFile) {
+      try {
+        const formData = new FormData();
+        formData.append("photo", photoFile);
+        const uploadRes = await axios.post(`${API_URL}/upload/photo`, formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
+        photoUrl = uploadRes.data?.url;
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Failed to upload photo.";
+        toast.error(msg);
+        setLoading(false);
+        return;
+      }
+    }
+
     const { error } = await signUp(email, password, {
       full_name: name,
       phone,
@@ -62,7 +83,8 @@ const RegisterTutor = () => {
       qualification,
       city,
       teaching_mode: teachingMode.toLowerCase(),
-      availableTimings: JSON.stringify(timingsInput.split(",").map(t => t.trim()).filter(t => t.length > 0))
+      availableTimings: JSON.stringify(timingsInput.split(",").map(t => t.trim()).filter(t => t.length > 0)),
+      ...(photoUrl && { photo: photoUrl })
     });
 
     if (error) {
@@ -179,6 +201,21 @@ const RegisterTutor = () => {
               <div className="space-y-2">
                 <Label htmlFor="bio">Bio</Label>
                 <Textarea id="bio" rows={4} maxLength={500} placeholder="Tell students about yourself and your teaching style..." required value={bio} onChange={(e) => setBio(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="photo">Profile Photo</Label>
+                <Input
+                  id="photo"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                  className="cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+                />
+                <p className="text-xs text-muted-foreground">Upload a photo from your device (JPEG, PNG, GIF or WebP, max 5MB). Shown when students browse tutors.</p>
+                {photoFile && (
+                  <p className="text-sm text-muted-foreground">Selected: {photoFile.name}</p>
+                )}
               </div>
 
               <div className="space-y-2">

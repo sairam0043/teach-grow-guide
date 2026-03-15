@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+./backend/node_modules
+./backend/dist
+./backend/dist-ssr
+./backend/*.local
+./backend/.env
+./backend/.env.local
+./backend/uploads
+./backend/.env.development.local
+./backend/.env.test.local
+./backend/.env.production.local

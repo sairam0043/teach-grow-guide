@@ -9,11 +9,12 @@ interface TutorCardProps {
 }
 
 const TutorCard = ({ tutor }: TutorCardProps) => {
+  const photoSrc = tutor.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
   return (
     <div className="group overflow-hidden rounded-xl border bg-card shadow-card transition-shadow hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
         <img
-          src={tutor.photo}
+          src={photoSrc}
           alt={tutor.name}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           loading="lazy"

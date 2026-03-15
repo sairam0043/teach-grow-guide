@@ -122,7 +122,7 @@ const TutorProfile = () => {
           <div className="lg:col-span-2 space-y-6">
             <div className="flex flex-col gap-6 sm:flex-row">
               <img
-                src={tutor.photo}
+                src={tutor.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`}
                 alt={tutor.name}
                 className="h-40 w-40 rounded-xl object-cover shadow-card"
               />
