@@ -11,8 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchStudentStats } from "@/redux/slices/dashboardSlice";
 import { RootState, AppDispatch } from "@/redux/store";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import API_URL from "@/config/api";
 
 const StudentDashboard = () => {
   const { user } = useAuth();

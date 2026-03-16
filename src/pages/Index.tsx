@@ -9,6 +9,7 @@ import PageLayout from "@/components/layout/PageLayout";
 import TutorCard from "@/components/tutors/TutorCard";
 import type { Tutor } from "@/data/mockTutors";
 import { useAuth } from "@/contexts/AuthContext";
+import API_URL from "@/config/api";
 
 const steps = [
   { icon: Search, title: "Find Your Tutor", description: "Browse expert tutors by subject, category, or location." },
@@ -23,8 +24,6 @@ const stats = [
   { icon: Star, value: "4.8", label: "Average Rating" },
   { icon: BookOpen, value: "50+", label: "Subjects" },
 ];
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const Index = () => {
   const { user, role } = useAuth();

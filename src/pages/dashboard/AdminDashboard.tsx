@@ -12,8 +12,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { fetchAdminStats } from "@/redux/slices/dashboardSlice";
 import { RootState, AppDispatch } from "@/redux/store";
 import axios from "axios";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import API_URL from "@/config/api";
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();

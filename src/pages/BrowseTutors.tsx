@@ -10,8 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
 import TutorCard from "@/components/tutors/TutorCard";
 import type { Tutor } from "@/data/mockTutors";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import API_URL from "@/config/api";
 
 const BrowseTutors = () => {
   const [search, setSearch] = useState("");

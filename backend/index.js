@@ -45,14 +45,14 @@ app.get('/', (req, res) => {
   res.send('Teach Grow Guide - Backend with Mongoose');
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/teachgrow';
 // console.log("console : " + MONGO_URI);
 mongoose.connect(MONGO_URI)
   .then(() => {
     console.log('Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running on port ${PORT} (NODE_ENV=${process.env.NODE_ENV || 'undefined'})`);
     });
   })
   .catch((err) => {

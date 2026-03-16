@@ -9,8 +9,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import API_URL from "@/config/api";
 
 const TutorProfile = () => {
   const { id } = useParams();

@@ -11,6 +11,7 @@ import { GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
+import API_URL from "@/config/api";
 
 const academicSubjects = ["Mathematics", "Physics", "Chemistry", "Biology", "Coding", "English"];
 const extracurricularSubjects = ["Music", "Dance", "Art", "Chess", "Yoga", "Public Speaking"];
@@ -32,7 +33,6 @@ const RegisterTutor = () => {
   const [password, setPassword] = useState("");
   const { signUp } = useAuth();
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
   const navigate = useNavigate();
 
   const subjects = category === "Academic" ? academicSubjects : category === "Extracurricular" ? extracurricularSubjects : [];
