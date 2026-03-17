@@ -102,12 +102,14 @@ router.get('/tutor/:tutorId/bookings', async (req, res) => {
 router.get('/student/:studentId', async (req, res) => {
   try {
     const studentId = req.params.studentId;
-    const upcomingClasses = await Booking.countDocuments({ studentId });
-    // Simplified since we don't have explicit enrollment model yet
+    const upcomingClasses = await Booking.countDocuments({ studentId, status: 'confirmed' });
+    const enrolledCourses = await Booking.countDocuments({ studentId, status: 'enrolled' });
+    const completedSessions = await Booking.countDocuments({ studentId, status: 'completed' });
+    
     res.json({
-      enrolledCourses: upcomingClasses,
+      enrolledCourses,
       upcomingClasses,
-      completedSessions: 0,
+      completedSessions,
       savedTutors: 0
     });
   } catch(err) {

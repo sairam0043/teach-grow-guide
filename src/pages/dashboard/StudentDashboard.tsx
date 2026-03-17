@@ -119,17 +119,31 @@ const StudentDashboard = () => {
                       <div key={booking._id} className="flex justify-between items-center bg-secondary p-4 rounded-lg border">
                         <div>
                           <p className="font-semibold text-foreground">Tutor: {booking.tutorName}</p>
+                          {booking.subject && <p className="text-sm text-primary mb-1">Subject: {booking.subject}</p>}
                           <p className="text-sm text-muted-foreground">Timing: {booking.timing}</p>
                         </div>
                         <div className="text-right flex flex-col items-end gap-2">
                           <div>
-                            <p className={`text-sm font-medium ${booking.status === 'confirmed' ? 'text-green-600' : 'text-red-600'}`}>
+                            <p className={`text-sm font-medium ${
+                              booking.status === 'confirmed' ? 'text-green-600' :
+                              booking.status === 'completed' ? 'text-blue-600' :
+                              booking.status === 'enrolled' ? 'text-primary' :
+                              'text-red-600'
+                            }`}>
                               {booking.status.toUpperCase()}
                             </p>
                             <p className="text-xs text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</p>
                           </div>
                           {booking.status === 'confirmed' && (
                              <Button size="sm" variant="outline" className="text-red-500 border-red-500 hover:bg-red-50" onClick={() => handleBookingAction(booking._id, 'cancelled')}>Cancel</Button>
+                          )}
+                          {booking.status === 'completed' && (
+                              <Button asChild size="sm" className="bg-gradient-to-r from-primary to-blue-600 shadow-md">
+                                <Link to={`/tutors/${booking.tutorId}`}>Pay & Book Course</Link>
+                              </Button>
+                          )}
+                          {booking.status === 'enrolled' && (
+                            <p className="text-xs font-semibold text-primary">{booking.planType}</p>
                           )}
                         </div>
                       </div>
