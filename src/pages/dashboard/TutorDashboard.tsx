@@ -152,7 +152,7 @@ const TutorDashboard = () => {
     <PageLayout>
       <div className="container py-10 max-w-7xl">
         <div className="mb-10">
-          <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Tutor Dashboard</h1>
+          <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Hello, {name}</h1>
           <p className="text-lg text-muted-foreground mt-1">Manage your teaching schedule, students, and profile.</p>
         </div>
 
