@@ -41,8 +41,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/upload', uploadRoutes);
 
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'cuvasol-backend' });
+});
+
 app.get('/', (req, res) => {
-  res.send('Teach Grow Guide - Backend with Mongoose');
+  res.send('Cuvasol Tutor - Backend with Mongoose');
 });
 
 const PORT = Number(process.env.PORT) || 5000;

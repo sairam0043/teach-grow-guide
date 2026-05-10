@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Star, MapPin, Monitor, Users } from "lucide-react";
+import { Star, MapPin, Monitor, Users, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
@@ -45,15 +45,23 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
           ))}
         </div>
 
-        <div className="mb-4 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
-            {tutor.city}
-          </span>
-          <span className="flex items-center gap-1">
-            <Monitor className="h-3.5 w-3.5" />
-            {tutor.mode}
-          </span>
+        <div className="mb-4 flex flex-col gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" />
+              {tutor.city}
+            </span>
+            <span className="flex items-center gap-1">
+              <Monitor className="h-3.5 w-3.5" />
+              {tutor.mode}
+            </span>
+          </div>
+          {tutor.availability && tutor.availability.length > 0 && (
+            <span className="flex items-center gap-1 text-primary/80 font-medium">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {tutor.availability.map(a => a.day.substring(0, 3)).join(", ")}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center justify-between">

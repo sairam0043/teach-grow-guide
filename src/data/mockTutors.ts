@@ -27,6 +27,7 @@ export interface Tutor {
   hourlyRate: number;
   approvalStatus: ApprovalStatus;
   demoSlots: DemoSlot[];
+  availability?: { day: string; startTime: string; endTime: string }[];
 }
 
 export const mockTutors: Tutor[] = [

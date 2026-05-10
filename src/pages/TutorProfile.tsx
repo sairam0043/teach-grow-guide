@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard } from "lucide-react";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format } from "date-fns";
+import { format, getDay, addMinutes, parse, startOfDay } from "date-fns";
 import PageLayout from "@/components/layout/PageLayout";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -25,7 +25,37 @@ const TutorProfile = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<{type: string, price: number} | null>(null);
+  const [otherEmails, setOtherEmails] = useState<string[]>(['']);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [availableSlotsForDate, setAvailableSlotsForDate] = useState<string[]>([]);
+
+  const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
+
+  useEffect(() => {
+    if (isValidDate(date) && tutor?.availability && tutor.availability.length > 0) {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayName = days[getDay(date as Date)];
+      const dayAvail = tutor.availability.find((a: any) => a.day === dayName);
+      
+      if (dayAvail && dayAvail.startTime && dayAvail.endTime) {
+        const slots: string[] = [];
+        let current = parse(dayAvail.startTime, 'HH:mm', startOfDay(date as Date));
+        const end = parse(dayAvail.endTime, 'HH:mm', startOfDay(date as Date));
+        
+        while (current < end) {
+           slots.push(format(current, 'h:mm a'));
+           current = addMinutes(current, 30);
+        }
+        setAvailableSlotsForDate(slots);
+      } else {
+        setAvailableSlotsForDate([]);
+      }
+    } else if (tutor?.availableTimings) {
+      setAvailableSlotsForDate(tutor.availableTimings);
+    } else {
+      setAvailableSlotsForDate([]);
+    }
+  }, [date, tutor]);
 
   useEffect(() => {
     const fetchTutor = async () => {
@@ -136,6 +166,25 @@ const TutorProfile = () => {
         payload.planType = selectedPlan.type;
         payload.amountPaid = selectedPlan.price;
         payload.isDirectClass = true; // flag to tell backend this isn't a demo
+
+        if (selectedPlan.type === '2 Students' || selectedPlan.type === '3–5 Students') {
+          const validEmails = otherEmails.filter(e => e.trim() !== '');
+          
+          if (user?.email && validEmails.some(e => e.toLowerCase() === user.email.toLowerCase())) {
+            toast.error("You cannot invite yourself. Please enter emails of other students.");
+            return;
+          }
+
+          if (selectedPlan.type === '2 Students' && validEmails.length < 1) {
+            toast.error("Please enter the email of the other student.");
+            return;
+          }
+          if (selectedPlan.type === '3–5 Students' && validEmails.length < 2) {
+            toast.error("Please enter at least 2 other student emails for this plan.");
+            return;
+          }
+          payload.otherStudentsEmails = validEmails;
+        }
       }
 
       const res = await axios.post(endpoint, payload);
@@ -147,13 +196,13 @@ const TutorProfile = () => {
     }
   };
 
-  const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
   const formattedSelectedTiming = isValidDate(date) && selectedSlot ? `${format(date as Date, 'PPP')} at ${selectedSlot}` : null;
   const selectedExisting = formattedSelectedTiming ? existingBookings.find(b => b.timing === formattedSelectedTiming && b.status === "confirmed") : undefined;
   
   const activeDemoBooking = existingBookings.find(b => b.status === "confirmed");
   const completedBooking = existingBookings.find(b => b.status === "completed");
   const enrolledBooking = existingBookings.find(b => b.status === "enrolled");
+  const pendingBooking = existingBookings.find(b => b.status === "pending");
   
   const hasActiveBooking = !!activeDemoBooking;
   const activeBookingTiming = activeDemoBooking?.timing;
@@ -214,6 +263,32 @@ const TutorProfile = () => {
               </CardContent>
             </Card>
 
+            {((tutor?.availability && tutor.availability.length > 0) || (tutor?.availableTimings && tutor.availableTimings.length > 0)) && (
+              <Card>
+                <CardHeader><CardTitle>Availability Schedule</CardTitle></CardHeader>
+                <CardContent>
+                  {tutor.availability && tutor.availability.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {tutor.availability.map((avail: any) => (
+                        <div key={avail.day} className="flex justify-between items-center p-3 border rounded-lg bg-secondary/20">
+                          <span className="font-medium text-foreground">{avail.day}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {format(parse(avail.startTime, 'HH:mm', new Date()), 'h:mm a')} - {format(parse(avail.endTime, 'HH:mm', new Date()), 'h:mm a')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {tutor.availableTimings.map((timing: string, i: number) => (
+                        <Badge key={i} variant="secondary" className="px-3 py-1 text-sm">{timing}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex justify-between items-center">
@@ -261,7 +336,26 @@ const TutorProfile = () => {
           {/* Booking sidebar */}
           <div>
             <Card className="sticky top-20">
-              {enrolledBooking ? (
+              {pendingBooking ? (
+                <>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-amber-500">
+                      <ClockIcon className="h-5 w-5" /> Pending Approvals
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 text-center">
+                      <p className="font-medium text-amber-800 dark:text-amber-300 mb-2">Waiting for group members to approve.</p>
+                      <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
+                        Email invitations have been sent to the other students. The class will be officially booked once everyone approves.
+                      </p>
+                      <p className="text-sm text-amber-600/80 dark:text-amber-400/80 mt-2 font-medium">
+                        Timing: {pendingBooking.timing}
+                      </p>
+                    </div>
+                  </CardContent>
+                </>
+              ) : enrolledBooking ? (
                 <>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-green-600">
@@ -274,9 +368,12 @@ const TutorProfile = () => {
                       <p className="text-sm text-green-600/80 dark:text-green-400/80">
                         Plan: {enrolledBooking.planType} (₹{enrolledBooking.amountPaid}/hr)
                       </p>
+                      <p className="text-sm text-green-600/80 dark:text-green-400/80 mt-1">
+                        Timing: {enrolledBooking.timing}
+                      </p>
                     </div>
                     <Button asChild className="w-full" variant="outline">
-                      <Link to="/dashboard">Go to Dashboard</Link>
+                      <Link to="/dashboard/student">Go to Dashboard</Link>
                     </Button>
                   </CardContent>
                 </>
@@ -284,7 +381,7 @@ const TutorProfile = () => {
                 <>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                       {(selectedPlan || completedBooking) ? (
+                       {(selectedPlan || completedBooking || hasActiveBooking) ? (
                          <><CreditCard className="h-5 w-5 text-primary" /> Book a Class</>
                        ) : (
                          <><CalendarIcon className="h-5 w-5 text-primary" /> Book a Demo Class</>
@@ -292,15 +389,17 @@ const TutorProfile = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {completedBooking && !selectedPlan && (
+                    {(completedBooking || hasActiveBooking) && !selectedPlan && !selectedExisting && (
                        <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 text-center">
-                         <p className="text-sm font-medium text-foreground mb-1">Demo Completed!</p>
+                         <p className="text-sm font-medium text-foreground mb-1">
+                           {completedBooking ? "Demo Completed!" : "Demo Already Booked!"}
+                         </p>
                          <p className="text-xs text-muted-foreground">Select a pricing plan from the left to enroll in classes.</p>
                        </div>
                     )}
                     
                     <p className="text-sm text-muted-foreground">
-                      {(selectedPlan || completedBooking)
+                      {(selectedPlan || completedBooking || hasActiveBooking)
                         ? (selectedPlan ? `Select a date and an available slot to book a ${selectedPlan.type} class.` : "Select a pricing plan and slot to book.") 
                         : "Select a date and an available slot to try a free demo class."}
                     </p>
@@ -321,7 +420,15 @@ const TutorProfile = () => {
                           selected={date}
                           onSelect={setDate}
                           initialFocus
-                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          disabled={(d) => {
+                            if (d < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+                            if (tutor?.availability && tutor.availability.length > 0) {
+                              const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                              const dayName = days[getDay(d)];
+                              return !tutor.availability.some((a: any) => a.day === dayName);
+                            }
+                            return false;
+                          }}
                         />
                       </PopoverContent>
                     </Popover>
@@ -341,11 +448,12 @@ const TutorProfile = () => {
                       </div>
                     )}
                     
-                    <div className="space-y-2 mt-4">
-                      {tutor.availableTimings && tutor.availableTimings.length > 0 ? (
-                        tutor.availableTimings.map((timing: string, i: number) => {
+                    <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-2">
+                      {availableSlotsForDate && availableSlotsForDate.length > 0 ? (
+                        availableSlotsForDate.map((timing: string, i: number) => {
                           const timingString = isValidDate(date) ? `${format(date as Date, 'PPP')} at ${timing}` : timing;
-                          const isBooked = existingBookings.some((b: any) => b.timing === timingString && b.status === "confirmed");
+                          // A slot is booked if there's an active booking for it (confirmed or enrolled)
+                          const isBooked = existingBookings.some((b: any) => b.timing === timingString && (b.status === "confirmed" || b.status === "enrolled"));
                           
                           // If they are just booking a demo, we disable other slots if they have a confirmed demo.
                           // But if they are booking a CLASS (selectedPlan), they can book any slot.
@@ -374,34 +482,58 @@ const TutorProfile = () => {
                           </button>
                         )})
                       ) : (
-                        <div className="text-sm text-muted-foreground p-3 border rounded text-center">
-                          No availability scheduled yet. <br/> Check back later!
+                        <div className="text-sm text-muted-foreground p-3 border rounded text-center bg-secondary/30">
+                          No availability for {isValidDate(date) ? format(date as Date, 'MMM do') : 'this date'}. <br/> Select a highlighted date from the calendar.
                         </div>
                       )}
                     </div>
                     
+                    {selectedPlan && (selectedPlan.type === '2 Students' || selectedPlan.type === '3–5 Students') && (
+                      <div className="space-y-2 mt-4 p-3 border rounded-lg bg-secondary/10">
+                        <label className="text-sm font-medium">Invite Other Students (Emails)</label>
+                        {otherEmails.map((email, idx) => (
+                           <div key={idx} className="flex gap-2">
+                             <input 
+                               type="email" 
+                               value={email} 
+                               onChange={e => {
+                                 const newEmails = [...otherEmails];
+                                 newEmails[idx] = e.target.value;
+                                 setOtherEmails(newEmails);
+                               }}
+                               placeholder="student@example.com"
+                               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                             />
+                             {idx === otherEmails.length - 1 && selectedPlan.type === '3–5 Students' && otherEmails.length < 4 && (
+                               <Button type="button" variant="outline" size="sm" onClick={() => setOtherEmails([...otherEmails, ''])}>+</Button>
+                             )}
+                             {otherEmails.length > 1 && (
+                               <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => {
+                                 const newEmails = otherEmails.filter((_, i) => i !== idx);
+                                 setOtherEmails(newEmails);
+                               }}>✕</Button>
+                             )}
+                           </div>
+                        ))}
+                      </div>
+                    )}
+                    
                     <Button 
-                       className="w-full" 
+                       className="w-full mt-4" 
                        variant={selectedExisting ? "destructive" : "default"}
                        onClick={handleBookDemo} 
-                       disabled={(!tutor.availableTimings || tutor.availableTimings.length === 0) 
+                       disabled={(!availableSlotsForDate || availableSlotsForDate.length === 0) 
                          || (!selectedPlan && hasActiveBooking && !selectedExisting)
                          || (completedBooking && !selectedPlan)}
                     >
                       {selectedExisting 
                          ? "Cancel Booking" 
-                         : ((selectedPlan || completedBooking) ? (selectedPlan ? `Book Class & Pay ₹${selectedPlan.price}` : "Select a Plan to Book") : "Book Demo Session")}
+                         : ((selectedPlan || completedBooking || hasActiveBooking) ? (selectedPlan ? `Book Class & Pay ₹${selectedPlan.price}` : "Select a Plan to Book") : "Book Demo Session")}
                     </Button>
-                    
-                    {(!selectedPlan && hasActiveBooking && !selectedExisting && !completedBooking) && (
-                      <p className="text-center text-sm text-yellow-600 font-medium">
-                        You have already booked a demo session with this tutor.
-                      </p>
-                    )}
                     
                     {!selectedExisting && (
                       <p className="text-center text-xs text-muted-foreground">
-                        {(selectedPlan || completedBooking) ? (selectedPlan ? `Total: ₹${selectedPlan.price}/hr` : "") : "Free • No commitment required"}
+                        {(selectedPlan || completedBooking || hasActiveBooking) ? (selectedPlan ? `Total: ₹${selectedPlan.price}/hr` : "") : "Free • No commitment required"}
                       </p>
                     )}
                   </CardContent>

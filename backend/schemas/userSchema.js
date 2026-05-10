@@ -5,7 +5,9 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   full_name: { type: String, required: true },
   phone: { type: String },
-  role: { type: String, enum: ['admin', 'student', 'tutor'], default: 'student' }
+  role: { type: String, enum: ['admin', 'student', 'tutor'], default: 'student' },
+  resetOtp: { type: String },
+  resetOtpExpiry: { type: Date }
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);

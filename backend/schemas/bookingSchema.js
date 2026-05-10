@@ -7,9 +7,18 @@ const bookingSchema = new mongoose.Schema({
   studentId: { type: String, required: true },
   studentName: { type: String, required: true },
   subject: { type: String, required: true },
-  status: { type: String, enum: ['confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'], default: 'confirmed' },
+  status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'], default: 'confirmed' },
   planType: { type: String },
-  amountPaid: { type: Number }
+  amountPaid: { type: Number },
+  isRated: { type: Boolean, default: false },
+  groupDetails: {
+    isGroup: { type: Boolean, default: false },
+    invitedEmails: [{
+      email: String,
+      status: { type: String, enum: ['pending', 'approved', 'declined'], default: 'pending' },
+      paidShare: { type: Boolean, default: false }
+    }]
+  }
 }, { timestamps: true });
 
 const Booking = mongoose.model('Booking', bookingSchema);

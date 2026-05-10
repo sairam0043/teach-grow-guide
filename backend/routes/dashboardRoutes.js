@@ -14,12 +14,19 @@ router.get('/admin', async (req, res) => {
     // Simulate revenue just for metrics demo (in thousands)
     const totalRevenue = totalBookings * 500; 
 
+    // Calculate real average rating
+    const tutorsWithRatings = await Tutor.find({ rating: { $gt: 0 }, reviewCount: { $gt: 0 } });
+    let totalRating = 0;
+    tutorsWithRatings.forEach(t => totalRating += t.rating);
+    const averageRating = tutorsWithRatings.length > 0 ? (totalRating / tutorsWithRatings.length).toFixed(1) : 0;
+
     res.json({
       pendingApprovals: pendingTutors,
       activeTutors,
       totalStudents,
       totalBookings,
-      totalRevenue
+      totalRevenue,
+      averageRating
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -59,13 +66,15 @@ router.get('/tutor/:tutorId', async (req, res) => {
 
     // Ensure array exists
     const availableTimings = tutor.availableTimings || [];
+    const availability = tutor.availability || [];
 
     res.json({
       demoRequests,
       activeStudents: totalStudents.length,
       upcomingClasses,
       totalEarnings: demoRequests * tutor.hourlyRate,
-      availableTimings
+      availableTimings,
+      availability
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -75,13 +84,17 @@ router.get('/tutor/:tutorId', async (req, res) => {
 // Update specific tutor's timings
 router.put('/tutor/:tutorId/timings', async (req, res) => {
   try {
-    const { availableTimings } = req.body;
+    const { availableTimings, availability } = req.body;
+    const updateData = {};
+    if (availableTimings !== undefined) updateData.availableTimings = availableTimings;
+    if (availability !== undefined) updateData.availability = availability;
+
     const tutor = await Tutor.findByIdAndUpdate(
       req.params.tutorId,
-      { availableTimings },
+      updateData,
       { new: true }
     );
-    res.json({ availableTimings: tutor.availableTimings });
+    res.json({ availableTimings: tutor.availableTimings, availability: tutor.availability });
   } catch(err) {
     res.status(500).json({ error: err.message });
   }

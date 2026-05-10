@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, GraduationCap, LogOut } from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navLinks = [
@@ -28,10 +28,8 @@ const Header = () => {
     <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <GraduationCap className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="font-serif text-xl text-foreground">Cuvasol Tutor</span>
+          <img src="/logo.png" alt="Logo" className="h-9 w-auto" />
+          <span className="font-serif text-xl text-foreground hidden sm:inline-block">Cuvasol Tutor</span>
         </Link>
 
         {/* Desktop nav */}

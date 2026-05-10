@@ -1,6 +1,17 @@
 const express = require('express');
 const Tutor = require('../schemas/tutorSchema');
 const Booking = require('../schemas/bookingSchema');
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+  port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
+  secure: process.env.SMTP_PORT == 465,
+  auth: {
+    user: process.env.SMTP_USER || 'dummy',
+    pass: (process.env.SMTP_PASS || 'dummy').replace(/\s+/g, ''),
+  },
+});
 
 const router = express.Router();
 
@@ -101,7 +112,9 @@ router.post('/:id/book', async (req, res) => {
     // Validate the timing actually exists in tutor's timings
     // The frontend sends format "Date at Time", so we extract the time part
     const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
-    if (!tutor.availableTimings || !tutor.availableTimings.includes(timePart)) {
+    
+    const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
+    if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
       return res.status(400).json({ message: 'This slot is not available or does not exist.' });
     }
 
@@ -137,7 +150,7 @@ router.post('/:id/book', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, amountPaid } = req.body;
+    const { timing, subject, studentId, studentName, planType, amountPaid, otherStudentsEmails } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -147,11 +160,15 @@ router.post('/:id/book-class', async (req, res) => {
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
 
     const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
-    if (!tutor.availableTimings || !tutor.availableTimings.includes(timePart)) {
+    
+    const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
+    if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
       return res.status(400).json({ message: 'This slot is not available or does not exist.' });
     }
 
-    // Direct booking means they're immediately enrolled
+    const isGroup = otherStudentsEmails && otherStudentsEmails.length > 0;
+    
+    // Direct booking means they're immediately enrolled, unless it's a group requiring approval
     const newBooking = new Booking({
       tutorId: tutor._id,
       tutorName: tutor.name,
@@ -159,12 +176,44 @@ router.post('/:id/book-class', async (req, res) => {
       subject,
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
-      status: 'enrolled',
+      status: isGroup ? 'pending' : 'enrolled',
       planType,
-      amountPaid
+      amountPaid,
+      groupDetails: isGroup ? {
+        isGroup: true,
+        invitedEmails: otherStudentsEmails.map(email => ({ email, status: 'pending', paidShare: false }))
+      } : undefined
     });
     
     await newBooking.save();
+
+    if (isGroup) {
+      // Send emails
+      let frontendUrl = req.headers.origin;
+      if (!frontendUrl || frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1')) {
+        if (process.env.FRONTEND_URL) {
+          frontendUrl = process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '');
+        } else {
+          frontendUrl = 'http://localhost:8080';
+        }
+      }
+      for (const email of otherStudentsEmails) {
+        const approvalLink = `${frontendUrl}/approve-booking/${newBooking._id}?email=${encodeURIComponent(email)}`;
+        if (!process.env.SMTP_USER) {
+          console.log(`\n======================================================`);
+          console.log(`[DEVELOPMENT] APPROVAL LINK FOR ${email}: ${approvalLink}`);
+          console.log(`======================================================\n`);
+        } else {
+          await transporter.sendMail({
+            from: '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: email,
+            subject: 'Invitation to Join a Group Class',
+            text: `You have been invited by ${studentName} to join a group class with ${tutor.name}. Please approve and pay your share: ${approvalLink}`,
+            html: `<p>You have been invited by <b>${studentName}</b> to join a group class with <b>${tutor.name}</b>.</p><p><a href="${approvalLink}">Click here to approve and pay your share</a></p>`,
+          });
+        }
+      }
+    }
 
     res.status(200).json({ message: 'Class booked successfully', booking: newBooking });
   } catch (error) {
@@ -221,6 +270,49 @@ router.put('/booking/:bookingId/pay', async (req, res) => {
   }
 });
 
+// Group member approval and payment
+router.post('/booking/:bookingId/approve', async (req, res) => {
+  try {
+    const { email, action } = req.body;
+    const booking = await Booking.findById(req.params.bookingId);
+    
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    if (!booking.groupDetails || !booking.groupDetails.isGroup) {
+      return res.status(400).json({ message: 'This is not a group booking' });
+    }
+
+    const invitedStudent = booking.groupDetails.invitedEmails.find(inv => inv.email === email);
+    if (!invitedStudent) {
+      return res.status(404).json({ message: 'Email not found in invitation list' });
+    }
+
+    if (action === 'approve') {
+      invitedStudent.status = 'approved';
+      invitedStudent.paidShare = true; // Simulating payment during approval
+    } else if (action === 'decline') {
+      invitedStudent.status = 'declined';
+    } else {
+      return res.status(400).json({ message: 'Invalid action' });
+    }
+
+    // Check overall status
+    const allApproved = booking.groupDetails.invitedEmails.every(inv => inv.status === 'approved');
+    const anyDeclined = booking.groupDetails.invitedEmails.some(inv => inv.status === 'declined');
+
+    if (anyDeclined) {
+      booking.status = 'cancelled';
+    } else if (allApproved) {
+      booking.status = 'enrolled';
+    }
+
+    await booking.save();
+
+    res.json({ message: `Successfully ${action}d the booking`, booking });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin can update approval status and featured flag
 router.put('/:id/admin', async (req, res) => {
   try {
@@ -238,6 +330,86 @@ router.put('/:id/admin', async (req, res) => {
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Error updating tutor', error: error.message });
+  }
+});
+
+// Tutor can update their profile details
+router.put('/:id/profile', async (req, res) => {
+  try {
+    const { bio, qualification, experience, hourlyRate, category, subjects } = req.body;
+    const updateData = {};
+    if (bio !== undefined) updateData.bio = bio;
+    if (qualification !== undefined) updateData.qualification = qualification;
+    if (experience !== undefined) updateData.experience = experience;
+    if (hourlyRate !== undefined) updateData.hourlyRate = hourlyRate;
+    if (category !== undefined) updateData.category = category;
+    if (subjects !== undefined) updateData.subjects = subjects;
+
+    const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+    
+    const obj = tutor.toObject();
+    obj.id = obj._id.toString();
+    res.json(obj);
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating tutor profile', error: error.message });
+  }
+});
+
+// Student rates a tutor
+router.post('/:id/rate', async (req, res) => {
+  try {
+    const tutorId = req.params.id;
+    const { bookingId, rating, reviewText, studentName } = req.body;
+
+    if (!bookingId || !rating) {
+      return res.status(400).json({ message: 'Booking ID and Rating are required' });
+    }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    if (booking.isRated) {
+      return res.status(400).json({ message: 'This booking has already been rated' });
+    }
+    
+    if (booking.tutorId.toString() !== tutorId) {
+      return res.status(400).json({ message: 'Booking does not belong to this tutor' });
+    }
+
+    if (!['completed', 'enrolled'].includes(booking.status)) {
+      return res.status(400).json({ message: 'Only completed or enrolled classes can be rated' });
+    }
+
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    // Mark booking as rated
+    booking.isRated = true;
+    await booking.save();
+
+    // Add review to tutor
+    tutor.reviews.push({
+      studentName: studentName || booking.studentName,
+      rating: Number(rating),
+      reviewText,
+      date: new Date()
+    });
+
+    // Calculate new average rating
+    const currentRating = tutor.rating || 0;
+    const currentReviewCount = tutor.reviewCount || 0;
+    
+    const newRating = ((currentRating * currentReviewCount) + Number(rating)) / (currentReviewCount + 1);
+    
+    tutor.rating = Number(newRating.toFixed(1));
+    tutor.reviewCount = currentReviewCount + 1;
+
+    await tutor.save();
+
+    res.json({ message: 'Rating submitted successfully', tutor });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

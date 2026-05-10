@@ -23,7 +23,18 @@ const tutorSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   featured: { type: Boolean, default: false },
   availableTimings: [{ type: String }],
-  demoSlots: [slotSchema]
+  availability: [{
+    day: { type: String, required: true },
+    startTime: { type: String, required: true },
+    endTime: { type: String, required: true }
+  }],
+  demoSlots: [slotSchema],
+  reviews: [{
+    studentName: { type: String },
+    rating: { type: Number },
+    reviewText: { type: String },
+    date: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 const Tutor = mongoose.model('Tutor', tutorSchema);

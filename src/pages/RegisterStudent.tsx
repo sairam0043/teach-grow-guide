@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { GraduationCap } from "lucide-react";
+
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -43,8 +43,8 @@ const RegisterStudent = () => {
       <div className="flex min-h-[70vh] items-center justify-center py-12">
         <Card className="w-full max-w-md shadow-card">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-              <GraduationCap className="h-6 w-6 text-primary-foreground" />
+            <div className="mx-auto mb-2 flex h-16 w-auto items-center justify-center">
+              <img src="/logo.png" alt="Logo" className="h-16 w-auto" />
             </div>
             <CardTitle className="text-2xl">Student Registration</CardTitle>
             <CardDescription>Create your Cuvasol Tutor account</CardDescription>

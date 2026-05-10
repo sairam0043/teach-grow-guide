@@ -18,6 +18,7 @@ import StudentDashboard from "./pages/dashboard/StudentDashboard";
 import TutorDashboard from "./pages/dashboard/TutorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import ApproveBooking from "./pages/ApproveBooking";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ const App = () => (
               path="/dashboard/admin"
               element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>}
             />
+            <Route path="/approve-booking/:bookingId" element={<ApproveBooking />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

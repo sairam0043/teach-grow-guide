@@ -12,6 +12,8 @@ import TutorCard from "@/components/tutors/TutorCard";
 import type { Tutor } from "@/data/mockTutors";
 import API_URL from "@/config/api";
 
+const normalize = (value?: string | null) => (value || "").trim().toLowerCase();
+
 const BrowseTutors = () => {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -28,27 +30,55 @@ const BrowseTutors = () => {
     }
   });
 
-  const allSubjects = useMemo(() => Array.from(new Set(tutors.flatMap((t) => t.subjects || []))), [tutors]);
-  const allCities = useMemo(() => Array.from(new Set(tutors.map((t) => t.city).filter(Boolean))), [tutors]);
+  const allSubjects = useMemo(() => {
+    const subjectMap = new Map<string, string>();
+    tutors.forEach((tutor) => {
+      (tutor.subjects || []).forEach((subject) => {
+        const key = normalize(subject);
+        if (key && !subjectMap.has(key)) subjectMap.set(key, subject.trim());
+      });
+    });
+    return Array.from(subjectMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [tutors]);
+
+  const allCities = useMemo(() => {
+    const cityMap = new Map<string, string>();
+    tutors.forEach((tutor) => {
+      const city = tutor.city?.trim();
+      const key = normalize(city);
+      if (key && !cityMap.has(key)) cityMap.set(key, city as string);
+    });
+    return Array.from(cityMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [tutors]);
+
+  const selectedCategory = normalize(category);
+  const selectedSubject = normalize(subject);
+  const selectedMode = normalize(mode);
+  const selectedCity = normalize(city);
 
   const filtered = useMemo(() => {
     return tutors
       .filter((t) => {
         if (search) {
-          const q = search.toLowerCase();
+          const q = normalize(search);
           return (
-            t.name?.toLowerCase().includes(q) ||
-            t.subjects?.some((s) => s.toLowerCase().includes(q)) ||
-            (t.city && t.city.toLowerCase().includes(q))
+            normalize(t.name).includes(q) ||
+            t.subjects?.some((s) => normalize(s).includes(q)) ||
+            normalize(t.city).includes(q)
           );
         }
         return true;
       })
-      .filter((t) => category === "all" || t.category === category)
-      .filter((t) => subject === "all" || (t.subjects && t.subjects.includes(subject)))
-      .filter((t) => mode === "all" || t.mode === mode || t.mode === "Both")
-      .filter((t) => city === "all" || t.city === city);
-  }, [search, category, subject, mode, city, tutors]);
+      .filter((t) => selectedCategory === "all" || normalize(t.category) === selectedCategory)
+      .filter((t) => selectedSubject === "all" || (t.subjects || []).some((s) => normalize(s) === selectedSubject))
+      .filter((t) => {
+        if (selectedMode === "all") return true;
+        const tutorMode = normalize(t.mode);
+        if (selectedMode === "both") return tutorMode === "both";
+        return tutorMode === selectedMode || tutorMode === "both";
+      })
+      .filter((t) => selectedCity === "all" || normalize(t.city) === selectedCity);
+  }, [search, selectedCategory, selectedSubject, selectedMode, selectedCity, tutors]);
 
   const clearFilters = () => {
     setSearch("");

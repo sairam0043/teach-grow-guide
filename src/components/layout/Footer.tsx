@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { GraduationCap } from "lucide-react";
+
 
 const Footer = () => {
   return (
@@ -8,9 +8,7 @@ const Footer = () => {
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <GraduationCap className="h-4 w-4 text-primary-foreground" />
-              </div>
+              <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
               <span className="font-serif text-lg text-foreground">Cuvasol Tutor</span>
             </Link>
             <p className="text-sm text-muted-foreground">

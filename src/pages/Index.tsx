@@ -18,16 +18,9 @@ const steps = [
   { icon: CreditCard, title: "Pay Securely", description: "Simple, transparent pricing with secure online payments." },
 ];
 
-const stats = [
-  { icon: Users, value: "10,000+", label: "Active Students" },
-  { icon: Award, value: "500+", label: "Expert Tutors" },
-  { icon: Star, value: "4.8", label: "Average Rating" },
-  { icon: BookOpen, value: "50+", label: "Subjects" },
-];
-
 const Index = () => {
   const { user, role } = useAuth();
-  
+
   const { data: featuredTutors = [], isLoading } = useQuery<Tutor[]>({
     queryKey: ['tutors', 'featured'],
     queryFn: async () => {
@@ -35,6 +28,21 @@ const Index = () => {
       return res.data;
     }
   });
+
+  const { data: platformStats, isLoading: isStatsLoading } = useQuery({
+    queryKey: ['platform', 'stats'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_URL}/dashboard/admin`);
+      return res.data;
+    }
+  });
+
+  const stats = [
+    { icon: Users, value: platformStats?.totalStudents || 0, label: "Active Students" },
+    { icon: Award, value: platformStats?.activeTutors || 0, label: "Expert Tutors" },
+    { icon: BookOpen, value: platformStats?.totalBookings || 0, label: "Classes Booked" },
+    { icon: Star, value: platformStats?.averageRating || 0, label: "Average Rating" },
+  ];
 
   if (user) {
     if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
@@ -81,16 +89,21 @@ const Index = () => {
       <section className="border-b bg-card py-12">
         <div className="container">
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-            {stats.map((stat) => (
+            {stats.map((stat, idx) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
+                transition={{ delay: idx * 0.1 }}
                 className="text-center"
               >
                 <stat.icon className="mx-auto mb-2 h-6 w-6 text-primary" />
-                <div className="text-2xl font-bold text-foreground">{stat.value}</div>
+                {isStatsLoading ? (
+                  <Skeleton className="mx-auto h-8 w-16 mb-1" />
+                ) : (
+                  <div className="text-2xl font-bold text-foreground">{stat.value}{stat.label === "Average Rating" && ""}</div>
+                )}
                 <div className="text-sm text-muted-foreground">{stat.label}</div>
               </motion.div>
             ))}
@@ -183,7 +196,7 @@ const Index = () => {
               <Button size="lg" variant="secondary" asChild>
                 <Link to="/register/student">Get Started Free</Link>
               </Button>
-              <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10" asChild>
+              <Button size="lg" variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground" asChild>
                 <Link to="/register/tutor">Join as a Tutor</Link>
               </Button>
             </div>

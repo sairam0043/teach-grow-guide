@@ -26,6 +26,14 @@ export const updateTutorTimings = createAsyncThunk(
   }
 );
 
+export const updateTutorAvailability = createAsyncThunk(
+  'dashboard/updateTutorAvailability',
+  async ({ tutorId, availability }: { tutorId: string; availability: any[] }) => {
+    const res = await axios.put(`${API_URL}/dashboard/tutor/${tutorId}/timings`, { availability });
+    return res.data;
+  }
+);
+
 export const fetchStudentStats = createAsyncThunk(
   'dashboard/fetchStudentStats',
   async (studentId: string) => {
@@ -36,7 +44,7 @@ export const fetchStudentStats = createAsyncThunk(
 
 interface DashboardState {
   adminStats: { pendingApprovals: number; activeTutors: number; totalBookings: number; totalStudents: number; totalRevenue: number } | null;
-  tutorStats: { demoRequests: number; activeStudents: number; upcomingClasses: number; totalEarnings: number; availableTimings: string[] } | null;
+  tutorStats: { demoRequests: number; activeStudents: number; upcomingClasses: number; totalEarnings: number; availableTimings: string[]; availability?: any[] } | null;
   studentStats: { enrolledCourses: number; upcomingClasses: number; completedSessions: number; savedTutors: number } | null;
   loading: boolean;
   error: string | null;
@@ -87,6 +95,11 @@ const dashboardSlice = createSlice({
     builder.addCase(updateTutorTimings.fulfilled, (state, action) => {
       if (state.tutorStats) {
         state.tutorStats.availableTimings = action.payload.availableTimings;
+      }
+    });
+    builder.addCase(updateTutorAvailability.fulfilled, (state, action) => {
+      if (state.tutorStats) {
+        state.tutorStats.availability = action.payload.availability;
       }
     });
 

@@ -5,18 +5,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { GraduationCap } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import axios from "axios";
+import API_URL from "@/config/api";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [view, setView] = useState<"login" | "forgot" | "reset">("login");
+  const [resetEmail, setResetEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+
   const { signIn, role } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     const { error } = await signIn(email, password);
@@ -47,38 +55,122 @@ const Login = () => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) return toast.error("Please enter your email");
+    setLoading(true);
+    try {
+      await axios.post(`${API_URL}/auth/forgot-password`, { email: resetEmail });
+      toast.success("OTP sent to your email!");
+      setView("reset");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp || !newPassword) return toast.error("Please fill all fields");
+    setLoading(true);
+    try {
+      await axios.post(`${API_URL}/auth/reset-password`, {
+        email: resetEmail,
+        otp,
+        newPassword
+      });
+      toast.success("Password reset successfully! Please log in.");
+      setView("login");
+      setOtp("");
+      setNewPassword("");
+      setResetEmail("");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to reset password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <PageLayout>
       <div className="flex min-h-[70vh] items-center justify-center py-12">
         <Card className="w-full max-w-md shadow-card">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-              <GraduationCap className="h-6 w-6 text-primary-foreground" />
+            <div className="mx-auto mb-2 flex h-16 w-auto items-center justify-center">
+              <img src="/" alt="Logo" className="h-16 w-auto" />
             </div>
-            <CardTitle className="text-2xl">Welcome Back</CardTitle>
-            <CardDescription>Log in to your Cuvasol Tutor account</CardDescription>
+            <CardTitle className="text-2xl">
+              {view === "login" ? "Welcome Back" : view === "forgot" ? "Reset Password" : "Enter OTP"}
+            </CardTitle>
+            <CardDescription>
+              {view === "login" ? "Log in to your Cuvasol Tutor account" : view === "forgot" ? "Enter your email to receive an OTP" : "Enter the OTP sent to your email and your new password"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="your@email.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)} />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Logging in..." : "Log In"}
-              </Button>
-            </form>
+            {view === "login" && (
+              <>
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" placeholder="your@email.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <button type="button" onClick={() => setView("forgot")} className="text-sm text-primary hover:underline">
+                        Forgot Password?
+                      </button>
+                    </div>
+                    <Input id="password" type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Logging in..." : "Log In"}
+                  </Button>
+                </form>
 
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              Don't have an account?{" "}
-              <Link to="/register/student" className="text-primary hover:underline">Sign up as Student</Link>
-              {" or "}
-              <Link to="/register/tutor" className="text-primary hover:underline">as Tutor</Link>
-            </div>
+                <div className="mt-6 text-center text-sm text-muted-foreground">
+                  Don't have an account?{" "}
+                  <Link to="/register/student" className="text-primary hover:underline">Sign up as Student</Link>
+                  {" or "}
+                  <Link to="/register/tutor" className="text-primary hover:underline">as Tutor</Link>
+                </div>
+              </>
+            )}
+
+            {view === "forgot" && (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="resetEmail">Email</Label>
+                  <Input id="resetEmail" type="email" placeholder="your@email.com" required value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Sending..." : "Send OTP"}
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={() => setView("login")} disabled={loading}>
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Back to Login
+                </Button>
+              </form>
+            )}
+
+            {view === "reset" && (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="otp">6-Digit OTP</Label>
+                  <Input id="otp" type="text" placeholder="123456" maxLength={6} required value={otp} onChange={(e) => setOtp(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New Password</Label>
+                  <Input id="newPassword" type="password" placeholder="••••••••" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Resetting..." : "Reset Password"}
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={() => setView("login")} disabled={loading}>
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Back to Login
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
