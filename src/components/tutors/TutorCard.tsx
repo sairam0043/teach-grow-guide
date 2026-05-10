@@ -3,13 +3,16 @@ import { Star, MapPin, Monitor, Users, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 
 interface TutorCardProps {
   tutor: Tutor;
 }
 
 const TutorCard = ({ tutor }: TutorCardProps) => {
-  const photoSrc = tutor.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
+  const photoSrc =
+    resolveAssetUrl(tutor.photo) ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
   return (
     <div className="group overflow-hidden rounded-xl border bg-card shadow-card transition-shadow hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-secondary">

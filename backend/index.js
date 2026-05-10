@@ -11,6 +11,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Allow multiple origins (comma-separated in FRONTEND_URL); in development allow any origin so LAN IP works
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:8080')

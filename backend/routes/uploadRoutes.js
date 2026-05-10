@@ -37,7 +37,11 @@ router.post('/photo', upload.single('photo'), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No image file uploaded.' });
     }
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const configuredBaseUrl = (process.env.BACKEND_URL || '').trim().replace(/\/$/, '');
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = (forwardedProto || req.protocol || 'http').split(',')[0].trim();
+    const inferredBaseUrl = `${protocol}://${req.get('host')}`;
+    const baseUrl = configuredBaseUrl || inferredBaseUrl;
     const photoUrl = `${baseUrl}/uploads/${req.file.filename}`;
     res.json({ url: photoUrl, filename: req.file.filename });
   } catch (error) {
