@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
@@ -20,6 +20,8 @@ const Login = () => {
   const [resetEmail, setResetEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   const { signIn, role } = useAuth();
   const navigate = useNavigate();
@@ -122,7 +124,25 @@ const Login = () => {
                         Forgot Password?
                       </button>
                     </div>
-                    <Input id="password" type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Logging in..." : "Log In"}
@@ -161,7 +181,25 @@ const Login = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>
-                  <Input id="newPassword" type="password" placeholder="••••••••" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                  <div className="relative">
+                    <Input
+                      id="newPassword"
+                      type={showNewPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((prev) => !prev)}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                      aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Resetting..." : "Reset Password"}
