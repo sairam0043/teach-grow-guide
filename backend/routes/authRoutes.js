@@ -172,10 +172,13 @@ router.post('/google', async (req, res) => {
 });
 
 router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  console.log(`[Forgot Password] Request received for: ${email}`);
+  
   try {
-    const { email } = req.body;
     const user = await User.findOne({ email });
     if (!user) {
+      console.warn(`[Forgot Password] User not found: ${email}`);
       return res.status(404).json({ message: 'User not found' });
     }
 
@@ -186,6 +189,7 @@ router.post('/forgot-password', async (req, res) => {
     user.resetOtp = otp;
     user.resetOtpExpiry = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
+    console.log(`[Forgot Password] OTP generated for: ${email}`);
 
     // Send email (strict in production, console fallback only in local/dev)
     const smtpConfigured = Boolean(
@@ -197,6 +201,7 @@ router.post('/forgot-password', async (req, res) => {
 
     if (!smtpConfigured) {
       if (isProduction) {
+        console.error(`[Forgot Password] SMTP not configured in production. Failed to send OTP to: ${email}`);
         return res.status(500).json({
           message: 'Email service is not configured on server. Please contact support.'
         });
@@ -213,29 +218,35 @@ router.post('/forgot-password', async (req, res) => {
         text: `Your OTP for password reset is: ${otp}. It is valid for 15 minutes.`,
         html: `<p>Your OTP for password reset is: <b>${otp}</b>.</p><p>It is valid for 15 minutes.</p>`,
       });
+      console.log(`[Forgot Password] OTP email sent successfully to: ${email}`);
     }
 
     res.json({ message: 'OTP sent to email successfully' });
   } catch (error) {
+    console.error(`[Forgot Password] Error for ${email}:`, error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 router.post('/reset-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  console.log(`[Reset Password] Request received for: ${email}`);
+
   try {
-    const { email, otp, newPassword } = req.body;
-    
     const user = await User.findOne({ email });
     if (!user) {
+      console.warn(`[Reset Password] User not found: ${email}`);
       return res.status(404).json({ message: 'User not found' });
     }
 
     // Verify OTP
     if (!user.resetOtp || user.resetOtp !== otp) {
+      console.warn(`[Reset Password] Invalid OTP attempt for: ${email}`);
       return res.status(400).json({ message: 'Invalid OTP' });
     }
 
     if (user.resetOtpExpiry < new Date()) {
+      console.warn(`[Reset Password] Expired OTP attempt for: ${email}`);
       return res.status(400).json({ message: 'OTP has expired' });
     }
 
@@ -249,8 +260,10 @@ router.post('/reset-password', async (req, res) => {
     user.resetOtpExpiry = undefined;
     await user.save();
 
+    console.log(`[Reset Password] Password reset successfully for: ${email}`);
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
+    console.error(`[Reset Password] Error for ${email}:`, error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
