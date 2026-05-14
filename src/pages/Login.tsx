@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import API_URL from "@/config/api";
+import { GoogleLogin } from "@react-oauth/google";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -23,8 +24,21 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
 
-  const { signIn, role } = useAuth();
+  const { signIn, googleSignIn } = useAuth();
   const navigate = useNavigate();
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setLoading(true);
+    const { error } = await googleSignIn(credentialResponse.credential);
+    setLoading(false);
+    
+    if (error) {
+      toast.error(error.message || "Google login failed");
+    } else {
+      toast.success("Logged in with Google!");
+      navigate("/");
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,6 +162,23 @@ const Login = () => {
                     {loading ? "Logging in..." : "Log In"}
                   </Button>
                 </form>
+
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t"></span>
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-center">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => toast.error("Google Login Failed")}
+                    useOneTap
+                  />
+                </div>
 
                 <div className="mt-6 text-center text-sm text-muted-foreground">
                   Don't have an account?{" "}

@@ -1,7 +1,7 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/redux/store";
-import { loginUser, registerUser, logout } from "@/redux/slices/authSlice";
+import { loginUser, registerUser, logout, googleLogin } from "@/redux/slices/authSlice";
 
 type AppRole = "admin" | "student" | "tutor";
 
@@ -18,6 +18,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, meta: Record<string, string>) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  googleSignIn: (idToken: string, role?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -71,12 +72,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const googleSignIn = async (idToken: string, role?: string) => {
+    try {
+      const resultAction = await dispatch(googleLogin({ idToken, role }));
+      if (googleLogin.fulfilled.match(resultAction)) {
+        return { error: null };
+      } else {
+        return { error: new Error(resultAction.payload as string) };
+      }
+    } catch (e: any) {
+      return { error: e };
+    }
+  };
+
   const signOutMethod = async () => {
     dispatch(logout());
   };
 
   return (
-    <AuthContext.Provider value={{ user: formattedUser, session, role, loading, signUp, signIn, signOut: signOutMethod }}>
+    <AuthContext.Provider value={{ user: formattedUser, session, role, loading, signUp, signIn, googleSignIn, signOut: signOutMethod }}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,6 +5,9 @@ const Tutor = require('../schemas/tutorSchema');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const { OAuth2Client } = require('google-auth-library');
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'teachgrow_jwt_secret_key';
 const isProduction = process.env.NODE_ENV === 'production';
@@ -99,6 +102,72 @@ router.post('/login', async (req, res) => {
     
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/google', async (req, res) => {
+  try {
+    const { idToken, role } = req.body;
+    
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+    
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+    
+    let user = await User.findOne({ email });
+    
+    if (user) {
+      // If user exists but doesn't have googleId, update it
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.avatar = picture;
+        await user.save();
+      }
+    } else {
+      // Create new user
+      user = new User({
+        email,
+        full_name: name,
+        googleId,
+        avatar: picture,
+        role: role || 'student' // Use provided role or default to student
+      });
+      await user.save();
+
+      // If role is tutor, create an initial tutor profile
+      if (user.role === 'tutor') {
+        const Tutor = require('../schemas/tutorSchema');
+        const tutor = new Tutor({
+          userId: user._id,
+          name: user.full_name,
+          category: 'Academic',
+          mode: 'Online',
+          experience: 0,
+          photo: user.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name) + "&background=random"
+        });
+        await tutor.save();
+      }
+    }
+    
+    const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    
+    res.json({ 
+      token, 
+      user: { 
+        id: user._id.toString(), 
+        email: user.email, 
+        full_name: user.full_name, 
+        role: user.role,
+        avatar: user.avatar
+      } 
+    });
+    
+  } catch (error) {
+    console.error('Google Auth Error:', error);
+    res.status(500).json({ message: 'Google authentication failed', error: error.message });
   }
 });
 
