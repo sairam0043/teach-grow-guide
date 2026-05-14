@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'teachgrow_jwt_secret_key';
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Mock transporter for development (Logs OTP to console if no SMTP configured)
 const transporter = nodemailer.createTransport({
@@ -117,14 +118,27 @@ router.post('/forgot-password', async (req, res) => {
     user.resetOtpExpiry = new Date(Date.now() + 15 * 60 * 1000);
     await user.save();
 
-    // Send email
-    if (!process.env.SMTP_USER) {
+    // Send email (strict in production, console fallback only in local/dev)
+    const smtpConfigured = Boolean(
+      process.env.SMTP_HOST &&
+      process.env.SMTP_PORT &&
+      process.env.SMTP_USER &&
+      process.env.SMTP_PASS
+    );
+
+    if (!smtpConfigured) {
+      if (isProduction) {
+        return res.status(500).json({
+          message: 'Email service is not configured on server. Please contact support.'
+        });
+      }
+
       console.log(`\n======================================================`);
       console.log(`[DEVELOPMENT] PASSWORD RESET OTP FOR ${email}: ${otp}`);
       console.log(`======================================================\n`);
     } else {
       await transporter.sendMail({
-        from: '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+        from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
         to: email,
         subject: 'Password Reset OTP',
         text: `Your OTP for password reset is: ${otp}. It is valid for 15 minutes.`,
