@@ -25,9 +25,21 @@ const transporter = nodemailer.createTransport({
   port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
   secure: process.env.SMTP_PORT == 465, // true for 465, false for other ports
   auth: {
-    user: process.env.SMTP_USER || 'dummy',
-    pass: (process.env.SMTP_PASS || 'dummy').replace(/\s+/g, ''),
+    user: (process.env.SMTP_USER || 'dummy').trim(),
+    pass: (process.env.SMTP_PASS || 'dummy').replace(/[\s\n\r]+/g, '').trim(),
   },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
+});
+
+// Verify transporter on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('[Transporter] Verification failed:', error.message);
+  } else {
+    console.log('[Transporter] Server is ready to take our messages');
+  }
 });
 
 router.post('/register', async (req, res) => {
@@ -241,11 +253,21 @@ router.post('/forgot-password', async (req, res) => {
         console.log(`[Forgot Password] OTP email sent successfully to: ${email}`);
       } catch (mailError) {
         console.error(`[Forgot Password] Nodemailer Error for ${email}:`, mailError);
-        // In dev, we might still want to see the OTP even if mail fails
+        
+        // In dev, we log the OTP to the console so testing can continue
         if (!isProduction) {
-          console.log(`[DEVELOPMENT FALLBACK] Since mail failed, here is the OTP: ${otp}`);
+          console.log(`\n======================================================`);
+          console.log(`[DEVELOPMENT FALLBACK] OTP FOR ${email}: ${otp}`);
+          console.log(`======================================================\n`);
+          
+          return res.json({ 
+            message: 'OTP generated (Email delivery failed, check server console)',
+            devFallback: true 
+          });
         }
-        throw mailError; // Re-throw to be caught by the outer catch block
+        
+        // In production, we must throw to notify the user of the failure
+        throw mailError;
       }
     }
 
