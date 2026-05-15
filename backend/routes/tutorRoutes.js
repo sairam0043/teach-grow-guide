@@ -1,5 +1,6 @@
 const express = require('express');
 const Tutor = require('../schemas/tutorSchema');
+const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
 const nodemailer = require('nodemailer');
 
@@ -8,9 +9,12 @@ const transporter = nodemailer.createTransport({
   port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
   secure: process.env.SMTP_PORT == 465,
   auth: {
-    user: process.env.SMTP_USER || 'dummy',
-    pass: (process.env.SMTP_PASS || 'dummy').replace(/\s+/g, ''),
+    user: (process.env.SMTP_USER || 'dummy').trim(),
+    pass: (process.env.SMTP_PASS || 'dummy').replace(/[\s\n\r]+/g, '').trim(),
   },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 });
 
 const router = express.Router();
@@ -139,6 +143,28 @@ router.post('/:id/book', async (req, res) => {
     });
     
     await newBooking.save();
+    console.log(`[Booking] Demo session saved for student: ${studentName}`);
+    
+    // Notify Tutor
+    try {
+      const tutorUser = await User.findById(tutor.userId);
+      if (tutorUser && tutorUser.email) {
+        console.log(`[Booking] Attempting to notify tutor: ${tutorUser.email}`);
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: tutorUser.email,
+          subject: 'New Demo Session Requested',
+          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nPlease check your dashboard for details.\n\nBest regards,\nCuvasol Tutor Team`,
+          html: `<h3>New Demo Session Requested</h3><p>Hello <b>${tutor.name}</b>,</p><p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p><p>Please check your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
+        });
+        console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
+      } else {
+        console.warn(`[Booking] Could not find email for tutor user: ${tutor.userId}`);
+      }
+    } catch (mailError) {
+      console.error('[Booking] Failed to send tutor notification:', mailError.message);
+      // We don't fail the whole booking if email fails
+    }
 
     res.status(200).json({ message: 'Session booked successfully', booking: newBooking });
   } catch (error) {
@@ -188,7 +214,7 @@ router.post('/:id/book-class', async (req, res) => {
     await newBooking.save();
 
     if (isGroup) {
-      // Send emails
+      // Send emails to invited students
       let frontendUrl = req.headers.origin;
       if (!frontendUrl || frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1')) {
         if (process.env.FRONTEND_URL) {
@@ -199,20 +225,37 @@ router.post('/:id/book-class', async (req, res) => {
       }
       for (const email of otherStudentsEmails) {
         const approvalLink = `${frontendUrl}/approve-booking/${newBooking._id}?email=${encodeURIComponent(email)}`;
-        if (!process.env.SMTP_USER) {
-          console.log(`\n======================================================`);
-          console.log(`[DEVELOPMENT] APPROVAL LINK FOR ${email}: ${approvalLink}`);
-          console.log(`======================================================\n`);
-        } else {
+        try {
           await transporter.sendMail({
-            from: '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
             to: email,
             subject: 'Invitation to Join a Group Class',
             text: `You have been invited by ${studentName} to join a group class with ${tutor.name}. Please approve and pay your share: ${approvalLink}`,
             html: `<p>You have been invited by <b>${studentName}</b> to join a group class with <b>${tutor.name}</b>.</p><p><a href="${approvalLink}">Click here to approve and pay your share</a></p>`,
           });
+          console.log(`[Booking] Invitation email sent to: ${email}`);
+        } catch (invError) {
+          console.error(`[Booking] Failed to send invitation to ${email}:`, invError.message);
         }
       }
+    }
+
+    // Notify Tutor of the new class booking
+    try {
+      const tutorUser = await User.findById(tutor.userId);
+      if (tutorUser && tutorUser.email) {
+        console.log(`[Booking] Attempting to notify tutor: ${tutorUser.email}`);
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: tutorUser.email,
+          subject: isGroup ? 'New Group Class Booking' : 'New Class Booking',
+          text: `Hello ${tutor.name},\n\nA new class has been booked by ${studentName} for ${subject} at ${timing}.\n\nType: ${isGroup ? 'Group Class' : 'Individual Class'}\nPlan: ${planType}\n\nPlease check your dashboard for details.\n\nBest regards,\nCuvasol Tutor Team`,
+          html: `<h3>New Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new class has been booked by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Type:</b> ${isGroup ? 'Group Class' : 'Individual Class'}<br><b>Plan:</b> ${planType}</p><p>Please check your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
+        });
+        console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
+      }
+    } catch (mailError) {
+      console.error('[Booking] Failed to send tutor notification:', mailError.message);
     }
 
     res.status(200).json({ message: 'Class booked successfully', booking: newBooking });

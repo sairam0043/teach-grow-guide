@@ -91,7 +91,15 @@ router.post('/register', async (req, res) => {
       await tutor.save();
     }
 
-    // sign token
+    // If role is tutor, don't issue a token yet. They need approval.
+    if (role === 'tutor') {
+      return res.status(201).json({ 
+        message: 'Tutor application submitted successfully. Please wait for admin approval.',
+        user: { id: user._id.toString(), email, full_name, role } 
+      });
+    }
+
+    // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, role } });
@@ -115,6 +123,18 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // If user is a tutor, check approval status
+    if (user.role === 'tutor') {
+      const Tutor = require('../schemas/tutorSchema');
+      const tutor = await Tutor.findOne({ userId: user._id });
+      if (tutor && tutor.status !== 'approved') {
+        return res.status(403).json({ 
+          message: `Your tutor account is currently ${tutor.status}. Please wait for admin approval.`,
+          status: tutor.status
+        });
+      }
+    }
+
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, role: user.role } });
@@ -126,7 +146,7 @@ router.post('/login', async (req, res) => {
 
 router.post('/google', async (req, res) => {
   try {
-    const { idToken, role } = req.body;
+    const { idToken, role, action } = req.body;
 
     const ticket = await client.verifyIdToken({
       idToken,
@@ -137,6 +157,11 @@ router.post('/google', async (req, res) => {
     const { sub: googleId, email, name, picture } = payload;
 
     let user = await User.findOne({ email });
+
+    // If it's a login action but user doesn't exist, return error
+    if (action === 'login' && !user) {
+      return res.status(404).json({ message: 'No account found with this email. Please register first.' });
+    }
 
     if (user) {
       // If user exists but doesn't have googleId, update it
@@ -168,6 +193,29 @@ router.post('/google', async (req, res) => {
           photo: user.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name) + "&background=random"
         });
         await tutor.save();
+
+        // For new tutors, don't issue a token. They need approval.
+        return res.status(201).json({
+          message: 'Tutor account created successfully. Please wait for admin approval before logging in.',
+          user: {
+            id: user._id.toString(),
+            email: user.email,
+            full_name: user.full_name,
+            role: user.role
+          }
+        });
+      }
+    }
+
+    // If existing user is a tutor, check approval status
+    if (user.role === 'tutor') {
+      const Tutor = require('../schemas/tutorSchema');
+      const tutor = await Tutor.findOne({ userId: user._id });
+      if (tutor && tutor.status !== 'approved') {
+        return res.status(403).json({
+          message: `Your tutor account is currently ${tutor.status}. Please contact admin for approval.`,
+          status: tutor.status
+        });
       }
     }
 

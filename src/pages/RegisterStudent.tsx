@@ -23,18 +23,7 @@ const RegisterStudent = () => {
   const { signUp, googleSignIn } = useAuth();
   const navigate = useNavigate();
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    setLoading(true);
-    const { error } = await googleSignIn(credentialResponse.credential, "student");
-    setLoading(false);
-    
-    if (error) {
-      toast.error(error.message || "Google registration failed");
-    } else {
-      toast.success("Account created and logged in with Google!");
-      navigate("/");
-    }
-  };
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,22 +124,6 @@ const RegisterStudent = () => {
               </Button>
             </form>
 
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t"></span>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or sign up with</span>
-              </div>
-            </div>
-
-            <div className="flex justify-center">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => toast.error("Google Signup Failed")}
-                useOneTap
-              />
-            </div>
 
             <div className="mt-6 text-center text-sm text-muted-foreground">
               Already have an account? <Link to="/login" className="text-primary hover:underline">Log in</Link>

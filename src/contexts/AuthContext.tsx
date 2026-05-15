@@ -18,7 +18,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, meta: Record<string, string>) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  googleSignIn: (idToken: string, role?: string) => Promise<{ error: Error | null }>;
+  googleSignIn: (idToken: string, role?: string, action?: 'login' | 'signup') => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -72,9 +72,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const googleSignIn = async (idToken: string, role?: string) => {
+  const googleSignIn = async (idToken: string, role?: string, action: 'login' | 'signup' = 'login') => {
     try {
-      const resultAction = await dispatch(googleLogin({ idToken, role }));
+      const resultAction = await dispatch(googleLogin({ idToken, role, action }));
       if (googleLogin.fulfilled.match(resultAction)) {
         return { error: null };
       } else {

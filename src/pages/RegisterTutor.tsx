@@ -48,18 +48,7 @@ const RegisterTutor = () => {
     );
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    setLoading(true);
-    const { error } = await googleSignIn(credentialResponse.credential, "tutor");
-    setLoading(false);
-    
-    if (error) {
-      toast.error(error.message || "Google registration failed");
-    } else {
-      toast.success("Tutor account created with Google! Please complete your profile in the dashboard.");
-      navigate("/dashboard/tutor");
-    }
-  };
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,34 +121,6 @@ const RegisterTutor = () => {
             <CardDescription>Join the Cuvasol Tutor community of expert educators</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="mb-8">
-              <div className="relative mb-6">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t"></span>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Fast track with Google</span>
-                </div>
-              </div>
-
-              <div className="flex justify-center">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => toast.error("Google Signup Failed")}
-                  useOneTap
-                />
-              </div>
-              <p className="mt-2 text-center text-xs text-muted-foreground italic">Note: You'll still need to complete your profile details later.</p>
-            </div>
-
-            <div className="relative my-8">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t"></span>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or fill the application form</span>
-              </div>
-            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">

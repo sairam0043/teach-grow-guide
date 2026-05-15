@@ -75,11 +75,14 @@ const Login = () => {
     e.preventDefault();
     if (!resetEmail) return toast.error("Please enter your email");
     setLoading(true);
+    console.log(`[Forgot Password] Initiating OTP request for: ${resetEmail}`);
     try {
       await axios.post(`${API_URL}/auth/forgot-password`, { email: resetEmail });
+      console.log(`[Forgot Password] OTP request successful for: ${resetEmail}`);
       toast.success("OTP sent to your email!");
       setView("reset");
     } catch (err: any) {
+      console.error(`[Forgot Password] Failed for ${resetEmail}:`, err.response?.data || err.message);
       toast.error(err.response?.data?.message || "Failed to send OTP");
     } finally {
       setLoading(false);
@@ -90,18 +93,21 @@ const Login = () => {
     e.preventDefault();
     if (!otp || !newPassword) return toast.error("Please fill all fields");
     setLoading(true);
+    console.log(`[Reset Password] Initiating password reset for: ${resetEmail}`);
     try {
       await axios.post(`${API_URL}/auth/reset-password`, {
         email: resetEmail,
         otp,
         newPassword
       });
+      console.log(`[Reset Password] Password reset successful for: ${resetEmail}`);
       toast.success("Password reset successfully! Please log in.");
       setView("login");
       setOtp("");
       setNewPassword("");
       setResetEmail("");
     } catch (err: any) {
+      console.error(`[Reset Password] Failed for ${resetEmail}:`, err.response?.data || err.message);
       toast.error(err.response?.data?.message || "Failed to reset password");
     } finally {
       setLoading(false);
