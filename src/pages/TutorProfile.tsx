@@ -36,18 +36,28 @@ const TutorProfile = () => {
     if (isValidDate(date) && tutor?.availability && tutor.availability.length > 0) {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const dayName = days[getDay(date as Date)];
-      const dayAvail = tutor.availability.find((a: any) => a.day === dayName);
+      const dayAvailabilities = tutor.availability.filter((a: any) => a.day === dayName);
       
-      if (dayAvail && dayAvail.startTime && dayAvail.endTime) {
+      if (dayAvailabilities && dayAvailabilities.length > 0) {
         const slots: string[] = [];
-        let current = parse(dayAvail.startTime, 'HH:mm', startOfDay(date as Date));
-        const end = parse(dayAvail.endTime, 'HH:mm', startOfDay(date as Date));
-        
-        while (current < end) {
-           slots.push(format(current, 'h:mm a'));
-           current = addMinutes(current, 30);
-        }
-        setAvailableSlotsForDate(slots);
+        dayAvailabilities.forEach((dayAvail: any) => {
+          if (dayAvail.startTime && dayAvail.endTime) {
+            let current = parse(dayAvail.startTime, 'HH:mm', startOfDay(date as Date));
+            const end = parse(dayAvail.endTime, 'HH:mm', startOfDay(date as Date));
+            
+            while (current < end) {
+               slots.push(format(current, 'h:mm a'));
+               current = addMinutes(current, 30);
+            }
+          }
+        });
+        // Sort and unique slots in case of overlaps
+        const uniqueSlots = Array.from(new Set(slots)).sort((a, b) => {
+          const timeA = parse(a, 'h:mm a', new Date());
+          const timeB = parse(b, 'h:mm a', new Date());
+          return timeA.getTime() - timeB.getTime();
+        });
+        setAvailableSlotsForDate(uniqueSlots);
       } else {
         setAvailableSlotsForDate([]);
       }
@@ -273,14 +283,22 @@ const TutorProfile = () => {
                 <CardContent>
                   {tutor.availability && tutor.availability.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {tutor.availability.map((avail: any) => (
-                        <div key={avail.day} className="flex justify-between items-center p-3 border rounded-lg bg-secondary/20">
-                          <span className="font-medium text-foreground">{avail.day}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {format(parse(avail.startTime, 'HH:mm', new Date()), 'h:mm a')} - {format(parse(avail.endTime, 'HH:mm', new Date()), 'h:mm a')}
-                          </span>
-                        </div>
-                      ))}
+                      {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => {
+                        const daySlots = tutor.availability.filter((a: any) => a.day === day);
+                        if (daySlots.length === 0) return null;
+                        return (
+                          <div key={day} className="flex flex-col p-3 border rounded-lg bg-secondary/10">
+                            <span className="font-bold text-foreground mb-1">{day}</span>
+                            <div className="flex flex-wrap gap-2">
+                              {daySlots.map((slot: any, idx: number) => (
+                                <Badge key={idx} variant="outline" className="text-[10px] bg-background/50 font-medium">
+                                  {format(parse(slot.startTime, 'HH:mm', new Date()), 'h:mm a')} - {format(parse(slot.endTime, 'HH:mm', new Date()), 'h:mm a')}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">

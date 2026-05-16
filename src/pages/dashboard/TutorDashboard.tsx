@@ -32,8 +32,8 @@ const TutorDashboard = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const [availability, setAvailability] = useState<{ day: string; selected: boolean; startTime: string; endTime: string }[]>(
-    DAYS.map(day => ({ day, selected: false, startTime: '09:00', endTime: '17:00' }))
+  const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
+    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
   );
   const [isSavingAvailability, setIsSavingAvailability] = useState(false);
 
@@ -74,11 +74,15 @@ const TutorDashboard = () => {
   useEffect(() => {
     if (tutorStats?.availability && tutorStats.availability.length > 0) {
       setAvailability(prev => prev.map(p => {
-        const found = tutorStats.availability?.find(a => a.day === p.day);
-        if (found) {
-          return { ...p, selected: true, startTime: found.startTime, endTime: found.endTime };
+        const foundSlots = tutorStats.availability?.filter(a => a.day === p.day);
+        if (foundSlots && foundSlots.length > 0) {
+          return { 
+            ...p, 
+            selected: true, 
+            slots: foundSlots.map(s => ({ startTime: s.startTime, endTime: s.endTime })) 
+          };
         }
-        return p;
+        return { ...p, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] };
       }));
     }
   }, [tutorStats?.availability]);
@@ -93,17 +97,21 @@ const TutorDashboard = () => {
     }
 
     for (const day of selectedDays) {
-      if (!day.startTime || !day.endTime) {
-         toast.error(`Please set valid times for ${day.day}.`);
-         return;
-      }
-      if (day.endTime <= day.startTime) {
-         toast.error(`End time must be later than start time for ${day.day}.`);
-         return;
+      for (const slot of day.slots) {
+        if (!slot.startTime || !slot.endTime) {
+           toast.error(`Please set valid times for ${day.day}.`);
+           return;
+        }
+        if (slot.endTime <= slot.startTime) {
+           toast.error(`End time must be later than start time for ${day.day}.`);
+           return;
+        }
       }
     }
 
-    const payload = selectedDays.map(({ day, startTime, endTime }) => ({ day, startTime, endTime }));
+    const payload = selectedDays.flatMap(dayObj => 
+      dayObj.slots.map(slot => ({ day: dayObj.day, startTime: slot.startTime, endTime: slot.endTime }))
+    );
     
     setIsSavingAvailability(true);
     dispatch(updateTutorAvailability({ tutorId: tutorProfile.id, availability: payload }))
@@ -354,33 +362,63 @@ const TutorDashboard = () => {
                         <Label htmlFor={`day-${dayObj.day}`} className="font-medium cursor-pointer text-base">{dayObj.day}</Label>
                       </div>
                       
-                      <div className={`flex flex-wrap items-center gap-4 transition-opacity ${dayObj.selected ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-                        <div className="flex items-center gap-2 bg-secondary/30 p-1.5 rounded-lg border">
-                          <Label className="text-xs text-muted-foreground w-8 text-center font-semibold">IN</Label>
-                          <Input 
-                            type="time" 
-                            className="w-[120px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2" 
-                            value={dayObj.startTime}
-                            onChange={(e) => {
-                              const newAvail = [...availability];
-                              newAvail[i].startTime = e.target.value;
-                              setAvailability(newAvail);
-                            }}
-                          />
-                        </div>
-                        <div className="flex items-center gap-2 bg-secondary/30 p-1.5 rounded-lg border">
-                          <Label className="text-xs text-muted-foreground w-8 text-center font-semibold">OUT</Label>
-                          <Input 
-                            type="time" 
-                            className="w-[120px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2"
-                            value={dayObj.endTime}
-                            onChange={(e) => {
-                              const newAvail = [...availability];
-                              newAvail[i].endTime = e.target.value;
-                              setAvailability(newAvail);
-                            }}
-                          />
-                        </div>
+                      <div className={`flex flex-col gap-3 transition-opacity ${dayObj.selected ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                        {dayObj.slots.map((slot, slotIdx) => (
+                          <div key={slotIdx} className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2 bg-secondary/30 p-1.5 rounded-lg border">
+                              <Label className="text-xs text-muted-foreground w-8 text-center font-semibold">IN</Label>
+                              <Input 
+                                type="time" 
+                                className="w-[110px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2" 
+                                value={slot.startTime}
+                                onChange={(e) => {
+                                  const newAvail = [...availability];
+                                  newAvail[i].slots[slotIdx].startTime = e.target.value;
+                                  setAvailability(newAvail);
+                                }}
+                              />
+                            </div>
+                            <div className="flex items-center gap-2 bg-secondary/30 p-1.5 rounded-lg border">
+                              <Label className="text-xs text-muted-foreground w-8 text-center font-semibold">OUT</Label>
+                              <Input 
+                                type="time" 
+                                className="w-[110px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2"
+                                value={slot.endTime}
+                                onChange={(e) => {
+                                  const newAvail = [...availability];
+                                  newAvail[i].slots[slotIdx].endTime = e.target.value;
+                                  setAvailability(newAvail);
+                                }}
+                              />
+                            </div>
+                            {dayObj.slots.length > 1 && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  const newAvail = [...availability];
+                                  newAvail[i].slots = newAvail[i].slots.filter((_, idx) => idx !== slotIdx);
+                                  setAvailability(newAvail);
+                                }}
+                              >
+                                <PlusCircle className="h-4 w-4 rotate-45" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-fit text-xs h-7 gap-1 border-dashed"
+                          onClick={() => {
+                            const newAvail = [...availability];
+                            newAvail[i].slots.push({ startTime: '09:00', endTime: '17:00' });
+                            setAvailability(newAvail);
+                          }}
+                        >
+                          <PlusCircle className="h-3 w-3" /> Add Slot
+                        </Button>
                       </div>
                     </div>
                   ))}

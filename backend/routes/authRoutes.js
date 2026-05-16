@@ -61,6 +61,7 @@ router.post('/register', async (req, res) => {
     if (role === 'tutor') {
       let parsedSubjects = [];
       let parsedTimings = [];
+      let parsedAvailability = [];
       try {
         if (typeof tutorData.subjects === 'string') {
           parsedSubjects = JSON.parse(tutorData.subjects);
@@ -71,6 +72,11 @@ router.post('/register', async (req, res) => {
           parsedTimings = JSON.parse(availableTimings);
         } else if (Array.isArray(availableTimings)) {
           parsedTimings = availableTimings;
+        }
+        if (typeof tutorData.availability === 'string') {
+          parsedAvailability = JSON.parse(tutorData.availability);
+        } else if (Array.isArray(tutorData.availability)) {
+          parsedAvailability = tutorData.availability;
         }
       } catch (err) { }
 
@@ -86,6 +92,7 @@ router.post('/register', async (req, res) => {
         hourlyRate: tutorData.hourlyRate || 500,
         subjects: parsedSubjects,
         availableTimings: parsedTimings,
+        availability: parsedAvailability,
         photo: tutorData.photo || "https://ui-avatars.com/api/?name=" + encodeURIComponent(full_name) + "&background=random"
       });
       await tutor.save();

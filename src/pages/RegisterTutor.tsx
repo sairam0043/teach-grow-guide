@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Calendar, Clock, PlusCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleLogin } from "@react-oauth/google";
 
 import { toast } from "sonner";
@@ -30,7 +31,10 @@ const RegisterTutor = () => {
   const [teachingMode, setTeachingMode] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [bio, setBio] = useState("");
-  const [timingsInput, setTimingsInput] = useState("");
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
+    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
+  );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -64,6 +68,21 @@ const RegisterTutor = () => {
       toast.error("Password and confirm password must match.");
       return;
     }
+
+    const selectedDays = availability.filter(a => a.selected);
+    for (const day of selectedDays) {
+      for (const slot of day.slots) {
+        if (!slot.startTime || !slot.endTime) {
+           toast.error(`Please set valid times for ${day.day}.`);
+           return;
+        }
+        if (slot.endTime <= slot.startTime) {
+           toast.error(`End time must be later than start time for ${day.day}.`);
+           return;
+        }
+      }
+    }
+
     setLoading(true);
 
     let photoUrl: string | undefined;
@@ -94,7 +113,9 @@ const RegisterTutor = () => {
       qualification,
       city,
       teaching_mode: teachingMode.toLowerCase(),
-      availableTimings: JSON.stringify(timingsInput.split(",").map(t => t.trim()).filter(t => t.length > 0)),
+      availability: JSON.stringify(selectedDays.flatMap(dayObj => 
+        dayObj.slots.map(slot => ({ day: dayObj.day, startTime: slot.startTime, endTime: slot.endTime }))
+      )),
       ...(photoUrl && { photo: photoUrl })
     });
 
@@ -204,10 +225,90 @@ const RegisterTutor = () => {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="timings">Available Demo Timings (Optional)</Label>
-                <Input id="timings" placeholder="E.g., Mon 5PM - 6PM, Sat 10AM (comma separated)" value={timingsInput} onChange={(e) => setTimingsInput(e.target.value)} />
-                <p className="text-xs text-muted-foreground">You can also manage these later in your dashboard.</p>
+              <div className="space-y-4">
+                <Label className="text-base font-semibold flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" /> Available Demo Timings
+                </Label>
+                <div className="grid gap-3">
+                  {availability.map((dayObj, i) => (
+                    <div key={dayObj.day} className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 border rounded-lg bg-secondary/5 hover:bg-secondary/10 transition-colors">
+                      <div className="flex items-center gap-3 min-w-[120px]">
+                        <Checkbox 
+                           id={`day-${dayObj.day}`} 
+                           checked={dayObj.selected}
+                           onCheckedChange={(checked) => {
+                             const newAvail = [...availability];
+                             newAvail[i].selected = checked === true;
+                             setAvailability(newAvail);
+                           }}
+                        />
+                        <Label htmlFor={`day-${dayObj.day}`} className="font-medium cursor-pointer">{dayObj.day}</Label>
+                      </div>
+                      
+                      {dayObj.selected && (
+                        <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                          {dayObj.slots.map((slot, slotIdx) => (
+                            <div key={slotIdx} className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                <Input 
+                                  type="time" 
+                                  className="w-[100px] h-8 text-xs" 
+                                  value={slot.startTime}
+                                  onChange={(e) => {
+                                    const newAvail = [...availability];
+                                    newAvail[i].slots[slotIdx].startTime = e.target.value;
+                                    setAvailability(newAvail);
+                                  }}
+                                />
+                              </div>
+                              <span className="text-muted-foreground text-xs">to</span>
+                              <div className="flex items-center gap-2">
+                                <Input 
+                                  type="time" 
+                                  className="w-[100px] h-8 text-xs"
+                                  value={slot.endTime}
+                                  onChange={(e) => {
+                                    const newAvail = [...availability];
+                                    newAvail[i].slots[slotIdx].endTime = e.target.value;
+                                    setAvailability(newAvail);
+                                  }}
+                                />
+                              </div>
+                              {dayObj.slots.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newAvail = [...availability];
+                                    newAvail[i].slots = newAvail[i].slots.filter((_, idx) => idx !== slotIdx);
+                                    setAvailability(newAvail);
+                                  }}
+                                  className="text-destructive hover:text-destructive/80"
+                                >
+                                  <PlusCircle className="h-4 w-4 rotate-45" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="w-fit text-xs h-7 gap-1"
+                            onClick={() => {
+                              const newAvail = [...availability];
+                              newAvail[i].slots.push({ startTime: '09:00', endTime: '17:00' });
+                              setAvailability(newAvail);
+                            }}
+                          >
+                            <PlusCircle className="h-3 w-3" /> Add Slot
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Select the days and times you are generally available for demo sessions. You can fine-tune this later in your dashboard.</p>
               </div>
 
               <div className="space-y-2">
