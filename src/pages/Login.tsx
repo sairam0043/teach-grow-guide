@@ -120,7 +120,7 @@ const Login = () => {
         <Card className="w-full max-w-md shadow-card">
           <CardHeader className="text-center">
             <div className="mx-auto mb-2 flex h-16 w-auto items-center justify-center">
-              <img src="/" alt="Logo" className="h-16 w-auto" />
+              <img src="/logo.png" alt="Logo" className="h-16 w-auto" />
             </div>
             <CardTitle className="text-2xl">
               {view === "login" ? "Welcome Back" : view === "forgot" ? "Reset Password" : "Enter OTP"}

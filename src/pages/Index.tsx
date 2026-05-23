@@ -196,9 +196,14 @@ const Index = () => {
               <Button size="lg" variant="secondary" asChild>
                 <Link to="/register/student">Get Started Free</Link>
               </Button>
-              <Button size="lg" variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground" asChild>
-                <Link to="/register/tutor">Join as a Tutor</Link>
-              </Button>
+
+
+
+
+
+
+
+
             </div>
           </div>
         </div>

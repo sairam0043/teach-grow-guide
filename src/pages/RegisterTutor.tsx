@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,36 @@ const RegisterTutor = () => {
     DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
   );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>("");
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image must be less than 5MB.");
+        return;
+      }
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+      }
+      setPhotoFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    } else {
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+      }
+      setPhotoFile(null);
+      setPhotoPreview("");
+    }
+  };
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -316,19 +346,33 @@ const RegisterTutor = () => {
                 <Textarea id="bio" rows={4} maxLength={500} placeholder="Tell students about yourself and your teaching style..." required value={bio} onChange={(e) => setBio(e.target.value)} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="photo">Profile Photo</Label>
-                <Input
-                  id="photo"
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                  onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-                  className="cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
-                />
-                <p className="text-xs text-muted-foreground">Upload a photo from your device (JPEG, PNG, GIF or WebP, max 5MB). Shown when students browse tutors.</p>
-                {photoFile && (
-                  <p className="text-sm text-muted-foreground">Selected: {photoFile.name}</p>
-                )}
+              <div className="space-y-3">
+                <Label htmlFor="photo" className="text-sm font-semibold">Profile Photo</Label>
+                <div className="flex flex-col sm:flex-row items-center gap-4 p-4 border rounded-xl bg-secondary/5">
+                  <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-primary/20 bg-secondary/30 flex items-center justify-center shrink-0">
+                    {photoPreview ? (
+                      <img
+                        src={photoPreview}
+                        alt="Profile Preview"
+                        className="w-full h-full object-cover animate-in fade-in zoom-in-95 duration-200"
+                      />
+                    ) : (
+                      <div className="text-center p-2 text-[10px] text-muted-foreground font-medium">
+                        No Photo
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2 w-full">
+                    <Input
+                      id="photo"
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                      onChange={handlePhotoChange}
+                      className="cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground">Upload a photo from your device (JPEG, PNG, GIF or WebP, max 5MB). Shown when students browse tutors.</p>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">

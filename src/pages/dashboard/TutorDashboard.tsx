@@ -18,6 +18,7 @@ import { RootState, AppDispatch } from "@/redux/store";
 import { toast } from "sonner";
 import API_URL from "@/config/api";
 import { Textarea } from "@/components/ui/textarea";
+import { resolveAssetUrl } from "@/lib/assetUrl";
 
 const TutorDashboard = () => {
   const { user } = useAuth();
@@ -45,6 +46,20 @@ const TutorDashboard = () => {
     subjects: "",
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>("");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image must be less than 5MB.");
+        return;
+      }
+      setSelectedFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -136,12 +151,31 @@ const TutorDashboard = () => {
     if (!tutorProfile?.id) return;
     setIsSavingProfile(true);
     try {
+      let uploadedPhotoUrl = tutorProfile?.photo || "";
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append("photo", selectedFile);
+        const uploadRes = await axios.post(`${API_URL}/upload/photo`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        uploadedPhotoUrl = uploadRes.data.url;
+      }
+
       const payload = {
         ...profileData,
         subjects: profileData.subjects.split(",").map(s => s.trim()).filter(Boolean),
-        hourlyRate: Number(profileData.hourlyRate)
+        hourlyRate: Number(profileData.hourlyRate),
+        photo: uploadedPhotoUrl
       };
+      
       await axios.put(`${API_URL}/tutors/${tutorProfile.id}/profile`, payload);
+      
+      // Update local state
+      setTutorProfile((prev: any) => ({ ...prev, photo: uploadedPhotoUrl }));
+      setSelectedFile(null);
+      
       toast.success("Public profile updated successfully!");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");
@@ -155,6 +189,10 @@ const TutorDashboard = () => {
   
   // Extract unique students
   const uniqueStudents = Array.from(new Map(enrolledClasses.map(cls => [cls.studentId, cls])).values());
+
+  const photoSrc =
+    resolveAssetUrl(tutorProfile?.photo) ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=400`;
 
   return (
     <PageLayout>
@@ -491,6 +529,34 @@ const TutorDashboard = () => {
                 <div className="grid lg:grid-cols-3 gap-8">
                    <div className="lg:col-span-1 border rounded-xl p-5 bg-secondary/10 self-start shadow-sm">
                       <h4 className="font-semibold mb-4 text-foreground border-b pb-2">Account Overview</h4>
+                      
+                      {/* Profile Photo Display and Upload */}
+                      <div className="flex flex-col items-center mb-6 pb-6 border-b">
+                        <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-background shadow-md bg-secondary/30">
+                          <img 
+                            src={photoPreview || photoSrc} 
+                            alt={name} 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=400`;
+                            }}
+                          />
+                        </div>
+                        <div className="mt-4 w-full">
+                          <Label htmlFor="photo-upload" className="text-xs font-semibold text-muted-foreground block mb-1">
+                            Change Profile Photo
+                          </Label>
+                          <Input 
+                            id="photo-upload" 
+                            type="file" 
+                            accept="image/*" 
+                            className="bg-background cursor-pointer text-xs" 
+                            onChange={handleFileChange}
+                          />
+                        </div>
+                      </div>
+
                       <div className="space-y-4">
                         <div>
                           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Name</p>

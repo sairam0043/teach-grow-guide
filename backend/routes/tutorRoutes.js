@@ -379,7 +379,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -387,6 +387,7 @@ router.put('/:id/profile', async (req, res) => {
     if (hourlyRate !== undefined) updateData.hourlyRate = hourlyRate;
     if (category !== undefined) updateData.category = category;
     if (subjects !== undefined) updateData.subjects = subjects;
+    if (photo !== undefined) updateData.photo = photo;
 
     const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });

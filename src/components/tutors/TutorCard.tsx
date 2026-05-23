@@ -21,6 +21,10 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
           alt={tutor.name}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null; // prevent infinite loops if fallback fails
+            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
+          }}
         />
         <Badge className="absolute left-3 top-3 bg-primary text-primary-foreground">
           {tutor.category}
