@@ -16,8 +16,30 @@ import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import API_URL from "@/config/api";
 
-const academicSubjects = ["Mathematics", "Physics", "Chemistry", "Biology", "Coding", "English"];
-const extracurricularSubjects = ["Music", "Dance", "Art", "Chess", "Yoga", "Public Speaking"];
+const academicSubjects = [
+  "Mathematics", 
+  "Physics", 
+  "Chemistry", 
+  "Biology", 
+  "Coding / Computer Science", 
+  "English", 
+  "History", 
+  "Geography", 
+  "Economics & Finance", 
+  "Foreign Languages", 
+  "Other"
+];
+const extracurricularSubjects = [
+  "Music (Vocal/Instruments)", 
+  "Dance", 
+  "Fine Arts & Drawing", 
+  "Chess", 
+  "Yoga & Meditation", 
+  "Public Speaking & Debate", 
+  "Creative Writing", 
+  "Photography & Video", 
+  "Other"
+];
 
 const RegisterTutor = () => {
   const [loading, setLoading] = useState(false);
@@ -30,6 +52,7 @@ const RegisterTutor = () => {
   const [category, setCategory] = useState("");
   const [teachingMode, setTeachingMode] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [otherSubjectText, setOtherSubjectText] = useState("");
   const [bio, setBio] = useState("");
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
@@ -90,10 +113,21 @@ const RegisterTutor = () => {
       toast.error("Please select category and teaching mode.");
       return;
     }
-    if (selectedSubjects.length === 0) {
+
+    let finalSubjects = selectedSubjects.filter(s => s !== "Other");
+    if (selectedSubjects.includes("Other") && otherSubjectText.trim()) {
+      const customList = otherSubjectText
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      finalSubjects = [...finalSubjects, ...customList];
+    }
+
+    if (finalSubjects.length === 0) {
       toast.error("Please select at least one subject.");
       return;
     }
+
     if (password !== confirmPassword) {
       toast.error("Password and confirm password must match.");
       return;
@@ -137,7 +171,7 @@ const RegisterTutor = () => {
       phone,
       role: "tutor",
       category: category.toLowerCase(),
-      subjects: JSON.stringify(selectedSubjects),
+      subjects: JSON.stringify(finalSubjects),
       bio,
       experience,
       qualification,
@@ -232,26 +266,43 @@ const RegisterTutor = () => {
               </div>
 
               {subjects.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Subjects / Skills</Label>
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Subjects / Skills</Label>
                   <div className="flex flex-wrap gap-2">
                     {subjects.map((s) => (
                       <label
                         key={s}
-                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-secondary ${
-                          selectedSubjects.includes(s) ? "border-primary bg-primary/5" : ""
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all hover:bg-secondary/80 ${
+                          selectedSubjects.includes(s) ? "border-primary bg-primary/5 text-foreground font-medium" : "text-muted-foreground"
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={selectedSubjects.includes(s)}
                           onChange={() => toggleSubject(s)}
-                          className="accent-primary"
+                          className="accent-primary h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                         />
                         {s}
                       </label>
                     ))}
                   </div>
+
+                  {selectedSubjects.includes("Other") && (
+                    <div className="space-y-2 mt-3 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <Label htmlFor="custom-subjects" className="text-xs font-semibold text-muted-foreground block mb-1">
+                        Specify Your Other Subject(s)
+                      </Label>
+                      <Input
+                        id="custom-subjects"
+                        required
+                        placeholder="e.g. Sanskrit, Artificial Intelligence, German (comma-separated)"
+                        value={otherSubjectText}
+                        onChange={(e) => setOtherSubjectText(e.target.value)}
+                        className="bg-background shadow-sm text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">Type any custom subjects separated by commas.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
