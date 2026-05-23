@@ -407,7 +407,7 @@ const TutorDashboard = () => {
                               <Label className="text-xs text-muted-foreground w-8 text-center font-semibold">IN</Label>
                               <Input 
                                 type="time" 
-                                className="w-[110px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2" 
+                                className="w-[130px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2" 
                                 value={slot.startTime}
                                 onChange={(e) => {
                                   const newAvail = [...availability];
@@ -420,7 +420,7 @@ const TutorDashboard = () => {
                               <Label className="text-xs text-muted-foreground w-8 text-center font-semibold">OUT</Label>
                               <Input 
                                 type="time" 
-                                className="w-[110px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2"
+                                className="w-[130px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2"
                                 value={slot.endTime}
                                 onChange={(e) => {
                                   const newAvail = [...availability];

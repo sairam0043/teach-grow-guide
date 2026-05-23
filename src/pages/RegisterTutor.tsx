@@ -334,7 +334,7 @@ const RegisterTutor = () => {
                                 <Clock className="h-3 w-3 text-muted-foreground" />
                                 <Input 
                                   type="time" 
-                                  className="w-[100px] h-8 text-xs" 
+                                  className="w-[130px] h-8 text-xs" 
                                   value={slot.startTime}
                                   onChange={(e) => {
                                     const newAvail = [...availability];
@@ -347,7 +347,7 @@ const RegisterTutor = () => {
                               <div className="flex items-center gap-2">
                                 <Input 
                                   type="time" 
-                                  className="w-[100px] h-8 text-xs"
+                                  className="w-[130px] h-8 text-xs"
                                   value={slot.endTime}
                                   onChange={(e) => {
                                     const newAvail = [...availability];
