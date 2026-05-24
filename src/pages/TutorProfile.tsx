@@ -140,6 +140,7 @@ const TutorProfile = () => {
       toast.error("Please select a subject for the demo");
       return;
     }
+
     if (!user) {
       toast.error(
         <div className="flex flex-col gap-2 w-full text-left">
@@ -150,6 +151,7 @@ const TutorProfile = () => {
             <button
               onClick={() => {
                 toast.dismiss();
+                window.scrollTo(0, 0);
                 navigate("/login");
               }}
               className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
@@ -159,6 +161,7 @@ const TutorProfile = () => {
             <button
               onClick={() => {
                 toast.dismiss();
+                window.scrollTo(0, 0);
                 navigate("/register/student");
               }}
               className="bg-secondary text-secondary-foreground border text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-secondary/80 transition-colors shadow-sm"

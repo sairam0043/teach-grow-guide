@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,10 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
 const RegisterStudent = () => {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
