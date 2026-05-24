@@ -29,9 +29,7 @@ const Login = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
 
   const { signIn, googleSignIn } = useAuth();
-  const navigate = useNavigate();
-
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const navigate = useNavigate();  const handleGoogleSuccess = async (credentialResponse: any) => {
     setLoading(true);
     const { error } = await googleSignIn(credentialResponse.credential);
     setLoading(false);
@@ -40,6 +38,19 @@ const Login = () => {
       toast.error(error.message || "Google login failed");
     } else {
       toast.success("Logged in with Google!");
+      
+      const pending = sessionStorage.getItem("pending_booking");
+      if (pending) {
+        try {
+          const { tutorId } = JSON.parse(pending);
+          if (tutorId) {
+            navigate(`/tutors/${tutorId}`);
+            return;
+          }
+        } catch (e) {
+          console.error("Error parsing pending booking redirect:", e);
+        }
+      }
       navigate("/");
     }
   };
@@ -63,6 +74,20 @@ const Login = () => {
           if (raw) {
             const parsed = JSON.parse(raw);
             const userRole = parsed.role;
+            
+            const pending = sessionStorage.getItem("pending_booking");
+            if (pending && userRole === "student") {
+              try {
+                const { tutorId } = JSON.parse(pending);
+                if (tutorId) {
+                  navigate(`/tutors/${tutorId}`);
+                  return;
+                }
+              } catch (e) {
+                console.error("Error parsing pending booking redirect:", e);
+              }
+            }
+
             if (userRole === "admin") navigate("/dashboard/admin");
             else if (userRole === "tutor") navigate("/dashboard/tutor");
             else navigate("/dashboard/student");
@@ -74,7 +99,6 @@ const Login = () => {
       setTimeout(checkAndRedirect, 300);
     }
   };
-
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetEmail) return toast.error("Please enter your email");

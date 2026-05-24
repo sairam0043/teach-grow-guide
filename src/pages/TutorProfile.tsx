@@ -76,6 +76,25 @@ const TutorProfile = () => {
         const res = await axios.get(`${API_URL}/tutors/${id}`);
         setTutor(res.data);
 
+        // Restore pending booking selections from sessionStorage if present
+        const rawPending = sessionStorage.getItem("pending_booking");
+        if (rawPending) {
+          try {
+            const pending = JSON.parse(rawPending);
+            if (pending.tutorId === id) {
+              if (pending.date) setDate(new Date(pending.date));
+              if (pending.subject) setSelectedSubject(pending.subject);
+              if (pending.slot) setSelectedSlot(pending.slot);
+              if (pending.plan) setSelectedPlan(pending.plan);
+              
+              sessionStorage.removeItem("pending_booking");
+              toast.success("Restored your selected booking slot!");
+            }
+          } catch (e) {
+            console.error("Error parsing pending booking:", e);
+          }
+        }
+
         if (user) {
           const bRes = await axios.get(`${API_URL}/tutors/${id}/bookings/student/${user.id}`);
           setExistingBookings(bRes.data);
@@ -141,6 +160,11 @@ const TutorProfile = () => {
       return;
     }
 
+    if (!selectedPlan && (completedBooking || hasActiveBooking)) {
+      toast.error("Please select a pricing option to continue as a demo class is already completed.");
+      return;
+    }
+
     if (!user) {
       toast.error(
         <div className="flex flex-col gap-2 w-full text-left">
@@ -151,6 +175,13 @@ const TutorProfile = () => {
             <button
               onClick={() => {
                 toast.dismiss();
+                sessionStorage.setItem("pending_booking", JSON.stringify({
+                  tutorId: id,
+                  date: date ? date.toISOString() : null,
+                  subject: selectedSubject,
+                  slot: selectedSlot,
+                  plan: selectedPlan
+                }));
                 window.scrollTo(0, 0);
                 navigate("/login");
               }}
@@ -161,6 +192,13 @@ const TutorProfile = () => {
             <button
               onClick={() => {
                 toast.dismiss();
+                sessionStorage.setItem("pending_booking", JSON.stringify({
+                  tutorId: id,
+                  date: date ? date.toISOString() : null,
+                  subject: selectedSubject,
+                  slot: selectedSlot,
+                  plan: selectedPlan
+                }));
                 window.scrollTo(0, 0);
                 navigate("/register/student");
               }}
@@ -240,13 +278,40 @@ const TutorProfile = () => {
     }
   };
 
+  const parseTimingStringToDate = (timingStr: string): Date | null => {
+    try {
+      const parts = timingStr.split(' at ');
+      if (parts.length === 2) {
+        // Clean ordinal suffixes from the date part (e.g. "May 20th, 2026" -> "May 20, 2026")
+        const datePartCleaned = parts[0].replace(/(\d+)(st|nd|rd|th)/, '$1');
+        const timePart = parts[1];
+        const combined = `${datePartCleaned} ${timePart}`;
+        const parsed = new Date(combined);
+        if (!isNaN(parsed.getTime())) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing timing string:", e);
+    }
+    return null;
+  };
+
+  const isBookingPast = (timingStr: string): boolean => {
+    const parsed = parseTimingStringToDate(timingStr);
+    if (parsed) {
+      return parsed < new Date();
+    }
+    return false;
+  };
+
   const formattedSelectedTiming = isValidDate(date) && selectedSlot ? `${format(date as Date, 'PPP')} at ${selectedSlot}` : null;
   const selectedExisting = formattedSelectedTiming ? existingBookings.find(b => b.timing === formattedSelectedTiming && b.status === "confirmed") : undefined;
 
-  const activeDemoBooking = existingBookings.find(b => b.status === "confirmed");
-  const completedBooking = existingBookings.find(b => b.status === "completed");
-  const enrolledBooking = existingBookings.find(b => b.status === "enrolled");
-  const pendingBooking = existingBookings.find(b => b.status === "pending");
+  const activeDemoBooking = existingBookings.find(b => b.status === "confirmed" && !isBookingPast(b.timing));
+  const completedBooking = existingBookings.find(b => b.status === "completed" || (b.status === "confirmed" && isBookingPast(b.timing)));
+  const enrolledBooking = existingBookings.find(b => b.status === "enrolled" && !isBookingPast(b.timing));
+  const pendingBooking = existingBookings.find(b => b.status === "pending" && !isBookingPast(b.timing));
 
   const hasActiveBooking = !!activeDemoBooking;
   const activeBookingTiming = activeDemoBooking?.timing;
@@ -580,13 +645,11 @@ const TutorProfile = () => {
                       className="w-full mt-4"
                       variant={selectedExisting ? "destructive" : "default"}
                       onClick={handleBookDemo}
-                      disabled={(!availableSlotsForDate || availableSlotsForDate.length === 0)
-                        || (!selectedPlan && hasActiveBooking && !selectedExisting)
-                        || (completedBooking && !selectedPlan)}
+                      disabled={!availableSlotsForDate || availableSlotsForDate.length === 0}
                     >
                       {selectedExisting
                         ? "Cancel Booking"
-                        : ((selectedPlan || completedBooking || hasActiveBooking) ? (selectedPlan ? `Book Class & Pay ₹${selectedPlan.price}` : "Select a Plan to Book") : "Book Demo Session")}
+                        : (selectedPlan ? `Book Class & Pay ₹${selectedPlan.price}` : "Book Demo Session")}
                     </Button>
 
                     {!selectedExisting && (
