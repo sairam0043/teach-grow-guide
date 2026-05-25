@@ -176,8 +176,15 @@ const BrowseTutors = () => {
           </div>
 
           {/* Results */}
-          <div className="mb-4 text-sm text-muted-foreground">
-            {filtered.length} tutor{filtered.length !== 1 ? "s" : ""} found
+          <div className="mb-4 text-sm text-muted-foreground min-h-[20px]">
+            {isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-primary/60 animate-pulse" />
+                Loading tutors...
+              </span>
+            ) : (
+              `${filtered.length} tutor${filtered.length !== 1 ? "s" : ""} found`
+            )}
           </div>
 
           {isLoading ? (
