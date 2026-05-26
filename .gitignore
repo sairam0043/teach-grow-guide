@@ -32,6 +32,9 @@ dist-ssr
 ./backend/.env
 ./backend/.env.local
 # ./backend/uploads
+backend/uploads/
+test-results/
+backend/scratch/
 ./backend/.env.development.local
 ./backend/.env.test.local
 ./backend/.env.production.local

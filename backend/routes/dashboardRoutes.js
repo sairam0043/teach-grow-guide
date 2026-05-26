@@ -11,8 +11,8 @@ router.get('/admin', async (req, res) => {
     const pendingTutors = await Tutor.countDocuments({ status: 'pending' });
     const activeTutors = await Tutor.countDocuments({ status: 'approved' });
     const totalBookings = await Booking.countDocuments();
-    // Simulate revenue just for metrics demo (in thousands)
-    const totalRevenue = totalBookings * 500; 
+    const enrolledBookings = await Booking.find({ status: 'enrolled' });
+    const totalRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
 
     // Calculate real average rating
     const tutorsWithRatings = await Tutor.find({ rating: { $gt: 0 }, reviewCount: { $gt: 0 } });

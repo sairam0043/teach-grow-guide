@@ -26,11 +26,16 @@ router.get('/', async (req, res) => {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.featured) filter.featured = req.query.featured === 'true';
 
-    const tutors = await Tutor.find(filter);
+    const tutors = await Tutor.find(filter).populate('userId', 'email phone avatar');
     // Transform _id to id for frontend compatibility
     const formattedTutors = tutors.map(t => {
       const obj = t.toObject();
       obj.id = obj._id.toString();
+      if (obj.userId) {
+        obj.email = obj.userId.email;
+        obj.phone = obj.userId.phone;
+        obj.avatar = obj.userId.avatar;
+      }
       if (obj.demoSlots) {
         obj.demoSlots = obj.demoSlots.map(s => ({...s, id: s._id.toString()}));
       }
@@ -45,11 +50,16 @@ router.get('/', async (req, res) => {
 // Get a single tutor by database ID
 router.get('/:id', async (req, res) => {
   try {
-    const tutor = await Tutor.findById(req.params.id);
+    const tutor = await Tutor.findById(req.params.id).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
+    if (obj.userId) {
+      obj.email = obj.userId.email;
+      obj.phone = obj.userId.phone;
+      obj.avatar = obj.userId.avatar;
+    }
     if (obj.demoSlots) {
       obj.demoSlots = obj.demoSlots.map(s => ({...s, id: s._id.toString()}));
     }
@@ -63,11 +73,16 @@ router.get('/:id', async (req, res) => {
 // Get a tutor by associated user ID
 router.get('/user/:userId', async (req, res) => {
   try {
-    const tutor = await Tutor.findOne({ userId: req.params.userId });
+    const tutor = await Tutor.findOne({ userId: req.params.userId }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
+    if (obj.userId) {
+      obj.email = obj.userId.email;
+      obj.phone = obj.userId.phone;
+      obj.avatar = obj.userId.avatar;
+    }
     if (obj.demoSlots) {
       obj.demoSlots = obj.demoSlots.map(s => ({...s, id: s._id.toString()}));
     }
@@ -141,7 +156,7 @@ router.post('/:id/book', async (req, res) => {
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous"
     });
-    
+    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-demo-${newBooking._id}`;
     await newBooking.save();
     console.log(`[Booking] Demo session saved for student: ${studentName}`);
     
@@ -154,8 +169,8 @@ router.post('/:id/book', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutorUser.email,
           subject: 'New Demo Session Requested',
-          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nPlease check your dashboard for details.\n\nBest regards,\nCuvasol Tutor Team`,
-          html: `<h3>New Demo Session Requested</h3><p>Hello <b>${tutor.name}</b>,</p><p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p><p>Please check your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
+          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nYou can join the private video room directly here: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
+          html: `<h3>New Demo Session Requested</h3><p>Hello <b>${tutor.name}</b>,</p><p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p><p>You can join the private video room directly by clicking the link below:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
         });
         console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
       } else {
@@ -202,7 +217,7 @@ router.post('/:id/book-class', async (req, res) => {
       subject,
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
-      status: isGroup ? 'pending' : 'enrolled',
+      status: isGroup ? 'pending' : 'pending_payment',
       planType,
       amountPaid,
       groupDetails: isGroup ? {
@@ -210,7 +225,7 @@ router.post('/:id/book-class', async (req, res) => {
         invitedEmails: otherStudentsEmails.map(email => ({ email, status: 'pending', paidShare: false }))
       } : undefined
     });
-    
+    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}`;
     await newBooking.save();
 
     if (isGroup) {
@@ -249,8 +264,8 @@ router.post('/:id/book-class', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutorUser.email,
           subject: isGroup ? 'New Group Class Booking' : 'New Class Booking',
-          text: `Hello ${tutor.name},\n\nA new class has been booked by ${studentName} for ${subject} at ${timing}.\n\nType: ${isGroup ? 'Group Class' : 'Individual Class'}\nPlan: ${planType}\n\nPlease check your dashboard for details.\n\nBest regards,\nCuvasol Tutor Team`,
-          html: `<h3>New Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new class has been booked by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Type:</b> ${isGroup ? 'Group Class' : 'Individual Class'}<br><b>Plan:</b> ${planType}</p><p>Please check your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
+          text: `Hello ${tutor.name},\n\nA new class has been booked by ${studentName} for ${subject} at ${timing}.\n\nType: ${isGroup ? 'Group Class' : 'Individual Class'}\nPlan: ${planType}\n\nYou can join the private video room directly here: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
+          html: `<h3>New Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new class has been booked by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Type:</b> ${isGroup ? 'Group Class' : 'Individual Class'}<br><b>Plan:</b> ${planType}</p><p>You can join the private video room directly by clicking the link below:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
         });
         console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
       }
@@ -305,7 +320,9 @@ router.put('/booking/:bookingId/pay', async (req, res) => {
     booking.status = 'enrolled';
     booking.planType = planType;
     booking.amountPaid = amountPaid;
-    
+    if (!booking.meetingLink) {
+      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+    }
     await booking.save();
     res.json({ message: 'Payment successful, enrolled in course!', booking });
   } catch (err) {
@@ -347,7 +364,9 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
     } else if (allApproved) {
       booking.status = 'enrolled';
     }
-
+    if (booking.status === 'enrolled' && !booking.meetingLink) {
+      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+    }
     await booking.save();
 
     res.json({ message: `Successfully ${action}d the booking`, booking });
@@ -364,12 +383,17 @@ router.put('/:id/admin', async (req, res) => {
     if (status) updateData.status = status;
     if (featured !== undefined) updateData.featured = featured;
 
-    const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
     // Transform _id to id
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
+    if (obj.userId) {
+      obj.email = obj.userId.email;
+      obj.phone = obj.userId.phone;
+      obj.avatar = obj.userId.avatar;
+    }
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Error updating tutor', error: error.message });
@@ -379,7 +403,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects, photo } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -388,12 +412,27 @@ router.put('/:id/profile', async (req, res) => {
     if (category !== undefined) updateData.category = category;
     if (subjects !== undefined) updateData.subjects = subjects;
     if (photo !== undefined) updateData.photo = photo;
+    if (verificationDocument !== undefined) updateData.verificationDocument = verificationDocument;
 
-    const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    // Fetch the current tutor profile to check status
+    const currentTutor = await Tutor.findById(req.params.id);
+    if (!currentTutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    // If the tutor was previously rejected, updating their profile automatically re-submits it for review
+    if (currentTutor.status === 'rejected') {
+      updateData.status = 'pending';
+    }
+
+    const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
+    if (obj.userId) {
+      obj.email = obj.userId.email;
+      obj.phone = obj.userId.phone;
+      obj.avatar = obj.userId.avatar;
+    }
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Error updating tutor profile', error: error.message });

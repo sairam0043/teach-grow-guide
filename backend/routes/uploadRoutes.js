@@ -31,6 +31,27 @@ const upload = multer({
   }
 });
 
+// Multer storage and upload configuration for PDF/Image verification documents
+const storageDoc = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = (path.extname(file.originalname) || '').toLowerCase();
+    const safeExt = ['.pdf', '.jpg', '.jpeg', '.png'].includes(ext) ? ext : '.pdf';
+    cb(null, `tutor-doc-${uuidv4()}${safeExt}`);
+  }
+});
+
+const uploadDoc = multer({
+  storage: storageDoc,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const isImage = /^image\/(jpeg|jpg|png)$/i.test(file.mimetype);
+    const isPdf = file.mimetype === 'application/pdf';
+    if (isImage || isPdf) cb(null, true);
+    else cb(new Error('Only PDF, JPEG, and PNG document files are allowed.'));
+  }
+});
+
 // POST /api/upload/photo - single file for tutor profile photo
 router.post('/photo', upload.single('photo'), (req, res) => {
   try {
@@ -49,10 +70,28 @@ router.post('/photo', upload.single('photo'), (req, res) => {
   }
 });
 
+// POST /api/upload/document - single file for tutor verification credential (PDF or Image)
+router.post('/document', uploadDoc.single('document'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No document file uploaded.' });
+    }
+    const configuredBaseUrl = (process.env.BACKEND_URL || '').trim().replace(/\/$/, '');
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = (forwardedProto || req.protocol || 'http').split(',')[0].trim();
+    const inferredBaseUrl = `${protocol}://${req.get('host')}`;
+    const baseUrl = configuredBaseUrl || inferredBaseUrl;
+    const docUrl = `${baseUrl}/uploads/${req.file.filename}`;
+    res.json({ url: docUrl, filename: req.file.filename });
+  } catch (error) {
+    res.status(500).json({ message: 'Document upload failed', error: error.message });
+  }
+});
+
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'Image must be less than 5MB.' });
+      return res.status(400).json({ message: 'File size too large. Photo limit is 5MB, credentials limit is 10MB.' });
     }
   }
   if (err.message) {
@@ -62,3 +101,4 @@ router.use((err, req, res, next) => {
 });
 
 module.exports = router;
+

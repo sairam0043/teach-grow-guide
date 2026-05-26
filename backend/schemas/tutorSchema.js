@@ -10,6 +10,7 @@ const tutorSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   name: { type: String, required: true },
   photo: { type: String },
+  verificationDocument: { type: String },
   category: { type: String, required: true },
   mode: { type: String, required: true },
   qualification: { type: String },

@@ -89,6 +89,24 @@ const RegisterTutor = () => {
       setPhotoPreview("");
     }
   };
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docName, setDocName] = useState<string>("");
+
+  const handleDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Document must be less than 10MB.");
+        return;
+      }
+      setDocFile(file);
+      setDocName(file.name);
+    } else {
+      setDocFile(null);
+      setDocName("");
+    }
+  };
+
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -166,6 +184,23 @@ const RegisterTutor = () => {
       }
     }
 
+    let docUrl: string | undefined;
+    if (docFile) {
+      try {
+        const formData = new FormData();
+        formData.append("document", docFile);
+        const uploadRes = await axios.post(`${API_URL}/upload/document`, formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
+        docUrl = uploadRes.data?.url;
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Failed to upload verification document.";
+        toast.error(msg);
+        setLoading(false);
+        return;
+      }
+    }
+
     const { error } = await signUp(email, password, {
       full_name: name,
       phone,
@@ -180,7 +215,8 @@ const RegisterTutor = () => {
       availability: JSON.stringify(selectedDays.flatMap(dayObj => 
         dayObj.slots.map(slot => ({ day: dayObj.day, startTime: slot.startTime, endTime: slot.endTime }))
       )),
-      ...(photoUrl && { photo: photoUrl })
+      ...(photoUrl && { photo: photoUrl }),
+      ...(docUrl && { verificationDocument: docUrl })
     });
 
     if (error) {
@@ -422,6 +458,25 @@ const RegisterTutor = () => {
                       className="cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
                     />
                     <p className="text-xs text-muted-foreground">Upload a photo from your device (JPEG, PNG, GIF or WebP, max 5MB). Shown when students browse tutors.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="document" className="text-sm font-semibold">Verification Credentials (KYC)</Label>
+                <div className="flex flex-col sm:flex-row items-center gap-4 p-4 border rounded-xl bg-secondary/5">
+                  <div className="flex-1 space-y-2 w-full">
+                    <Input
+                      id="document"
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/jpg,image/png"
+                      onChange={handleDocChange}
+                      className="cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+                    />
+                    <p className="text-xs text-muted-foreground">Upload credential verification PDF, PNG, or JPEG (Max 10MB). E.g., professional degrees, ID proof, teaching certifications.</p>
+                    {docName && (
+                      <p className="text-xs text-emerald-600 font-semibold mt-1">✓ File selected: {docName}</p>
+                    )}
                   </div>
                 </div>
               </div>

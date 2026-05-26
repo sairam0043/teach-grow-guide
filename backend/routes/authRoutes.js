@@ -93,7 +93,8 @@ router.post('/register', async (req, res) => {
         subjects: parsedSubjects,
         availableTimings: parsedTimings,
         availability: parsedAvailability,
-        photo: tutorData.photo || "https://ui-avatars.com/api/?name=" + encodeURIComponent(full_name) + "&background=random"
+        photo: tutorData.photo || "https://ui-avatars.com/api/?name=" + encodeURIComponent(full_name) + "&background=random",
+        verificationDocument: tutorData.verificationDocument || ''
       });
       await tutor.save();
     }
@@ -130,17 +131,8 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // If user is a tutor, check approval status
-    if (user.role === 'tutor') {
-      const Tutor = require('../schemas/tutorSchema');
-      const tutor = await Tutor.findOne({ userId: user._id });
-      if (tutor && tutor.status !== 'approved') {
-        return res.status(403).json({ 
-          message: `Your tutor account is currently ${tutor.status}. Please wait for admin approval.`,
-          status: tutor.status
-        });
-      }
-    }
+    // Note: We now allow tutors to log in even if pending or rejected 
+    // so they can access their settings, see warnings, and correct/re-submit credentials!
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
@@ -214,17 +206,8 @@ router.post('/google', async (req, res) => {
       }
     }
 
-    // If existing user is a tutor, check approval status
-    if (user.role === 'tutor') {
-      const Tutor = require('../schemas/tutorSchema');
-      const tutor = await Tutor.findOne({ userId: user._id });
-      if (tutor && tutor.status !== 'approved') {
-        return res.status(403).json({
-          message: `Your tutor account is currently ${tutor.status}. Please contact admin for approval.`,
-          status: tutor.status
-        });
-      }
-    }
+    // Note: We now allow tutors to log in even if pending or rejected
+    // so they can access their settings, see warnings, and correct/re-submit credentials!
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 

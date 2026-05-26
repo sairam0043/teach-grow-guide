@@ -9,6 +9,8 @@ const tutorRoutes = require('./routes/tutorRoutes');
 const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const messageRoutes = require('./routes/messageRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -41,6 +43,8 @@ app.use('/api/tutors', tutorRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/messages', messageRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'cuvasol-backend' });

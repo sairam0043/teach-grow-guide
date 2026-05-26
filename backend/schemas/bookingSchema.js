@@ -7,10 +7,11 @@ const bookingSchema = new mongoose.Schema({
   studentId: { type: String, required: true },
   studentName: { type: String, required: true },
   subject: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'], default: 'confirmed' },
+  status: { type: String, enum: ['pending', 'pending_payment', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'], default: 'confirmed' },
   planType: { type: String },
   amountPaid: { type: Number },
   isRated: { type: Boolean, default: false },
+  meetingLink: { type: String },
   groupDetails: {
     isGroup: { type: Boolean, default: false },
     invitedEmails: [{

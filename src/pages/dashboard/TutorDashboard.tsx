@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import API_URL from "@/config/api";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/assetUrl";
+import ChatPanel from "@/components/chat/ChatPanel";
 
 const TutorDashboard = () => {
   const { user } = useAuth();
@@ -30,6 +31,16 @@ const TutorDashboard = () => {
   const [tutorProfile, setTutorProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<any[]>([]);
+
+  // Tab redirects
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = sessionStorage.getItem("tutor_dashboard_tab");
+    if (saved) {
+      sessionStorage.removeItem("tutor_dashboard_tab");
+      return saved;
+    }
+    return "demos";
+  });
   const [loadingBookings, setLoadingBookings] = useState(true);
   
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -48,6 +59,20 @@ const TutorDashboard = () => {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
+  const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
+  const [docNamePreview, setDocNamePreview] = useState<string>("");
+
+  const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Document must be less than 10MB.");
+        return;
+      }
+      setSelectedDocFile(file);
+      setDocNamePreview(file.name);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -163,18 +188,37 @@ const TutorDashboard = () => {
         uploadedPhotoUrl = uploadRes.data.url;
       }
 
+      let uploadedDocUrl = tutorProfile?.verificationDocument || "";
+      if (selectedDocFile) {
+        const formData = new FormData();
+        formData.append("document", selectedDocFile);
+        const uploadRes = await axios.post(`${API_URL}/upload/document`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        uploadedDocUrl = uploadRes.data.url;
+      }
+
       const payload = {
         ...profileData,
         subjects: profileData.subjects.split(",").map(s => s.trim()).filter(Boolean),
         hourlyRate: Number(profileData.hourlyRate),
-        photo: uploadedPhotoUrl
+        photo: uploadedPhotoUrl,
+        verificationDocument: uploadedDocUrl
       };
       
       await axios.put(`${API_URL}/tutors/${tutorProfile.id}/profile`, payload);
       
       // Update local state
-      setTutorProfile((prev: any) => ({ ...prev, photo: uploadedPhotoUrl }));
+      setTutorProfile((prev: any) => ({ 
+        ...prev, 
+        photo: uploadedPhotoUrl,
+        verificationDocument: uploadedDocUrl 
+      }));
       setSelectedFile(null);
+      setSelectedDocFile(null);
+      setDocNamePreview("");
       
       toast.success("Public profile updated successfully!");
     } catch (error: any) {
@@ -203,11 +247,24 @@ const TutorDashboard = () => {
         </div>
 
         {tutorProfile?.status === "pending" && (
-          <Alert variant="destructive" className="mb-8 border-yellow-500 bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 shadow-sm rounded-xl">
+          <Alert variant="destructive" className="mb-8 border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-500 shadow-sm rounded-xl">
             <AlertCircle className="h-5 w-5" />
             <AlertTitle className="font-bold text-lg">Account Pending Approval</AlertTitle>
             <AlertDescription className="mt-2 text-sm leading-relaxed">
-              Your tutor profile is under review by our admin team. Once approved, you will be publicly listed on the platform and students will be able to book you.
+              Your tutor profile is under review by our admin team. Once approved, you will be publicly listed on the platform and students will be able to book your slots.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {tutorProfile?.status === "rejected" && (
+          <Alert variant="destructive" className="mb-8 border-rose-500 bg-rose-500/10 text-rose-800 dark:text-rose-500 shadow-sm rounded-xl">
+            <AlertCircle className="h-5 w-5 text-rose-600" />
+            <AlertTitle className="font-bold text-lg">Application Status: Rejected</AlertTitle>
+            <AlertDescription className="mt-2 text-sm leading-relaxed">
+              Your tutor application was rejected by the admin team due to verification discrepancies. 
+              <span className="block mt-1 font-semibold text-foreground">
+                How to resolve: Please update your bio, qualification, or re-upload a clean, valid KYC verification document (PDF/Image) below and click "Update Public Profile" to automatically re-submit your profile for review!
+              </span>
             </AlertDescription>
           </Alert>
         )}
@@ -239,13 +296,14 @@ const TutorDashboard = () => {
           ))}
         </div>
 
-        <Tabs defaultValue="demos" className="space-y-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/50 p-1 rounded-xl shadow-sm border mb-4 h-auto justify-start w-full overflow-x-auto whitespace-nowrap">
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Requests</TabsTrigger>
             <TabsTrigger value="schedule" className="rounded-lg px-6 py-2.5 shrink-0">Class Schedule</TabsTrigger>
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0">Students</TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg px-6 py-2.5 shrink-0">Availability</TabsTrigger>
             <TabsTrigger value="earnings" className="rounded-lg px-6 py-2.5 shrink-0">Earnings</TabsTrigger>
+            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0">Messages</TabsTrigger>
             <TabsTrigger value="profile" className="rounded-lg px-6 py-2.5 shrink-0">Profile Settings</TabsTrigger>
           </TabsList>
 
@@ -293,6 +351,19 @@ const TutorDashboard = () => {
                           <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {booking.status === 'confirmed' && (
                                <>
+                                <Button
+                                  size="sm"
+                                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 animate-pulse"
+                                  asChild
+                                >
+                                  <a
+                                    href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Video className="h-4 w-4" /> Join Demo Room
+                                  </a>
+                                </Button>
                                 <Button size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => handleBookingAction(booking._id, 'completed')}>
                                   <Check className="mr-1 h-4 w-4"/> Mark Completed
                                 </Button>
@@ -333,8 +404,21 @@ const TutorDashboard = () => {
                            </div>
                            <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
                         </div>
-                        <div className="mt-auto pt-4 border-t flex justify-between items-center">
+                        <div className="mt-auto pt-4 border-t flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
                            <span className="text-sm font-medium text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4"/> {cls.timing}</span>
+                           <Button
+                             size="sm"
+                             className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse w-full sm:w-auto"
+                             asChild
+                           >
+                             <a
+                               href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                             >
+                               <Video className="h-4 w-4" /> Join Classroom
+                             </a>
+                           </Button>
                         </div>
                       </div>
                     ))}
@@ -519,6 +603,10 @@ const TutorDashboard = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="messages">
+            <ChatPanel />
+          </TabsContent>
+
           <TabsContent value="profile">
             <Card className="shadow-md border-border/50">
               <CardHeader className="bg-secondary/20 border-b pb-4">
@@ -555,6 +643,35 @@ const TutorDashboard = () => {
                             onChange={handleFileChange}
                           />
                         </div>
+                      </div>
+
+                      {/* Verification Credentials Display and Upload */}
+                      <div className="flex flex-col mb-6 pb-6 border-b">
+                        <Label htmlFor="doc-upload" className="text-xs font-semibold text-muted-foreground block mb-2">
+                          Verification Credential (PDF/Image)
+                        </Label>
+                        <Input 
+                          id="doc-upload" 
+                          type="file" 
+                          accept="application/pdf,image/*" 
+                          className="bg-background cursor-pointer text-xs" 
+                          onChange={handleDocFileChange}
+                        />
+                        {docNamePreview && (
+                          <p className="text-[10px] text-emerald-600 font-semibold mt-1.5">✓ Selected: {docNamePreview}</p>
+                        )}
+                        {tutorProfile?.verificationDocument && (
+                          <div className="mt-3">
+                            <a 
+                              href={resolveAssetUrl(tutorProfile.verificationDocument)} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5"
+                            >
+                              📄 View Uploaded Credential
+                            </a>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-4">

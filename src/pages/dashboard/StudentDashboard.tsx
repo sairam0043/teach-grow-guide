@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star } from "lucide-react";
+import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,8 +16,8 @@ import { useSelector, useDispatch } from "react-redux";
 import { fetchStudentStats } from "@/redux/slices/dashboardSlice";
 import { RootState, AppDispatch } from "@/redux/store";
 import API_URL from "@/config/api";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import ChatPanel from "@/components/chat/ChatPanel";
 
 const StudentDashboard = () => {
   const { user } = useAuth();
@@ -28,6 +28,25 @@ const StudentDashboard = () => {
 
   const [bookings, setBookings] = useState<any[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
+
+  // Tab & Chat State redirects
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = sessionStorage.getItem("student_dashboard_tab");
+    if (saved) {
+      sessionStorage.removeItem("student_dashboard_tab");
+      return saved;
+    }
+    return "upcoming";
+  });
+
+  const [activeChatUserId] = useState<string | undefined>(() => {
+    const saved = sessionStorage.getItem("active_chat_user_id");
+    if (saved) {
+      sessionStorage.removeItem("active_chat_user_id");
+      return saved;
+    }
+    return undefined;
+  });
 
   // Profile Form States
   const [profileName, setProfileName] = useState(initialName);
@@ -144,11 +163,12 @@ const StudentDashboard = () => {
           ))}
         </div>
 
-        <Tabs defaultValue="upcoming" className="space-y-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/50 p-1 rounded-xl shadow-sm border mb-4 w-full overflow-x-auto whitespace-nowrap justify-start h-auto">
             <TabsTrigger value="upcoming" className="rounded-lg px-6 py-2.5 shrink-0">My Classes</TabsTrigger>
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Tracker</TabsTrigger>
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0">Payment Ledger</TabsTrigger>
+            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0">Messages</TabsTrigger>
             <TabsTrigger value="profile" className="rounded-lg px-6 py-2.5 shrink-0">Settings</TabsTrigger>
           </TabsList>
 
@@ -194,6 +214,19 @@ const StudentDashboard = () => {
                                  <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
                                </Button>
                              )}
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
+                                asChild
+                              >
+                                <a
+                                  href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <Video className="h-4 w-4" /> Join Class
+                                </a>
+                              </Button>
                              <Button variant="outline" size="sm" asChild>
                                <Link to={`/tutors/${cls.tutorId}`}>View Tutor</Link>
                              </Button>
@@ -249,7 +282,22 @@ const StudentDashboard = () => {
                           
                           <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {booking.status === 'confirmed' && (
-                               <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => handleBookingAction(booking._id, 'cancelled')}>Cancel Demo</Button>
+                               <>
+                                 <Button
+                                   size="sm"
+                                   className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
+                                   asChild
+                                 >
+                                   <a
+                                     href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                     target="_blank"
+                                     rel="noopener noreferrer"
+                                   >
+                                     <Video className="h-4 w-4" /> Join Demo Room
+                                   </a>
+                                 </Button>
+                                 <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => handleBookingAction(booking._id, 'cancelled')}>Cancel Demo</Button>
+                               </>
                             )}
                             {booking.status === 'completed' && (
                                 <>
@@ -327,6 +375,9 @@ const StudentDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+          <TabsContent value="messages">
+            <ChatPanel initialActiveUserId={activeChatUserId} />
           </TabsContent>
 
           <TabsContent value="profile">
