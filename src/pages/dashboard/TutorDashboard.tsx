@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { fetchTutorStats, updateTutorAvailability } from "@/redux/slices/dashboardSlice";
 import { RootState, AppDispatch } from "@/redux/store";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import API_URL from "@/config/api";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/assetUrl";

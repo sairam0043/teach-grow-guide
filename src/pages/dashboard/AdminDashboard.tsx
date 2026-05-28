@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import PageLayout from "@/components/layout/PageLayout";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchAdminStats } from "@/redux/slices/dashboardSlice";
 import { RootState, AppDispatch } from "@/redux/store";
@@ -69,6 +69,19 @@ const AdminDashboard = () => {
       fetchTutors();
     } catch (err) {
       toast.error("Failed to update featured status");
+    }
+  };
+
+  const handleDeleteTutor = async (tutorId: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete tutor "${name}" and their associated user login account? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await axios.delete(`${API_URL}/tutors/${tutorId}/admin`);
+      toast.success(`Tutor "${name}" deleted successfully.`);
+      fetchTutors();
+    } catch (err) {
+      toast.error("Failed to delete tutor account");
     }
   };
 
@@ -232,6 +245,14 @@ const AdminDashboard = () => {
                                 >
                                   <XCircle className="mr-1.5 h-4 w-4" /> Reject
                                 </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
+                                  onClick={() => handleDeleteTutor(tutor.id, tutor.name)}
+                                >
+                                  <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -334,18 +355,28 @@ const AdminDashboard = () => {
                               )}
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
-                              <Button 
-                                size="sm" 
-                                variant={tutor.featured ? "outline" : "default"} 
-                                className={`rounded-lg h-9 px-3 transition-all duration-300 hover:-translate-y-0.5 ${
-                                  tutor.featured 
-                                    ? "border-amber-500/50 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20" 
-                                    : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-indigo-500/20"
-                                }`} 
-                                onClick={() => toggleFeatured(tutor)}
-                              >
-                                {tutor.featured ? "Remove Featured" : "Make Featured"}
-                              </Button>
+                              <div className="flex justify-end gap-2.5">
+                                <Button 
+                                  size="sm" 
+                                  variant={tutor.featured ? "outline" : "default"} 
+                                  className={`rounded-lg h-9 px-3 transition-all duration-300 hover:-translate-y-0.5 ${
+                                    tutor.featured 
+                                      ? "border-amber-500/50 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20" 
+                                      : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-indigo-500/20"
+                                  }`} 
+                                  onClick={() => toggleFeatured(tutor)}
+                                >
+                                  {tutor.featured ? "Remove Featured" : "Make Featured"}
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
+                                  onClick={() => handleDeleteTutor(tutor.id, tutor.name)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}

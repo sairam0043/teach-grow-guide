@@ -8,7 +8,7 @@ import PageLayout from "@/components/layout/PageLayout";
 import { Eye, EyeOff } from "lucide-react";
 import { GoogleLogin } from "@react-oauth/google";
 
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
 const RegisterStudent = () => {

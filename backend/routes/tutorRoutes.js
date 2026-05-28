@@ -386,6 +386,86 @@ router.put('/:id/admin', async (req, res) => {
     const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
+    // If tutor is approved, send email
+    if (status === 'approved' && tutor.userId && tutor.userId.email) {
+      try {
+        console.log(`[Admin Approval] Attempting to notify tutor of approval: ${tutor.userId.email}`);
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: tutor.userId.email,
+          subject: 'Tutor Profile Approved!',
+          text: `Hello ${tutor.name},\n\nCongratulations! Your tutor profile on Cuvasol Tutor has been approved by the administrator.\n\nYou can now log in to your dashboard to set your availability slots, manage bookings, and start teaching!\n\nAccess your dashboard: ${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #059669; text-align: center;">Tutor Profile Approved!</h2>
+              <p>Hello <strong>${tutor.name}</strong>,</p>
+              <p>Congratulations! Your tutor profile on <strong>Cuvasol Tutor</strong> has been reviewed and <strong>approved</strong> by our administrator.</p>
+              <p>You can now log in to your dashboard to:</p>
+              <ul style="line-height: 1.6;">
+                <li>Set up your teaching availability slots</li>
+                <li>Customize your pricing, subjects, and bio</li>
+                <li>Manage class bookings and interact with students</li>
+              </ul>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/dashboard/tutor" 
+                   style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                  Go to Tutor Dashboard
+                </a>
+              </div>
+              <p style="color: #555;">If you have any questions or need assistance setting up your profile, feel free to reply to this email.</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #999; text-align: center;">
+                Best regards,<br/>
+                <strong>Cuvasol Tutor Team</strong>
+              </p>
+            </div>
+          `
+        });
+        console.log(`[Admin Approval] Tutor approval email sent to: ${tutor.userId.email}`);
+      } catch (mailError) {
+        console.error('[Admin Approval] Failed to send tutor approval email:', mailError.message);
+      }
+    } else if (status === 'rejected' && tutor.userId && tutor.userId.email) {
+      try {
+        console.log(`[Admin Rejection] Attempting to notify tutor of rejection: ${tutor.userId.email}`);
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: tutor.userId.email,
+          subject: 'Tutor Profile Application Update',
+          text: `Hello ${tutor.name},\n\nThank you for your interest in joining Cuvasol Tutor.\n\nUnfortunately, your tutor profile application has not been approved by the administrator at this time. This could be due to incomplete verification documents or profile guidelines.\n\nYou can log in to your dashboard to update your profile details and re-submit them for review at any time.\n\nAccess your dashboard: ${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #dc2626; text-align: center;">Tutor Profile Update</h2>
+              <p>Hello <strong>${tutor.name}</strong>,</p>
+              <p>Thank you for your interest in joining <strong>Cuvasol Tutor</strong>.</p>
+              <p>Unfortunately, your tutor profile application has not been approved by the administrator at this time. This is usually due to one of the following reasons:</p>
+              <ul style="line-height: 1.6;">
+                <li>Incomplete or unclear KYC/verification documents</li>
+                <li>Inaccurate profile information</li>
+                <li>Not meeting our current profile criteria</li>
+              </ul>
+              <p><strong>The good news:</strong> You can easily update your details and re-submit your profile! Simply log in to your dashboard to make corrections and upload valid documents.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/dashboard/tutor" 
+                   style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                  Update & Re-submit Profile
+                </a>
+              </div>
+              <p style="color: #555;">If you have any questions or would like to clarify your application status, please reply to this email.</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #999; text-align: center;">
+                Best regards,<br/>
+                <strong>Cuvasol Tutor Team</strong>
+              </p>
+            </div>
+          `
+        });
+        console.log(`[Admin Rejection] Tutor rejection email sent to: ${tutor.userId.email}`);
+      } catch (mailError) {
+        console.error('[Admin Rejection] Failed to send tutor rejection email:', mailError.message);
+      }
+    }
+
     // Transform _id to id
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
@@ -496,4 +576,25 @@ router.post('/:id/rate', async (req, res) => {
   }
 });
 
+// Admin can delete tutor and associated user
+router.delete('/:id/admin', async (req, res) => {
+  try {
+    const tutor = await Tutor.findById(req.params.id);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    // Delete the associated user
+    if (tutor.userId) {
+      await User.findByIdAndDelete(tutor.userId);
+    }
+
+    // Delete the tutor profile
+    await Tutor.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Tutor and associated user account deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting tutor', error: error.message });
+  }
+});
+
 module.exports = router;
+

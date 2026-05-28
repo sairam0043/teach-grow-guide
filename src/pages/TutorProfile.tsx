@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format, getDay, addMinutes, parse, startOfDay } from "date-fns";
 import PageLayout from "@/components/layout/PageLayout";
 import { useState, useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import API_URL from "@/config/api";
@@ -170,21 +170,25 @@ const TutorProfile = () => {
 
   const handleBookDemo = async () => {
     if (isProcessingPayment) return;
+    if (!selectedPlan) {
+      toast.error("Please select a booking option first");
+      return;
+    }
     if (!date) {
       toast.error("Please select a date first");
       return;
     }
     if (!selectedSlot) {
-      toast.error("Please select a demo slot first");
+      toast.error("Please select a timing slot first");
       return;
     }
     if (!selectedSubject) {
-      toast.error("Please select a subject for the demo");
+      toast.error("Please select a subject first");
       return;
     }
 
-    if (!selectedPlan && (completedBooking || hasActiveBooking)) {
-      toast.error("Please select a pricing option to continue as a demo class is already completed.");
+    if (selectedPlan.type === 'Free Demo Class' && (completedBooking || hasActiveBooking)) {
+      toast.error("A free demo is already booked or completed. Please select a premium pricing plan instead.");
       return;
     }
 
@@ -258,8 +262,9 @@ const TutorProfile = () => {
     try {
       const studentName = String(user?.user_metadata?.full_name || "Student");
       const formattedTiming = `${format(date, 'PPP')} at ${selectedSlot}`;
+      const isDemoBooking = selectedPlan.type === 'Free Demo Class';
 
-      const endpoint = selectedPlan ? `${API_URL}/tutors/${id}/book-class` : `${API_URL}/tutors/${id}/book`;
+      const endpoint = isDemoBooking ? `${API_URL}/tutors/${id}/book` : `${API_URL}/tutors/${id}/book-class`;
 
       const payload: any = {
         timing: formattedTiming,
@@ -268,7 +273,7 @@ const TutorProfile = () => {
         studentName
       };
 
-      if (selectedPlan) {
+      if (!isDemoBooking) {
         payload.planType = selectedPlan.type;
         payload.amountPaid = selectedPlan.price;
         payload.isDirectClass = true; // flag to tell backend this isn't a demo
@@ -299,7 +304,7 @@ const TutorProfile = () => {
       const res = await axios.post(endpoint, payload);
       const booking = res.data.booking;
 
-      if (selectedPlan) {
+      if (!isDemoBooking) {
         // Trigger Razorpay Order Creation on backend
         toast.info("Initiating payment gateway...");
         const orderRes = await axios.post(`${API_URL}/payments/create-order`, {
@@ -605,41 +610,46 @@ const TutorProfile = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex justify-between items-center">
-                  <span>Pricing</span>
+                  <span>Pricing & Booking Options</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 text-sm">
                   {[
+                    { type: 'Free Demo Class', price: 0, isDemo: true },
                     { type: '1-on-1 (Premium)', price: tutor.hourlyRate },
                     { type: '2 Students', price: Math.round(tutor.hourlyRate * 0.75) },
                     { type: '3–5 Students', price: Math.round(tutor.hourlyRate * 0.55) }
-                  ].map(plan => (
-                    <div
-                      key={plan.type}
-                      onClick={() => !enrolledBooking ? setSelectedPlan(plan) : null}
-                      className={`flex justify-between rounded-md p-4 transition-all duration-200 border ${selectedPlan?.type === plan.type
-                          ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
-                          : !enrolledBooking
-                            ? "bg-secondary hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/30"
-                            : "bg-secondary border-transparent opacity-80"
-                        }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {!enrolledBooking && (
-                          <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${selectedPlan?.type === plan.type ? "border-primary-foreground" : "border-muted-foreground"}`}>
-                            {selectedPlan?.type === plan.type && <div className="h-2 w-2 rounded-full bg-primary-foreground" />}
-                          </div>
-                        )}
-                        <span className={selectedPlan?.type === plan.type ? "text-primary-foreground/90 font-medium" : "text-muted-foreground"}>
-                          {plan.type}
+                  ].map(plan => {
+                    const isDemoDisabled = plan.isDemo && (completedBooking || hasActiveBooking);
+                    const isClickable = !enrolledBooking && !isDemoDisabled;
+                    return (
+                      <div
+                        key={plan.type}
+                        onClick={() => isClickable ? setSelectedPlan(plan) : null}
+                        className={`flex justify-between rounded-md p-4 transition-all duration-200 border ${selectedPlan?.type === plan.type
+                            ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
+                            : isClickable
+                              ? "bg-secondary hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/30"
+                              : "bg-secondary border-transparent opacity-50 cursor-not-allowed"
+                          }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {isClickable && (
+                            <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${selectedPlan?.type === plan.type ? "border-primary-foreground" : "border-muted-foreground"}`}>
+                              {selectedPlan?.type === plan.type && <div className="h-2 w-2 rounded-full bg-primary-foreground" />}
+                            </div>
+                          )}
+                          <span className={selectedPlan?.type === plan.type ? "text-primary-foreground/90 font-medium" : "text-muted-foreground"}>
+                            {plan.type} {isDemoDisabled && " (Already Used)"}
+                          </span>
+                        </div>
+                        <span className={`font-bold text-lg ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
+                          {plan.price === 0 ? "Free" : `₹${plan.price}/hr`}
                         </span>
                       </div>
-                      <span className={`font-bold text-lg ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
-                        ₹{plan.price}<span className="text-xs font-normal opacity-70">/hr</span>
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -744,27 +754,31 @@ const TutorProfile = () => {
                 <>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      {(selectedPlan || completedBooking || hasActiveBooking) ? (
+                      {selectedPlan?.type === 'Free Demo Class' ? (
+                        <><CalendarIcon className="h-5 w-5 text-primary" /> Book a Demo Class</>
+                      ) : selectedPlan ? (
                         <><CreditCard className="h-5 w-5 text-primary" /> Book a Class</>
                       ) : (
-                        <><CalendarIcon className="h-5 w-5 text-primary" /> Book a Demo Class</>
+                        <><CalendarIcon className="h-5 w-5 text-primary" /> Select Booking Option</>
                       )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {(completedBooking || hasActiveBooking) && !selectedPlan && !selectedExisting && (
+                    {!selectedPlan && !selectedExisting && (
                       <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 text-center">
-                        <p className="text-sm font-medium text-foreground mb-1">
-                          {completedBooking ? "Demo Completed!" : "Demo Already Booked!"}
+                        <p className="text-sm font-semibold text-foreground mb-1">
+                          Booking Incomplete
                         </p>
-                        <p className="text-xs text-muted-foreground">Select a pricing plan from the left to enroll in classes.</p>
+                        <p className="text-xs text-muted-foreground">Please select an option from the Pricing / Booking list on the left first.</p>
                       </div>
                     )}
 
                     <p className="text-sm text-muted-foreground">
-                      {(selectedPlan || completedBooking || hasActiveBooking)
-                        ? (selectedPlan ? `Select a date and an available slot to book a ${selectedPlan.type} class.` : "Select a pricing plan and slot to book.")
-                        : "Select a date and an available slot to try a free demo class."}
+                      {selectedPlan?.type === 'Free Demo Class'
+                        ? "Select a date and an available slot to try a free demo class."
+                        : selectedPlan
+                          ? `Select a date and an available slot to book a ${selectedPlan.type} class.`
+                          : "Please select an option from the list on the left to continue."}
                     </p>
 
                     <Popover>
@@ -885,7 +899,7 @@ const TutorProfile = () => {
                       className="w-full mt-4"
                       variant={selectedExisting ? "destructive" : "default"}
                       onClick={handleBookDemo}
-                      disabled={isProcessingPayment || !availableSlotsForDate || availableSlotsForDate.length === 0}
+                      disabled={isProcessingPayment || !availableSlotsForDate || availableSlotsForDate.length === 0 || (!selectedExisting && !selectedPlan)}
                     >
                       {isProcessingPayment ? (
                         <span className="flex items-center gap-2 justify-center">
@@ -895,7 +909,9 @@ const TutorProfile = () => {
                       ) : (
                         selectedExisting
                           ? "Cancel Booking"
-                          : (selectedPlan ? `Book Class & Pay ₹${selectedPlan.price}` : "Book Demo Session")
+                          : selectedPlan
+                            ? (selectedPlan.type === 'Free Demo Class' ? "Book Free Demo Session" : `Book Class & Pay ₹${selectedPlan.price}`)
+                            : "Select a Booking Option"
                       )}
                     </Button>
 
@@ -911,7 +927,9 @@ const TutorProfile = () => {
 
                     {!selectedExisting && (
                       <p className="text-center text-xs text-muted-foreground mt-2">
-                        {(selectedPlan || completedBooking || hasActiveBooking) ? (selectedPlan ? `Total: ₹${selectedPlan.price}/hr` : "") : "Free • No commitment required"}
+                        {selectedPlan
+                          ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ₹${selectedPlan.price}/hr`)
+                          : "Please select an option to get started"}
                       </p>
                     )}
                   </CardContent>
