@@ -8,7 +8,10 @@ type AppRole = "admin" | "student" | "tutor";
 interface AppUser {
   id: string;
   email: string;
-  user_metadata: Record<string, unknown>;
+  full_name?: string;
+  phone?: string;
+  role?: AppRole;
+  user_metadata: Record<string, any>;
 }
 
 interface AuthContextType {
@@ -39,6 +42,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     formattedUser = {
       id: authUser.id,
       email: authUser.email,
+      full_name: authUser.full_name,
+      phone: authUser.phone,
+      role: authUser.role,
       user_metadata: { full_name: authUser.full_name, ...authUser }
     };
   }

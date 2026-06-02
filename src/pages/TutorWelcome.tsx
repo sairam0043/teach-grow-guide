@@ -74,7 +74,7 @@ const TutorWelcome = () => {
     }
   }, [user]);
 
-  const tutorName = tutorProfile?.name || user?.user_metadata?.full_name || "Sarah Johnson";
+  const tutorName = String(tutorProfile?.name || user?.user_metadata?.full_name || "Sarah Johnson");
 
   const handleEnableNotifications = () => {
     if ("Notification" in window) {
@@ -107,7 +107,7 @@ const TutorWelcome = () => {
         staggerChildren: 0.15
       }
     }
-  };
+  } as const;
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
@@ -120,7 +120,7 @@ const TutorWelcome = () => {
         damping: 15
       }
     }
-  };
+  } as const;
 
   return (
     <PageLayout>

@@ -18,6 +18,7 @@ import { RootState, AppDispatch } from "@/redux/store";
 import API_URL from "@/config/api";
 import { Badge } from "@/components/ui/badge";
 import ChatPanel from "@/components/chat/ChatPanel";
+import { toast } from "@/components/ui/sonner";
 
 const StudentDashboard = () => {
   const { user } = useAuth();
