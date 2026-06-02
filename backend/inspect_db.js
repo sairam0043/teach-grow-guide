@@ -18,10 +18,10 @@ console.log("Connecting to:", MONGO_URI.substring(0, 50) + "...");
 mongoose.connect(MONGO_URI)
   .then(async () => {
     console.log("Connected successfully to DB.");
-    const tutors = await Tutor.find({}, 'name photo status');
+    const tutors = await Tutor.find({}, 'name photo status hourlyRate');
     console.log("Tutors in database:");
     tutors.forEach(t => {
-      console.log(`- ID: ${t._id}, Name: ${t.name}, Status: ${t.status}, Photo URL: ${t.photo}`);
+      console.log(`- ID: ${t._id}, Name: ${t.name}, Status: ${t.status}, Hourly Rate: ${t.hourlyRate}, Photo URL: ${t.photo}`);
     });
     mongoose.connection.close();
   })

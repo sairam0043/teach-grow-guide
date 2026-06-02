@@ -189,6 +189,7 @@ router.post('/google', async (req, res) => {
           category: 'Academic',
           mode: 'Online',
           experience: 0,
+          hourlyRate: 500,
           photo: user.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name) + "&background=random"
         });
         await tutor.save();

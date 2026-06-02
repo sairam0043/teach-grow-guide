@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, getDay, addMinutes, parse, startOfDay } from "date-fns";
+import { format, getDay, addMinutes, parse, startOfDay, addDays } from "date-fns";
 import PageLayout from "@/components/layout/PageLayout";
 import { useState, useEffect } from "react";
 import { toast } from "@/components/ui/sonner";
@@ -32,16 +32,94 @@ const TutorProfile = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<{ type: string, price: number } | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<{ type: string, price: number, isPack?: boolean, sessionsCount?: number } | null>(null);
   const [otherEmails, setOtherEmails] = useState<string[]>(['']);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [availableSlotsForDate, setAvailableSlotsForDate] = useState<string[]>([]);
+
+  // Pack booking scheduling states
+  const [packStartDate, setPackStartDate] = useState<Date | undefined>(new Date());
+  const [packSchedule, setPackSchedule] = useState<{ day: string, time: string }[]>([]);
+  const [generatedPackSessions, setGeneratedPackSessions] = useState<{ date: string, time: string, status: string }[]>([]);
 
   // Sandbox mock payment gateway states
   const [sandboxOrder, setSandboxOrder] = useState<any>(null);
   const [isSandboxPaying, setIsSandboxPaying] = useState(false);
   const [sandboxPaymentSuccess, setSandboxPaymentSuccess] = useState(false);
   const [sandboxMethod, setSandboxMethod] = useState<"card" | "upi" | "netbanking">("card");
+
+  useEffect(() => {
+    if (selectedPlan?.isPack) {
+      const slotsCount = selectedPlan.sessionsCount === 12 ? 3 : 2;
+      setPackSchedule(Array.from({ length: slotsCount }).map(() => ({ day: '', time: '' })));
+      setGeneratedPackSessions([]);
+    } else {
+      setPackSchedule([]);
+      setGeneratedPackSessions([]);
+    }
+  }, [selectedPlan]);
+
+  useEffect(() => {
+    if (selectedPlan?.isPack && packStartDate && packSchedule.length > 0) {
+      const allSelected = packSchedule.every(s => s.day !== '' && s.time !== '');
+      const hasDuplicates = packSchedule.some((slot, i) => 
+        packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
+      );
+      
+      if (allSelected && !hasDuplicates) {
+        const sessionsList: { date: string, time: string, status: string }[] = [];
+        // Iterate through 28 days starting from packStartDate
+        for (let i = 0; i < 28; i++) {
+          const currentDate = addDays(packStartDate, i);
+          const dayName = format(currentDate, 'EEEE'); // e.g. "Monday"
+          
+          // Find all selected days matching this weekday
+          const matchedSlots = packSchedule.filter(s => s.day === dayName);
+          matchedSlots.forEach(slot => {
+            sessionsList.push({
+              date: format(currentDate, 'PPP'), // e.g. "June 1st, 2026"
+              time: slot.time,
+              status: 'scheduled'
+            });
+          });
+        }
+        
+        // Sort chronologically
+        sessionsList.sort((a, b) => {
+          const dateTimeA = new Date(`${a.date} ${a.time}`);
+          const dateTimeB = new Date(`${b.date} ${b.time}`);
+          return dateTimeA.getTime() - dateTimeB.getTime();
+        });
+        
+        setGeneratedPackSessions(sessionsList);
+      } else {
+        setGeneratedPackSessions([]);
+      }
+    } else {
+      setGeneratedPackSessions([]);
+    }
+  }, [packStartDate, packSchedule, selectedPlan]);
+
+  const getSlotsForWeekday = (dayName: string) => {
+    if (!tutor?.availability) return [];
+    const dayAvailabilities = tutor.availability.filter((a: any) => a.day === dayName);
+    const slots: string[] = [];
+    dayAvailabilities.forEach((dayAvail: any) => {
+      if (dayAvail.startTime && dayAvail.endTime) {
+        let current = parse(dayAvail.startTime, 'HH:mm', new Date());
+        const end = parse(dayAvail.endTime, 'HH:mm', new Date());
+        while (current < end) {
+          slots.push(format(current, 'h:mm a'));
+          current = addMinutes(current, 30);
+        }
+      }
+    });
+    return Array.from(new Set(slots)).sort((a, b) => {
+      const timeA = parse(a, 'h:mm a', new Date());
+      const timeB = parse(b, 'h:mm a', new Date());
+      return timeA.getTime() - timeB.getTime();
+    });
+  };
 
   const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
 
@@ -174,17 +252,41 @@ const TutorProfile = () => {
       toast.error("Please select a booking option first");
       return;
     }
-    if (!date) {
-      toast.error("Please select a date first");
-      return;
-    }
-    if (!selectedSlot) {
-      toast.error("Please select a timing slot first");
-      return;
-    }
-    if (!selectedSubject) {
-      toast.error("Please select a subject first");
-      return;
+
+    if (selectedPlan.isPack) {
+      if (!packStartDate) {
+        toast.error("Please select a course starting date");
+        return;
+      }
+      const allSelected = packSchedule.every(s => s.day !== '' && s.time !== '');
+      if (!allSelected) {
+        toast.error("Please select recurring days and times for your package");
+        return;
+      }
+      const hasDuplicates = packSchedule.some((slot, i) => 
+        packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
+      );
+      if (hasDuplicates) {
+        toast.error("Duplicate slots selected. Please ensure all schedule times are unique.");
+        return;
+      }
+      if (!selectedSubject) {
+        toast.error("Please select a subject first");
+        return;
+      }
+    } else {
+      if (!date) {
+        toast.error("Please select a date first");
+        return;
+      }
+      if (!selectedSlot) {
+        toast.error("Please select a timing slot first");
+        return;
+      }
+      if (!selectedSubject) {
+        toast.error("Please select a subject first");
+        return;
+      }
     }
 
     if (selectedPlan.type === 'Free Demo Class' && (completedBooking || hasActiveBooking)) {
@@ -242,26 +344,31 @@ const TutorProfile = () => {
       return;
     }
 
-    const formattedTiming = `${format(date, 'PPP')} at ${selectedSlot}`;
-    const existingBooking = existingBookings.find(b => b.timing === formattedTiming && b.status === "confirmed");
-    if (existingBooking) {
-      // Cancel booking
-      try {
-        await axios.put(`${API_URL}/tutors/booking/${existingBooking._id}/status`, { status: "cancelled" });
-        toast.success("Booking cancelled successfully.");
-        setExistingBookings(prev => prev.map(b => b._id === existingBooking._id ? { ...b, status: "cancelled" } : b));
-        setSelectedSlot(null);
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to cancel booking");
+    const isPackBooking = selectedPlan.isPack;
+    const formattedTiming = isPackBooking 
+      ? `Monthly Pack: ${selectedPlan.type} (${packSchedule.map(s => `${s.day}s at ${s.time}`).join(', ')}) [${format(packStartDate!, 'MMM d')} - ${format(addDays(packStartDate!, 27), 'MMM d')}]`
+      : `${format(date!, 'PPP')} at ${selectedSlot}`;
+
+    if (!isPackBooking) {
+      const existingBooking = existingBookings.find(b => b.timing === formattedTiming && b.status === "confirmed");
+      if (existingBooking) {
+        // Cancel booking
+        try {
+          await axios.put(`${API_URL}/tutors/booking/${existingBooking._id}/status`, { status: "cancelled" });
+          toast.success("Booking cancelled successfully.");
+          setExistingBookings(prev => prev.map(b => b._id === existingBooking._id ? { ...b, status: "cancelled" } : b));
+          setSelectedSlot(null);
+        } catch (err: any) {
+          toast.error(err.response?.data?.message || "Failed to cancel booking");
+        }
+        return;
       }
-      return;
     }
 
     // Otherwise book
     setIsProcessingPayment(true);
     try {
       const studentName = String(user?.user_metadata?.full_name || "Student");
-      const formattedTiming = `${format(date, 'PPP')} at ${selectedSlot}`;
       const isDemoBooking = selectedPlan.type === 'Free Demo Class';
 
       const endpoint = isDemoBooking ? `${API_URL}/tutors/${id}/book` : `${API_URL}/tutors/${id}/book-class`;
@@ -277,6 +384,16 @@ const TutorProfile = () => {
         payload.planType = selectedPlan.type;
         payload.amountPaid = selectedPlan.price;
         payload.isDirectClass = true; // flag to tell backend this isn't a demo
+
+        if (isPackBooking) {
+          payload.packDetails = {
+            startDate: format(packStartDate!, 'yyyy-MM-dd'),
+            endDate: format(addDays(packStartDate!, 27), 'yyyy-MM-dd'),
+            daysPerWeek: packSchedule.length,
+            schedule: packSchedule
+          };
+          payload.sessions = generatedPackSessions;
+        }
 
         if (selectedPlan.type === '2 Students' || selectedPlan.type === '3–5 Students') {
           const validEmails = otherEmails.filter(e => e.trim() !== '');
@@ -510,11 +627,36 @@ const TutorProfile = () => {
     }, 800);
   };
 
-  const handlePaymentAndBook = async () => {
-    // This is for complete enrollment (if we separate payment from booking). 
-    // But since the user wants them to ALWAYS pick a date/time to book a class...
-    // We will just use handleBookDemo (renaming it conceptually to handleSubmitBooking)
-  };
+  const isBookButtonDisabled = (() => {
+    if (isProcessingPayment) return true;
+    if (selectedExisting) return false; // For cancellation
+    if (!selectedPlan) return true;
+
+    if (selectedPlan.isPack) {
+      // Disabled if start date is missing
+      if (!packStartDate) return true;
+      // Disabled if any weekly schedule slot is not selected
+      const allSelected = packSchedule.every(s => s.day && s.time);
+      if (!allSelected) return true;
+      // Disabled if there are duplicates
+      const hasDuplicates = packSchedule.some((slot, i) => 
+        packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
+      );
+      if (hasDuplicates) return true;
+      // Disabled if subject is not selected
+      if (!selectedSubject) return true;
+      
+      return false;
+    } else {
+      // Standard single booking
+      if (!date) return true;
+      if (!selectedSlot) return true;
+      if (!selectedSubject) return true;
+      if (!availableSlotsForDate || availableSlotsForDate.length === 0) return true;
+      
+      return false;
+    }
+  })();
 
   return (
     <PageLayout>
@@ -619,7 +761,9 @@ const TutorProfile = () => {
                     { type: 'Free Demo Class', price: 0, isDemo: true },
                     { type: '1-on-1 (Premium)', price: tutor.hourlyRate },
                     { type: '2 Students', price: Math.round(tutor.hourlyRate * 0.75) },
-                    { type: '3–5 Students', price: Math.round(tutor.hourlyRate * 0.55) }
+                    { type: '3–5 Students', price: Math.round(tutor.hourlyRate * 0.55) },
+                    { type: '2 Days/Week (Monthly Pack)', price: Math.round(tutor.hourlyRate * 8 * 0.85), isPack: true, sessionsCount: 8, subtitle: '8 Classes/mo • 15% Discount Applied' },
+                    { type: '3 Days/Week (Monthly Pack)', price: Math.round(tutor.hourlyRate * 12 * 0.80), isPack: true, sessionsCount: 12, subtitle: '12 Classes/mo • 20% Discount Applied' }
                   ].map(plan => {
                     const isDemoDisabled = plan.isDemo && (completedBooking || hasActiveBooking);
                     const isClickable = !enrolledBooking && !isDemoDisabled;
@@ -627,26 +771,38 @@ const TutorProfile = () => {
                       <div
                         key={plan.type}
                         onClick={() => isClickable ? setSelectedPlan(plan) : null}
-                        className={`flex justify-between rounded-md p-4 transition-all duration-200 border ${selectedPlan?.type === plan.type
+                        className={`flex justify-between items-center rounded-md p-4 transition-all duration-200 border ${selectedPlan?.type === plan.type
                             ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
                             : isClickable
                               ? "bg-secondary hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/30"
                               : "bg-secondary border-transparent opacity-50 cursor-not-allowed"
                           }`}
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-start gap-2.5">
                           {isClickable && (
-                            <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${selectedPlan?.type === plan.type ? "border-primary-foreground" : "border-muted-foreground"}`}>
+                            <div className={`h-4 w-4 mt-0.5 rounded-full border flex items-center justify-center ${selectedPlan?.type === plan.type ? "border-primary-foreground" : "border-muted-foreground"}`}>
                               {selectedPlan?.type === plan.type && <div className="h-2 w-2 rounded-full bg-primary-foreground" />}
                             </div>
                           )}
-                          <span className={selectedPlan?.type === plan.type ? "text-primary-foreground/90 font-medium" : "text-muted-foreground"}>
-                            {plan.type} {isDemoDisabled && " (Already Used)"}
+                          <div>
+                            <span className={`font-semibold ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
+                              {plan.type} {isDemoDisabled && " (Already Used)"}
+                            </span>
+                            {plan.subtitle && (
+                              <p className={`text-xs mt-0.5 ${selectedPlan?.type === plan.type ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                                {plan.subtitle}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`font-bold text-lg block ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
+                            {plan.price === 0 ? "Free" : `₹${plan.price}`}
+                          </span>
+                          <span className={`text-[10px] uppercase font-bold tracking-wider ${selectedPlan?.type === plan.type ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
+                            {plan.price === 0 ? "" : plan.isPack ? "/month" : "/hr"}
                           </span>
                         </div>
-                        <span className={`font-bold text-lg ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
-                          {plan.price === 0 ? "Free" : `₹${plan.price}/hr`}
-                        </span>
                       </div>
                     );
                   })}
@@ -739,7 +895,7 @@ const TutorProfile = () => {
                     <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 text-center">
                       <p className="font-medium text-green-800 dark:text-green-300 mb-2">You are officially enrolled in {tutor.name}'s classes!</p>
                       <p className="text-sm text-green-600/80 dark:text-green-400/80">
-                        Plan: {enrolledBooking.planType} (₹{enrolledBooking.amountPaid}/hr)
+                        Plan: {enrolledBooking.planType} (₹{enrolledBooking.amountPaid}{enrolledBooking.planType.includes('Pack') ? '/month' : '/hr'})
                       </p>
                       <p className="text-sm text-green-600/80 dark:text-green-400/80 mt-1">
                         Timing: {enrolledBooking.timing}
@@ -781,89 +937,221 @@ const TutorProfile = () => {
                           : "Please select an option from the list on the left to continue."}
                     </p>
 
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={`w-full justify-start text-left font-normal ${!date && "text-muted-foreground"}`}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {isValidDate(date) ? format(date as Date, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={date}
-                          onSelect={setDate}
-                          initialFocus
-                          disabled={(d) => {
-                            if (d < new Date(new Date().setHours(0, 0, 0, 0))) return true;
-                            if (tutor?.availability && tutor.availability.length > 0) {
-                              const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                              const dayName = days[getDay(d)];
-                              return !tutor.availability.some((a: any) => a.day === dayName);
-                            }
-                            return false;
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-
-                    {tutor.subjects && tutor.subjects.length > 0 && (
-                      <div className="space-y-2">
-                        <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={hasActiveBooking && !selectedPlan && !completedBooking}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a subject" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {tutor.subjects.map((s: string) => (
-                              <SelectItem key={s} value={s}>{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-2">
-                      {availableSlotsForDate && availableSlotsForDate.length > 0 ? (
-                        availableSlotsForDate.map((timing: string, i: number) => {
-                          const timingString = isValidDate(date) ? `${format(date as Date, 'PPP')} at ${timing}` : timing;
-                          // A slot is booked if there's an active booking for it (confirmed or enrolled)
-                          const isBooked = existingBookings.some((b: any) => b.timing === timingString && (b.status === "confirmed" || b.status === "enrolled"));
-
-                          // If they are just booking a demo, we disable other slots if they have a confirmed demo.
-                          // But if they are booking a CLASS (selectedPlan), they can book any slot.
-                          const isSlotDisabled = (!selectedPlan && hasActiveBooking && timingString !== activeBookingTiming);
-
-                          return (
-                            <button
-                              key={i}
-                              onClick={() => setSelectedSlot(timing)}
-                              disabled={isSlotDisabled}
-                              className={`w-full flex justify-between items-center rounded-lg border p-3 text-left text-sm transition-colors ${selectedSlot === timing
-                                  ? "border-primary bg-primary/5 text-foreground"
-                                  : "hover:border-primary/50 text-muted-foreground"
-                                } ${isSlotDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                            >
-                              <div className="font-medium text-foreground">{timing}</div>
-                              <div className="flex items-center">
-                                {isBooked && (
-                                  <Badge variant="secondary" className="mr-2 text-xs text-green-600 bg-green-100">Booked</Badge>
-                                )}
-                                {selectedSlot === timing && (
-                                  <CheckCircle className="h-4 w-4 text-primary" />
-                                )}
-                              </div>
-                            </button>
-                          )
-                        })
-                      ) : (
-                        <div className="text-sm text-muted-foreground p-3 border rounded text-center bg-secondary/30">
-                          No availability for {isValidDate(date) ? format(date as Date, 'MMM do') : 'this date'}. <br /> Select a highlighted date from the calendar.
+                    {selectedPlan?.isPack ? (
+                      <div className="space-y-4">
+                        {/* Course start date selector */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Course Start Date</label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant={"outline"}
+                                className={`w-full justify-start text-left font-normal ${!packStartDate && "text-muted-foreground"}`}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                                {isValidDate(packStartDate) ? format(packStartDate as Date, "PPP") : <span>Pick a start date</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={packStartDate}
+                                onSelect={setPackStartDate}
+                                initialFocus
+                                disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          {packStartDate && (
+                            <p className="text-[11px] text-emerald-600 font-semibold px-1 mt-1">
+                              ✓ Course Ends: {format(addDays(packStartDate, 27), "PPP")} (4 Weeks Package)
+                            </p>
+                          )}
                         </div>
-                      )}
-                    </div>
+
+                        {/* Recurrent scheduling slot pickers */}
+                        <div className="space-y-3 p-3.5 border rounded-xl bg-secondary/15">
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider text-foreground mb-2">Set Weekly Schedule</h4>
+                          {packSchedule.map((sched, idx) => {
+                            const availableDays = Array.from(new Set(tutor?.availability?.map((a: any) => a.day) || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']));
+                            const daySlots = sched.day ? getSlotsForWeekday(sched.day) : [];
+
+                            return (
+                              <div key={idx} className="space-y-2 border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                                <label className="text-xs font-bold text-muted-foreground">Class Slot #{idx + 1}</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {/* Day Selector */}
+                                  <Select 
+                                    value={sched.day} 
+                                    onValueChange={(val) => {
+                                      const newSched = [...packSchedule];
+                                      newSched[idx] = { day: val, time: '' }; // reset time on day change
+                                      setPackSchedule(newSched);
+                                    }}
+                                  >
+                                    <SelectTrigger className="bg-background">
+                                      <SelectValue placeholder="Select Day" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {availableDays.map((dayName: any) => (
+                                        <SelectItem key={dayName} value={dayName}>{dayName}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+
+                                  {/* Time Selector */}
+                                  <Select 
+                                    value={sched.time} 
+                                    onValueChange={(val) => {
+                                      const newSched = [...packSchedule];
+                                      newSched[idx].time = val;
+                                      setPackSchedule(newSched);
+                                    }}
+                                    disabled={!sched.day}
+                                  >
+                                    <SelectTrigger className="bg-background">
+                                      <SelectValue placeholder="Select Time" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {daySlots.map((timeString: string) => (
+                                        <SelectItem key={timeString} value={timeString}>{timeString}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {packSchedule.some((slot, i) => 
+                            slot.day && slot.time && packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
+                          ) && (
+                            <div className="text-[11px] font-semibold text-destructive mt-2 flex items-center gap-1.5 animate-pulse bg-destructive/10 p-2.5 rounded-lg border border-destructive/20">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                              <span>Duplicate slots selected. Please choose unique times.</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Subject Selector */}
+                        {tutor.subjects && tutor.subjects.length > 0 && (
+                          <div className="space-y-2">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Select Course Subject</label>
+                            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a subject" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {tutor.subjects.map((s: string) => (
+                                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {/* Instant Calendar Sessions Preview */}
+                        {generatedPackSessions && generatedPackSessions.length > 0 ? (
+                          <div className="space-y-2">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Calendar Preview ({generatedPackSessions.length} Sessions)</label>
+                            <div className="border rounded-xl bg-card p-3 max-h-[180px] overflow-y-auto space-y-1.5 shadow-inner">
+                              {generatedPackSessions.map((session, i) => (
+                                <div key={i} className="flex justify-between items-center text-xs p-2 rounded-lg bg-secondary/20 hover:bg-secondary/40 transition-colors">
+                                  <span className="font-semibold text-muted-foreground">Class #{i + 1}</span>
+                                  <span className="font-bold text-foreground">{session.date} at {session.time}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] font-semibold text-center text-muted-foreground p-3 border border-dashed rounded-xl bg-secondary/5 mt-2">
+                            Please select all days and time slots above to preview your monthly calendar schedule.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {/* Standard Single Booking Selector */}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant={"outline"}
+                              className={`w-full justify-start text-left font-normal ${!date && "text-muted-foreground"}`}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {isValidDate(date) ? format(date as Date, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={date}
+                              onSelect={setDate}
+                              initialFocus
+                              disabled={(d) => {
+                                if (d < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+                                if (tutor?.availability && tutor.availability.length > 0) {
+                                  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                  const dayName = days[getDay(d)];
+                                  return !tutor.availability.some((a: any) => a.day === dayName);
+                                }
+                                return false;
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+
+                        {tutor.subjects && tutor.subjects.length > 0 && (
+                          <div className="space-y-2 mt-4">
+                            <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={hasActiveBooking && !selectedPlan && !completedBooking}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a subject" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {tutor.subjects.map((s: string) => (
+                                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-2">
+                          {availableSlotsForDate && availableSlotsForDate.length > 0 ? (
+                            availableSlotsForDate.map((timing: string, i: number) => {
+                              const timingString = isValidDate(date) ? `${format(date as Date, 'PPP')} at ${timing}` : timing;
+                              const isBooked = existingBookings.some((b: any) => b.timing === timingString && (b.status === "confirmed" || b.status === "enrolled"));
+                              const isSlotDisabled = (!selectedPlan && hasActiveBooking && timingString !== activeBookingTiming);
+
+                              return (
+                                <button
+                                  key={i}
+                                  onClick={() => setSelectedSlot(timing)}
+                                  disabled={isSlotDisabled}
+                                  className={`w-full flex justify-between items-center rounded-lg border p-3 text-left text-sm transition-colors ${selectedSlot === timing
+                                      ? "border-primary bg-primary/5 text-foreground"
+                                      : "hover:border-primary/50 text-muted-foreground"
+                                    } ${isSlotDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                                >
+                                  <div className="font-medium text-foreground">{timing}</div>
+                                  <div className="flex items-center">
+                                    {isBooked && (
+                                      <Badge variant="secondary" className="mr-2 text-xs text-green-600 bg-green-100">Booked</Badge>
+                                    )}
+                                    {selectedSlot === timing && (
+                                      <CheckCircle className="h-4 w-4 text-primary" />
+                                    )}
+                                  </div>
+                                </button>
+                              )
+                            })
+                          ) : (
+                            <div className="text-sm text-muted-foreground p-3 border rounded text-center bg-secondary/30">
+                              No availability for {isValidDate(date) ? format(date as Date, 'MMM do') : 'this date'}. <br /> Select a highlighted date from the calendar.
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
 
                     {selectedPlan && (selectedPlan.type === '2 Students' || selectedPlan.type === '3–5 Students') && (
                       <div className="space-y-2 mt-4 p-3 border rounded-lg bg-secondary/10">
@@ -899,7 +1187,7 @@ const TutorProfile = () => {
                       className="w-full mt-4"
                       variant={selectedExisting ? "destructive" : "default"}
                       onClick={handleBookDemo}
-                      disabled={isProcessingPayment || !availableSlotsForDate || availableSlotsForDate.length === 0 || (!selectedExisting && !selectedPlan)}
+                      disabled={isBookButtonDisabled}
                     >
                       {isProcessingPayment ? (
                         <span className="flex items-center gap-2 justify-center">
@@ -928,7 +1216,7 @@ const TutorProfile = () => {
                     {!selectedExisting && (
                       <p className="text-center text-xs text-muted-foreground mt-2">
                         {selectedPlan
-                          ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ₹${selectedPlan.price}/hr`)
+                          ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ₹${selectedPlan.price}${selectedPlan.isPack ? ' (Monthly Pack)' : '/hr'}`)
                           : "Please select an option to get started"}
                       </p>
                     )}

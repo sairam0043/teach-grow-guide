@@ -19,9 +19,25 @@ const bookingSchema = new mongoose.Schema({
       status: { type: String, enum: ['pending', 'approved', 'declined'], default: 'pending' },
       paidShare: { type: Boolean, default: false }
     }]
-  }
+  },
+  packDetails: {
+    startDate: { type: String },
+    endDate: { type: String },
+    daysPerWeek: { type: Number },
+    schedule: [{
+      day: { type: String },
+      time: { type: String }
+    }]
+  },
+  sessions: [{
+    date: { type: String, required: true },
+    time: { type: String, required: true },
+    meetingLink: { type: String },
+    status: { type: String, enum: ['scheduled', 'completed', 'cancelled'], default: 'scheduled' }
+  }]
 }, { timestamps: true });
 
 const Booking = mongoose.model('Booking', bookingSchema);
 
 module.exports = Booking;
+

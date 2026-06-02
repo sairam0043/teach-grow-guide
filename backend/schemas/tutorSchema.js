@@ -20,7 +20,7 @@ const tutorSchema = new mongoose.Schema({
   city: { type: String },
   bio: { type: String },
   subjects: [{ type: String }],
-  hourlyRate: { type: Number, required: true },
+  hourlyRate: { type: Number, required: true, default: 500 },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   featured: { type: Boolean, default: false },
   availableTimings: [{ type: String }],

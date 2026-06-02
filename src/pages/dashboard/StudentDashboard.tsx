@@ -60,6 +60,7 @@ const StudentDashboard = () => {
   const [reviewText, setReviewText] = useState("");
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
+  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -192,48 +193,165 @@ const StudentDashboard = () => {
                     <Button asChild className="mt-6 rounded-full px-8"><Link to="/tutors">Browse Tutors</Link></Button>
                   </div>
                 ) : (
-                  <div className="grid gap-4 mt-4 sm:grid-cols-2">
-                    {enrolledClasses.map((cls: any) => (
-                      <div key={cls._id} className="flex flex-col bg-card hover:bg-secondary/10 transition-colors p-5 rounded-xl border shadow-sm">
-                        <div className="flex justify-between items-start mb-4">
-                           <div>
-                             <h4 className="font-bold text-lg text-foreground">{cls.subject}</h4>
-                             <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1"><User className="h-3 w-3"/> Tutor: {cls.tutorName}</p>
-                           </div>
-                           <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
-                        </div>
-                        <div className="mt-auto pt-4 border-t flex justify-between items-center">
-                           <span className="text-sm font-medium text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4"/> {cls.timing}</span>
-                           <div className="flex gap-2">
-                             {!cls.isRated && (
-                               <Button size="sm" variant="secondary" className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100" onClick={() => {
-                                 setRatingBookingId(cls._id);
-                                 setRatingTutorId(cls.tutorId);
-                                 setIsRatingDialogOpen(true);
-                               }}>
-                                 <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
-                               </Button>
-                             )}
-                              <Button
-                                size="sm"
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
-                                asChild
-                              >
-                                <a
-                                  href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                  <div className="grid gap-6 mt-4 grid-cols-1">
+                    {enrolledClasses.map((cls: any) => {
+                      const isPack = cls.sessions && cls.sessions.length > 0;
+                      const totalSessions = isPack ? cls.sessions.length : 0;
+                      const completedSessions = isPack ? cls.sessions.filter((s: any) => s.status === 'completed').length : 0;
+                      const percentComplete = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
+                      const isExpanded = expandedBookingId === cls._id;
+
+                      if (isPack) {
+                        return (
+                          <div key={cls._id} className="flex flex-col bg-card hover:border-primary/30 transition-all duration-300 p-6 rounded-2xl border shadow-sm space-y-4">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                              <div>
+                                <h4 className="font-extrabold text-xl text-foreground flex items-center gap-2">
+                                  {cls.subject} 
+                                  <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1 text-xs">Monthly Package</Badge>
+                                </h4>
+                                <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1.5"><User className="h-3.5 w-3.5 text-primary"/> Tutor: <span className="font-semibold text-foreground">{cls.tutorName}</span></p>
+                              </div>
+                              <div className="text-left sm:text-right w-full sm:w-auto">
+                                <span className="text-xs font-bold text-muted-foreground block uppercase tracking-wider">Plan Type</span>
+                                <span className="font-extrabold text-indigo-500 text-sm sm:text-base">{cls.planType}</span>
+                              </div>
+                            </div>
+
+                            {/* Progress Indicator */}
+                            <div className="space-y-2 bg-secondary/10 p-4 rounded-xl border border-border/40">
+                              <div className="flex justify-between items-center text-xs font-semibold">
+                                <span className="text-muted-foreground">Course Completion Progress</span>
+                                <span className="text-foreground">{completedSessions} of {totalSessions} Classes Completed ({percentComplete}%)</span>
+                              </div>
+                              <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${percentComplete}%` }} />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 justify-between items-center pt-2">
+                              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary"/> {cls.timing}</span>
+                              
+                              <div className="flex gap-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
+                                {!cls.isRated && completedSessions === totalSessions && (
+                                  <Button size="sm" variant="secondary" className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100" onClick={() => {
+                                    setRatingBookingId(cls._id);
+                                    setRatingTutorId(cls.tutorId);
+                                    setIsRatingDialogOpen(true);
+                                  }}>
+                                    <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate Course
+                                  </Button>
+                                )}
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => setExpandedBookingId(isExpanded ? null : cls._id)}
+                                  className="font-semibold"
                                 >
-                                  <Video className="h-4 w-4" /> Join Class
-                                </a>
-                              </Button>
-                             <Button variant="outline" size="sm" asChild>
-                               <Link to={`/tutors/${cls.tutorId}`}>View Tutor</Link>
-                             </Button>
-                           </div>
+                                  {isExpanded ? "Hide Course Schedule ▲" : "View Course Schedule ▼"}
+                                </Button>
+                                <Button variant="outline" size="sm" asChild>
+                                  <Link to={`/tutors/${cls.tutorId}`}>View Tutor Profile</Link>
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Expandable Sessions Timeline */}
+                            {isExpanded && (
+                              <div className="border border-border/60 rounded-xl overflow-hidden mt-4 animate-in slide-in-from-top duration-300">
+                                <div className="bg-secondary/40 border-b p-3">
+                                  <h5 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Calendar className="h-4 w-4 text-primary" /> Monthly Class Calendar Schedule</h5>
+                                </div>
+                                <div className="divide-y divide-border/40">
+                                  {cls.sessions.map((session: any, sIdx: number) => (
+                                    <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card hover:bg-secondary/5 transition-colors gap-3">
+                                      <div className="flex items-center gap-3">
+                                        <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
+                                          #{sIdx + 1}
+                                        </div>
+                                        <div>
+                                          <p className="font-bold text-sm text-foreground">{session.date}</p>
+                                          <p className="text-xs text-muted-foreground font-medium flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" /> Time: {session.time}</p>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                                        <Badge variant="outline" className={`px-2.5 py-0.5 border-none text-[10px] uppercase font-bold tracking-wider ${
+                                          session.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                          session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                          'bg-blue-100 text-blue-700'
+                                        }`}>
+                                          {session.status}
+                                        </Badge>
+
+                                        {session.status === 'scheduled' && (
+                                          <Button
+                                            size="sm"
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold text-xs"
+                                            asChild
+                                          >
+                                            <a
+                                              href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                            >
+                                              <Video className="h-3.5 w-3.5" /> Join Session
+                                            </a>
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Standard Booking Card
+                      return (
+                        <div key={cls._id} className="flex flex-col bg-card hover:bg-secondary/10 transition-colors p-5 rounded-xl border shadow-sm">
+                          <div className="flex justify-between items-start mb-4">
+                             <div>
+                               <h4 className="font-bold text-lg text-foreground">{cls.subject}</h4>
+                               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1"><User className="h-3 w-3"/> Tutor: {cls.tutorName}</p>
+                             </div>
+                             <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
+                          </div>
+                          <div className="mt-auto pt-4 border-t flex justify-between items-center">
+                             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4"/> {cls.timing}</span>
+                             <div className="flex gap-2">
+                               {!cls.isRated && (
+                                 <Button size="sm" variant="secondary" className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100" onClick={() => {
+                                   setRatingBookingId(cls._id);
+                                   setRatingTutorId(cls.tutorId);
+                                   setIsRatingDialogOpen(true);
+                                 }}>
+                                   <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
+                                 </Button>
+                               )}
+                                <Button
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
+                                  asChild
+                                >
+                                  <a
+                                    href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Video className="h-4 w-4" /> Join Class
+                                  </a>
+                                </Button>
+                               <Button variant="outline" size="sm" asChild>
+                                 <Link to={`/tutors/${cls.tutorId}`}>View Tutor</Link>
+                               </Button>
+                             </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

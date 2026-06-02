@@ -191,7 +191,7 @@ router.post('/:id/book', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, amountPaid, otherStudentsEmails } = req.body;
+    const { timing, subject, studentId, studentName, planType, amountPaid, otherStudentsEmails, packDetails, sessions } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -200,11 +200,24 @@ router.post('/:id/book-class', async (req, res) => {
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
 
-    const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
-    
-    const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
-    if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
-      return res.status(400).json({ message: 'This slot is not available or does not exist.' });
+    const isPack = planType.includes('Pack');
+
+    if (isPack && packDetails && packDetails.schedule) {
+      const schedule = packDetails.schedule;
+      const hasDuplicates = schedule.some((slot, i) =>
+        schedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
+      );
+      if (hasDuplicates) {
+        return res.status(400).json({ message: 'Duplicate slots (same day and time) are not allowed in the schedule.' });
+      }
+    }
+
+    if (!isPack) {
+      const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
+      const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
+      if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
+        return res.status(400).json({ message: 'This slot is not available or does not exist.' });
+      }
     }
 
     const isGroup = otherStudentsEmails && otherStudentsEmails.length > 0;
@@ -223,9 +236,23 @@ router.post('/:id/book-class', async (req, res) => {
       groupDetails: isGroup ? {
         isGroup: true,
         invitedEmails: otherStudentsEmails.map(email => ({ email, status: 'pending', paidShare: false }))
-      } : undefined
+      } : undefined,
+      packDetails: isPack ? packDetails : undefined,
+      sessions: isPack && sessions ? sessions : undefined
     });
+
     newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}`;
+    
+    // Set individual session Jitsi meeting links
+    if (isPack && newBooking.sessions && newBooking.sessions.length > 0) {
+      newBooking.sessions = newBooking.sessions.map((session, idx) => ({
+        date: session.date,
+        time: session.time,
+        status: session.status || 'scheduled',
+        meetingLink: `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}-session-${idx + 1}`
+      }));
+    }
+
     await newBooking.save();
 
     if (isGroup) {
@@ -325,6 +352,29 @@ router.put('/booking/:bookingId/pay', async (req, res) => {
     }
     await booking.save();
     res.json({ message: 'Payment successful, enrolled in course!', booking });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update individual session status within a monthly pack booking
+router.put('/booking/:bookingId/session/:sessionIdx/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['scheduled', 'completed', 'cancelled'].includes(status)) {
+       return res.status(400).json({ message: 'Invalid session status' });
+    }
+    const booking = await Booking.findById(req.params.bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    const idx = parseInt(req.params.sessionIdx, 10);
+    if (isNaN(idx) || !booking.sessions || idx < 0 || idx >= booking.sessions.length) {
+      return res.status(400).json({ message: 'Invalid session index' });
+    }
+    
+    booking.sessions[idx].status = status;
+    await booking.save();
+    res.json(booking);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
