@@ -882,6 +882,15 @@ const TutorProfile = () => {
                         Timing: {pendingBooking.timing}
                       </p>
                     </div>
+                    {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl"
+                        onClick={handleMessageTutor}
+                      >
+                        <MessageSquare className="h-4 w-4" /> Message Tutor
+                      </Button>
+                    )}
                   </CardContent>
                 </>
               ) : enrolledBooking ? (
@@ -904,6 +913,15 @@ const TutorProfile = () => {
                     <Button asChild className="w-full" variant="outline">
                       <Link to="/dashboard/student">Go to Dashboard</Link>
                     </Button>
+                    {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl"
+                        onClick={handleMessageTutor}
+                      >
+                        <MessageSquare className="h-4 w-4" /> Message Tutor
+                      </Button>
+                    )}
                   </CardContent>
                 </>
               ) : (
