@@ -31,6 +31,17 @@ interface TutorProfileData {
   name: string;
   photo?: string;
   status: string;
+  hourlyRate?: number;
+  rating?: number;
+  [key: string]: unknown;
+}
+
+interface TutorStatsData {
+  demoRequests: number;
+  activeStudents: number;
+  upcomingClasses: number;
+  totalEarnings: number;
+  availableTimings: string[];
   [key: string]: unknown;
 }
 
@@ -38,18 +49,24 @@ const TutorWelcome = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [tutorProfile, setTutorProfile] = useState<TutorProfileData | null>(null);
+  const [tutorStats, setTutorStats] = useState<TutorStatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
     if (user?.id) {
+      setLoading(true);
       axios.get(`${API_URL}/tutors/user/${user.id}`)
         .then(res => {
           setTutorProfile(res.data);
+          return axios.get(`${API_URL}/dashboard/tutor/${res.data.id}`);
+        })
+        .then(statsRes => {
+          setTutorStats(statsRes.data);
         })
         .catch(err => {
-          console.error("Error fetching tutor profile", err);
+          console.error("Error fetching tutor welcome info:", err);
         })
         .finally(() => setLoading(false));
     } else {
@@ -140,9 +157,9 @@ const TutorWelcome = () => {
             {/* 1. Stat Cards Grid */}
             <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: "Active Students", value: "2,500+", icon: Users, color: "from-blue-500/20 to-cyan-500/20 text-blue-600 dark:text-blue-400 border-blue-200/40" },
-                { label: "Avg. Earnings", value: "$45/hr", icon: DollarSign, color: "from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200/40" },
-                { label: "Success Rate", value: "95%", icon: TrendingUp, color: "from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-400 border-purple-200/40" }
+                { label: "Active Students", value: loading ? "..." : String(tutorStats?.activeStudents ?? 0), icon: Users, color: "from-blue-500/20 to-cyan-500/20 text-blue-600 dark:text-blue-400 border-blue-200/40" },
+                { label: "Avg. Earnings", value: loading ? "..." : (tutorProfile?.hourlyRate ? `₹${tutorProfile.hourlyRate}/hr` : "₹500/hr"), icon: DollarSign, color: "from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200/40" },
+                { label: "Success Rate", value: loading ? "..." : (tutorProfile?.rating && tutorProfile.rating > 0 ? `${Math.round(tutorProfile.rating * 20)}%` : "100%"), icon: TrendingUp, color: "from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-400 border-purple-200/40" }
               ].map((stat, idx) => (
                 <Card 
                   key={idx} 
