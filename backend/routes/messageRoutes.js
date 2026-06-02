@@ -72,7 +72,20 @@ router.get('/inbox/:userId', async (req, res) => {
     .populate('sender', 'full_name email role avatar')
     .populate('receiver', 'full_name email role avatar');
 
-    // Group messages by the other participant
+    // 1. Gather all other participant IDs to do bulk lookup
+    const otherUserIds = new Set();
+    for (const msg of messages) {
+      if (!msg.sender || !msg.receiver) continue;
+      const otherId = msg.sender._id.toString() === userId ? msg.receiver._id.toString() : msg.sender._id.toString();
+      otherUserIds.add(otherId);
+    }
+
+    // 2. Bulk fetch all matching tutors to map their tutor profile IDs in one query
+    const tutorsList = await Tutor.find({ userId: { $in: Array.from(otherUserIds) } });
+    const tutorMap = new Map();
+    tutorsList.forEach(t => tutorMap.set(t.userId.toString(), t._id.toString()));
+
+    // 3. Group conversations and calculate unread counts in-memory
     const conversationsMap = new Map();
 
     for (const msg of messages) {
@@ -82,21 +95,16 @@ router.get('/inbox/:userId', async (req, res) => {
       const otherId = otherParticipant._id.toString();
 
       if (!conversationsMap.has(otherId)) {
-        // Calculate unread count for this conversation where the current user is receiver
-        const unreadCount = await Message.countDocuments({
-          sender: otherId,
-          receiver: userId,
-          read: false
-        });
+        // Calculate unread count in-memory (no database hits!)
+        const unreadCount = messages.filter(m => 
+          m.receiver && 
+          m.receiver._id.toString() === userId && 
+          !m.read && 
+          m.sender && 
+          m.sender._id.toString() === otherId
+        ).length;
 
-        // Map tutor profile database ID if participant is a tutor
-        let tutorProfileId = null;
-        if (otherParticipant.role === 'tutor') {
-          const tutorObj = await Tutor.findOne({ userId: otherParticipant._id });
-          if (tutorObj) {
-            tutorProfileId = tutorObj._id.toString();
-          }
-        }
+        const tutorProfileId = tutorMap.get(otherId) || null;
 
         conversationsMap.set(otherId, {
           otherUser: {

@@ -43,7 +43,33 @@ const TutorDashboard = () => {
   });
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
-  
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const fetchUnreadCount = async () => {
+      if (document.hidden) return; // skip polling when browser tab is inactive/backgrounded
+      try {
+        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
+        setUnreadMessagesCount(total);
+      } catch (err) {
+        console.error("Error fetching unread count", err);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 12000); // Check every 12 seconds
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (activeTab === "messages") {
+      setUnreadMessagesCount(0);
+    }
+  }, [activeTab]);
+
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
     DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
@@ -321,7 +347,14 @@ const TutorDashboard = () => {
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0">Students</TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg px-6 py-2.5 shrink-0">Availability</TabsTrigger>
             <TabsTrigger value="earnings" className="rounded-lg px-6 py-2.5 shrink-0">Earnings</TabsTrigger>
-            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0">Messages</TabsTrigger>
+            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              Messages
+              {unreadMessagesCount > 0 && (
+                <span className="h-5 w-5 bg-rose-500 text-white font-extrabold text-[10px] flex items-center justify-center rounded-full shrink-0 animate-pulse">
+                  {unreadMessagesCount}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="profile" className="rounded-lg px-6 py-2.5 shrink-0">Profile Settings</TabsTrigger>
           </TabsList>
 

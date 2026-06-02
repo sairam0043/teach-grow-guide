@@ -32,6 +32,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
   // 1. Fetch Inbox Conversations
   const fetchInbox = async (showLoading = false) => {
     if (!user?.id) return;
+    if (document.hidden && !showLoading) return; // skip if browser tab is backgrounded/inactive
     if (showLoading) setLoadingInbox(true);
     try {
       const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
@@ -45,7 +46,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
         } else {
           // If not in inbox yet, fetch user details to initialize temporary active chat
           try {
-            const userRes = await axios.get(`${API_URL}/tutors/${initialActiveUserId}`);
+            const userRes = await axios.get(`${API_URL}/tutors/user/${initialActiveUserId}`);
             if (userRes.data) {
               setActiveChat({
                 otherUser: {
@@ -75,6 +76,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
   // 2. Fetch Messages with Active Contact
   const fetchMessages = async (contactId: string, silent = false) => {
     if (!user?.id || !contactId) return;
+    if (document.hidden && silent) return; // skip if browser tab is backgrounded/inactive
     if (!silent) setLoadingMessages(true);
     try {
       const res = await axios.get(`${API_URL}/messages/chat/${user.id}/${contactId}`);
@@ -116,10 +118,10 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
       // Clear existing polling
       if (pollingRef.current) clearInterval(pollingRef.current);
       
-      // Poll chat history every 4 seconds for real-time socket-like feeling
+      // Poll chat history every 6 seconds for real-time socket-like feeling
       pollingRef.current = setInterval(() => {
         fetchMessages(activeChat.otherUser.id, true);
-      }, 4000);
+      }, 6000);
     }
 
     return () => {

@@ -61,6 +61,32 @@ const StudentDashboard = () => {
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const fetchUnreadCount = async () => {
+      if (document.hidden) return; // skip polling when browser tab is inactive/backgrounded
+      try {
+        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
+        setUnreadMessagesCount(total);
+      } catch (err) {
+        console.error("Error fetching unread count", err);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 12000); // Check every 12 seconds
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (activeTab === "messages") {
+      setUnreadMessagesCount(0);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (user?.id) {
@@ -169,7 +195,14 @@ const StudentDashboard = () => {
             <TabsTrigger value="upcoming" className="rounded-lg px-6 py-2.5 shrink-0">My Classes</TabsTrigger>
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Tracker</TabsTrigger>
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0">Payment Ledger</TabsTrigger>
-            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0">Messages</TabsTrigger>
+            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              Messages
+              {unreadMessagesCount > 0 && (
+                <span className="h-5 w-5 bg-rose-500 text-white font-extrabold text-[10px] flex items-center justify-center rounded-full shrink-0 animate-pulse">
+                  {unreadMessagesCount}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="profile" className="rounded-lg px-6 py-2.5 shrink-0">Settings</TabsTrigger>
           </TabsList>
 

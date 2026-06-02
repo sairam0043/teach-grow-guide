@@ -15,6 +15,16 @@ const messageRoutes = require('./routes/messageRoutes');
 const app = express();
 app.set('trust proxy', 1);
 
+// Lightweight request duration logger
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[HTTP] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+  });
+  next();
+});
+
 // Allow multiple origins (comma-separated in FRONTEND_URL); in development allow any origin so LAN IP works
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:8080')
   .split(',')
