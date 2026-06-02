@@ -26,7 +26,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
   
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // 1. Fetch Inbox Conversations
@@ -93,9 +93,11 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     }
   };
 
-  // Scroll to bottom
+  // Scroll to bottom of message list container only (prevents parent page scroll)
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   };
 
   // Trigger Inbox Fetch on load
@@ -325,7 +327,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
             </div>
 
             {/* Message Bubble List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {loadingMessages ? (
                 <div className="space-y-4 py-8">
                   <Skeleton className="h-10 w-2/3 rounded-xl" />
@@ -365,7 +367,6 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                   );
                 })
               )}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Input Send Bar */}
