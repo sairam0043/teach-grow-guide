@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import ChatPanel from "@/components/chat/ChatPanel";
 
 const TutorDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const name = String(user?.user_metadata?.full_name || "Tutor");
   
   const dispatch = useDispatch<AppDispatch>();
@@ -285,9 +287,21 @@ const TutorDashboard = () => {
   return (
     <PageLayout>
       <div className="container py-10 max-w-7xl">
-        <div className="mb-10">
-          <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Hello, {name}</h1>
-          <p className="text-lg text-muted-foreground mt-1">Manage your teaching schedule, students, and profile.</p>
+        <div className="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Hello, {name}</h1>
+            <p className="text-lg text-muted-foreground mt-1">Manage your teaching schedule, students, and profile.</p>
+          </div>
+          {tutorProfile?.status === "approved" && (
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-lg shadow-sm w-fit"
+              onClick={() => navigate("/tutor/welcome")}
+            >
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              Getting Started Guide
+            </Button>
+          )}
         </div>
 
         {tutorProfile?.status === "pending" && (

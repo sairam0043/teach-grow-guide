@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,36 @@ const Login = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
 
   const { signIn, googleSignIn } = useAuth();
-  const navigate = useNavigate();  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from;
+
+  const performRedirect = (userRole: string) => {
+    const destination = from ? (from.pathname + from.search) : null;
+    if (destination) {
+      navigate(destination);
+      return;
+    }
+
+    const pending = sessionStorage.getItem("pending_booking");
+    if (pending && userRole === "student") {
+      try {
+        const { tutorId } = JSON.parse(pending);
+        if (tutorId) {
+          navigate(`/tutors/${tutorId}`);
+          return;
+        }
+      } catch (e) {
+        console.error("Error parsing pending booking redirect:", e);
+      }
+    }
+
+    if (userRole === "admin") navigate("/dashboard/admin");
+    else if (userRole === "tutor") navigate("/dashboard/tutor");
+    else navigate("/dashboard/student");
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
     setLoading(true);
     const { error } = await googleSignIn(credentialResponse.credential);
     setLoading(false);
@@ -38,20 +67,24 @@ const Login = () => {
       toast.error(error.message || "Google login failed");
     } else {
       toast.success("Logged in with Google!");
-      
-      const pending = sessionStorage.getItem("pending_booking");
-      if (pending) {
+      const checkAndRedirect = async () => {
         try {
-          const { tutorId } = JSON.parse(pending);
-          if (tutorId) {
-            navigate(`/tutors/${tutorId}`);
-            return;
+          const userInfo = localStorage.getItem("user_info");
+          const raw = localStorage.getItem("demo_auth");
+          let userRole = "student";
+          if (userInfo) {
+            userRole = JSON.parse(userInfo).role;
+          } else if (raw) {
+            userRole = JSON.parse(raw).role;
           }
+          performRedirect(userRole);
+          return;
         } catch (e) {
-          console.error("Error parsing pending booking redirect:", e);
+          console.error("Error redirecting:", e);
         }
-      }
-      navigate("/");
+        navigate("/");
+      };
+      setTimeout(checkAndRedirect, 300);
     }
   };
 
@@ -70,30 +103,19 @@ const Login = () => {
       toast.success("Logged in successfully!");
       const checkAndRedirect = async () => {
         try {
+          const userInfo = localStorage.getItem("user_info");
           const raw = localStorage.getItem("demo_auth");
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            const userRole = parsed.role;
-            
-            const pending = sessionStorage.getItem("pending_booking");
-            if (pending && userRole === "student") {
-              try {
-                const { tutorId } = JSON.parse(pending);
-                if (tutorId) {
-                  navigate(`/tutors/${tutorId}`);
-                  return;
-                }
-              } catch (e) {
-                console.error("Error parsing pending booking redirect:", e);
-              }
-            }
-
-            if (userRole === "admin") navigate("/dashboard/admin");
-            else if (userRole === "tutor") navigate("/dashboard/tutor");
-            else navigate("/dashboard/student");
-            return;
+          let userRole = "student";
+          if (userInfo) {
+            userRole = JSON.parse(userInfo).role;
+          } else if (raw) {
+            userRole = JSON.parse(raw).role;
           }
-        } catch { }
+          performRedirect(userRole);
+          return;
+        } catch (e) {
+          console.error("Error redirecting:", e);
+        }
         navigate("/");
       };
       setTimeout(checkAndRedirect, 300);

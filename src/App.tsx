@@ -19,6 +19,7 @@ import TutorDashboard from "./pages/dashboard/TutorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import ApproveBooking from "./pages/ApproveBooking";
+import TutorWelcome from "./pages/TutorWelcome";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,10 @@ const App = () => (
             <Route
               path="/dashboard/tutor"
               element={<ProtectedRoute allowedRoles={["tutor"]}><TutorDashboard /></ProtectedRoute>}
+            />
+            <Route
+              path="/tutor/welcome"
+              element={<ProtectedRoute allowedRoles={["tutor"]}><TutorWelcome /></ProtectedRoute>}
             />
             <Route
               path="/dashboard/admin"
