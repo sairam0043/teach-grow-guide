@@ -37,6 +37,13 @@ const TutorProfile = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [availableSlotsForDate, setAvailableSlotsForDate] = useState<string[]>([]);
 
+  const getSubjectRate = () => {
+    if (!selectedSubject) return tutor?.hourlyRate || 500;
+    const rateObj = tutor?.subjectRates?.find((sr: any) => sr.subject === selectedSubject);
+    return rateObj ? rateObj.rate : (tutor?.hourlyRate || 500);
+  };
+  const subjectRate = getSubjectRate();
+
   // Pack booking scheduling states
   const [packStartDate, setPackStartDate] = useState<Date | undefined>(new Date());
   const [packSchedule, setPackSchedule] = useState<{ day: string, time: string }[]>([]);
@@ -756,57 +763,87 @@ const TutorProfile = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 text-sm">
-                  {[
-                    { type: 'Free Demo Class', price: 0, isDemo: true },
-                    { type: '1-on-1 (Premium)', price: tutor.hourlyRate },
-                    { type: '2 Students', price: Math.round(tutor.hourlyRate * 0.75) },
-                    { type: '3–5 Students', price: Math.round(tutor.hourlyRate * 0.55) },
-                    { type: '2 Days/Week (Monthly Pack)', price: Math.round(tutor.hourlyRate * 8 * 0.85), isPack: true, sessionsCount: 8, subtitle: '8 Classes/mo • 15% Discount Applied' },
-                    { type: '3 Days/Week (Monthly Pack)', price: Math.round(tutor.hourlyRate * 12 * 0.80), isPack: true, sessionsCount: 12, subtitle: '12 Classes/mo • 20% Discount Applied' }
-                  ].map(plan => {
-                    const isDemoDisabled = plan.isDemo && (completedBooking || hasActiveBooking);
-                    const isClickable = !enrolledBooking && !isDemoDisabled;
-                    return (
-                      <div
-                        key={plan.type}
-                        onClick={() => isClickable ? setSelectedPlan(plan) : null}
-                        className={`flex justify-between items-center rounded-md p-4 transition-all duration-200 border ${selectedPlan?.type === plan.type
-                            ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
-                            : isClickable
-                              ? "bg-secondary hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/30"
-                              : "bg-secondary border-transparent opacity-50 cursor-not-allowed"
-                          }`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          {isClickable && (
-                            <div className={`h-4 w-4 mt-0.5 rounded-full border flex items-center justify-center ${selectedPlan?.type === plan.type ? "border-primary-foreground" : "border-muted-foreground"}`}>
-                              {selectedPlan?.type === plan.type && <div className="h-2 w-2 rounded-full bg-primary-foreground" />}
-                            </div>
-                          )}
-                          <div>
-                            <span className={`font-semibold ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
-                              {plan.type} {isDemoDisabled && " (Already Used)"}
-                            </span>
-                            {plan.subtitle && (
-                              <p className={`text-xs mt-0.5 ${selectedPlan?.type === plan.type ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                                {plan.subtitle}
-                              </p>
+                {/* Subject Selector Prompt */}
+                <div className="mb-6 p-4 border rounded-xl bg-primary/5 space-y-2.5">
+                  <label className="text-sm font-bold text-foreground block">
+                    Choose the Subject you want to learn:
+                  </label>
+                  <Select 
+                    value={selectedSubject} 
+                    onValueChange={(val) => {
+                      setSelectedSubject(val);
+                      setSelectedPlan(null);
+                      setSelectedSlot(null);
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-background">
+                      <SelectValue placeholder="Select a subject to unlock plans & book..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tutor.subjects?.map((s: string) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {!selectedSubject ? (
+                  <div className="text-center py-8 text-muted-foreground border border-dashed rounded-xl p-4 bg-secondary/15">
+                    <p className="text-sm font-semibold">Please select a subject above to view rates and booking plans.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-sm animate-in fade-in duration-300">
+                    {[
+                      { type: 'Free Demo Class', price: 0, isDemo: true },
+                      { type: '1-on-1 (Premium)', price: subjectRate },
+                      { type: '2 Students', price: Math.round(subjectRate * 0.75) },
+                      { type: '3–5 Students', price: Math.round(subjectRate * 0.55) },
+                      { type: '2 Days/Week (Monthly Pack)', price: Math.round(subjectRate * 8 * 0.85), isPack: true, sessionsCount: 8, subtitle: '8 Classes/mo • 15% Discount Applied' },
+                      { type: '3 Days/Week (Monthly Pack)', price: Math.round(subjectRate * 12 * 0.80), isPack: true, sessionsCount: 12, subtitle: '12 Classes/mo • 20% Discount Applied' }
+                    ].map(plan => {
+                      const isDemoDisabled = plan.isDemo && (completedBooking || hasActiveBooking);
+                      const isClickable = !enrolledBooking && !isDemoDisabled;
+                      return (
+                        <div
+                          key={plan.type}
+                          onClick={() => isClickable ? setSelectedPlan(plan) : null}
+                          className={`flex justify-between items-center rounded-md p-4 transition-all duration-200 border ${selectedPlan?.type === plan.type
+                              ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
+                              : isClickable
+                                ? "bg-secondary hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/30"
+                                : "bg-secondary border-transparent opacity-50 cursor-not-allowed"
+                            }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            {isClickable && (
+                              <div className={`h-4 w-4 mt-0.5 rounded-full border flex items-center justify-center ${selectedPlan?.type === plan.type ? "border-primary-foreground" : "border-muted-foreground"}`}>
+                                {selectedPlan?.type === plan.type && <div className="h-2 w-2 rounded-full bg-primary-foreground" />}
+                              </div>
                             )}
+                            <div>
+                              <span className={`font-semibold ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
+                                {plan.type} {isDemoDisabled && " (Already Used)"}
+                              </span>
+                              {plan.subtitle && (
+                                <p className={`text-xs mt-0.5 ${selectedPlan?.type === plan.type ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                                  {plan.subtitle}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className={`font-bold text-lg block ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
+                              {plan.price === 0 ? "Free" : `₹${plan.price}`}
+                            </span>
+                            <span className={`text-[10px] uppercase font-bold tracking-wider ${selectedPlan?.type === plan.type ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
+                              {plan.price === 0 ? "" : plan.isPack ? "/month" : "/hr"}
+                            </span>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className={`font-bold text-lg block ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
-                            {plan.price === 0 ? "Free" : `₹${plan.price}`}
-                          </span>
-                          <span className={`text-[10px] uppercase font-bold tracking-wider ${selectedPlan?.type === plan.type ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
-                            {plan.price === 0 ? "" : plan.isPack ? "/month" : "/hr"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1050,22 +1087,7 @@ const TutorProfile = () => {
                           )}
                         </div>
 
-                        {/* Subject Selector */}
-                        {tutor.subjects && tutor.subjects.length > 0 && (
-                          <div className="space-y-2">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Select Course Subject</label>
-                            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select a subject" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {tutor.subjects.map((s: string) => (
-                                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
+
 
                         {/* Instant Calendar Sessions Preview */}
                         {generatedPackSessions && generatedPackSessions.length > 0 ? (
@@ -1118,20 +1140,7 @@ const TutorProfile = () => {
                           </PopoverContent>
                         </Popover>
 
-                        {tutor.subjects && tutor.subjects.length > 0 && (
-                          <div className="space-y-2 mt-4">
-                            <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={hasActiveBooking && !selectedPlan && !completedBooking}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select a subject" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {tutor.subjects.map((s: string) => (
-                                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
+
 
                         <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-2">
                           {availableSlotsForDate && availableSlotsForDate.length > 0 ? (

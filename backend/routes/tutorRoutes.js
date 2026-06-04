@@ -533,7 +533,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -550,11 +550,47 @@ router.put('/:id/profile', async (req, res) => {
 
     // If the tutor was previously rejected, updating their profile automatically re-submits it for review
     if (currentTutor.status === 'rejected') {
-      updateData.status = 'pending';
+      currentTutor.status = 'pending';
     }
 
-    const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
-    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+    if (bio !== undefined) currentTutor.bio = bio;
+    if (qualification !== undefined) currentTutor.qualification = qualification;
+    if (experience !== undefined) currentTutor.experience = experience;
+    
+    // Update subjectRates / subjects
+    if (subjectRates !== undefined) {
+      currentTutor.subjectRates = subjectRates;
+      currentTutor.subjects = subjectRates.map(sr => sr.subject);
+      if (subjectRates.length > 0) {
+        currentTutor.hourlyRate = Number(subjectRates[0].rate);
+      }
+    } else {
+      // Fallback for legacy requests
+      if (hourlyRate !== undefined || subjects !== undefined) {
+        const finalSubjects = subjects !== undefined 
+          ? (Array.isArray(subjects) ? subjects : String(subjects).split(",").map(s => s.trim()).filter(Boolean))
+          : currentTutor.subjects;
+          
+        const rate = hourlyRate !== undefined ? Number(hourlyRate) : currentTutor.hourlyRate;
+        
+        currentTutor.subjectRates = finalSubjects.map(sub => {
+          const existing = currentTutor.subjectRates.find(sr => sr.subject === sub);
+          return {
+            subject: sub,
+            rate: existing ? existing.rate : rate
+          };
+        });
+        currentTutor.subjects = finalSubjects;
+        if (hourlyRate !== undefined) currentTutor.hourlyRate = Number(hourlyRate);
+      }
+    }
+
+    if (category !== undefined) currentTutor.category = category;
+    if (photo !== undefined) currentTutor.photo = photo;
+    if (verificationDocument !== undefined) currentTutor.verificationDocument = verificationDocument;
+
+    await currentTutor.save();
+    const tutor = await currentTutor.populate('userId', 'email phone avatar');
     
     const obj = tutor.toObject();
     obj.id = obj._id.toString();

@@ -141,4 +141,176 @@ router.get('/student/:studentId/bookings', async (req, res) => {
   }
 });
 
+const parseTimingStringToDate = (timingStr) => {
+  try {
+    const parts = timingStr.split(' at ');
+    if (parts.length === 2) {
+      const datePartCleaned = parts[0].replace(/(\d+)(st|nd|rd|th)/, '$1');
+      const timePart = parts[1];
+      const combined = `${datePartCleaned} ${timePart}`;
+      const parsed = new Date(combined);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error("Error parsing timing string on backend:", e);
+  }
+  return null;
+};
+
+const isBookingPast = (timingStr) => {
+  const parsed = parseTimingStringToDate(timingStr);
+  if (parsed) {
+    const bufferMs = 2 * 60 * 60 * 1000; // 2 hours buffer
+    return (parsed.getTime() + bufferMs) < Date.now();
+  }
+  return false;
+};
+
+// GET /api/dashboard/admin/payouts
+router.get('/admin/payouts', async (req, res) => {
+  try {
+    const tutors = await Tutor.find().populate('userId', 'email phone');
+    const payoutsReport = [];
+
+    for (const tutor of tutors) {
+      // Find all bookings for this tutor
+      const tutorBookings = await Booking.find({ tutorId: tutor._id });
+
+      // Group bookings by pricing period per subject
+      let periods = tutor.pricingHistory || [];
+      const allSubjects = Array.from(new Set([
+        ...(tutor.subjects || []),
+        ...(tutor.subjectRates || []).map(sr => sr.subject),
+        ...tutorBookings.map(b => b.subject).filter(Boolean)
+      ]));
+
+      const periodsReport = [];
+
+      for (const subject of allSubjects) {
+        let subjectPeriods = periods.filter(p => p.subject === subject);
+        if (subjectPeriods.length === 0) {
+          const matchingRateObj = (tutor.subjectRates || []).find(sr => sr.subject === subject);
+          const rate = matchingRateObj ? matchingRateObj.rate : (tutor.hourlyRate || 500);
+          subjectPeriods = [{
+            subject,
+            rate,
+            effectiveFrom: tutor.createdAt || new Date(0),
+            effectiveTo: null
+          }];
+        }
+
+        const subjectBookings = tutorBookings.filter(b => b.subject === subject);
+
+        for (let i = 0; i < subjectPeriods.length; i++) {
+          const period = subjectPeriods[i];
+          const start = new Date(period.effectiveFrom);
+          const end = period.effectiveTo ? new Date(period.effectiveTo) : new Date();
+
+          const periodBookings = subjectBookings.filter(b => {
+            const bookingDate = new Date(b.createdAt);
+            if (period.effectiveTo) {
+              return bookingDate >= start && bookingDate <= end;
+            } else {
+              return bookingDate >= start;
+            }
+          });
+
+          let totalCollected = 0;
+          let totalCompletedSessions = 0;
+          const bookingsList = [];
+
+          for (const booking of periodBookings) {
+            if (booking.status === 'cancelled' || booking.status === 'rejected') {
+              continue;
+            }
+
+            const isPack = booking.sessions && booking.sessions.length > 0;
+            let completedCount = 0;
+
+            if (isPack) {
+              completedCount = booking.sessions.filter(s => s.status === 'completed').length;
+            } else if (booking.status === 'enrolled') {
+              if (isBookingPast(booking.timing)) {
+                completedCount = 1;
+              }
+            }
+
+            let payout = 0;
+            if (booking.amountPaid) {
+              if (isPack && booking.sessions.length > 0) {
+                const sessionRate = booking.amountPaid / booking.sessions.length;
+                payout = sessionRate * completedCount;
+              } else {
+                payout = booking.amountPaid * completedCount;
+              }
+            }
+
+            const platformCommission = payout * 0.10;
+            const netPayout = payout * 0.90;
+
+            totalCollected += booking.amountPaid || 0;
+            totalCompletedSessions += completedCount;
+
+            bookingsList.push({
+              bookingId: booking._id,
+              studentName: booking.studentName,
+              planType: booking.planType,
+              subject: booking.subject,
+              amountPaid: booking.amountPaid || 0,
+              timing: booking.timing,
+              completedSessions: completedCount,
+              totalSessions: isPack ? booking.sessions.length : 1,
+              grossPayout: payout,
+              commission: platformCommission,
+              netPayout: netPayout,
+              status: booking.status,
+              createdAt: booking.createdAt
+            });
+          }
+
+          const periodCommission = bookingsList.reduce((acc, curr) => acc + curr.commission, 0);
+          const periodNetPayout = bookingsList.reduce((acc, curr) => acc + curr.netPayout, 0);
+
+          periodsReport.push({
+            subject,
+            rate: period.rate,
+            effectiveFrom: period.effectiveFrom,
+            effectiveTo: period.effectiveTo,
+            bookingsCount: periodBookings.length,
+            completedSessions: totalCompletedSessions,
+            totalCollected,
+            platformCommission: periodCommission,
+            tutorPayout: periodNetPayout,
+            bookings: bookingsList
+          });
+        }
+      }
+
+      const totalCollected = periodsReport.reduce((acc, curr) => acc + curr.totalCollected, 0);
+      const totalCommission = periodsReport.reduce((acc, curr) => acc + curr.platformCommission, 0);
+      const totalPayout = periodsReport.reduce((acc, curr) => acc + curr.tutorPayout, 0);
+      const totalCompleted = periodsReport.reduce((acc, curr) => acc + curr.completedSessions, 0);
+
+      payoutsReport.push({
+        tutorId: tutor._id,
+        tutorName: tutor.name,
+        email: tutor.userId?.email || 'No email',
+        phone: tutor.userId?.phone || 'No phone',
+        currentRate: tutor.hourlyRate,
+        totalCollected,
+        totalCommission,
+        totalPayout,
+        totalCompletedSessions: totalCompleted,
+        pricingPeriods: periodsReport
+      });
+    }
+
+    res.json(payoutsReport);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

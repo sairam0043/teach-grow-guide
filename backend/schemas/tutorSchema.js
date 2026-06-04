@@ -21,6 +21,10 @@ const tutorSchema = new mongoose.Schema({
   bio: { type: String },
   subjects: [{ type: String }],
   hourlyRate: { type: Number, required: true, default: 500 },
+  subjectRates: [{
+    subject: { type: String, required: true },
+    rate: { type: Number, required: true, default: 500 }
+  }],
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   featured: { type: Boolean, default: false },
   availableTimings: [{ type: String }],
@@ -35,8 +39,63 @@ const tutorSchema = new mongoose.Schema({
     rating: { type: Number },
     reviewText: { type: String },
     date: { type: Date, default: Date.now }
+  }],
+  pricingHistory: [{
+    subject: { type: String, required: true },
+    rate: { type: Number, required: true },
+    effectiveFrom: { type: Date, required: true, default: Date.now },
+    effectiveTo: { type: Date }
   }]
 }, { timestamps: true });
+ 
+tutorSchema.pre('save', function() {
+  if (this.isNew) {
+    if (!this.pricingHistory || this.pricingHistory.length === 0) {
+      this.pricingHistory = [];
+      const ratesToInitialize = this.subjectRates && this.subjectRates.length > 0
+        ? this.subjectRates
+        : (this.subjects || []).map(sub => ({ subject: sub, rate: this.hourlyRate || 500 }));
+        
+      ratesToInitialize.forEach(sr => {
+        this.pricingHistory.push({
+          subject: sr.subject,
+          rate: sr.rate,
+          effectiveFrom: new Date()
+        });
+      });
+    }
+  } else if (this.isModified('subjectRates')) {
+    if (!this.pricingHistory) this.pricingHistory = [];
+    
+    this.subjectRates.forEach(sr => {
+      const activePeriods = this.pricingHistory.filter(h => h.subject === sr.subject && !h.effectiveTo);
+      if (activePeriods.length === 0) {
+        this.pricingHistory.push({
+          subject: sr.subject,
+          rate: sr.rate,
+          effectiveFrom: new Date()
+        });
+      } else {
+        const lastActive = activePeriods[activePeriods.length - 1];
+        if (lastActive.rate !== sr.rate) {
+          lastActive.effectiveTo = new Date();
+          this.pricingHistory.push({
+            subject: sr.subject,
+            rate: sr.rate,
+            effectiveFrom: new Date()
+          });
+        }
+      }
+    });
+    
+    const currentSubjects = this.subjectRates.map(sr => sr.subject);
+    this.pricingHistory.forEach(h => {
+      if (!h.effectiveTo && !currentSubjects.includes(h.subject)) {
+        h.effectiveTo = new Date();
+      }
+    });
+  }
+});
 
 const Tutor = mongoose.model('Tutor', tutorSchema);
 

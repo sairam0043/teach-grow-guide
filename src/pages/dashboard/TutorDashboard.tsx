@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PageLayout from "@/components/layout/PageLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSelector, useDispatch } from "react-redux";
@@ -21,6 +22,56 @@ import API_URL from "@/config/api";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import ChatPanel from "@/components/chat/ChatPanel";
+
+const parseTimingStringToDate = (timingStr: string): Date | null => {
+  try {
+    const parts = timingStr.split(' at ');
+    if (parts.length === 2) {
+      const datePartCleaned = parts[0].replace(/(\d+)(st|nd|rd|th)/, '$1');
+      const timePart = parts[1];
+      const combined = `${datePartCleaned} ${timePart}`;
+      const parsed = new Date(combined);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error("Error parsing timing string:", e);
+  }
+  return null;
+};
+
+const isBookingPast = (timingStr: string): boolean => {
+  const parsed = parseTimingStringToDate(timingStr);
+  if (parsed) {
+    const bufferMs = 2 * 60 * 60 * 1000; // 2 hours buffer
+    return (parsed.getTime() + bufferMs) < Date.now();
+  }
+  return false;
+};
+
+const parseSessionStringToDate = (dateStr: string, timeStr: string): Date | null => {
+  try {
+    const datePartCleaned = dateStr.replace(/(\d+)(st|nd|rd|th)/, '$1');
+    const combined = `${datePartCleaned} ${timeStr}`;
+    const parsed = new Date(combined);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  } catch (e) {
+    console.error("Error parsing session date/time:", e);
+  }
+  return null;
+};
+
+const isSessionPast = (dateStr: string, timeStr: string): boolean => {
+  const parsed = parseSessionStringToDate(dateStr, timeStr);
+  if (parsed) {
+    const bufferMs = 2 * 60 * 60 * 1000; // 2 hours buffer
+    return (parsed.getTime() + bufferMs) < Date.now();
+  }
+  return false;
+};
 
 const TutorDashboard = () => {
   const { user } = useAuth();
@@ -82,9 +133,11 @@ const TutorDashboard = () => {
   const [profileData, setProfileData] = useState({
     bio: "",
     qualification: "",
-    hourlyRate: "",
-    subjects: "",
   });
+  const [subjectRates, setSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [newSubjectRate, setNewSubjectRate] = useState(500);
+  const [customSubjectInput, setCustomSubjectInput] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
@@ -123,9 +176,11 @@ const TutorDashboard = () => {
           setProfileData({
             bio: res.data.bio || "",
             qualification: res.data.qualification || "",
-            hourlyRate: res.data.hourlyRate || "",
-            subjects: res.data.subjects?.join(", ") || "",
           });
+          const legacyRates = res.data.subjectRates && res.data.subjectRates.length > 0
+            ? res.data.subjectRates
+            : (res.data.subjects || []).map((sub: string) => ({ subject: sub, rate: res.data.hourlyRate || 500 }));
+          setSubjectRates(legacyRates);
           dispatch(fetchTutorStats(res.data.id)); // Database object ID natively fetched
           axios.get(`${API_URL}/dashboard/tutor/${res.data.id}/bookings`)
             .then(bRes => setBookings(bRes.data))
@@ -246,10 +301,16 @@ const TutorDashboard = () => {
         uploadedDocUrl = uploadRes.data.url;
       }
 
+      if (subjectRates.length === 0) {
+        toast.error("Please add at least one subject with a rate.");
+        setIsSavingProfile(false);
+        return;
+      }
+
       const payload = {
-        ...profileData,
-        subjects: profileData.subjects.split(",").map(s => s.trim()).filter(Boolean),
-        hourlyRate: Number(profileData.hourlyRate),
+        bio: profileData.bio,
+        qualification: profileData.qualification,
+        subjectRates,
         photo: uploadedPhotoUrl,
         verificationDocument: uploadedDocUrl
       };
@@ -329,12 +390,16 @@ const TutorDashboard = () => {
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
           {[
-            { icon: Clock, label: "Demo Requests", value: tutorStats?.demoRequests || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
-            { icon: Users, label: "Active Students", value: uniqueStudents.length, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30" },
-            { icon: Calendar, label: "Upcoming Classes", value: enrolledClasses.length, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30" },
-            { icon: DollarSign, label: "Total Earnings", value: `₹${enrolledClasses.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
+            { icon: Clock, label: "Demo Requests", value: tutorStats?.demoRequests || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
+            { icon: Users, label: "Active Students", value: uniqueStudents.length, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30", tab: "students" },
+            { icon: Calendar, label: "Upcoming Classes", value: enrolledClasses.length, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30", tab: "schedule" },
+            { icon: DollarSign, label: "Total Earnings", value: `₹${enrolledClasses.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "earnings" },
           ].map((stat) => (
-            <Card key={stat.label} className="border-none shadow-md hover:shadow-lg transition-all duration-300">
+            <Card 
+              key={stat.label} 
+              onClick={() => setActiveTab(stat.tab)}
+              className="border-none shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:bg-secondary/10"
+            >
               <CardContent className="flex items-center gap-5 p-6">
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg}`}>
                   <stat.icon className={`h-7 w-7 ${stat.color}`} />
@@ -399,7 +464,12 @@ const TutorDashboard = () => {
                              <Users className="h-5 w-5 text-primary"/> Student: {booking.studentName}
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
-                          <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2"><Calendar className="h-4 w-4"/> {booking.timing}</p>
+                          <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+                            <Calendar className="h-4 w-4"/> {booking.timing}
+                            {booking.status === 'confirmed' && isBookingPast(booking.timing) && (
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
+                            )}
+                          </p>
                         </div>
                         <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
                           <div className="flex items-center gap-2">
@@ -416,19 +486,21 @@ const TutorDashboard = () => {
                           <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {booking.status === 'confirmed' && (
                                <>
-                                <Button
-                                  size="sm"
-                                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 animate-pulse"
-                                  asChild
-                                >
-                                  <a
-                                    href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                {!isBookingPast(booking.timing) && (
+                                  <Button
+                                    size="sm"
+                                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 animate-pulse"
+                                    asChild
                                   >
-                                    <Video className="h-4 w-4" /> Join Demo Room
-                                  </a>
-                                </Button>
+                                    <a
+                                      href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <Video className="h-4 w-4" /> Join Demo Room
+                                    </a>
+                                  </Button>
+                                 )}
                                 <Button size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => handleBookingAction(booking._id, 'completed')}>
                                   <Check className="mr-1 h-4 w-4"/> Mark Completed
                                 </Button>
@@ -541,19 +613,21 @@ const TutorDashboard = () => {
                                         <div className="flex gap-2">
                                           {session.status === 'scheduled' && (
                                             <>
-                                              <Button
-                                                size="sm"
-                                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold text-xs animate-pulse"
-                                                asChild
-                                              >
-                                                <a
-                                                  href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
+                                              {!isSessionPast(session.date, session.time) && (
+                                                <Button
+                                                  size="sm"
+                                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold text-xs animate-pulse"
+                                                  asChild
                                                 >
-                                                  <Video className="h-3.5 w-3.5" /> Start Classroom
-                                                </a>
-                                              </Button>
+                                                  <a
+                                                    href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                  >
+                                                    <Video className="h-3.5 w-3.5" /> Start Classroom
+                                                  </a>
+                                                </Button>
+                                              )}
                                               <Button 
                                                 size="sm" 
                                                 className="bg-green-600 hover:bg-green-700 text-white shadow-sm text-xs font-semibold"
@@ -593,20 +667,27 @@ const TutorDashboard = () => {
                              <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
                           </div>
                           <div className="mt-auto pt-4 border-t flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
-                             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4"/> {cls.timing}</span>
-                             <Button
-                               size="sm"
-                               className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse w-full sm:w-auto"
-                               asChild
-                             >
-                               <a
-                                 href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                 target="_blank"
-                                 rel="noopener noreferrer"
+                             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                               <Clock className="h-4 w-4"/> {cls.timing}
+                               {isBookingPast(cls.timing) && (
+                                 <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
+                               )}
+                             </span>
+                             {!isBookingPast(cls.timing) && (
+                               <Button
+                                 size="sm"
+                                 className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse w-full sm:w-auto"
+                                 asChild
                                >
-                                 <Video className="h-4 w-4" /> Join Classroom
-                               </a>
-                             </Button>
+                                 <a
+                                   href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                 >
+                                   <Video className="h-4 w-4" /> Join Classroom
+                                 </a>
+                               </Button>
+                             )}
                           </div>
                         </div>
                       );
@@ -898,19 +979,148 @@ const TutorDashboard = () => {
                             className="flex min-h-[100px] w-full rounded-md border border-input bg-secondary/20 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50" 
                           />
                         </div>
-                        <div className="grid sm:grid-cols-2 gap-6">
-                          <div className="space-y-2">
-                            <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
-                            <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="hourlyRate" className="text-sm font-semibold">Hourly Rate (₹)</Label>
-                            <Input id="hourlyRate" type="number" min="0" value={profileData.hourlyRate} onChange={(e) => setProfileData({...profileData, hourlyRate: e.target.value})} placeholder="e.g. 500" className="bg-secondary/20 shadow-sm" />
-                          </div>
-                        </div>
                         <div className="space-y-2">
-                          <Label htmlFor="subjects" className="text-sm font-semibold">Subjects Taught (Comma Separated)</Label>
-                          <Input id="subjects" value={profileData.subjects} onChange={(e) => setProfileData({...profileData, subjects: e.target.value})} placeholder="e.g. Algebra, Calculus, Physics" className="bg-secondary/20 shadow-sm" />
+                          <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
+                          <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
+                        </div>
+
+                        <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
+                          <Label className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
+                            📚 Subjects & Hourly Rates
+                          </Label>
+                          
+                          {/* Subject Rates List */}
+                          {subjectRates.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic p-2 bg-background rounded-lg border border-dashed text-center">
+                              No subjects added yet. Please add at least one subject below.
+                            </p>
+                          ) : (
+                            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                              {subjectRates.map((sr, sIdx) => (
+                                <div key={sIdx} className="flex items-center justify-between gap-4 bg-background p-3 rounded-lg border shadow-sm transition-all hover:border-primary/20">
+                                  <span className="text-sm font-bold text-foreground truncate max-w-[200px]">{sr.subject}</span>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground font-semibold">₹</span>
+                                      <Input 
+                                        type="number" 
+                                        min={100} 
+                                        max={10000} 
+                                        className="w-20 h-8 text-xs font-bold text-center" 
+                                        value={sr.rate} 
+                                        onChange={(e) => {
+                                          const val = Number(e.target.value);
+                                          setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: val } : item));
+                                        }} 
+                                      />
+                                      <span className="text-[10px] text-muted-foreground">/hr</span>
+                                    </div>
+                                    <Button 
+                                      type="button" 
+                                      variant="ghost" 
+                                      size="sm"
+                                      className="h-8 w-8 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                      onClick={() => {
+                                        setSubjectRates(prev => prev.filter((_, idx) => idx !== sIdx));
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Add New Subject Sub-Form */}
+                          <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-border/40 items-end sm:items-center">
+                            <div className="flex-1 w-full space-y-1">
+                              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Subject Name</Label>
+                              {customSubjectInput ? (
+                                <div className="flex gap-1.5">
+                                  <Input 
+                                    placeholder="Enter subject name..." 
+                                    value={newSubjectName} 
+                                    onChange={(e) => setNewSubjectName(e.target.value)}
+                                    className="h-9 text-xs bg-background"
+                                  />
+                                  <Button 
+                                    type="button" 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => { setCustomSubjectInput(false); setNewSubjectName(""); }}
+                                    className="h-9 px-2 text-xs shrink-0"
+                                  >
+                                    Back
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Select 
+                                  value={newSubjectName} 
+                                  onValueChange={(val) => {
+                                    if (val === "custom") {
+                                      setCustomSubjectInput(true);
+                                      setNewSubjectName("");
+                                    } else {
+                                      setNewSubjectName(val);
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9 text-xs bg-background">
+                                    <SelectValue placeholder="Choose subject..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {[
+                                      "Mathematics", "Physics", "Chemistry", "Biology", "Coding / Computer Science", "English", "History", "Geography", "Economics & Finance", "Foreign Languages",
+                                      "Music (Vocal/Instruments)", "Dance", "Fine Arts & Drawing", "Chess", "Yoga & Meditation", "Public Speaking & Debate", "Creative Writing", "Photography & Video"
+                                    ]
+                                      .filter(sub => !subjectRates.some(sr => sr.subject === sub))
+                                      .map(sub => (
+                                        <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                                      ))
+                                    }
+                                    <SelectItem value="custom">+ Custom Subject...</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+
+                            <div className="w-fit space-y-1">
+                              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Rate (₹/hr)</Label>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground">₹</span>
+                                <Input 
+                                  type="number" 
+                                  min={100} 
+                                  max={10000} 
+                                  className="w-20 h-9 text-xs font-bold text-center bg-background" 
+                                  value={newSubjectRate} 
+                                  onChange={(e) => setNewSubjectRate(Number(e.target.value))} 
+                                />
+                              </div>
+                            </div>
+
+                            <Button 
+                              type="button" 
+                              variant="secondary"
+                              onClick={() => {
+                                if (!newSubjectName.trim()) {
+                                  toast.error("Please select or enter a subject name.");
+                                  return;
+                                }
+                                if (subjectRates.some(sr => sr.subject.toLowerCase() === newSubjectName.trim().toLowerCase())) {
+                                  toast.error("This subject is already in your profile.");
+                                  return;
+                                }
+                                setSubjectRates(prev => [...prev, { subject: newSubjectName.trim(), rate: newSubjectRate }]);
+                                setNewSubjectName("");
+                                setCustomSubjectInput(false);
+                              }}
+                              className="h-9 text-xs shrink-0"
+                            >
+                              <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
+                            </Button>
+                          </div>
                         </div>
                         
                         <div className="pt-2">

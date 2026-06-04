@@ -33,6 +33,7 @@ interface TutorProfileData {
   status: string;
   hourlyRate?: number;
   rating?: number;
+  subjectRates?: { subject: string; rate: number }[];
   [key: string]: unknown;
 }
 
@@ -158,7 +159,23 @@ const TutorWelcome = () => {
             <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 { label: "Active Students", value: loading ? "..." : String(tutorStats?.activeStudents ?? 0), icon: Users, color: "from-blue-500/20 to-cyan-500/20 text-blue-600 dark:text-blue-400 border-blue-200/40" },
-                { label: "Avg. Earnings", value: loading ? "..." : (tutorProfile?.hourlyRate ? `₹${tutorProfile.hourlyRate}/hr` : "₹500/hr"), icon: DollarSign, color: "from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200/40" },
+                { 
+                  label: "Hourly Rate Range", 
+                  value: loading ? "..." : (() => {
+                    const rates = tutorProfile?.subjectRates?.map((sr: any) => sr.rate) || [];
+                    if (rates.length === 0) {
+                      return tutorProfile?.hourlyRate ? `₹${tutorProfile.hourlyRate}/hr` : "₹500/hr";
+                    }
+                    const minRate = Math.min(...rates);
+                    const maxRate = Math.max(...rates);
+                    if (minRate === maxRate) {
+                      return `₹${minRate}/hr`;
+                    }
+                    return `₹${minRate}-${maxRate}/hr`;
+                  })(), 
+                  icon: DollarSign, 
+                  color: "from-emerald-500/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200/40" 
+                },
                 { label: "Success Rate", value: loading ? "..." : (tutorProfile?.rating && tutorProfile.rating > 0 ? `${Math.round(tutorProfile.rating * 20)}%` : "100%"), icon: TrendingUp, color: "from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-400 border-purple-200/40" }
               ].map((stat, idx) => (
                 <Card 

@@ -62,6 +62,7 @@ router.post('/register', async (req, res) => {
       let parsedSubjects = [];
       let parsedTimings = [];
       let parsedAvailability = [];
+      let parsedSubjectRates = [];
       try {
         if (typeof tutorData.subjects === 'string') {
           parsedSubjects = JSON.parse(tutorData.subjects);
@@ -78,7 +79,19 @@ router.post('/register', async (req, res) => {
         } else if (Array.isArray(tutorData.availability)) {
           parsedAvailability = tutorData.availability;
         }
+        if (typeof tutorData.subjectRates === 'string') {
+          parsedSubjectRates = JSON.parse(tutorData.subjectRates);
+        } else if (Array.isArray(tutorData.subjectRates)) {
+          parsedSubjectRates = tutorData.subjectRates;
+        }
       } catch (err) { }
+
+      if (parsedSubjectRates.length === 0 && parsedSubjects.length > 0) {
+        parsedSubjectRates = parsedSubjects.map(sub => ({
+          subject: sub,
+          rate: Number(tutorData.hourlyRate) || 500
+        }));
+      }
 
       const tutor = new Tutor({
         userId: user._id,
@@ -89,8 +102,9 @@ router.post('/register', async (req, res) => {
         experience: tutorData.experience || 0,
         qualification: tutorData.qualification || '',
         bio: tutorData.bio || '',
-        hourlyRate: tutorData.hourlyRate || 500,
+        hourlyRate: Number(tutorData.hourlyRate) || 500,
         subjects: parsedSubjects,
+        subjectRates: parsedSubjectRates,
         availableTimings: parsedTimings,
         availability: parsedAvailability,
         photo: tutorData.photo || "https://ui-avatars.com/api/?name=" + encodeURIComponent(full_name) + "&background=random",

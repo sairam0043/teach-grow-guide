@@ -52,6 +52,7 @@ const RegisterTutor = () => {
   const [category, setCategory] = useState("");
   const [teachingMode, setTeachingMode] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [subjectRates, setSubjectRates] = useState<Record<string, number>>({});
   const [otherSubjectText, setOtherSubjectText] = useState("");
   const [bio, setBio] = useState("");
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -118,9 +119,15 @@ const RegisterTutor = () => {
   const subjects = category === "Academic" ? academicSubjects : category === "Extracurricular" ? extracurricularSubjects : [];
 
   const toggleSubject = (s: string) => {
-    setSelectedSubjects((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
-    );
+    setSelectedSubjects((prev) => {
+      const isChecked = prev.includes(s);
+      if (!isChecked) {
+        setSubjectRates(prevRates => ({ ...prevRates, [s]: 500 }));
+        return [...prev, s];
+      } else {
+        return prev.filter((x) => x !== s);
+      }
+    });
   };
 
 
@@ -132,19 +139,35 @@ const RegisterTutor = () => {
       return;
     }
 
-    let finalSubjects = selectedSubjects.filter(s => s !== "Other");
+    const finalSubjectRates: { subject: string; rate: number }[] = [];
+    selectedSubjects.filter(s => s !== "Other").forEach(sub => {
+      finalSubjectRates.push({
+        subject: sub,
+        rate: Number(subjectRates[sub]) || 500
+      });
+    });
+
     if (selectedSubjects.includes("Other") && otherSubjectText.trim()) {
-      const customList = otherSubjectText
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      finalSubjects = [...finalSubjects, ...customList];
+      const customList = otherSubjectText.split(",");
+      customList.forEach(item => {
+        const parts = item.split(":");
+        const name = parts[0]?.trim();
+        const rate = parts[1] ? Number(parts[1].trim()) : 500;
+        if (name) {
+          finalSubjectRates.push({
+            subject: name,
+            rate: isNaN(rate) ? 500 : rate
+          });
+        }
+      });
     }
 
-    if (finalSubjects.length === 0) {
+    if (finalSubjectRates.length === 0) {
       toast.error("Please select at least one subject.");
       return;
     }
+
+    const finalSubjects = finalSubjectRates.map(sr => sr.subject);
 
     if (password !== confirmPassword) {
       toast.error("Password and confirm password must match.");
@@ -207,6 +230,8 @@ const RegisterTutor = () => {
       role: "tutor",
       category: category.toLowerCase(),
       subjects: JSON.stringify(finalSubjects),
+      subjectRates: JSON.stringify(finalSubjectRates),
+      hourlyRate: finalSubjectRates[0]?.rate || 500,
       bio,
       experience,
       qualification,
@@ -302,41 +327,71 @@ const RegisterTutor = () => {
               </div>
 
               {subjects.length > 0 && (
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold">Subjects / Skills</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {subjects.map((s) => (
-                      <label
-                        key={s}
-                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all hover:bg-secondary/80 ${
-                          selectedSubjects.includes(s) ? "border-primary bg-primary/5 text-foreground font-medium" : "text-muted-foreground"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedSubjects.includes(s)}
-                          onChange={() => toggleSubject(s)}
-                          className="accent-primary h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        {s}
-                      </label>
-                    ))}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Select Subjects / Skills</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {subjects.map((s) => (
+                        <label
+                          key={s}
+                          className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all hover:bg-secondary/80 ${
+                            selectedSubjects.includes(s) ? "border-primary bg-primary/5 text-foreground font-medium" : "text-muted-foreground"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedSubjects.includes(s)}
+                            onChange={() => toggleSubject(s)}
+                            className="accent-primary h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                          />
+                          {s}
+                        </label>
+                      ))}
+                    </div>
                   </div>
+
+                  {selectedSubjects.filter(s => s !== "Other").length > 0 && (
+                    <div className="space-y-3 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <Label className="text-sm font-semibold">Set Hourly Rates per Subject (₹/hr)</Label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {selectedSubjects.filter(s => s !== "Other").map((s) => (
+                          <div key={s} className="flex items-center justify-between gap-3 bg-background p-2.5 rounded-lg border shadow-sm">
+                            <span className="text-xs font-semibold text-foreground truncate max-w-[150px]">{s}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-xs text-muted-foreground">₹</span>
+                              <Input
+                                type="number"
+                                min={100}
+                                max={10000}
+                                className="w-24 h-8 text-xs font-bold"
+                                value={subjectRates[s] || 500}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  setSubjectRates(prev => ({ ...prev, [s]: val }));
+                                }}
+                              />
+                              <span className="text-[10px] text-muted-foreground">/hr</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {selectedSubjects.includes("Other") && (
                     <div className="space-y-2 mt-3 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
                       <Label htmlFor="custom-subjects" className="text-xs font-semibold text-muted-foreground block mb-1">
-                        Specify Your Other Subject(s)
+                        Specify Your Other Subject(s) & Rates
                       </Label>
                       <Input
                         id="custom-subjects"
                         required
-                        placeholder="e.g. Sanskrit, Artificial Intelligence, German (comma-separated)"
+                        placeholder="e.g. Sanskrit:400, AI:600 (comma-separated Subject:Rate)"
                         value={otherSubjectText}
                         onChange={(e) => setOtherSubjectText(e.target.value)}
                         className="bg-background shadow-sm text-sm"
                       />
-                      <p className="text-xs text-muted-foreground">Type any custom subjects separated by commas.</p>
+                      <p className="text-xs text-muted-foreground">Type custom subjects with rates, e.g. "Sanskrit:400, Artificial Intelligence:600". Default rate is ₹500 if not specified.</p>
                     </div>
                   )}
                 </div>

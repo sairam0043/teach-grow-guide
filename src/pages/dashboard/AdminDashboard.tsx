@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2 } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -22,18 +22,33 @@ const AdminDashboard = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [payouts, setPayouts] = useState<any[]>([]);
+  const [loadingPayouts, setLoadingPayouts] = useState(false);
+  const [expandedTutorId, setExpandedTutorId] = useState<string | null>(null);
+  const [selectedPayoutSubject, setSelectedPayoutSubject] = useState<Record<string, string>>({});
+
+  const fetchPayouts = async () => {
+    try {
+      setLoadingPayouts(true);
+      const res = await axios.get(`${API_URL}/dashboard/admin/payouts`);
+      setPayouts(res.data);
+    } catch (err) {
+      toast.error("Failed to load payout calculations");
+    } finally {
+      setLoadingPayouts(false);
+    }
+  };
 
   const fetchTutors = async () => {
     try {
       setLoading(true);
       const res = await axios.get(`${API_URL}/tutors`);
       setTutors(res.data);
-      // Fetch students separately via a dedicated new endpoint or auth filtering route
       const studentRes = await axios.get(`${API_URL}/dashboard/admin/students`);
       setStudents(studentRes.data);
-      // Fetch bookings separately
       const bookingsRes = await axios.get(`${API_URL}/dashboard/admin/bookings`);
       setBookings(bookingsRes.data);
+      await fetchPayouts();
     } catch (err) {
       toast.error("Failed to load dashboard data");
     } finally {
@@ -145,6 +160,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Students</TabsTrigger>
             <TabsTrigger value="bookings" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Bookings</TabsTrigger>
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payments</TabsTrigger>
+            <TabsTrigger value="payouts" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Tutor Payouts</TabsTrigger>
           </TabsList>
 
           <TabsContent value="approvals">
@@ -541,6 +557,222 @@ const AdminDashboard = () => {
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payouts">
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b pb-4">
+                <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                  <CreditCard className="h-5 w-5 text-emerald-500" /> Tutor Payouts & Ledger Audit
+                </CardTitle>
+                <CardDescription>Track tutor hourly rate changes, completed sessions, and calculated payouts (gross vs net payouts minus 10% platform commission).</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {loadingPayouts ? (
+                  <div className="space-y-4 py-4">
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                  </div>
+                ) : payouts.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
+                    <CreditCard className="mx-auto mb-4 h-16 w-16 opacity-30 text-emerald-500" />
+                    <h3 className="text-lg font-bold text-foreground mb-1">No Payout Data</h3>
+                    <p className="text-sm">There are no tutor sessions recorded for payout calculations yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Overall Summary Row */}
+                    <div className="grid gap-4 sm:grid-cols-3 bg-secondary/10 p-4 rounded-xl border border-border/40 mb-4">
+                      <div className="text-center p-2">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Total Collected (Gross)</span>
+                        <span className="text-2xl font-extrabold text-foreground mt-1 block">₹{payouts.reduce((acc, curr) => acc + curr.totalCollected, 0)}</span>
+                      </div>
+                      <div className="text-center p-2 border-x border-border/40">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Platform Commission (10%)</span>
+                        <span className="text-2xl font-extrabold text-emerald-600 mt-1 block">₹{payouts.reduce((acc, curr) => acc + curr.totalCommission, 0)}</span>
+                      </div>
+                      <div className="text-center p-2">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Total Tutor Payouts (90%)</span>
+                        <span className="text-2xl font-extrabold text-indigo-500 mt-1 block">₹{payouts.reduce((acc, curr) => acc + curr.totalPayout, 0)}</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border shadow-sm overflow-hidden bg-card mt-4">
+                      <Table>
+                        <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold border-b border-border/40">
+                          <TableRow>
+                            <TableHead className="w-12"></TableHead>
+                            <TableHead className="font-bold h-12">Tutor Profile</TableHead>
+                            <TableHead className="font-bold h-12">Contact Info</TableHead>
+                            <TableHead className="font-bold h-12 text-center">Completed Sessions</TableHead>
+                            <TableHead className="font-bold h-12 text-right">Gross Collected</TableHead>
+                            <TableHead className="font-bold h-12 text-right">Commission (10%)</TableHead>
+                            <TableHead className="font-bold h-12 text-right">Net Payout (90%)</TableHead>
+                            <TableHead className="font-bold h-12 text-right px-6">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {payouts.map((tutorPayout) => {
+                            const isExpanded = expandedTutorId === tutorPayout.tutorId;
+                            return (
+                              <>
+                                <TableRow key={tutorPayout.tutorId} className="hover:bg-secondary/5 transition-colors border-b border-border/40">
+                                  <TableCell className="text-center">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-8 w-8 p-0"
+                                      onClick={() => setExpandedTutorId(isExpanded ? null : tutorPayout.tutorId)}
+                                    >
+                                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                    </Button>
+                                  </TableCell>
+                                  <TableCell className="font-semibold text-foreground">{tutorPayout.tutorName}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    <div>{tutorPayout.email}</div>
+                                    <div>{tutorPayout.phone}</div>
+                                  </TableCell>
+                                  <TableCell className="text-center font-bold text-sm">{tutorPayout.totalCompletedSessions}</TableCell>
+                                  <TableCell className="text-right font-medium">₹{tutorPayout.totalCollected}</TableCell>
+                                  <TableCell className="text-right font-medium text-emerald-600">₹{tutorPayout.totalCommission}</TableCell>
+                                  <TableCell className="text-right font-bold text-indigo-500">₹{tutorPayout.totalPayout}</TableCell>
+                                  <TableCell className="text-right px-6">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setExpandedTutorId(isExpanded ? null : tutorPayout.tutorId)}
+                                      className="font-semibold h-8"
+                                    >
+                                      {isExpanded ? "Hide Logs" : "Audit Details"}
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+
+                                {isExpanded && (
+                                  <TableRow className="bg-secondary/10 hover:bg-secondary/10">
+                                    <TableCell colSpan={8} className="p-6">
+                                      <div className="space-y-6">
+                                        <h4 className="font-extrabold text-sm uppercase tracking-wider text-muted-foreground border-b pb-2 flex items-center gap-1.5">
+                                          <History className="h-4 w-4 text-primary" /> Pricing Period Payout Log & Class Timeline
+                                        </h4>
+
+                                        {(() => {
+                                          const subjectsInPeriods = Array.from(new Set(tutorPayout.pricingPeriods.map((p: any) => p.subject).filter(Boolean)));
+                                          const activeSubject = selectedPayoutSubject[tutorPayout.tutorId] || subjectsInPeriods[0] || "";
+                                          const filteredPeriods = tutorPayout.pricingPeriods.filter((p: any) => p.subject === activeSubject);
+
+                                          return (
+                                            <>
+                                              {subjectsInPeriods.length > 1 && (
+                                                <div className="flex flex-wrap gap-2 mb-4 bg-background p-2 px-3 rounded-lg border border-border/45 w-fit items-center">
+                                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mr-1">Filter Subject:</span>
+                                                  {subjectsInPeriods.map((sub: any) => (
+                                                    <button
+                                                      key={sub}
+                                                      onClick={() => setSelectedPayoutSubject(prev => ({ ...prev, [tutorPayout.tutorId]: sub }))}
+                                                      className={`px-3 py-1 text-xs font-bold rounded-full transition-all duration-200 border ${
+                                                        activeSubject === sub 
+                                                          ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                                                          : "bg-secondary text-muted-foreground hover:bg-secondary/80 border-transparent"
+                                                      }`}
+                                                    >
+                                                      {sub}
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                              )}
+
+                                              {filteredPeriods.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground italic p-2 bg-background rounded-lg border border-dashed text-center">
+                                                  No payout history recorded for this subject.
+                                                </p>
+                                              ) : (
+                                                filteredPeriods.map((period: any, pIdx: number) => {
+                                                  const fromDate = new Date(period.effectiveFrom).toLocaleDateString();
+                                                  const toDate = period.effectiveTo ? new Date(period.effectiveTo).toLocaleDateString() : "Current Rate";
+                                                  return (
+                                                    <div key={pIdx} className="bg-card p-4 rounded-xl border shadow-sm space-y-3">
+                                                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 border-border/40 gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                          <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none font-bold">
+                                                            Rate: ₹{period.rate}/hr
+                                                          </Badge>
+                                                          {period.subject && (
+                                                            <Badge variant="outline" className="font-bold border-indigo-200 text-indigo-600 bg-indigo-50/50">
+                                                              {period.subject}
+                                                            </Badge>
+                                                          )}
+                                                          <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                                                            <Calendar className="h-3.5 w-3.5" /> Effective Period: {fromDate} – {toDate}
+                                                          </span>
+                                                        </div>
+                                                        <div className="flex gap-4 text-xs font-bold text-muted-foreground">
+                                                          <span>Bookings: <strong className="text-foreground">{period.bookingsCount}</strong></span>
+                                                          <span>Sessions Taught: <strong className="text-foreground">{period.completedSessions}</strong></span>
+                                                          <span>Collected: <strong className="text-foreground">₹{period.totalCollected}</strong></span>
+                                                          <span>Payout: <strong className="text-indigo-500">₹{period.tutorPayout}</strong></span>
+                                                        </div>
+                                                      </div>
+
+                                                      {/* Period Bookings list */}
+                                                      {period.bookings.length === 0 ? (
+                                                        <p className="text-xs text-muted-foreground italic p-2">No bookings recorded during this pricing period.</p>
+                                                      ) : (
+                                                        <div className="overflow-x-auto rounded-lg border border-border/60">
+                                                          <Table>
+                                                            <TableHeader className="bg-secondary/30 uppercase text-[9px] font-bold text-muted-foreground">
+                                                              <TableRow>
+                                                                <TableHead className="font-bold h-10">Student</TableHead>
+                                                                <TableHead className="font-bold h-10">Subject</TableHead>
+                                                                <TableHead className="font-bold h-10">Plan Type</TableHead>
+                                                                <TableHead className="font-bold h-10">Timing</TableHead>
+                                                                <TableHead className="font-bold h-10 text-center">Sessions Taught</TableHead>
+                                                                <TableHead className="font-bold h-10 text-right">Amt Collected</TableHead>
+                                                                <TableHead className="font-bold h-10 text-right">Commission</TableHead>
+                                                                <TableHead className="font-bold h-10 text-right">Tutor Payout</TableHead>
+                                                              </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                              {period.bookings.map((booking: any) => (
+                                                                <TableRow key={booking.bookingId} className="hover:bg-secondary/10 transition-colors">
+                                                                  <TableCell className="font-medium text-xs py-2">{booking.studentName}</TableCell>
+                                                                  <TableCell className="text-xs py-2">{booking.subject}</TableCell>
+                                                                  <TableCell className="py-2">
+                                                                    <Badge variant="outline" className="text-[10px] font-semibold py-0.5 px-2 bg-primary/5 text-primary border-primary/20">{booking.planType}</Badge>
+                                                                  </TableCell>
+                                                                  <TableCell className="text-[11px] text-muted-foreground py-2">{booking.timing}</TableCell>
+                                                                  <TableCell className="text-center font-bold text-xs py-2">{booking.completedSessions} / {booking.totalSessions}</TableCell>
+                                                                  <TableCell className="text-right text-xs py-2">₹{booking.amountPaid}</TableCell>
+                                                                  <TableCell className="text-right text-xs text-emerald-600 py-2">₹{Math.round(booking.commission)}</TableCell>
+                                                                  <TableCell className="text-right font-bold text-indigo-500 text-xs py-2">₹{Math.round(booking.netPayout)}</TableCell>
+                                                                </TableRow>
+                                                              ))}
+                                                            </TableBody>
+                                                          </Table>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })
+                                              )}
+                                            </>
+                                          );
+                                        })()}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
               </CardContent>

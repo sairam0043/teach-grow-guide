@@ -13,6 +13,21 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
   const photoSrc =
     resolveAssetUrl(tutor.photo) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
+
+  const getRateDisplay = () => {
+    // If tutor has subjectRates array, extract values
+    const rates = (tutor as any).subjectRates?.map((sr: any) => sr.rate) || [];
+    if (rates.length === 0) {
+      return `₹${tutor.hourlyRate || 500}`;
+    }
+    const minRate = Math.min(...rates);
+    const maxRate = Math.max(...rates);
+    if (minRate === maxRate) {
+      return `₹${minRate}`;
+    }
+    return `₹${minRate} - ₹${maxRate}`;
+  };
+
   return (
     <div className="group overflow-hidden rounded-xl border bg-card shadow-card transition-shadow hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
@@ -72,7 +87,7 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-lg font-semibold text-foreground">₹{tutor.hourlyRate}<span className="text-sm font-normal text-muted-foreground">/hr</span></span>
+          <span className="text-lg font-semibold text-foreground">{getRateDisplay()}<span className="text-sm font-normal text-muted-foreground">/hr</span></span>
           <Button size="sm" asChild>
             <Link to={`/tutors/${tutor.id}`}>Book Demo</Link>
           </Button>

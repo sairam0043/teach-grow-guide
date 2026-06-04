@@ -20,6 +20,56 @@ import { Badge } from "@/components/ui/badge";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { toast } from "@/components/ui/sonner";
 
+const parseTimingStringToDate = (timingStr: string): Date | null => {
+  try {
+    const parts = timingStr.split(' at ');
+    if (parts.length === 2) {
+      const datePartCleaned = parts[0].replace(/(\d+)(st|nd|rd|th)/, '$1');
+      const timePart = parts[1];
+      const combined = `${datePartCleaned} ${timePart}`;
+      const parsed = new Date(combined);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error("Error parsing timing string:", e);
+  }
+  return null;
+};
+
+const isBookingPast = (timingStr: string): boolean => {
+  const parsed = parseTimingStringToDate(timingStr);
+  if (parsed) {
+    const bufferMs = 2 * 60 * 60 * 1000; // 2 hours buffer
+    return (parsed.getTime() + bufferMs) < Date.now();
+  }
+  return false;
+};
+
+const parseSessionStringToDate = (dateStr: string, timeStr: string): Date | null => {
+  try {
+    const datePartCleaned = dateStr.replace(/(\d+)(st|nd|rd|th)/, '$1');
+    const combined = `${datePartCleaned} ${timeStr}`;
+    const parsed = new Date(combined);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  } catch (e) {
+    console.error("Error parsing session date/time:", e);
+  }
+  return null;
+};
+
+const isSessionPast = (dateStr: string, timeStr: string): boolean => {
+  const parsed = parseSessionStringToDate(dateStr, timeStr);
+  if (parsed) {
+    const bufferMs = 2 * 60 * 60 * 1000; // 2 hours buffer
+    return (parsed.getTime() + bufferMs) < Date.now();
+  }
+  return false;
+};
+
 const StudentDashboard = () => {
   const { user } = useAuth();
   const initialName = String(user?.user_metadata?.full_name || user?.full_name || "Student");
@@ -166,12 +216,16 @@ const StudentDashboard = () => {
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
           {[
-            { icon: Calendar, label: "Upcoming Classes", value: studentStats?.upcomingClasses || 0, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30" },
-            { icon: Clock, label: "Demo Bookings", value: studentStats?.completedSessions || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
-            { icon: BookOpen, label: "Enrolled Courses", value: studentStats?.enrolledCourses || 0, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30" },
-            { icon: CreditCard, label: "Total Spent", value: `₹${paymentHistory.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
+            { icon: Calendar, label: "Upcoming Classes", value: studentStats?.upcomingClasses || 0, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30", tab: "upcoming" },
+            { icon: Clock, label: "Demo Bookings", value: studentStats?.completedSessions || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
+            { icon: BookOpen, label: "Enrolled Courses", value: studentStats?.enrolledCourses || 0, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30", tab: "upcoming" },
+            { icon: CreditCard, label: "Total Spent", value: `₹${paymentHistory.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "payments" },
           ].map((stat, idx) => (
-            <Card key={stat.label} className="border-none shadow-md hover:shadow-lg transition-all duration-300">
+            <Card 
+              key={stat.label} 
+              onClick={() => setActiveTab(stat.tab)}
+              className="border-none shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:bg-secondary/10"
+            >
               <CardContent className="flex items-center gap-5 p-6">
                 <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg}`}>
                   <stat.icon className={`h-7 w-7 ${stat.color}`} />
@@ -318,7 +372,7 @@ const StudentDashboard = () => {
                                           {session.status}
                                         </Badge>
 
-                                        {session.status === 'scheduled' && (
+                                        {session.status === 'scheduled' && !isSessionPast(session.date, session.time) && (
                                           <Button
                                             size="sm"
                                             className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold text-xs"
@@ -354,7 +408,12 @@ const StudentDashboard = () => {
                              <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
                           </div>
                           <div className="mt-auto pt-4 border-t flex justify-between items-center">
-                             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4"/> {cls.timing}</span>
+                             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                               <Clock className="h-4 w-4"/> {cls.timing}
+                               {isBookingPast(cls.timing) && (
+                                 <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
+                               )}
+                             </span>
                              <div className="flex gap-2">
                                {!cls.isRated && (
                                  <Button size="sm" variant="secondary" className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100" onClick={() => {
@@ -365,6 +424,7 @@ const StudentDashboard = () => {
                                    <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
                                  </Button>
                                )}
+                               {!isBookingPast(cls.timing) && (
                                 <Button
                                   size="sm"
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
@@ -378,6 +438,7 @@ const StudentDashboard = () => {
                                     <Video className="h-4 w-4" /> Join Class
                                   </a>
                                 </Button>
+                               )}
                                <Button variant="outline" size="sm" asChild>
                                  <Link to={`/tutors/${cls.tutorId}`}>View Tutor</Link>
                                </Button>
@@ -418,7 +479,12 @@ const StudentDashboard = () => {
                              <User className="h-5 w-5 text-primary"/> {booking.tutorName}
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
-                          <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2"><Calendar className="h-4 w-4"/> {booking.timing}</p>
+                          <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+                            <Calendar className="h-4 w-4"/> {booking.timing}
+                            {booking.status === 'confirmed' && isBookingPast(booking.timing) && (
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
+                            )}
+                          </p>
                         </div>
                         <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
                           <div className="flex items-center gap-2">
@@ -435,19 +501,21 @@ const StudentDashboard = () => {
                           <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {booking.status === 'confirmed' && (
                                <>
-                                 <Button
-                                   size="sm"
-                                   className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
-                                   asChild
-                                 >
-                                   <a
-                                     href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                     target="_blank"
-                                     rel="noopener noreferrer"
+                                 {!isBookingPast(booking.timing) && (
+                                   <Button
+                                     size="sm"
+                                     className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
+                                     asChild
                                    >
-                                     <Video className="h-4 w-4" /> Join Demo Room
-                                   </a>
-                                 </Button>
+                                     <a
+                                       href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                     >
+                                       <Video className="h-4 w-4" /> Join Demo Room
+                                     </a>
+                                   </Button>
+                                 )}
                                  <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => handleBookingAction(booking._id, 'cancelled')}>Cancel Demo</Button>
                                </>
                             )}
