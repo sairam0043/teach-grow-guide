@@ -127,8 +127,8 @@ const TutorWelcome = () => {
     <PageLayout>
       <div className="relative min-h-screen bg-slate-50/50 dark:bg-slate-950/20 overflow-hidden py-12">
         {/* Animated Background Orbs */}
-        <div className="absolute top-1/4 left-1/10 w-96 h-96 bg-primary/10 rounded-full blur-3xl -z-10 animate-pulse duration-[6000ms]" />
-        <div className="absolute bottom-1/4 right-1/10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -z-10 animate-pulse duration-[8000ms]" />
+        <div className="absolute top-1/4 left-1/10 w-96 h-96 bg-primary/10 rounded-full blur-3xl -z-10 animate-pulse [animation-duration:6000ms]" />
+        <div className="absolute bottom-1/4 right-1/10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -z-10 animate-pulse [animation-duration:8000ms]" />
 
         <div className="container max-w-4xl px-4 mx-auto">
           {/* Confetti & Congrats Header */}

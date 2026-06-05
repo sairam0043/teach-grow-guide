@@ -282,22 +282,24 @@ router.post('/:id/book-class', async (req, res) => {
       }
     }
 
-    // Notify Tutor of the new class booking
-    try {
-      const tutorUser = await User.findById(tutor.userId);
-      if (tutorUser && tutorUser.email) {
-        console.log(`[Booking] Attempting to notify tutor: ${tutorUser.email}`);
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
-          to: tutorUser.email,
-          subject: isGroup ? 'New Group Class Booking' : 'New Class Booking',
-          text: `Hello ${tutor.name},\n\nA new class has been booked by ${studentName} for ${subject} at ${timing}.\n\nType: ${isGroup ? 'Group Class' : 'Individual Class'}\nPlan: ${planType}\n\nYou can join the private video room directly here: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
-          html: `<h3>New Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new class has been booked by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Type:</b> ${isGroup ? 'Group Class' : 'Individual Class'}<br><b>Plan:</b> ${planType}</p><p>You can join the private video room directly by clicking the link below:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
-        });
-        console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
+    // Notify Tutor of the new group class booking if it is a group class
+    if (isGroup) {
+      try {
+        const tutorUser = await User.findById(tutor.userId);
+        if (tutorUser && tutorUser.email) {
+          console.log(`[Booking] Attempting to notify tutor of group booking: ${tutorUser.email}`);
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: tutorUser.email,
+            subject: 'New Group Class Booking',
+            text: `Hello ${tutor.name},\n\nA new group class has been initiated by ${studentName} for ${subject} at ${timing}.\n\nPlan: ${planType}\n\nYou can join the private video room once all members enroll: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
+          });
+          console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
+        }
+      } catch (mailError) {
+        console.error('[Booking] Failed to send tutor notification:', mailError.message);
       }
-    } catch (mailError) {
-      console.error('[Booking] Failed to send tutor notification:', mailError.message);
     }
 
     res.status(200).json({ message: 'Class booked successfully', booking: newBooking });
