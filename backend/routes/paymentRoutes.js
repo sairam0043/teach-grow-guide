@@ -45,12 +45,16 @@ if (isRazorpayConfigured) {
 router.post('/create-order', async (req, res) => {
   try {
     const { bookingId, amount } = req.body;
+    console.log(`[Payments] Request to create order received. BookingID: ${bookingId}, Amount: ₹${amount}`);
+
     if (!bookingId || !amount) {
+      console.warn('[Payments] Missing bookingId or amount in request body.');
       return res.status(400).json({ message: 'Booking ID and amount are required' });
     }
 
     const booking = await Booking.findById(bookingId);
     if (!booking) {
+      console.warn(`[Payments] Booking not found for ID: ${bookingId}`);
       return res.status(404).json({ message: 'Booking not found' });
     }
 
@@ -58,7 +62,7 @@ router.post('/create-order', async (req, res) => {
     const amountInPaise = Math.round(Number(amount) * 100);
 
     if (isRazorpayConfigured && razorpayInstance) {
-      // Official Razorpay Order
+      console.log('[Payments] Razorpay credentials detected. Creating order via Razorpay API...');
       const options = {
         amount: amountInPaise,
         currency: 'INR',
@@ -66,6 +70,7 @@ router.post('/create-order', async (req, res) => {
       };
       
       const order = await razorpayInstance.orders.create(options);
+      console.log(`[Payments] Razorpay Order created successfully. Order ID: ${order.id}`);
       return res.json({
         isSandbox: false,
         keyId: process.env.RAZORPAY_KEY_ID,
@@ -75,8 +80,9 @@ router.post('/create-order', async (req, res) => {
         booking
       });
     } else {
-      // Sandbox Mock Fallback Order
+      console.log('[Payments] Razorpay not configured. Falling back to Sandbox Mock mode.');
       const mockOrderId = `order_mock_${crypto.randomBytes(8).toString('hex')}`;
+      console.log(`[Payments] Generated mock order ID: ${mockOrderId}`);
       return res.json({
         isSandbox: true,
         keyId: 'rzp_test_dummySandboxKey123',
@@ -87,7 +93,7 @@ router.post('/create-order', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('[Payments] Error creating order:', error);
+    console.error('[Payments] Critical error during order creation:', error);
     res.status(500).json({ message: 'Error initiating payment order', error: error.message });
   }
 });
@@ -105,27 +111,33 @@ router.post('/verify-payment', async (req, res) => {
       amountPaid
     } = req.body;
 
+    console.log(`[Payments] Verification request received. BookingID: ${bookingId}, OrderID: ${razorpay_order_id}, PaymentID: ${razorpay_payment_id}`);
+
     if (!bookingId || !razorpay_payment_id || !razorpay_order_id) {
+      console.warn('[Payments] Missing required fields for payment verification.');
       return res.status(400).json({ message: 'Missing payment details for verification' });
     }
 
     const booking = await Booking.findById(bookingId);
     if (!booking) {
+      console.warn(`[Payments] Booking not found for verification ID: ${bookingId}`);
       return res.status(404).json({ message: 'Booking not found' });
     }
 
     const isSandboxPayment = razorpay_order_id.startsWith('order_mock_');
 
     if (!isSandboxPayment && isRazorpayConfigured) {
-      // Real Cryptographical Verification
+      console.log('[Payments] Initiating real cryptographic signature verification...');
       const generatedSignature = crypto
         .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest('hex');
 
       if (generatedSignature !== razorpay_signature) {
+        console.error(`[Payments] Signature verification failed! Expected: ${generatedSignature}, Received: ${razorpay_signature}`);
         return res.status(400).json({ message: 'Payment verification failed: Signature mismatch' });
       }
+      console.log('[Payments] Cryptographic signature matches successfully.');
     } else {
       console.log('[Payments] Verifying Sandbox Payment for order:', razorpay_order_id);
     }
@@ -149,6 +161,7 @@ router.post('/verify-payment', async (req, res) => {
       if (tutor) {
         const tutorUser = await User.findById(tutor.userId);
         if (tutorUser && tutorUser.email) {
+          console.log(`[Payments] Attempting to send confirmation email to tutor: ${tutorUser.email}`);
           await transporter.sendMail({
             from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
             to: tutorUser.email,
