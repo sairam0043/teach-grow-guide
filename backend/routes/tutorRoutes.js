@@ -19,6 +19,38 @@ const transporter = nodemailer.createTransport({
 
 const router = express.Router();
 
+// Helper to securely calculate backend prices for a booking plan
+const calculatePlanPrice = (tutor, subject, planType) => {
+  if (planType === 'Free Demo Class') {
+    return 0;
+  }
+  
+  // Find subject rate
+  let subjectRate = tutor.hourlyRate || 500;
+  if (tutor.subjectRates && Array.isArray(tutor.subjectRates)) {
+    const rateObj = tutor.subjectRates.find(sr => sr.subject === subject);
+    if (rateObj) {
+      subjectRate = rateObj.rate;
+    }
+  }
+
+  switch (planType) {
+    case '1-on-1 (Premium)':
+      return subjectRate;
+    case '2 Students':
+      return Math.round(subjectRate * 0.75);
+    case '3–5 Students':
+      return Math.round(subjectRate * 0.55);
+    case '2 Days/Week (Monthly Pack)':
+      return Math.round(subjectRate * 8 * 0.85);
+    case '3 Days/Week (Monthly Pack)':
+      return Math.round(subjectRate * 12 * 0.80);
+    default:
+      return subjectRate;
+  }
+};
+
+
 // Get all tutors
 router.get('/', async (req, res) => {
   try {
@@ -191,11 +223,11 @@ router.post('/:id/book', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, amountPaid, otherStudentsEmails, packDetails, sessions } = req.body;
+    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
-    if (!planType || !amountPaid) return res.status(400).json({ message: 'Plan details are required' });
+    if (!planType) return res.status(400).json({ message: 'Plan details are required' });
 
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
@@ -222,6 +254,9 @@ router.post('/:id/book-class', async (req, res) => {
 
     const isGroup = otherStudentsEmails && otherStudentsEmails.length > 0;
     
+    // Securely calculate price on the backend
+    const calculatedPrice = calculatePlanPrice(tutor, subject, planType);
+    
     // Direct booking means they're immediately enrolled, unless it's a group requiring approval
     const newBooking = new Booking({
       tutorId: tutor._id,
@@ -232,7 +267,7 @@ router.post('/:id/book-class', async (req, res) => {
       studentName: studentName || "Anonymous",
       status: isGroup ? 'pending' : 'pending_payment',
       planType,
-      amountPaid,
+      amountPaid: calculatedPrice,
       groupDetails: isGroup ? {
         isGroup: true,
         invitedEmails: otherStudentsEmails.map(email => ({ email, status: 'pending', paidShare: false }))

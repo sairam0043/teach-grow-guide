@@ -393,4 +393,60 @@ router.put('/profile/:id', async (req, res) => {
   }
 });
 
+router.post('/contact', async (req, res) => {
+  const { name, email, subject, message } = req.body;
+  console.log(`[Contact Form] Submission received from ${name} (${email})`);
+
+  if (!name || !email || !subject || !message) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
+
+  try {
+    const smtpConfigured = Boolean(
+      process.env.SMTP_HOST &&
+      process.env.SMTP_PORT &&
+      process.env.SMTP_USER &&
+      process.env.SMTP_PASS
+    );
+
+    if (!smtpConfigured) {
+      console.warn(`[Contact Form] SMTP is NOT fully configured. Logging to console.`);
+      if (isProduction) {
+        console.error(`[Contact Form] SMTP not configured in production. Failed to send message from ${email}`);
+        return res.status(500).json({
+          message: 'Email service is not configured on server. Please contact support.'
+        });
+      }
+
+      console.log(`\n======================================================`);
+      console.log(`[DEVELOPMENT] SUPPORT INQUIRY FOR support@cuvasol.com`);
+      console.log(`From: ${name} (${email})`);
+      console.log(`Subject: ${subject}`);
+      console.log(`Message: ${message}`);
+      console.log(`======================================================\n`);
+    } else {
+      console.log(`[Contact Form] Attempting to send contact form email to support@cuvasol.com`);
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"Cuvasol Contact Form" <noreply@cuvasoltutor.com>',
+        to: 'support@cuvasol.com',
+        replyTo: email,
+        subject: `[Contact Form] ${subject}`,
+        text: `New contact form submission:\n\nName: ${name}\nEmail: ${email}\nSubject: ${subject}\nMessage:\n${message}`,
+        html: `<h3>New Support Inquiry</h3>
+               <p><strong>Name:</strong> ${name}</p>
+               <p><strong>Email:</strong> ${email}</p>
+               <p><strong>Subject:</strong> ${subject}</p>
+               <p><strong>Message:</strong></p>
+               <p style="white-space: pre-wrap; background-color: #f3f4f6; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb;">${message}</p>`,
+      });
+      console.log(`[Contact Form] Email sent successfully to support@cuvasol.com`);
+    }
+
+    res.json({ success: true, message: 'Your message has been sent successfully!' });
+  } catch (error) {
+    console.error(`[Contact Form] Error processing submission:`, error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router;

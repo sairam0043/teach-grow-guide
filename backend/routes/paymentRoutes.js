@@ -44,12 +44,12 @@ if (isRazorpayConfigured) {
 // Create Razorpay or Sandbox Mock Order
 router.post('/create-order', async (req, res) => {
   try {
-    const { bookingId, amount } = req.body;
-    console.log(`[Payments] Request to create order received. BookingID: ${bookingId}, Amount: ₹${amount}`);
+    const { bookingId } = req.body;
+    console.log(`[Payments] Request to create order received. BookingID: ${bookingId}`);
 
-    if (!bookingId || !amount) {
-      console.warn('[Payments] Missing bookingId or amount in request body.');
-      return res.status(400).json({ message: 'Booking ID and amount are required' });
+    if (!bookingId) {
+      console.warn('[Payments] Missing bookingId in request body.');
+      return res.status(400).json({ message: 'Booking ID is required' });
     }
 
     const booking = await Booking.findById(bookingId);
@@ -58,11 +58,14 @@ router.post('/create-order', async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
+    // Securely use the amount stored in the database instead of trusting the client
+    const secureAmount = booking.amountPaid || 0;
+    
     // Razorpay amount is in paise (₹1 = 100 paise)
-    const amountInPaise = Math.round(Number(amount) * 100);
+    const amountInPaise = Math.round(secureAmount * 100);
 
     if (isRazorpayConfigured && razorpayInstance) {
-      console.log('[Payments] Razorpay credentials detected. Creating order via Razorpay API...');
+      console.log(`[Payments] Razorpay credentials detected. Creating order via Razorpay API for ₹${secureAmount}...`);
       const options = {
         amount: amountInPaise,
         currency: 'INR',
@@ -80,7 +83,7 @@ router.post('/create-order', async (req, res) => {
         booking
       });
     } else {
-      console.log('[Payments] Razorpay not configured. Falling back to Sandbox Mock mode.');
+      console.log(`[Payments] Razorpay not configured. Falling back to Sandbox Mock mode for ₹${secureAmount}.`);
       const mockOrderId = `order_mock_${crypto.randomBytes(8).toString('hex')}`;
       console.log(`[Payments] Generated mock order ID: ${mockOrderId}`);
       return res.json({
@@ -107,8 +110,7 @@ router.post('/verify-payment', async (req, res) => {
       razorpay_payment_id, 
       razorpay_order_id, 
       razorpay_signature,
-      planType,
-      amountPaid
+      planType
     } = req.body;
 
     console.log(`[Payments] Verification request received. BookingID: ${bookingId}, OrderID: ${razorpay_order_id}, PaymentID: ${razorpay_payment_id}`);
@@ -145,8 +147,9 @@ router.post('/verify-payment', async (req, res) => {
     // 1. Update Booking Status to Enrolled
     booking.status = 'enrolled';
     booking.planType = planType || booking.planType || 'Standard Course';
-    booking.amountPaid = Number(amountPaid) || booking.amountPaid || (booking.amountPaid || 0);
-    
+    // Preserve database-calculated amountPaid, never trust the client parameter
+    booking.amountPaid = booking.amountPaid || 0;
+
     // 2. Generate Classroom Link if not already created
     if (!booking.meetingLink) {
       booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;

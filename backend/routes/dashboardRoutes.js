@@ -11,7 +11,7 @@ router.get('/admin', async (req, res) => {
     const pendingTutors = await Tutor.countDocuments({ status: 'pending' });
     const activeTutors = await Tutor.countDocuments({ status: 'approved' });
     const totalBookings = await Booking.countDocuments();
-    const enrolledBookings = await Booking.find({ status: 'enrolled' });
+    const enrolledBookings = await Booking.find({ status: { $in: ['enrolled', 'completed'] }, amountPaid: { $gt: 0 } });
     const totalRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
 
     // Calculate real average rating
@@ -222,7 +222,7 @@ router.get('/admin/payouts', async (req, res) => {
           const bookingsList = [];
 
           for (const booking of periodBookings) {
-            if (booking.status === 'cancelled' || booking.status === 'rejected') {
+            if (booking.status !== 'enrolled' && booking.status !== 'completed') {
               continue;
             }
 
@@ -235,6 +235,8 @@ router.get('/admin/payouts', async (req, res) => {
               if (isBookingPast(booking.timing)) {
                 completedCount = 1;
               }
+            } else if (booking.status === 'completed') {
+              completedCount = 1;
             }
 
             let payout = 0;
@@ -278,7 +280,7 @@ router.get('/admin/payouts', async (req, res) => {
             rate: period.rate,
             effectiveFrom: period.effectiveFrom,
             effectiveTo: period.effectiveTo,
-            bookingsCount: periodBookings.length,
+            bookingsCount: bookingsList.length,
             completedSessions: totalCompletedSessions,
             totalCollected,
             platformCommission: periodCommission,

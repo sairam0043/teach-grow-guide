@@ -63,7 +63,7 @@ const AdminDashboard = () => {
 
   const pendingTutors = tutors.filter((t) => t.status === "pending");
   const approvedTutors = tutors.filter((t) => t.status === "approved");
-  const enrolledBookings = bookings.filter((b) => b.status === "enrolled");
+  const enrolledBookings = bookings.filter((b) => (b.status === "enrolled" || b.status === "completed") && (b.amountPaid || 0) > 0);
 
   const totalPlatformRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
 
