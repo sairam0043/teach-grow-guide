@@ -213,7 +213,7 @@ const AIFutureSkills = () => {
           <img 
             src="/ai-program-banner.png" 
             alt="AI Future Skills Program" 
-            className="w-full h-auto object-cover max-h-[350px]" 
+            className="w-full h-auto block" 
           />
         </div>
 
