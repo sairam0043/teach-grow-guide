@@ -24,7 +24,7 @@ import { resolveAssetUrl } from "@/lib/assetUrl";
 
 const TutorProfile = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [tutor, setTutor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -255,6 +255,10 @@ const TutorProfile = () => {
 
   const handleBookDemo = async () => {
     if (isProcessingPayment) return;
+    if (role === 'tutor') {
+      toast.error("Tutors are not allowed to book classes.");
+      return;
+    }
     if (!selectedPlan) {
       toast.error("Please select a booking option first");
       return;
@@ -636,6 +640,7 @@ const TutorProfile = () => {
 
   const isBookButtonDisabled = (() => {
     if (isProcessingPayment) return true;
+    if (role === 'tutor') return true;
     if (selectedExisting) return false; // For cancellation
     if (!selectedPlan) return true;
 
@@ -902,7 +907,24 @@ const TutorProfile = () => {
           {/* Booking sidebar */}
           <div>
             <Card className="sticky top-20">
-              {pendingBooking ? (
+              {role === 'tutor' ? (
+                <>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-destructive">
+                      <AlertCircle className="h-5 w-5" /> Booking Restricted
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20 text-center">
+                      <p className="font-semibold text-destructive mb-2">Logged in as a Tutor</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Tutor accounts cannot book classes or request demo sessions from other tutors. 
+                        If you wish to book a class, please sign out and register or log in as a Student.
+                      </p>
+                    </div>
+                  </CardContent>
+                </>
+              ) : pendingBooking ? (
                 <>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-amber-500">

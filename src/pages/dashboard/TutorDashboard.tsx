@@ -1007,10 +1007,10 @@ const TutorDashboard = () => {
                                         min={100} 
                                         max={10000} 
                                         className="w-20 h-8 text-xs font-bold text-center" 
-                                        value={sr.rate} 
+                                        value={sr.rate !== undefined ? sr.rate : ""} 
                                         onChange={(e) => {
-                                          const val = Number(e.target.value);
-                                          setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: val } : item));
+                                          const val = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                                          setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val as number) ? "" : val } : item));
                                         }} 
                                       />
                                       <span className="text-[10px] text-muted-foreground">/hr</span>
@@ -1094,8 +1094,11 @@ const TutorDashboard = () => {
                                   min={100} 
                                   max={10000} 
                                   className="w-20 h-9 text-xs font-bold text-center bg-background" 
-                                  value={newSubjectRate} 
-                                  onChange={(e) => setNewSubjectRate(Number(e.target.value))} 
+                                  value={newSubjectRate !== undefined ? newSubjectRate : ""} 
+                                  onChange={(e) => {
+                                    const val = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                                    setNewSubjectRate(isNaN(val as number) ? "" : val as any);
+                                  }} 
                                 />
                               </div>
                             </div>
