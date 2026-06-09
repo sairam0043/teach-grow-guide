@@ -492,6 +492,7 @@ const StudentDashboard = () => {
                             <Badge variant="outline" className={`px-3 py-1 border-none ${
                                booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
                                booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                               booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                                'bg-red-100 text-red-700'
                              }`}>
                                {booking.status.toUpperCase()}

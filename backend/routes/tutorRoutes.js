@@ -186,11 +186,12 @@ router.post('/:id/book', async (req, res) => {
       timing,
       subject,
       studentId: studentId || "anonymous_student",
-      studentName: studentName || "Anonymous"
+      studentName: studentName || "Anonymous",
+      status: 'pending'
     });
     newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-demo-${newBooking._id}`;
     await newBooking.save();
-    console.log(`[Booking] Demo session saved for student: ${studentName}`);
+    console.log(`[Booking] Demo session saved for student: ${studentName} with status: pending`);
     
     // Notify Tutor
     try {
@@ -200,9 +201,13 @@ router.post('/:id/book', async (req, res) => {
         await transporter.sendMail({
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutorUser.email,
-          subject: 'New Demo Session Requested',
-          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nYou can join the private video room directly here: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
-          html: `<h3>New Demo Session Requested</h3><p>Hello <b>${tutor.name}</b>,</p><p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p><p>You can join the private video room directly by clicking the link below:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
+          subject: 'New Demo Session Requested (Pending Approval)',
+          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
+          html: `<h3>New Demo Session Requested</h3>
+                 <p>Hello <b>${tutor.name}</b>,</p>
+                 <p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p>
+                 <p>Please log in to your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
+                 <p>Best regards,<br/>Cuvasol Tutor Team</p>`,
         });
         console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
       } else {
@@ -357,11 +362,100 @@ router.get('/:id/bookings/student/:studentId', async (req, res) => {
 router.put('/booking/:bookingId/status', async (req, res) => {
   try {
     const { status } = req.body;
-    if (!['confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'].includes(status)) {
+    if (!['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'].includes(status)) {
        return res.status(400).json({ message: 'Invalid status' });
     }
-    const booking = await Booking.findByIdAndUpdate(req.params.bookingId, { status }, { new: true });
+    const booking = await Booking.findById(req.params.bookingId);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    const oldStatus = booking.status;
+    booking.status = status;
+    await booking.save();
+    
+    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status}`);
+
+    // Notify student on accept (confirmed) or reject (rejected)
+    if (status === 'confirmed' || status === 'rejected') {
+      try {
+        const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(booking.studentId);
+        const studentUser = isValidObjectId ? await User.findById(booking.studentId) : null;
+        if (studentUser && studentUser.email) {
+          const isConfirmed = status === 'confirmed';
+          const emailSubject = isConfirmed
+            ? `Demo Booking Accepted: ${booking.subject} with ${booking.tutorName}`
+            : `Demo Booking Declined: ${booking.subject} with ${booking.tutorName}`;
+            
+          const emailText = isConfirmed
+            ? `Hello ${booking.studentName},\n\nGood news! Your demo booking request with tutor ${booking.tutorName} for ${booking.subject} on ${booking.timing} has been ACCEPTED.\n\nYou can join the private video room directly here: ${booking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`
+            : `Hello ${booking.studentName},\n\nWe would like to inform you that your demo booking request with tutor ${booking.tutorName} for ${booking.subject} on ${booking.timing} was not accepted.\n\nPlease log in to your dashboard to browse other tutors or available times.\n\nBest regards,\nCuvasol Tutor Team`;
+
+          const emailHtml = isConfirmed
+            ? `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #059669; text-align: center;">Demo Booking Accepted!</h2>
+                <p>Hello <strong>${booking.studentName}</strong>,</p>
+                <p>Good news! Your demo booking request with tutor <strong>${booking.tutorName}</strong> has been <strong>accepted</strong>.</p>
+                
+                <div style="background-color: #f0fdfa; padding: 15px; border-radius: 6px; border: 1px solid #ccfbf1; margin: 20px 0;">
+                  <h4 style="margin-top: 0; color: #0f766e;">Session Details:</h4>
+                  <ul style="line-height: 1.6; margin-bottom: 0; padding-left: 20px;">
+                    <li><strong>Subject:</strong> ${booking.subject}</li>
+                    <li><strong>Timing:</strong> ${booking.timing}</li>
+                  </ul>
+                </div>
+
+                <div style="text-align: center; margin: 25px 0;">
+                  <a href="${booking.meetingLink}" 
+                     style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                    Join Video Room (Jitsi)
+                  </a>
+                </div>
+
+                <p>If you have any questions or need support, please contact us at <a href="mailto:support@cuvasol.com">support@cuvasol.com</a>.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p style="font-size: 11px; color: #999; text-align: center;">
+                  Best regards,<br/><strong>Cuvasol Tutor Team</strong>
+                </p>
+              </div>
+            `
+            : `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #dc2626; text-align: center;">Demo Booking Update</h2>
+                <p>Hello <strong>${booking.studentName}</strong>,</p>
+                <p>We regret to inform you that your demo booking request with tutor <strong>${booking.tutorName}</strong> for <strong>${booking.subject}</strong> on <strong>${booking.timing}</strong> was not accepted at this time.</p>
+                
+                <p>We encourage you to log in to your dashboard to view other qualified tutors or select alternative open slots.</p>
+                
+                <div style="text-align: center; margin: 25px 0;">
+                  <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/login" 
+                     style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                    Find Other Tutors
+                  </a>
+                </div>
+
+                <p>If you have any questions or need support, please contact us at <a href="mailto:support@cuvasol.com">support@cuvasol.com</a>.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p style="font-size: 11px; color: #999; text-align: center;">
+                  Best regards,<br/><strong>Cuvasol Tutor Team</strong>
+                </p>
+              </div>
+            `;
+
+          console.log(`[Booking] Sending status update email to student: ${studentUser.email}`);
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Classroom" <noreply@cuvasoltutor.com>',
+            to: studentUser.email,
+            subject: emailSubject,
+            text: emailText,
+            html: emailHtml
+          });
+          console.log(`[Booking] Status update email sent to student successfully.`);
+        }
+      } catch (mailError) {
+        console.error('[Booking] Failed to send student status update email:', mailError.message);
+      }
+    }
+
     res.json(booking);
   } catch (err) {
     res.status(500).json({ error: err.message });

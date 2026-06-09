@@ -477,6 +477,7 @@ const TutorDashboard = () => {
                             <Badge variant="outline" className={`px-3 py-1 border-none ${
                                booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
                                booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                               booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                                'bg-red-100 text-red-700'
                              }`}>
                                {booking.status.toUpperCase()}
@@ -484,6 +485,25 @@ const TutorDashboard = () => {
                           </div>
                           
                           <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                            {booking.status === 'pending' && (
+                              <>
+                                <Button 
+                                  size="sm" 
+                                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold" 
+                                  onClick={() => handleBookingAction(booking._id, 'confirmed')}
+                                >
+                                  <Check className="mr-1 h-4 w-4"/> Accept Request
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" 
+                                  onClick={() => handleBookingAction(booking._id, 'rejected')}
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            )}
                             {booking.status === 'confirmed' && (
                                <>
                                 {!isBookingPast(booking.timing) && (
