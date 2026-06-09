@@ -212,6 +212,23 @@ router.post('/create-course-order', async (req, res) => {
       return res.status(400).json({ message: 'Invalid purchase type. Must be assessment or full_course' });
     }
 
+    // Backend security validation: restrict full course orders to shortlisted students only
+    if (purchaseType === 'full_course') {
+      const assessmentPayment = await CoursePayment.findOne({
+        studentId,
+        purchaseType: 'assessment',
+        status: 'completed',
+        shortlisted: true
+      });
+
+      if (!assessmentPayment) {
+        console.warn(`[Course Payments] Blocked attempt to purchase full course by non-shortlisted student: ${studentEmail} (${studentId})`);
+        return res.status(403).json({ 
+          message: 'Enrollment restricted: You must be shortlisted by an administrator based on your assessment results to register for the full course.' 
+        });
+      }
+    }
+
     const secureAmount = purchaseType === 'assessment' ? 150 : 1500;
     const amountInPaise = Math.round(secureAmount * 100);
 
