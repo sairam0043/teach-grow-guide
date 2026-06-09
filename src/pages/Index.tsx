@@ -90,9 +90,17 @@ const Index = () => {
                   Browse Tutors <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button size="lg" variant="secondary" asChild>
-                <Link to="/register/tutor">Become a Tutor</Link>
-              </Button>
+              {user ? (
+                <Button size="lg" variant="secondary" asChild>
+                  <Link to={role === "admin" ? "/dashboard/admin" : role === "tutor" ? "/dashboard/tutor" : "/dashboard/student"}>
+                    Go to Dashboard
+                  </Link>
+                </Button>
+              ) : (
+                <Button size="lg" variant="secondary" asChild>
+                  <Link to="/register/tutor">Become a Tutor</Link>
+                </Button>
+              )}
             </div>
           </motion.div>
         </div>

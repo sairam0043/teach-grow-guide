@@ -24,9 +24,21 @@ const RegisterStudent = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signUp, googleSignIn } = useAuth();
+  const { signUp, googleSignIn, user, role } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    if (user) {
+      if (role === "student") {
+        navigate("/dashboard/student");
+      } else if (role === "tutor") {
+        navigate("/dashboard/tutor");
+      } else if (role === "admin") {
+        navigate("/dashboard/admin");
+      }
+    }
+  }, [user, role, navigate]);
 
   const queryParams = new URLSearchParams(location.search);
   const redirectUrl = queryParams.get("redirect");

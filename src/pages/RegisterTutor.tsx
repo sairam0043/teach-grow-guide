@@ -112,9 +112,21 @@ const RegisterTutor = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const { signUp, googleSignIn } = useAuth();
+  const { signUp, googleSignIn, user, role } = useAuth();
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      if (role === "tutor") {
+        navigate("/dashboard/tutor");
+      } else if (role === "student") {
+        navigate("/dashboard/student");
+      } else if (role === "admin") {
+        navigate("/dashboard/admin");
+      }
+    }
+  }, [user, role, navigate]);
 
   const subjects = category === "Academic" ? academicSubjects : category === "Extracurricular" ? extracurricularSubjects : [];
 
