@@ -376,10 +376,10 @@ const RegisterTutor = () => {
                                 min={100}
                                 max={10000}
                                 className="w-24 h-8 text-xs font-bold"
-                                value={subjectRates[s] || 500}
+                                value={subjectRates[s] !== undefined ? subjectRates[s] : 500}
                                 onChange={(e) => {
-                                  const val = Number(e.target.value);
-                                  setSubjectRates(prev => ({ ...prev, [s]: val }));
+                                  const val = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                                  setSubjectRates(prev => ({ ...prev, [s]: isNaN(val as number) ? "" : val }));
                                 }}
                               />
                               <span className="text-[10px] text-muted-foreground">/hr</span>
