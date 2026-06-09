@@ -1,0 +1,144 @@
+const express = require('express');
+const router = express.Router();
+const User = require('../schemas/userSchema');
+const Tutor = require('../schemas/tutorSchema');
+const Booking = require('../schemas/bookingSchema');
+
+// /api/dashboard/admin
+router.get('/admin', async (req, res) => {
+  try {
+    const totalStudents = await User.countDocuments({ role: 'student' });
+    const pendingTutors = await Tutor.countDocuments({ status: 'pending' });
+    const activeTutors = await Tutor.countDocuments({ status: 'approved' });
+    const totalBookings = await Booking.countDocuments();
+    const enrolledBookings = await Booking.find({ status: 'enrolled' });
+    const totalRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
+
+    // Calculate real average rating
+    const tutorsWithRatings = await Tutor.find({ rating: { $gt: 0 }, reviewCount: { $gt: 0 } });
+    let totalRating = 0;
+    tutorsWithRatings.forEach(t => totalRating += t.rating);
+    const averageRating = tutorsWithRatings.length > 0 ? (totalRating / tutorsWithRatings.length).toFixed(1) : 0;
+
+    res.json({
+      pendingApprovals: pendingTutors,
+      activeTutors,
+      totalStudents,
+      totalBookings,
+      totalRevenue,
+      averageRating
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// /api/dashboard/admin/bookings
+router.get('/admin/bookings', async (req, res) => {
+  try {
+    const bookings = await Booking.find().sort({ createdAt: -1 });
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// /api/dashboard/admin/students
+router.get('/admin/students', async (req, res) => {
+  try {
+    const students = await User.find({ role: 'student' });
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// /api/dashboard/tutor/:tutorId
+router.get('/tutor/:tutorId', async (req, res) => {
+  try {
+    const tutorId = req.params.tutorId;
+    const tutor = await Tutor.findById(tutorId).populate('demoSlots');
+    if (!tutor) return res.status(404).json({ message: "Tutor not found" });
+
+    const totalStudents = await Booking.distinct('studentId', { tutorId });
+    const demoRequests = await Booking.countDocuments({ tutorId, status: 'confirmed' }); // Simplification
+    const upcomingClasses = await Booking.countDocuments({ tutorId });
+
+    // Ensure array exists
+    const availableTimings = tutor.availableTimings || [];
+    const availability = tutor.availability || [];
+
+    res.json({
+      demoRequests,
+      activeStudents: totalStudents.length,
+      upcomingClasses,
+      totalEarnings: demoRequests * tutor.hourlyRate,
+      availableTimings,
+      availability
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update specific tutor's timings
+router.put('/tutor/:tutorId/timings', async (req, res) => {
+  try {
+    const { availableTimings, availability } = req.body;
+    const updateData = {};
+    if (availableTimings !== undefined) updateData.availableTimings = availableTimings;
+    if (availability !== undefined) updateData.availability = availability;
+
+    const tutor = await Tutor.findByIdAndUpdate(
+      req.params.tutorId,
+      updateData,
+      { new: true }
+    );
+    res.json({ availableTimings: tutor.availableTimings, availability: tutor.availability });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// /api/dashboard/tutor/:tutorId/bookings
+router.get('/tutor/:tutorId/bookings', async (req, res) => {
+  try {
+    const tutorObjId = req.params.tutorId;
+    const bookings = await Booking.find({ tutorId: tutorObjId }).sort({ createdAt: -1 });
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// /api/dashboard/student/:studentId
+router.get('/student/:studentId', async (req, res) => {
+  try {
+    const studentId = req.params.studentId;
+    const upcomingClasses = await Booking.countDocuments({ studentId, status: 'confirmed' });
+    const enrolledCourses = await Booking.countDocuments({ studentId, status: 'enrolled' });
+    const completedSessions = await Booking.countDocuments({ studentId, status: 'completed' });
+    
+    res.json({
+      enrolledCourses,
+      upcomingClasses,
+      completedSessions,
+      savedTutors: 0
+    });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// /api/dashboard/student/:studentId/bookings
+router.get('/student/:studentId/bookings', async (req, res) => {
+  try {
+    const studentId = req.params.studentId;
+    const bookings = await Booking.find({ studentId }).sort({ createdAt: -1 });
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
