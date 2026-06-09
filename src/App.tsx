@@ -10,6 +10,7 @@ import BrowseTutors from "./pages/BrowseTutors";
 import TutorProfile from "./pages/TutorProfile";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
+import AIFutureSkills from "./pages/AIFutureSkills";
 import Terms from "./pages/Terms";
 import Login from "./pages/Login";
 import RegisterStudent from "./pages/RegisterStudent";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/tutors/:id" element={<TutorProfile />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/ai-program" element={<AIFutureSkills />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register/student" element={<RegisterStudent />} />

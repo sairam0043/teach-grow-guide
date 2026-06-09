@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ const AdminDashboard = () => {
   const [loadingPayouts, setLoadingPayouts] = useState(false);
   const [expandedTutorId, setExpandedTutorId] = useState<string | null>(null);
   const [selectedPayoutSubject, setSelectedPayoutSubject] = useState<Record<string, string>>({});
+  const [coursePayments, setCoursePayments] = useState<any[]>([]);
+  const [loadingCoursePayments, setLoadingCoursePayments] = useState(false);
 
   const fetchPayouts = async () => {
     try {
@@ -39,6 +41,18 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchCoursePayments = async () => {
+    try {
+      setLoadingCoursePayments(true);
+      const res = await axios.get(`${API_URL}/dashboard/admin/course-payments`);
+      setCoursePayments(res.data);
+    } catch (err) {
+      toast.error("Failed to load platform course payments");
+    } finally {
+      setLoadingCoursePayments(false);
+    }
+  };
+
   const fetchTutors = async () => {
     try {
       setLoading(true);
@@ -49,6 +63,7 @@ const AdminDashboard = () => {
       const bookingsRes = await axios.get(`${API_URL}/dashboard/admin/bookings`);
       setBookings(bookingsRes.data);
       await fetchPayouts();
+      await fetchCoursePayments();
     } catch (err) {
       toast.error("Failed to load dashboard data");
     } finally {
@@ -160,6 +175,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Students</TabsTrigger>
             <TabsTrigger value="bookings" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Bookings</TabsTrigger>
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payments</TabsTrigger>
+            <TabsTrigger value="platform-courses" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Platform Courses</TabsTrigger>
             <TabsTrigger value="payouts" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Tutor Payouts</TabsTrigger>
           </TabsList>
 
@@ -553,6 +569,102 @@ const AdminDashboard = () => {
                             <TableCell>{payment.subject}</TableCell>
                             <TableCell><Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">{payment.planType}</Badge></TableCell>
                             <TableCell className="text-right font-bold text-emerald-600 text-lg">₹{payment.amountPaid}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="platform-courses">
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-teal-500/10 via-teal-500/5 to-transparent border-b pb-4">
+                <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                  <Sparkles className="h-5 w-5 text-teal-600" /> Platform Direct Courses Ledger
+                </CardTitle>
+                <CardDescription>Monitor direct course payments and assessment registrations separate from tutor payouts.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                
+                {/* Course stats block */}
+                {(() => {
+                  const completedPayments = coursePayments.filter(p => p.status === 'completed');
+                  const totalCourseCollected = completedPayments.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
+                  const assessmentsCount = completedPayments.filter(p => p.purchaseType === 'assessment').length;
+                  const fullCourseCount = completedPayments.filter(p => p.purchaseType === 'full_course').length;
+
+                  return (
+                    <div className="grid gap-4 sm:grid-cols-3 bg-teal-500/5 p-4 rounded-xl border border-teal-500/10 mb-2">
+                      <div className="text-center p-2">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Total Course Revenue</span>
+                        <span className="text-2xl font-extrabold text-teal-600 mt-1 block">₹{totalCourseCollected}</span>
+                      </div>
+                      <div className="text-center p-2 border-x border-border/40">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Assessments Registered</span>
+                        <span className="text-2xl font-extrabold text-foreground mt-1 block">{assessmentsCount}</span>
+                      </div>
+                      <div className="text-center p-2">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">Full Course Enrollments</span>
+                        <span className="text-2xl font-extrabold text-indigo-600 mt-1 block">{fullCourseCount}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {loadingCoursePayments ? (
+                  <div className="space-y-4 py-4">
+                    <Skeleton className="h-10 w-full rounded-lg" />
+                    <Skeleton className="h-10 w-full rounded-lg" />
+                  </div>
+                ) : coursePayments.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
+                    <CreditCard className="mx-auto mb-4 h-16 w-16 opacity-30 text-teal-600" />
+                    <h3 className="text-lg font-bold text-foreground mb-1">No Course Purchases Yet</h3>
+                    <p className="text-sm">Direct platform course transactions will appear here once student checkouts are recorded.</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border shadow-sm overflow-hidden bg-card mt-4">
+                    <Table>
+                      <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold border-b border-border/40">
+                        <TableRow>
+                          <TableHead className="font-bold h-12">Date</TableHead>
+                          <TableHead className="font-bold h-12">Student Name</TableHead>
+                          <TableHead className="font-bold h-12">Email</TableHead>
+                          <TableHead className="font-bold h-12">Purchase Type</TableHead>
+                          <TableHead className="font-bold h-12">Payment Status</TableHead>
+                          <TableHead className="font-bold h-12 text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {coursePayments.map((payment) => (
+                          <TableRow key={payment._id} className="hover:bg-secondary/10 transition-colors border-b border-border/40">
+                            <TableCell className="text-sm">{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell className="font-semibold text-foreground text-sm">{payment.studentName}</TableCell>
+                            <TableCell className="text-sm">{payment.studentEmail}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`font-bold ${
+                                payment.purchaseType === 'full_course' 
+                                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                                  : 'bg-teal-50 border-teal-200 text-teal-700'
+                              }`}>
+                                {payment.purchaseType === 'full_course' ? 'Full Course' : 'Assessment'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={`font-bold border-none ${
+                                payment.status === 'completed' 
+                                  ? 'bg-emerald-100 text-emerald-700' 
+                                  : payment.status === 'failed'
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-secondary text-secondary-foreground'
+                              }`}>
+                                {payment.status.toUpperCase().replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-extrabold text-foreground text-sm">₹{payment.amountPaid}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

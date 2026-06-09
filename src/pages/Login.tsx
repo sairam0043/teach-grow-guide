@@ -34,6 +34,13 @@ const Login = () => {
   const from = location.state?.from;
 
   const performRedirect = (userRole: string) => {
+    const queryParams = new URLSearchParams(location.search);
+    const redirectUrl = queryParams.get("redirect");
+    if (redirectUrl) {
+      navigate(redirectUrl);
+      return;
+    }
+
     const destination = from ? (from.pathname + from.search) : null;
     if (destination) {
       navigate(destination);

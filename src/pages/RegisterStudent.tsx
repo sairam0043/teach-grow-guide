@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,10 @@ const RegisterStudent = () => {
   const [loading, setLoading] = useState(false);
   const { signUp, googleSignIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const queryParams = new URLSearchParams(location.search);
+  const redirectUrl = queryParams.get("redirect");
 
 
 
@@ -51,7 +55,7 @@ const RegisterStudent = () => {
     // Create student record after auth — wait for session
     toast.success("Account created! Please check your email to confirm, then log in.");
     setLoading(false);
-    navigate("/login");
+    navigate(redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login");
   };
 
   return (
@@ -130,7 +134,7 @@ const RegisterStudent = () => {
 
 
             <div className="mt-6 text-center text-sm text-muted-foreground">
-              Already have an account? <Link to="/login" className="text-primary hover:underline">Log in</Link>
+              Already have an account? <Link to={redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login"} className="text-primary hover:underline">Log in</Link>
               <br />
               Want to teach? <Link to="/register/tutor" className="text-primary hover:underline">Register as Tutor</Link>
             </div>

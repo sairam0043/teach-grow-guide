@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
 import TutorCard from "@/components/tutors/TutorCard";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import type { Tutor } from "@/data/mockTutors";
 import { useAuth } from "@/contexts/AuthContext";
 import API_URL from "@/config/api";
@@ -44,14 +45,26 @@ const Index = () => {
     { icon: Star, value: platformStats?.averageRating || 0, label: "Average Rating" },
   ];
 
-  if (user) {
-    if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
-    if (role === 'tutor') return <Navigate to="/dashboard/tutor" replace />;
-    if (role === 'student') return <Navigate to="/dashboard/student" replace />;
-  }
+
 
   return (
     <PageLayout>
+      {/* Course Banner Advertisement */}
+      <div className="w-full bg-secondary/30 border-b">
+        <div className="container max-w-7xl px-4 py-3 sm:py-4">
+          <Link 
+            to="/ai-program" 
+            className="block overflow-hidden rounded-2xl border border-teal-500/20 hover:border-teal-500/50 transition-all duration-300 shadow-sm hover:shadow-md hover:scale-[1.005]"
+          >
+            <img 
+              src="/ai-program-banner.png" 
+              alt="AI Future Skills Program" 
+              className="w-full h-auto object-cover max-h-[120px] sm:max-h-[200px] md:max-h-[250px] lg:max-h-[300px]" 
+            />
+          </Link>
+        </div>
+      </div>
+
       {/* Hero */}
       <section className="relative overflow-hidden bg-primary py-20 lg:py-28">
         <div className="absolute inset-0 opacity-10">
@@ -183,6 +196,75 @@ const Index = () => {
               <Link to="/tutors">View All Tutors <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
           </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-20 bg-background">
+        <div className="container max-w-4xl">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mb-12 text-center"
+          >
+            <h2 className="mb-3 text-3xl font-bold text-foreground md:text-4xl">Frequently Asked Questions</h2>
+            <p className="text-lg text-muted-foreground">Got questions? We've got answers.</p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+          >
+            <Accordion type="single" collapsible className="w-full space-y-4">
+              <AccordionItem value="item-1" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  How do I find a tutor?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Use our Browse Tutors page to search by subject, class, location, and more. You can filter results to find tutors that match your specific requirements.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-2" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  How do I request a demo class?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Once you find a tutor you're interested in, visit their profile page and fill out the demo class request form. The tutor will contact you to schedule a session.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-3" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  How can I become a tutor?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Visit our Become a Tutor page and fill out the application form. Our team will review your application and get back to you within 2-3 business days.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-4" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  Are all tutors verified?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Yes, every tutor on our platform undergoes a comprehensive verification process including background checks, credential validation, and quality assessment.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-5" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  What are your operating hours?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Our support team is available Monday to Saturday, 9:00 AM to 6:00 PM. We respond to all inquiries within 24 hours.
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </motion.div>
         </div>
       </section>
 

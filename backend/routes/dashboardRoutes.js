@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
 const Booking = require('../schemas/bookingSchema');
+const CoursePayment = require('../schemas/coursePaymentSchema');
 
 // /api/dashboard/admin
 router.get('/admin', async (req, res) => {
@@ -13,6 +14,10 @@ router.get('/admin', async (req, res) => {
     const totalBookings = await Booking.countDocuments();
     const enrolledBookings = await Booking.find({ status: { $in: ['enrolled', 'completed'] }, amountPaid: { $gt: 0 } });
     const totalRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
+
+    // Calculate direct platform course revenue (independent of tutors)
+    const coursePayments = await CoursePayment.find({ status: 'completed' });
+    const totalCourseRevenue = coursePayments.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
 
     // Calculate real average rating
     const tutorsWithRatings = await Tutor.find({ rating: { $gt: 0 }, reviewCount: { $gt: 0 } });
@@ -26,6 +31,7 @@ router.get('/admin', async (req, res) => {
       totalStudents,
       totalBookings,
       totalRevenue,
+      totalCourseRevenue,
       averageRating
     });
   } catch (err) {
@@ -310,6 +316,16 @@ router.get('/admin/payouts', async (req, res) => {
     }
 
     res.json(payoutsReport);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/dashboard/admin/course-payments
+router.get('/admin/course-payments', async (req, res) => {
+  try {
+    const payments = await CoursePayment.find().sort({ createdAt: -1 });
+    res.json(payments);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
