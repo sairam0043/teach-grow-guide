@@ -388,4 +388,103 @@ router.post('/verify-course-payment', async (req, res) => {
   }
 });
 
+// POST /api/payments/shortlist-student
+router.post('/shortlist-student', async (req, res) => {
+  try {
+    const { coursePaymentId } = req.body;
+    console.log(`[Course Payments] Shortlisting student request received for Payment ID: ${coursePaymentId}`);
+
+    if (!coursePaymentId) {
+      return res.status(400).json({ message: 'Missing course payment ID' });
+    }
+
+    const coursePayment = await CoursePayment.findById(coursePaymentId);
+    if (!coursePayment) {
+      return res.status(404).json({ message: 'Course payment record not found' });
+    }
+
+    if (coursePayment.purchaseType !== 'assessment') {
+      return res.status(400).json({ message: 'Only assessment registrants can be shortlisted' });
+    }
+
+    coursePayment.shortlisted = true;
+    await coursePayment.save();
+    console.log(`[Course Payments] Student ${coursePayment.studentName} shortlisted!`);
+
+    // Send shortlisting and enrollment email with nodemailer
+    try {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
+      const enrollUrl = `${frontendUrl}/ai-program/enroll`;
+      
+      const emailSubject = 'Congratulations! You are Shortlisted for the AI Future Skills Program';
+      const emailText = `Hello ${coursePayment.studentName},\n\nCongratulations! You have been successfully shortlisted for the "AI Future Skills Program" based on your assessment application.\n\nYou can now enroll in the full course and pay the tuition fee of ₹1500.\n\nTo enroll and complete the payment, please visit the link below:\n${enrollUrl}\n\nNote: You will need to log in with your registered account (${coursePayment.studentEmail}) to access the secure payment page.\n\nBest regards,\nCuvasol Course Support Team`;
+      
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+          <h2 style="color: #0d9488; text-align: center;">You are Shortlisted!</h2>
+          <p>Hello <strong>${coursePayment.studentName}</strong>,</p>
+          <p>Congratulations! You have been successfully shortlisted for the <strong>AI Future Skills Program</strong> based on your assessment application.</p>
+          <p>You can now complete your enrollment in the full course by paying the program fee of <strong>₹1500</strong>.</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${enrollUrl}" style="background-color: #0d9488; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; font-size: 16px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.2);">
+              Proceed to Enroll & Pay
+            </a>
+          </div>
+
+          <p style="font-size: 13px; color: #555; background-color: #f9fafb; padding: 12px; border-radius: 6px; border: 1px solid #f3f4f6;">
+            <strong>Important Note:</strong> Please log in to your account with your registered email (<strong>${coursePayment.studentEmail}</strong>) before attempting payment on the enrollment page.
+          </p>
+
+          <p>If you have any questions, feel free to contact us at <a href="mailto:support@cuvasol.com">support@cuvasol.com</a> or call us at <strong>+91 95385 17963</strong>.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="font-size: 11px; color: #777;">
+            <strong>Cuvasol Technologies Private Limited</strong><br/>
+            HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura, Bangalore 560016, Karnataka, IN
+          </p>
+        </div>
+      `;
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"Cuvasol Course Support" <noreply@cuvasoltutor.com>',
+        to: coursePayment.studentEmail,
+        subject: emailSubject,
+        text: emailText,
+        html: emailHtml
+      });
+      console.log(`[Course Payments] Shortlisting email sent to ${coursePayment.studentEmail}`);
+    } catch (mailError) {
+      console.error('[Course Payments] Failed to send shortlisting email:', mailError.message);
+    }
+
+    res.json({ success: true, message: 'Student shortlisted and email invitation sent!', coursePayment });
+  } catch (err) {
+    console.error('[Course Payments] Error in shortlisting student:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/payments/check-enrollment-status/:studentId
+router.get('/check-enrollment-status/:studentId', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    console.log(`[Course Payments] Checking enrollment status for student: ${studentId}`);
+    
+    const payments = await CoursePayment.find({ studentId, status: 'completed' });
+    
+    const hasAssessment = payments.some(p => p.purchaseType === 'assessment');
+    const isShortlisted = payments.some(p => p.purchaseType === 'assessment' && p.shortlisted === true);
+    const isEnrolled = payments.some(p => p.purchaseType === 'full_course');
+
+    res.json({
+      hasAssessment,
+      isShortlisted,
+      isEnrolled
+    });
+  } catch (err) {
+    console.error('[Course Payments] Error in checking enrollment status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

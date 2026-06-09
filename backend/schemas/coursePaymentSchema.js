@@ -8,7 +8,8 @@ const coursePaymentSchema = new mongoose.Schema({
   amountPaid: { type: Number, required: true },
   status: { type: String, enum: ['pending_payment', 'completed', 'failed'], default: 'pending_payment' },
   razorpayOrderId: { type: String },
-  razorpayPaymentId: { type: String }
+  razorpayPaymentId: { type: String },
+  shortlisted: { type: Boolean, default: false }
 }, { timestamps: true });
 
 const CoursePayment = mongoose.model('CoursePayment', coursePaymentSchema);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Mail, Phone, MapPin, BookOpen, Calendar, Clock, Award, CheckCircle, ArrowLeft, Sparkles, CreditCard, Monitor, Check } from "lucide-react";
+import { BookOpen, Calendar, Clock, Award, CheckCircle, ArrowLeft, Sparkles, CreditCard, Monitor, Check, AlertTriangle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,36 +10,19 @@ import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import API_URL from "@/config/api";
 
-const AIFutureSkills = () => {
+const AIFullCourseEnrollment = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [loading, setLoading] = useState(false);
-  const [selectedPlan] = useState<"assessment">("assessment");
+  const [checkingStatus, setCheckingStatus] = useState(true);
   const [enrollmentStatus, setEnrollmentStatus] = useState<{
     hasAssessment: boolean;
     isShortlisted: boolean;
     isEnrolled: boolean;
   } | null>(null);
-  const [checkingStatus, setCheckingStatus] = useState(false);
 
-  useEffect(() => {
-    const fetchStatus = async () => {
-      if (!user || user.role !== "student") return;
-      try {
-        setCheckingStatus(true);
-        const res = await axios.get(`${API_URL}/payments/check-enrollment-status/${user.id}`);
-        setEnrollmentStatus(res.data);
-      } catch (err) {
-        console.error("Failed to check enrollment status:", err);
-      } finally {
-        setCheckingStatus(false);
-      }
-    };
-    fetchStatus();
-  }, [user]);
-  
   // Sandbox Modal State
   const [sandboxOrder, setSandboxOrder] = useState<any>(null);
   const [sandboxMethod, setSandboxMethod] = useState<"card" | "upi" | "netbanking">("card");
@@ -57,40 +40,29 @@ const AIFutureSkills = () => {
     };
   }, []);
 
-  const handleCheckout = async () => {
-    if (loading) return;
+  // Fetch enrollment and shortlist status
+  useEffect(() => {
+    const fetchStatus = async () => {
+      if (!user) {
+        setCheckingStatus(false);
+        return;
+      }
+      try {
+        setCheckingStatus(true);
+        const res = await axios.get(`${API_URL}/payments/check-enrollment-status/${user.id}`);
+        setEnrollmentStatus(res.data);
+      } catch (err) {
+        console.error("Failed to check enrollment status:", err);
+        toast.error("Failed to verify shortlisting status.");
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+    fetchStatus();
+  }, [user]);
 
-    if (!user) {
-      toast.error(
-        <div className="flex flex-col gap-2 w-full text-left">
-          <span className="font-semibold text-sm text-foreground">
-            Please log in to register or enroll in this course.
-          </span>
-          <div className="flex gap-2 mt-1">
-            <button
-              onClick={() => {
-                toast.dismiss();
-                navigate(`/login?redirect=${encodeURIComponent(location.pathname)}`);
-              }}
-              className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
-            >
-              Log In
-            </button>
-            <button
-              onClick={() => {
-                toast.dismiss();
-                navigate(`/register/student?redirect=${encodeURIComponent(location.pathname)}`);
-              }}
-              className="bg-secondary text-secondary-foreground border text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-secondary/80 transition-colors shadow-sm"
-            >
-              Sign Up
-            </button>
-          </div>
-        </div>,
-        { duration: 8000 }
-      );
-      return;
-    }
+  const handleCheckout = async () => {
+    if (loading || !user) return;
 
     setLoading(true);
     try {
@@ -102,7 +74,7 @@ const AIFutureSkills = () => {
         studentId: user.id,
         studentName,
         studentEmail,
-        purchaseType: selectedPlan
+        purchaseType: "full_course"
       });
 
       const orderData = orderRes.data;
@@ -113,8 +85,8 @@ const AIFutureSkills = () => {
           orderId: orderData.orderId,
           coursePaymentId: orderData.coursePayment._id,
           amount: orderData.amount,
-          price: selectedPlan === 'assessment' ? 150 : 1500,
-          purchaseType: selectedPlan,
+          price: 1500,
+          purchaseType: "full_course",
           studentName,
           studentEmail
         });
@@ -126,7 +98,7 @@ const AIFutureSkills = () => {
           amount: orderData.amount,
           currency: orderData.currency,
           name: "Cuvasol Direct Courses",
-          description: selectedPlan === 'assessment' ? "AI Program Assessment" : "AI Future Skills Program Enrollment",
+          description: "AI Future Skills Program Enrollment",
           image: "/logo.png",
           order_id: orderData.orderId,
           handler: async function (response: any) {
@@ -140,7 +112,7 @@ const AIFutureSkills = () => {
               });
               
               toast.dismiss();
-              toast.success("Payment verified! Enrollment is confirmed.");
+              toast.success("Payment verified! Full Course Enrollment is confirmed.");
               setLoading(false);
               navigate("/dashboard/student");
             } catch (verifyErr: any) {
@@ -155,7 +127,7 @@ const AIFutureSkills = () => {
             contact: user.phone || ""
           },
           theme: {
-            color: "#0d9488"
+            color: "#6366f1" // Indigo
           },
           modal: {
             ondismiss: function() {
@@ -223,155 +195,153 @@ const AIFutureSkills = () => {
     toast.warning("Payment checkout cancelled.");
   };
 
+  if (checkingStatus) {
+    return (
+      <PageLayout>
+        <div className="container py-16 flex flex-col items-center justify-center min-h-[50vh]">
+          <div className="h-10 w-10 rounded-full border-4 border-teal-600 border-t-transparent animate-spin mb-4"></div>
+          <p className="text-muted-foreground text-sm font-semibold">Verifying shortlist invitation status...</p>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  // Not Logged In
+  if (!user) {
+    return (
+      <PageLayout>
+        <div className="container py-12 max-w-md mx-auto">
+          <Card className="border-amber-500/20 shadow-lg text-center p-6 bg-card/60 backdrop-blur-md">
+            <AlertTriangle className="mx-auto h-12 w-12 text-amber-500 mb-4 animate-pulse" />
+            <CardTitle className="text-lg font-bold text-foreground">Authentication Required</CardTitle>
+            <CardDescription className="mt-2">
+              You must be logged in as a student to access the secure enrollment page.
+            </CardDescription>
+            <div className="mt-6 flex flex-col gap-2">
+              <Button className="w-full bg-primary" asChild>
+                <Link to={`/login?redirect=${encodeURIComponent(location.pathname)}`}>Log In</Link>
+              </Button>
+              <Button variant="ghost" className="w-full" asChild>
+                <Link to="/ai-program">Back to Course Info</Link>
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  // Not Shortlisted (And not enrolled)
+  if (!enrollmentStatus?.isShortlisted && !enrollmentStatus?.isEnrolled) {
+    return (
+      <PageLayout>
+        <div className="container py-12 max-w-lg mx-auto">
+          <Card className="border-rose-500/20 shadow-xl text-center p-8 bg-card/60 backdrop-blur-md">
+            <AlertTriangle className="mx-auto h-16 w-16 text-rose-500 mb-4" />
+            <h3 className="text-2xl font-extrabold text-foreground tracking-tight">Access Restricted</h3>
+            <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+              This secure page is reserved only for students shortlisted for the **AI Future Skills Program**. 
+              If you haven't taken the assessment test yet, please register and complete it first.
+            </p>
+            <div className="bg-secondary/30 rounded-xl p-4 border border-border/40 text-left text-xs mt-6 space-y-2">
+              <span className="font-bold text-foreground block">How to enroll:</span>
+              <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
+                <li>Go to the main course page and register for the assessment (₹150).</li>
+                <li>Wait for evaluation and shortlisting by the admissions team.</li>
+                <li>You will receive an invitation email once you are shortlisted!</li>
+              </ol>
+            </div>
+            <div className="mt-8 flex gap-3">
+              <Button variant="default" className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold" asChild>
+                <Link to="/ai-program">Go to Course Page</Link>
+              </Button>
+              <Button variant="outline" className="flex-1" asChild>
+                <Link to="/dashboard/student">Go to Dashboard</Link>
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout>
-      <div className="container py-8 max-w-7xl">
+      <div className="container py-8 max-w-5xl">
         <Button variant="ghost" asChild className="mb-6 hover:bg-secondary/40">
-          <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Home</Link>
+          <Link to="/ai-program"><ArrowLeft className="mr-2 h-4 w-4" /> Course Details</Link>
         </Button>
 
-        {/* Promo Header Card */}
-        <div className="rounded-3xl border border-teal-500/10 overflow-hidden shadow-lg bg-card/60 backdrop-blur-md mb-8">
-          <img 
-            src="/ai-program-banner.png" 
-            alt="AI Future Skills Program" 
-            className="w-full h-auto block" 
-          />
-        </div>
-
         <div className="grid gap-8 lg:grid-cols-3">
-          {/* Left Column: Course Details */}
+          {/* Left Column: Confirmation Information */}
           <div className="lg:col-span-2 space-y-6">
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <Badge className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-1 px-3">Admissions Open</Badge>
-              <Badge variant="outline" className="border-teal-500/30 text-teal-600 font-bold bg-teal-50 py-1 px-3">Grades 5-9 Eligibility</Badge>
-              <Badge variant="secondary" className="font-bold py-1 px-3">100% Online</Badge>
+              <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1 px-3">
+                Shortlist Confirmed
+              </Badge>
+              <Badge variant="outline" className="border-indigo-500/30 text-indigo-600 font-bold bg-indigo-50 py-1 px-3">
+                Full Program Enrollment
+              </Badge>
             </div>
 
             <div className="space-y-2">
               <h1 className="text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight flex items-center gap-2">
-                <Sparkles className="h-7 w-7 text-teal-600 animate-pulse" />
-                AI Future Skills Program
+                <Sparkles className="h-7 w-7 text-indigo-600 animate-pulse" />
+                Complete AI Program Enrollment
               </h1>
               <p className="text-lg text-muted-foreground leading-relaxed">
-                Prepare your child for an AI-powered future. Our program blends creativity, critical thinking, ethics, and hands-on coding to introduce young minds to AI concepts step-by-step.
+                Welcome, **{user.full_name}**! You have successfully passed our assessment screening and are officially shortlisted for the AI Future Skills Program. Complete the tuition fee payment below to secure your seat.
               </p>
             </div>
 
-            {/* Course Features Quick Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Course Program Benefits Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
-                { icon: Clock, value: "1 Hour Daily", label: "Weekdays schedule" },
-                { icon: Calendar, value: "21 June 2026", label: "Program starts" },
-                { icon: BookOpen, value: "1 Month", label: "Full program length" },
-                { icon: Award, value: "Verifiable Cert", label: "Completion certificate" }
+                { icon: Clock, value: "Daily Interactive Sessions", label: "1 hour weekday classes" },
+                { icon: BookOpen, value: "Full Syllabus Access", label: "Creative coding & prompt labs" },
+                { icon: Award, value: "Verifiable Certificate", label: "Sharable student credential" }
               ].map((item, idx) => (
-                <div key={idx} className="bg-secondary/20 border border-border/40 p-4 rounded-2xl text-center space-y-1 hover:bg-secondary/40 transition-colors">
-                  <item.icon className="mx-auto h-5 w-5 text-teal-600 mb-1" />
-                  <p className="font-bold text-foreground text-sm">{item.value}</p>
+                <div key={idx} className="bg-secondary/20 border border-border/40 p-4 rounded-2xl text-center space-y-1">
+                  <item.icon className="mx-auto h-5 w-5 text-indigo-600 mb-1" />
+                  <p className="font-bold text-foreground text-sm leading-tight">{item.value}</p>
                   <p className="text-xs text-muted-foreground">{item.label}</p>
                 </div>
               ))}
             </div>
 
-            {/* Detailed Syllabus Card */}
-            <Card className="border border-border/40 shadow-md">
-              <CardHeader className="bg-gradient-to-r from-teal-500/10 via-teal-500/5 to-transparent border-b">
-                <CardTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
-                  📖 Course Syllabus & Curriculum
-                </CardTitle>
-                <CardDescription>Explore what your child will build and learn throughout this program.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 space-y-5">
-                {[
-                  {
-                    title: "AI Fundamentals",
-                    desc: "Understand what artificial intelligence is, the history of machine learning, how neural networks process information, and interactive gameplay examples."
-                  },
-                  {
-                    title: "Prompt Engineering",
-                    desc: "Master the art of communicating with Large Language Models (LLMs). Learn structuring inputs, logic instructions, variables, and utilizing models for text generation and image creation."
-                  },
-                  {
-                    title: "AI Safety & Responsibility",
-                    desc: "A crucial block on ethics, addressing algorithmic bias, safety guardrails, identifying disinformation, copyright fundamentals, and balanced digital hygiene."
-                  },
-                  {
-                    title: "Hands-On Projects",
-                    desc: "Practical labs where students build their own AI chatbots, create custom art portfolios using diffusion generators, and pitch an AI-powered solution for a real-world problem."
-                  }
-                ].map((syll, index) => (
-                  <div key={index} className="flex gap-3 items-start border-b border-border/30 pb-4 last:border-0 last:pb-0">
-                    <div className="h-7 w-7 rounded-full bg-teal-500/15 text-teal-700 font-extrabold flex items-center justify-center shrink-0 text-sm mt-0.5">
-                      {index + 1}
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="font-bold text-foreground text-base">{syll.title}</h4>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{syll.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-5 space-y-3">
+              <h4 className="font-bold text-indigo-900 dark:text-indigo-400 flex items-center gap-1.5 text-base">
+                <ShieldCheck className="h-5 w-5 text-indigo-600" />
+                Enrollment Guarantee
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                By completing this checkout, your seat in the batch starting **21 June 2026** is reserved. Daily class links, learning material logins, and mentor group details will be emailed to **{user.email}** within 24 hours of enrollment.
+              </p>
+            </div>
           </div>
 
           {/* Right Column: Checkout Pricing Card */}
           <div className="space-y-6">
-            <Card className="border border-teal-500/20 shadow-lg bg-card/75 backdrop-blur-md sticky top-6">
-              <CardHeader className="bg-gradient-to-r from-teal-500/15 to-teal-500/5 border-b pb-4">
-                <CardTitle className="text-xl font-bold text-foreground">Enrollment Options</CardTitle>
-                <CardDescription>Register for assessment to get started.</CardDescription>
+            <Card className="border border-indigo-500/20 shadow-lg bg-card/75 backdrop-blur-md sticky top-6">
+              <CardHeader className="bg-gradient-to-r from-indigo-500/15 to-indigo-500/5 border-b pb-4">
+                <CardTitle className="text-xl font-bold text-foreground">Tuition Payment</CardTitle>
+                <CardDescription>Secure payment for full program access.</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
                 
-                {/* Plan Selection Details */}
-                <div className="space-y-4">
-                  <div className="bg-teal-500/10 border border-teal-500/20 rounded-2xl p-4 flex justify-between items-center">
-                    <div className="space-y-1">
-                      <span className="font-extrabold text-sm block text-teal-800 dark:text-teal-300">Assessment Fee</span>
-                      <span className="text-xs text-muted-foreground block leading-tight">Evaluate coding and AI skills before shortlisting</span>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="font-extrabold text-xl block text-teal-600">₹150</span>
-                      <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground block">one-time</span>
-                    </div>
+                {/* Plan Cost */}
+                <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex justify-between items-center">
+                  <div className="space-y-0.5">
+                    <span className="font-extrabold text-sm block text-indigo-800 dark:text-indigo-300">Full Course Fees</span>
+                    <span className="text-xs text-muted-foreground block">1 Month program tuition</span>
                   </div>
-
-                  <div className="bg-secondary/30 rounded-2xl p-4 border border-border/40 text-xs space-y-2">
-                    <h5 className="font-bold text-foreground flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-teal-600" />
-                      Two-Step Enrollment Process:
-                    </h5>
-                    <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
-                      <li>Pay ₹150 and complete the skills assessment.</li>
-                      <li>Selected students will receive an email invitation to enroll in the full course (₹1,500).</li>
-                    </ol>
+                  <div className="text-right shrink-0">
+                    <span className="font-extrabold text-2xl block text-indigo-600">₹1,500</span>
+                    <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground block">one-time</span>
                   </div>
                 </div>
 
-                {/* Login Alert Box if not authenticated */}
-                {!user ? (
-                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-center space-y-3 animate-in fade-in duration-300">
-                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-                      You must be logged in as a student to buy courses or register for assessments.
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button size="sm" variant="default" className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold" asChild>
-                        <Link to={`/login?redirect=${encodeURIComponent(location.pathname)}`}>Log In</Link>
-                      </Button>
-                      <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-600 hover:bg-amber-500/5 text-xs font-bold" asChild>
-                        <Link to={`/register/student?redirect=${encodeURIComponent(location.pathname)}`}>Sign Up</Link>
-                      </Button>
-                    </div>
-                  </div>
-                ) : checkingStatus ? (
-                  <Button disabled className="w-full py-6 text-base rounded-2xl">
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
-                      Checking Status...
-                    </span>
-                  </Button>
-                ) : enrollmentStatus?.isEnrolled ? (
+                {enrollmentStatus?.isEnrolled ? (
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center space-y-2">
                     <CheckCircle className="mx-auto h-8 w-8 text-emerald-600 animate-bounce" />
                     <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Already Enrolled!</p>
@@ -380,26 +350,11 @@ const AIFutureSkills = () => {
                       <Link to="/dashboard/student">Go to Student Dashboard</Link>
                     </Button>
                   </div>
-                ) : enrollmentStatus?.isShortlisted ? (
-                  <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 text-center space-y-3">
-                    <Sparkles className="mx-auto h-8 w-8 text-indigo-600 animate-pulse" />
-                    <p className="text-sm font-bold text-indigo-800 dark:text-indigo-300">Congratulations!</p>
-                    <p className="text-xs text-muted-foreground leading-normal">You have been shortlisted for the AI Future Skills Program. Please proceed to the enrollment page to complete the ₹1,500 course fee payment.</p>
-                    <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 rounded-xl shadow-md transition-all duration-300 hover:scale-[1.02]" asChild>
-                      <Link to="/ai-program/enroll">Enroll in Full Course</Link>
-                    </Button>
-                  </div>
-                ) : enrollmentStatus?.hasAssessment ? (
-                  <div className="bg-teal-500/10 border border-teal-500/20 rounded-2xl p-4 text-center space-y-2">
-                    <Check className="mx-auto h-8 w-8 text-teal-600" />
-                    <p className="text-sm font-bold text-teal-800 dark:text-teal-300">Assessment Registered</p>
-                    <p className="text-xs text-muted-foreground leading-normal">Your ₹150 assessment payment is verified. Admins will review your score and update shortlisting results shortly.</p>
-                  </div>
                 ) : (
                   <Button
                     onClick={handleCheckout}
                     disabled={loading}
-                    className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-6 text-base rounded-2xl shadow-md hover:shadow-teal-500/15 hover:-translate-y-0.5 transition-all duration-300"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-6 text-base rounded-2xl shadow-md hover:shadow-indigo-500/15 hover:-translate-y-0.5 transition-all duration-300"
                   >
                     {loading ? (
                       <span className="flex items-center justify-center gap-2">
@@ -407,7 +362,7 @@ const AIFutureSkills = () => {
                         Initiating Order...
                       </span>
                     ) : (
-                      "Register for Assessment - ₹150"
+                      "Enroll & Pay ₹1,500"
                     )}
                   </Button>
                 )}
@@ -415,7 +370,7 @@ const AIFutureSkills = () => {
                 {/* Corporate Address Footer */}
                 <div className="border-t border-border/40 pt-4 space-y-2 text-[10px] text-muted-foreground text-center">
                   <p className="font-bold flex items-center justify-center gap-1">
-                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                    <CheckCircle className="h-3.5 w-3.5 text-indigo-600" />
                     Verified Secure Razorpay Checkout
                   </p>
                   <p className="leading-normal">
@@ -436,7 +391,7 @@ const AIFutureSkills = () => {
           <div className="bg-slate-900 text-slate-100 rounded-3xl border border-slate-800 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] max-w-md w-full overflow-hidden flex flex-col transform transition-all duration-300 scale-100 relative max-h-[90vh]">
             
             {/* Header with gradient */}
-            <div className="bg-gradient-to-br from-teal-600 to-indigo-700 p-6 text-white relative">
+            <div className="bg-gradient-to-br from-indigo-600 to-teal-700 p-6 text-white relative">
               <div className="absolute top-4 right-4 flex items-center gap-2">
                 <Badge variant="outline" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 animate-pulse">
                   🧪 Sandbox Mode
@@ -448,10 +403,10 @@ const AIFutureSkills = () => {
                   ✕
                 </button>
               </div>
-              <p className="text-xs text-teal-200 font-semibold tracking-wider uppercase mb-1">Direct Platform Purchase</p>
+              <p className="text-xs text-indigo-200 font-semibold tracking-wider uppercase mb-1">Direct Platform Purchase</p>
               <h3 className="text-2xl font-bold tracking-tight">Cuvasol Course Checkout</h3>
               <div className="mt-4 flex items-baseline justify-between border-t border-white/10 pt-4">
-                <span className="text-sm text-teal-100">Amount to Pay</span>
+                <span className="text-sm text-indigo-100">Amount to Pay</span>
                 <span className="text-3xl font-extrabold text-white">₹{sandboxOrder.price}</span>
               </div>
             </div>
@@ -475,8 +430,8 @@ const AIFutureSkills = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Purchase Item:</span>
-                  <span className="font-semibold text-teal-400">
-                    {sandboxOrder.purchaseType === 'assessment' ? "Assessment Registration" : "Full Course Enrollment"}
+                  <span className="font-semibold text-indigo-400">
+                    Full Course Enrollment
                   </span>
                 </div>
                 <div className="flex justify-between border-t border-slate-800/80 pt-2 text-[10px] text-slate-500">
@@ -492,7 +447,7 @@ const AIFutureSkills = () => {
                     onClick={() => setSandboxMethod("card")}
                     className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${
                       sandboxMethod === "card" 
-                        ? "border-teal-500 text-teal-400" 
+                        ? "border-indigo-500 text-indigo-400" 
                         : "border-transparent text-slate-400 hover:text-slate-200"
                     }`}
                   >
@@ -503,7 +458,7 @@ const AIFutureSkills = () => {
                     onClick={() => setSandboxMethod("upi")}
                     className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${
                       sandboxMethod === "upi" 
-                        ? "border-teal-500 text-teal-400" 
+                        ? "border-indigo-500 text-indigo-400" 
                         : "border-transparent text-slate-400 hover:text-slate-200"
                     }`}
                   >
@@ -514,7 +469,7 @@ const AIFutureSkills = () => {
                     onClick={() => setSandboxMethod("netbanking")}
                     className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${
                       sandboxMethod === "netbanking" 
-                        ? "border-teal-500 text-teal-400" 
+                        ? "border-indigo-500 text-indigo-400" 
                         : "border-transparent text-slate-400 hover:text-slate-200"
                     }`}
                   >
@@ -527,7 +482,7 @@ const AIFutureSkills = () => {
                 {sandboxMethod === "card" && (
                   <div className="space-y-4 text-xs">
                     <div className="bg-gradient-to-br from-slate-800 to-slate-950 border border-slate-700/50 p-4 rounded-xl shadow-inner relative overflow-hidden h-28 flex flex-col justify-between">
-                      <div className="absolute -top-6 -right-6 w-24 h-24 bg-teal-500/10 rounded-full blur-xl pointer-events-none"></div>
+                      <div className="absolute -top-6 -right-6 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
                       <div className="flex justify-between items-start">
                         <div className="h-6 w-8 bg-amber-500/30 border border-amber-500/40 rounded-sm"></div>
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sandbox Card</span>
@@ -590,7 +545,7 @@ const AIFutureSkills = () => {
                           key={app}
                           className="p-2 border border-slate-800 bg-slate-950/40 rounded-lg text-center font-medium text-slate-300 flex items-center justify-center gap-1.5"
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                           {app}
                         </div>
                       ))}
@@ -615,7 +570,7 @@ const AIFutureSkills = () => {
                       {["State Bank of India", "HDFC Bank", "ICICI Bank", "Axis Bank"].map((bank) => (
                         <div 
                           key={bank}
-                          className="p-3 border border-slate-800 bg-slate-950/40 rounded-lg text-center font-medium text-slate-300 hover:border-teal-500/50 cursor-pointer transition-colors"
+                          className="p-3 border border-slate-800 bg-slate-950/40 rounded-lg text-center font-medium text-slate-300 hover:border-indigo-500/50 cursor-pointer transition-colors"
                         >
                           {bank}
                         </div>
@@ -629,7 +584,7 @@ const AIFutureSkills = () => {
               <div className="space-y-2 pt-4">
                 <Button 
                   onClick={handleCompleteSandboxPayment}
-                  className="w-full bg-gradient-to-r from-teal-500 to-indigo-600 hover:from-teal-600 hover:to-indigo-700 text-white rounded-xl py-5 font-bold text-sm tracking-wide shadow-lg border-0"
+                  className="w-full bg-gradient-to-r from-indigo-500 to-teal-600 hover:from-indigo-600 hover:to-teal-700 text-white rounded-xl py-5 font-bold text-sm tracking-wide shadow-lg border-0"
                 >
                   <CheckCircle className="h-4 w-4 mr-1.5" /> Authorize Mock Payment
                 </Button>
@@ -654,8 +609,8 @@ const AIFutureSkills = () => {
                 {!sandboxPaymentSuccess ? (
                   <div className="space-y-4 flex flex-col items-center">
                     <div className="relative w-16 h-16">
-                      <div className="w-16 h-16 rounded-full border-4 border-teal-500/20 border-t-teal-500 animate-spin"></div>
-                      <div className="absolute inset-2 w-12 h-12 rounded-full border-4 border-indigo-500/10 border-b-indigo-400 animate-spin [animation-direction:reverse]"></div>
+                      <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
+                      <div className="absolute inset-2 w-12 h-12 rounded-full border-4 border-teal-500/10 border-b-teal-400 animate-spin [animation-direction:reverse]"></div>
                     </div>
                     <div>
                       <h4 className="text-lg font-bold text-white tracking-wide">Processing Sandbox Transaction</h4>
@@ -687,4 +642,4 @@ const AIFutureSkills = () => {
   );
 };
 
-export default AIFutureSkills;
+export default AIFullCourseEnrollment;

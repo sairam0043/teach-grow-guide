@@ -115,6 +115,19 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleShortlist = async (coursePaymentId: string) => {
+    try {
+      toast.loading("Shortlisting student and sending email invitation...");
+      const res = await axios.post(`${API_URL}/payments/shortlist-student`, { coursePaymentId });
+      toast.dismiss();
+      toast.success(res.data.message || "Student shortlisted successfully!");
+      fetchCoursePayments();
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.response?.data?.message || "Failed to shortlist student");
+    }
+  };
+
   return (
     <PageLayout>
       <div className="container py-10 max-w-7xl">
@@ -636,6 +649,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Purchase Type</TableHead>
                           <TableHead className="font-bold h-12">Payment Status</TableHead>
                           <TableHead className="font-bold h-12 text-right">Amount</TableHead>
+                          <TableHead className="font-bold h-12 text-right px-6">Action</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -665,6 +679,23 @@ const AdminDashboard = () => {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right font-extrabold text-foreground text-sm">₹{payment.amountPaid}</TableCell>
+                            <TableCell className="text-right px-6">
+                              {payment.purchaseType === 'assessment' && payment.status === 'completed' && (
+                                payment.shortlisted ? (
+                                  <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold border-none text-xs px-2.5 py-1">
+                                    Shortlisted
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleShortlist(payment._id)}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-8 rounded-lg"
+                                  >
+                                    Shortlist Student
+                                  </Button>
+                                )
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
