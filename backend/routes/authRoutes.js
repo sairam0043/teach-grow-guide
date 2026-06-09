@@ -121,6 +121,51 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // Send welcome email to new students
+    if (role === 'student') {
+      try {
+        console.log(`[Auth] Attempting to send welcome email to student: ${email}`);
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Support" <noreply@cuvasoltutor.com>',
+          to: email,
+          subject: 'Welcome to Cuvasol - Your Account is Ready!',
+          text: `Hello ${full_name},\n\nWelcome to Cuvasol! Your student account has been successfully created under the email address: ${email}.\n\nHere are a few things you can do next:\n- Browse qualified tutors and book a Free Demo session.\n- Register for the AI Future Skills Program assessment (₹150) to build core coding & AI skills.\n\nBest regards,\nCuvasol Support Team`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #0d9488; text-align: center;">Welcome to Cuvasol!</h2>
+              <p>Hello <strong>${full_name}</strong>,</p>
+              <p>Your student account has been successfully created under the email: <strong>${email}</strong>.</p>
+              
+              <div style="background-color: #f0fdfa; padding: 15px; border-radius: 6px; border: 1px solid #ccfbf1; margin: 20px 0;">
+                <h4 style="margin-top: 0; color: #0f766e;">Quick Start Checklist:</h4>
+                <ul style="line-height: 1.6; margin-bottom: 0; padding-left: 20px;">
+                  <li><strong>Browse Tutors:</strong> Find experienced tutors in various subjects and book a Free Demo.</li>
+                  <li><strong>AI Skills Program:</strong> Register for the assessment exam (₹150) to join our special cohort-based learning program.</li>
+                </ul>
+              </div>
+
+              <div style="text-align: center; margin: 25px 0;">
+                <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/login" 
+                   style="background-color: #0d9488; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                  Go to Dashboard
+                </a>
+              </div>
+
+              <p>If you have any questions or need assistance, feel free to reply to this email or reach us at <a href="mailto:support@cuvasol.com">support@cuvasol.com</a>.</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+              <p style="font-size: 11px; color: #777; text-align: center;">
+                <strong>Cuvasol Technologies Private Limited</strong><br/>
+                HD-169, We Work, 78 Old Madras Road, Bangalore 560016, Karnataka, IN
+              </p>
+            </div>
+          `
+        });
+        console.log(`[Auth] Welcome email sent successfully to ${email}`);
+      } catch (mailError) {
+        console.error('[Auth] Failed to send welcome email:', mailError.message);
+      }
+    }
+
     // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
