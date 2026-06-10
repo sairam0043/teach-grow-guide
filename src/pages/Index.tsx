@@ -59,7 +59,7 @@ const Index = () => {
             <img 
               src="/ai-program-banner.png" 
               alt="AI Future Skills Program" 
-              className="w-full h-auto object-cover max-h-[120px] sm:max-h-[200px] md:max-h-[250px] lg:max-h-[300px]" 
+              className="w-full h-auto block" 
             />
           </Link>
         </div>
