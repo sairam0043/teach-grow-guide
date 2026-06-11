@@ -156,12 +156,26 @@ const TutorProfile = () => {
           const timeB = parse(b, 'h:mm a', new Date());
           return timeA.getTime() - timeB.getTime();
         });
-        setAvailableSlotsForDate(uniqueSlots);
+
+        // Filter slots: must be at least 3 hours in the future
+        const filteredSlots = uniqueSlots.filter(slot => {
+          const slotDateTime = new Date(`${format(date as Date, 'yyyy-MM-dd')} ${slot}`);
+          const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+          return slotDateTime >= minTime;
+        });
+
+        setAvailableSlotsForDate(filteredSlots);
       } else {
         setAvailableSlotsForDate([]);
       }
     } else if (tutor?.availableTimings) {
-      setAvailableSlotsForDate(tutor.availableTimings);
+      const filtered = tutor.availableTimings.filter((slot: string) => {
+        if (!isValidDate(date)) return true;
+        const slotDateTime = new Date(`${format(date as Date, 'yyyy-MM-dd')} ${slot}`);
+        const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+        return slotDateTime >= minTime;
+      });
+      setAvailableSlotsForDate(filtered);
     } else {
       setAvailableSlotsForDate([]);
     }
@@ -270,6 +284,12 @@ const TutorProfile = () => {
         toast.error("Please select a course starting date");
         return;
       }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (packStartDate < today) {
+        toast.error("Course start date must be today or in the future");
+        return;
+      }
       const allSelected = packSchedule.every(s => s.day !== '' && s.time !== '');
       if (!allSelected) {
         toast.error("Please select recurring days and times for your package");
@@ -297,6 +317,14 @@ const TutorProfile = () => {
       }
       if (!selectedSubject) {
         toast.error("Please select a subject first");
+        return;
+      }
+
+      // Validate slot timing is at least 3 hours in the future
+      const bookingDateTime = new Date(`${format(date!, 'yyyy-MM-dd')} ${selectedSlot}`);
+      const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      if (bookingDateTime < minTime) {
+        toast.error("You can only book sessions that are at least 3 hours in the future.");
         return;
       }
     }

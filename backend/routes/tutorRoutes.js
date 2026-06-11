@@ -49,6 +49,26 @@ const getFrontendUrl = (req) => {
   return 'http://localhost:8080';
 };
 
+const parseTimingStringToDate = (timingStr) => {
+  try {
+    const parts = timingStr.split(' at ');
+    if (parts.length === 2) {
+      // Clean ordinal suffixes from the date part (e.g. "May 20th, 2026" -> "May 20, 2026")
+      const datePartCleaned = parts[0].replace(/(\d+)(st|nd|rd|th)/, '$1');
+      const timePart = parts[1];
+      const combined = `${datePartCleaned} ${timePart}`;
+      const parsed = new Date(combined);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error("Error parsing timing string:", e);
+  }
+  return null;
+};
+
+
 // Helper to securely calculate backend prices for a booking plan
 const calculatePlanPrice = (tutor, subject, planType) => {
   if (planType === 'Free Demo Class') {
@@ -190,6 +210,15 @@ router.post('/:id/book', async (req, res) => {
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
 
+    // Validate slot timing is at least 3 hours in the future
+    const bookingDate = parseTimingStringToDate(timing);
+    if (bookingDate) {
+      const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      if (bookingDate < minTime) {
+        return res.status(400).json({ message: 'You can only book sessions that are at least 3 hours in the future.' });
+      }
+    }
+
     // Validate the timing actually exists in tutor's timings
     // The frontend sends format "Date at Time", so we extract the time part
     const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
@@ -285,6 +314,21 @@ router.post('/:id/book-class', async (req, res) => {
       const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
       if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
         return res.status(400).json({ message: 'This slot is not available or does not exist.' });
+      }
+
+      const bookingDate = parseTimingStringToDate(timing);
+      if (bookingDate) {
+        const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+        if (bookingDate < minTime) {
+          return res.status(400).json({ message: 'You can only book sessions that are at least 3 hours in the future.' });
+        }
+      }
+    } else if (isPack && packDetails && packDetails.startDate) {
+      const startDate = new Date(packDetails.startDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (startDate < today) {
+        return res.status(400).json({ message: 'Course start date must be today or in the future.' });
       }
     }
 
