@@ -20,6 +20,8 @@ const BrowseTutors = () => {
   const [subject, setSubject] = useState<string>("all");
   const [mode, setMode] = useState<string>("all");
   const [city, setCity] = useState<string>("all");
+  const [day, setDay] = useState("all");
+  const [time, setTime] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
 
   const { data: tutors = [], isLoading } = useQuery<Tutor[]>({
@@ -86,9 +88,11 @@ const BrowseTutors = () => {
     setSubject("all");
     setMode("all");
     setCity("all");
+    setDay("all");
+    setTime("all");
   };
 
-  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all";
+  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" ||   time !== "all" ||  day !== "all";
 
   return (
     <PageLayout>
@@ -165,6 +169,54 @@ const BrowseTutors = () => {
                 {allCities.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={city} onValueChange={setCity}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="City" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Cities</SelectItem>
+                {allCities.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={day} onValueChange={setDay}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Day" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Select Day</SelectItem>
+                <SelectItem value="Monday">Monday</SelectItem>
+                <SelectItem value="Tuesday">Tuesday</SelectItem>
+                <SelectItem value="Wednesday">Wednesday</SelectItem>
+                <SelectItem value="Thursday">Thursday</SelectItem>
+                <SelectItem value="Friday">Friday</SelectItem>
+                <SelectItem value="Saturday">Saturday</SelectItem>
+                <SelectItem value="Sunday">Sunday</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Time Dropdown */}
+            <Select value={time} onValueChange={setTime}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Time" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Select time</SelectItem>
+                {Array.from({ length: 24 }, (_, i) => {
+                  const hour = `${String(i).padStart(2, "0")}:00`;
+                  return (
+                    <SelectItem key={hour} value={hour}>
+                      {hour}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
 
