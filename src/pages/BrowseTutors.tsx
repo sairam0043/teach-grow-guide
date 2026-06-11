@@ -79,8 +79,20 @@ const BrowseTutors = () => {
         if (selectedMode === "both") return tutorMode === "both";
         return tutorMode === selectedMode || tutorMode === "both";
       })
-      .filter((t) => selectedCity === "all" || normalize(t.city) === selectedCity);
-  }, [search, selectedCategory, selectedSubject, selectedMode, selectedCity, tutors]);
+      .filter((t) => selectedCity === "all" || normalize(t.city) === selectedCity)
+      .filter((t) => {
+        if (day === "all" && time === "all") return true;
+
+        const slots = t.availability || [];
+        if (slots.length === 0) return false;
+
+        return slots.some((slot) => {
+          const dayMatch = day === "all" || slot.day.toLowerCase() === day.toLowerCase();
+          const timeMatch = time === "all" || (time >= slot.startTime && time < slot.endTime);
+          return dayMatch && timeMatch;
+        });
+      });
+  }, [search, selectedCategory, selectedSubject, selectedMode, selectedCity, day, time, tutors]);
 
   const clearFilters = () => {
     setSearch("");
@@ -157,18 +169,6 @@ const BrowseTutors = () => {
                 <SelectItem value="all">All Modes</SelectItem>
                 <SelectItem value="Online">Online</SelectItem>
                 <SelectItem value="Offline">Offline</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={city} onValueChange={setCity}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="City" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Cities</SelectItem>
-                {allCities.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
               </SelectContent>
             </Select>
 
