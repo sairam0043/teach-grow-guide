@@ -655,10 +655,10 @@ const TutorProfile = () => {
   const formattedSelectedTiming = isValidDate(date) && selectedSlot ? `${format(date as Date, 'PPP')} at ${selectedSlot}` : null;
   const selectedExisting = formattedSelectedTiming ? existingBookings.find(b => b.timing === formattedSelectedTiming && b.status === "confirmed") : undefined;
 
-  const activeDemoBooking = existingBookings.find(b => b.status === "confirmed" && !isBookingPast(b.timing));
-  const completedBooking = existingBookings.find(b => b.status === "completed" || (b.status === "confirmed" && isBookingPast(b.timing)));
-  const enrolledBooking = existingBookings.find(b => b.status === "enrolled" && !isBookingPast(b.timing));
-  const pendingBooking = existingBookings.find(b => b.status === "pending" && !isBookingPast(b.timing));
+  const activeDemoBooking = selectedSubject ? existingBookings.find(b => b.subject === selectedSubject && b.status === "confirmed" && !isBookingPast(b.timing)) : undefined;
+  const completedBooking = selectedSubject ? existingBookings.find(b => b.subject === selectedSubject && (b.status === "completed" || (b.status === "confirmed" && isBookingPast(b.timing)))) : undefined;
+  const enrolledBooking = selectedSubject ? existingBookings.find(b => b.subject === selectedSubject && b.status === "enrolled" && !isBookingPast(b.timing)) : undefined;
+  const pendingBooking = selectedSubject ? existingBookings.find(b => b.subject === selectedSubject && b.status === "pending" && !isBookingPast(b.timing)) : undefined;
 
   const demoBookingForSubject = selectedSubject ? existingBookings.find(b => 
     b.subject === selectedSubject && 
