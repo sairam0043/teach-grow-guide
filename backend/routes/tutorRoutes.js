@@ -199,14 +199,15 @@ router.post('/:id/book', async (req, res) => {
       return res.status(400).json({ message: 'This slot is not available or does not exist.' });
     }
 
-    // Check if the student already has a non-cancelled demo with this tutor (only 1 demo allowed)
+    // Check if the student already has a pending or active demo with this tutor for this subject
     const existingDemo = await Booking.findOne({ 
       tutorId: tutor._id, 
       studentId,
-      status: { $in: ['confirmed', 'completed', 'enrolled'] } 
+      subject,
+      status: { $in: ['pending', 'confirmed', 'completed', 'enrolled'] } 
     });
     if (existingDemo) {
-       return res.status(400).json({ message: 'You have already booked a demo with this tutor.' });
+       return res.status(400).json({ message: `You have already requested or booked a demo for ${subject} with this tutor.` });
     }
 
     // Create a booking record

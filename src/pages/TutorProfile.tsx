@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, getDay, addMinutes, parse, startOfDay, addDays } from "date-fns";
 import PageLayout from "@/components/layout/PageLayout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "@/components/ui/sonner";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,6 +36,7 @@ const TutorProfile = () => {
   const [otherEmails, setOtherEmails] = useState<string[]>(['']);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [availableSlotsForDate, setAvailableSlotsForDate] = useState<string[]>([]);
+  const bookingInProgressRef = useRef(false);
 
   const getSubjectRate = () => {
     if (!selectedSubject) return tutor?.hourlyRate || 500;
@@ -254,7 +255,7 @@ const TutorProfile = () => {
   }
 
   const handleBookDemo = async () => {
-    if (isProcessingPayment) return;
+    if (isProcessingPayment || bookingInProgressRef.current) return;
     if (role === 'tutor') {
       toast.error("Tutors are not allowed to book classes.");
       return;
@@ -300,8 +301,12 @@ const TutorProfile = () => {
       }
     }
 
-    if (selectedPlan.type === 'Free Demo Class' && (completedBooking || hasActiveBooking)) {
-      toast.error("A free demo is already booked or completed. Please select a premium pricing plan instead.");
+    if (selectedPlan.type === 'Free Demo Class' && isDemoDisabledForSubject) {
+      if (demoBookingForSubject?.status === 'pending') {
+        toast.error(`You have already requested a demo session for ${selectedSubject}. Please wait for the tutor to accept or reject it.`);
+      } else {
+        toast.error(`A free demo for ${selectedSubject} is already booked or completed. Please select a premium pricing plan instead.`);
+      }
       return;
     }
 
@@ -365,18 +370,24 @@ const TutorProfile = () => {
       if (existingBooking) {
         // Cancel booking
         try {
+          bookingInProgressRef.current = true;
+          setIsProcessingPayment(true);
           await axios.put(`${API_URL}/tutors/booking/${existingBooking._id}/status`, { status: "cancelled" });
           toast.success("Booking cancelled successfully.");
           setExistingBookings(prev => prev.map(b => b._id === existingBooking._id ? { ...b, status: "cancelled" } : b));
           setSelectedSlot(null);
         } catch (err: any) {
           toast.error(err.response?.data?.message || "Failed to cancel booking");
+        } finally {
+          setIsProcessingPayment(false);
+          bookingInProgressRef.current = false;
         }
         return;
       }
     }
 
     // Otherwise book
+    bookingInProgressRef.current = true;
     setIsProcessingPayment(true);
     try {
       const studentName = String(user?.user_metadata?.full_name || "Student");
@@ -412,17 +423,20 @@ const TutorProfile = () => {
           if (user?.email && validEmails.some(e => e.toLowerCase() === user.email.toLowerCase())) {
             toast.error("You cannot invite yourself. Please enter emails of other students.");
             setIsProcessingPayment(false);
+            bookingInProgressRef.current = false;
             return;
           }
 
           if (selectedPlan.type === '2 Students' && validEmails.length < 1) {
             toast.error("Please enter the email of the other student.");
             setIsProcessingPayment(false);
+            bookingInProgressRef.current = false;
             return;
           }
           if (selectedPlan.type === '3–5 Students' && validEmails.length < 2) {
             toast.error("Please enter at least 2 other student emails for this plan.");
             setIsProcessingPayment(false);
+            bookingInProgressRef.current = false;
             return;
           }
           payload.otherStudentsEmails = validEmails;
@@ -456,6 +470,7 @@ const TutorProfile = () => {
             price: selectedPlan.price
           });
           setIsProcessingPayment(false);
+          bookingInProgressRef.current = false;
         } else {
           // Open Official Razorpay Checkout Popups
           const options = {
@@ -483,11 +498,13 @@ const TutorProfile = () => {
                 setExistingBookings(prev => [...prev.filter(b => b._id !== booking._id), verifyRes.data.booking]);
                 setSelectedSlot(null);
                 setIsProcessingPayment(false);
+                bookingInProgressRef.current = false;
                 navigate("/dashboard/student");
               } catch (verifyErr: any) {
                 toast.dismiss();
                 toast.error(verifyErr.response?.data?.message || "Payment verification failed.");
                 setIsProcessingPayment(false);
+                bookingInProgressRef.current = false;
               }
             },
             prefill: {
@@ -501,6 +518,7 @@ const TutorProfile = () => {
             modal: {
               ondismiss: function () {
                 setIsProcessingPayment(false);
+                bookingInProgressRef.current = false;
                 toast.warning("Payment checkout cancelled.");
               }
             }
@@ -515,10 +533,12 @@ const TutorProfile = () => {
         setExistingBookings([...existingBookings, booking]);
         setSelectedSlot(null);
         setIsProcessingPayment(false);
+        bookingInProgressRef.current = false;
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to book");
       setIsProcessingPayment(false);
+      bookingInProgressRef.current = false;
     }
   };
 
@@ -573,6 +593,7 @@ const TutorProfile = () => {
   const handleCancelSandboxPayment = () => {
     setSandboxOrder(null);
     setIsProcessingPayment(false);
+    bookingInProgressRef.current = false;
     toast.warning("Payment checkout cancelled.");
   };
 
@@ -611,6 +632,12 @@ const TutorProfile = () => {
   const enrolledBooking = existingBookings.find(b => b.status === "enrolled" && !isBookingPast(b.timing));
   const pendingBooking = existingBookings.find(b => b.status === "pending" && !isBookingPast(b.timing));
 
+  const demoBookingForSubject = selectedSubject ? existingBookings.find(b => 
+    b.subject === selectedSubject && 
+    ['pending', 'confirmed', 'completed', 'enrolled'].includes(b.status)
+  ) : null;
+  const isDemoDisabledForSubject = !!demoBookingForSubject;
+
   const hasActiveBooking = !!activeDemoBooking;
   const activeBookingTiming = activeDemoBooking?.timing;
 
@@ -643,6 +670,7 @@ const TutorProfile = () => {
     if (role === 'tutor') return true;
     if (selectedExisting) return false; // For cancellation
     if (!selectedPlan) return true;
+    if (selectedPlan.type === 'Free Demo Class' && isDemoDisabledForSubject) return true;
 
     if (selectedPlan.isPack) {
       // Disabled if start date is missing
@@ -806,7 +834,11 @@ const TutorProfile = () => {
                       { type: '2 Days/Week (Monthly Pack)', price: Math.round(subjectRate * 8 * 0.85), isPack: true, sessionsCount: 8, subtitle: '8 Classes/mo • 15% Discount Applied' },
                       { type: '3 Days/Week (Monthly Pack)', price: Math.round(subjectRate * 12 * 0.80), isPack: true, sessionsCount: 12, subtitle: '12 Classes/mo • 20% Discount Applied' }
                     ].map(plan => {
-                      const isDemoDisabled = plan.isDemo && (completedBooking || hasActiveBooking);
+                      const demoBooking = plan.isDemo && selectedSubject ? existingBookings.find(b => 
+                        b.subject === selectedSubject && 
+                        ['pending', 'confirmed', 'completed', 'enrolled'].includes(b.status)
+                      ) : null;
+                      const isDemoDisabled = !!demoBooking;
                       const isClickable = !enrolledBooking && !isDemoDisabled;
                       return (
                         <div
@@ -827,7 +859,7 @@ const TutorProfile = () => {
                             )}
                             <div>
                               <span className={`font-semibold ${selectedPlan?.type === plan.type ? "text-primary-foreground" : "text-foreground"}`}>
-                                {plan.type} {isDemoDisabled && " (Already Used)"}
+                                {plan.type} {demoBooking && ` (${demoBooking.status === 'pending' ? 'Pending Approval' : 'Already Booked'})`}
                               </span>
                               {plan.subtitle && (
                                 <p className={`text-xs mt-0.5 ${selectedPlan?.type === plan.type ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
