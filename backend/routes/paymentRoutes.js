@@ -9,6 +9,36 @@ const CoursePayment = require('../schemas/coursePaymentSchema');
 
 const router = express.Router();
 
+const getFrontendUrl = (req) => {
+  let origin = req && (req.headers.origin || req.headers.referer);
+  if (origin) {
+    try {
+      const urlObj = new URL(origin);
+      origin = urlObj.origin;
+    } catch (e) {
+      origin = origin.replace(/\/$/, '');
+    }
+    if (typeof origin === 'string' && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+      return origin;
+    }
+  }
+
+  if (process.env.FRONTEND_URL) {
+    const urls = process.env.FRONTEND_URL.split(',')
+      .map(u => u.replace(/["']/g, '').trim())
+      .filter(Boolean);
+    if (urls.length > 0) {
+      const isProd = process.env.NODE_ENV === 'production';
+      if (isProd) {
+        const prodUrl = urls.find(url => !url.includes('localhost') && !url.includes('127.0.0.1'));
+        if (prodUrl) return prodUrl;
+      }
+      return urls[0];
+    }
+  }
+  return 'http://localhost:8080';
+};
+
 // Brevo Mail Transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -177,7 +207,7 @@ router.post('/verify-payment', async (req, res) => {
                    <p>Student <b>${booking.studentName}</b> is officially enrolled in your course for <b>${booking.subject}</b> at <b>${booking.timing}</b>.</p>
                    <p>You can join the private video room directly by clicking the link below:</p>
                    <p><a href="${booking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p>
-                   <p>Or access your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
+                   <p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
           });
           console.log(`[Payments] Tutor enrollment alert sent to: ${tutorUser.email}`);
         }
@@ -430,7 +460,7 @@ router.post('/shortlist-student', async (req, res) => {
 
     // Send shortlisting and enrollment email with nodemailer
     try {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
+      const frontendUrl = getFrontendUrl(req);
       const enrollUrl = `${frontendUrl}/ai-program/enroll`;
       
       const emailSubject = 'Congratulations! You are Shortlisted for the AI Future Skills Program';

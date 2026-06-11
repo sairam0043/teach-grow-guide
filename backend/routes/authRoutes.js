@@ -1,5 +1,36 @@
 const express = require('express');
 const router = express.Router();
+
+const getFrontendUrl = (req) => {
+  let origin = req && (req.headers.origin || req.headers.referer);
+  if (origin) {
+    try {
+      const urlObj = new URL(origin);
+      origin = urlObj.origin;
+    } catch (e) {
+      origin = origin.replace(/\/$/, '');
+    }
+    if (typeof origin === 'string' && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+      return origin;
+    }
+  }
+
+  if (process.env.FRONTEND_URL) {
+    const urls = process.env.FRONTEND_URL.split(',')
+      .map(u => u.replace(/["']/g, '').trim())
+      .filter(Boolean);
+    if (urls.length > 0) {
+      const isProd = process.env.NODE_ENV === 'production';
+      if (isProd) {
+        const prodUrl = urls.find(url => !url.includes('localhost') && !url.includes('127.0.0.1'));
+        if (prodUrl) return prodUrl;
+      }
+      return urls[0];
+    }
+  }
+  return 'http://localhost:8080';
+};
+
 const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
 const bcrypt = require('bcryptjs');
@@ -145,7 +176,7 @@ router.post('/register', async (req, res) => {
               </div>
 
               <div style="text-align: center; margin: 25px 0;">
-                <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/login" 
+                <a href="${getFrontendUrl(req)}/login" 
                    style="background-color: #0d9488; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                   Go to Dashboard
                 </a>

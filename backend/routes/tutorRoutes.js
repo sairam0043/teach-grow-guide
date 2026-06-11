@@ -19,6 +19,36 @@ const transporter = nodemailer.createTransport({
 
 const router = express.Router();
 
+const getFrontendUrl = (req) => {
+  let origin = req && (req.headers.origin || req.headers.referer);
+  if (origin) {
+    try {
+      const urlObj = new URL(origin);
+      origin = urlObj.origin;
+    } catch (e) {
+      origin = origin.replace(/\/$/, '');
+    }
+    if (typeof origin === 'string' && (origin.startsWith('http://') || origin.startsWith('https://'))) {
+      return origin;
+    }
+  }
+
+  if (process.env.FRONTEND_URL) {
+    const urls = process.env.FRONTEND_URL.split(',')
+      .map(u => u.replace(/["']/g, '').trim())
+      .filter(Boolean);
+    if (urls.length > 0) {
+      const isProd = process.env.NODE_ENV === 'production';
+      if (isProd) {
+        const prodUrl = urls.find(url => !url.includes('localhost') && !url.includes('127.0.0.1'));
+        if (prodUrl) return prodUrl;
+      }
+      return urls[0];
+    }
+  }
+  return 'http://localhost:8080';
+};
+
 // Helper to securely calculate backend prices for a booking plan
 const calculatePlanPrice = (tutor, subject, planType) => {
   if (planType === 'Free Demo Class') {
@@ -206,7 +236,7 @@ router.post('/:id/book', async (req, res) => {
           html: `<h3>New Demo Session Requested</h3>
                  <p>Hello <b>${tutor.name}</b>,</p>
                  <p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p>
-                 <p>Please log in to your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
+                 <p>Please log in to your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
                  <p>Best regards,<br/>Cuvasol Tutor Team</p>`,
         });
         console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
@@ -297,14 +327,7 @@ router.post('/:id/book-class', async (req, res) => {
 
     if (isGroup) {
       // Send emails to invited students
-      let frontendUrl = req.headers.origin;
-      if (!frontendUrl || frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1')) {
-        if (process.env.FRONTEND_URL) {
-          frontendUrl = process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '');
-        } else {
-          frontendUrl = 'http://localhost:8080';
-        }
-      }
+      const frontendUrl = getFrontendUrl(req);
       for (const email of otherStudentsEmails) {
         const approvalLink = `${frontendUrl}/approve-booking/${newBooking._id}?email=${encodeURIComponent(email)}`;
         try {
@@ -333,7 +356,7 @@ router.post('/:id/book-class', async (req, res) => {
             to: tutorUser.email,
             subject: 'New Group Class Booking',
             text: `Hello ${tutor.name},\n\nA new group class has been initiated by ${studentName} for ${subject} at ${timing}.\n\nPlan: ${planType}\n\nYou can join the private video room once all members enroll: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
-            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${process.env.FRONTEND_URL || 'http://localhost:8080'}/dashboard/tutor">dashboard</a> for details.</p>`,
+            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
           });
           console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
         }
@@ -427,7 +450,7 @@ router.put('/booking/:bookingId/status', async (req, res) => {
                 <p>We encourage you to log in to your dashboard to view other qualified tutors or select alternative open slots.</p>
                 
                 <div style="text-align: center; margin: 25px 0;">
-                  <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/login" 
+                  <a href="${getFrontendUrl(req)}/login" 
                      style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                     Find Other Tutors
                   </a>
@@ -575,7 +598,7 @@ router.put('/:id/admin', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutor.userId.email,
           subject: 'Tutor Profile Approved!',
-          text: `Hello ${tutor.name},\n\nCongratulations! Your tutor profile on Cuvasol Tutor has been approved by the administrator.\n\nYou can now log in to your dashboard to set your availability slots, manage bookings, and start teaching!\n\nAccess your onboarding guide: ${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/tutor/welcome\n\nBest regards,\nCuvasol Tutor Team`,
+          text: `Hello ${tutor.name},\n\nCongratulations! Your tutor profile on Cuvasol Tutor has been approved by the administrator.\n\nYou can now log in to your dashboard to set your availability slots, manage bookings, and start teaching!\n\nAccess your onboarding guide: ${getFrontendUrl(req)}/tutor/welcome\n\nBest regards,\nCuvasol Tutor Team`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
               <h2 style="color: #059669; text-align: center;">Tutor Profile Approved!</h2>
@@ -588,7 +611,7 @@ router.put('/:id/admin', async (req, res) => {
                 <li>Manage class bookings and interact with students</li>
               </ul>
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/tutor/welcome" 
+                <a href="${getFrontendUrl(req)}/tutor/welcome" 
                    style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                   Go to Tutor Dashboard
                 </a>
@@ -613,7 +636,7 @@ router.put('/:id/admin', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutor.userId.email,
           subject: 'Tutor Profile Application Update',
-          text: `Hello ${tutor.name},\n\nThank you for your interest in joining Cuvasol Tutor.\n\nUnfortunately, your tutor profile application has not been approved by the administrator at this time. This could be due to incomplete verification documents or profile guidelines.\n\nYou can log in to your dashboard to update your profile details and re-submit them for review at any time.\n\nAccess your dashboard: ${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
+          text: `Hello ${tutor.name},\n\nThank you for your interest in joining Cuvasol Tutor.\n\nUnfortunately, your tutor profile application has not been approved by the administrator at this time. This could be due to incomplete verification documents or profile guidelines.\n\nYou can log in to your dashboard to update your profile details and re-submit them for review at any time.\n\nAccess your dashboard: ${getFrontendUrl(req)}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
               <h2 style="color: #dc2626; text-align: center;">Tutor Profile Update</h2>
@@ -627,7 +650,7 @@ router.put('/:id/admin', async (req, res) => {
               </ul>
               <p><strong>The good news:</strong> You can easily update your details and re-submit your profile! Simply log in to your dashboard to make corrections and upload valid documents.</p>
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').pop().replace(/["']/g, '') : 'http://localhost:8080'}/dashboard/tutor" 
+                <a href="${getFrontendUrl(req)}/dashboard/tutor" 
                    style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                   Update & Re-submit Profile
                 </a>

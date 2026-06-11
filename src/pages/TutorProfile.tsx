@@ -69,17 +69,17 @@ const TutorProfile = () => {
   useEffect(() => {
     if (selectedPlan?.isPack && packStartDate && packSchedule.length > 0) {
       const allSelected = packSchedule.every(s => s.day !== '' && s.time !== '');
-      const hasDuplicates = packSchedule.some((slot, i) => 
+      const hasDuplicates = packSchedule.some((slot, i) =>
         packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
       );
-      
+
       if (allSelected && !hasDuplicates) {
         const sessionsList: { date: string, time: string, status: string }[] = [];
         // Iterate through 28 days starting from packStartDate
         for (let i = 0; i < 28; i++) {
           const currentDate = addDays(packStartDate, i);
           const dayName = format(currentDate, 'EEEE'); // e.g. "Monday"
-          
+
           // Find all selected days matching this weekday
           const matchedSlots = packSchedule.filter(s => s.day === dayName);
           matchedSlots.forEach(slot => {
@@ -90,14 +90,14 @@ const TutorProfile = () => {
             });
           });
         }
-        
+
         // Sort chronologically
         sessionsList.sort((a, b) => {
           const dateTimeA = new Date(`${a.date} ${a.time}`);
           const dateTimeB = new Date(`${b.date} ${b.time}`);
           return dateTimeA.getTime() - dateTimeB.getTime();
         });
-        
+
         setGeneratedPackSessions(sessionsList);
       } else {
         setGeneratedPackSessions([]);
@@ -183,7 +183,7 @@ const TutorProfile = () => {
               if (pending.subject) setSelectedSubject(pending.subject);
               if (pending.slot) setSelectedSlot(pending.slot);
               if (pending.plan) setSelectedPlan(pending.plan);
-              
+
               sessionStorage.removeItem("pending_booking");
               toast.success("Restored your selected booking slot!");
             }
@@ -274,7 +274,7 @@ const TutorProfile = () => {
         toast.error("Please select recurring days and times for your package");
         return;
       }
-      const hasDuplicates = packSchedule.some((slot, i) => 
+      const hasDuplicates = packSchedule.some((slot, i) =>
         packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
       );
       if (hasDuplicates) {
@@ -356,7 +356,7 @@ const TutorProfile = () => {
     }
 
     const isPackBooking = selectedPlan.isPack;
-    const formattedTiming = isPackBooking 
+    const formattedTiming = isPackBooking
       ? `Monthly Pack: ${selectedPlan.type} (${packSchedule.map(s => `${s.day}s at ${s.time}`).join(', ')}) [${format(packStartDate!, 'MMM d')} - ${format(addDays(packStartDate!, 27), 'MMM d')}]`
       : `${format(date!, 'PPP')} at ${selectedSlot}`;
 
@@ -477,7 +477,7 @@ const TutorProfile = () => {
                   planType: selectedPlan.type,
                   amountPaid: selectedPlan.price
                 });
-                
+
                 toast.dismiss();
                 toast.success("Payment verified! You are officially enrolled.");
                 setExistingBookings(prev => [...prev.filter(b => b._id !== booking._id), verifyRes.data.booking]);
@@ -499,7 +499,7 @@ const TutorProfile = () => {
               color: "#3b82f6"
             },
             modal: {
-              ondismiss: function() {
+              ondismiss: function () {
                 setIsProcessingPayment(false);
                 toast.warning("Payment checkout cancelled.");
               }
@@ -525,17 +525,17 @@ const TutorProfile = () => {
   const handleCompleteSandboxPayment = async () => {
     if (!sandboxOrder) return;
     setIsSandboxPaying(true);
-    
+
     // Simulate payment authorization delay
     setTimeout(async () => {
       setSandboxPaymentSuccess(true);
-      
+
       // Simulate success checkmark display delay
       setTimeout(async () => {
         try {
           const mockPaymentId = `pay_mock_${Math.random().toString(36).substring(2, 11)}`;
           const mockSignature = `sig_mock_${Math.random().toString(36).substring(2, 11)}`;
-          
+
           toast.loading("Verifying sandbox transaction...");
           const verifyRes = await axios.post(`${API_URL}/payments/verify-payment`, {
             bookingId: sandboxOrder.bookingId,
@@ -545,16 +545,16 @@ const TutorProfile = () => {
             planType: sandboxOrder.planType,
             amountPaid: sandboxOrder.price
           });
-          
+
           toast.dismiss();
           toast.success("Payment verified! You are officially enrolled.");
-          
+
           // Update local bookings
           setExistingBookings(prev => [
             ...prev.filter(b => b._id !== sandboxOrder.bookingId),
             verifyRes.data.booking
           ]);
-          
+
           setSelectedSlot(null);
           setSandboxOrder(null);
           setIsSandboxPaying(false);
@@ -651,13 +651,13 @@ const TutorProfile = () => {
       const allSelected = packSchedule.every(s => s.day && s.time);
       if (!allSelected) return true;
       // Disabled if there are duplicates
-      const hasDuplicates = packSchedule.some((slot, i) => 
+      const hasDuplicates = packSchedule.some((slot, i) =>
         packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
       );
       if (hasDuplicates) return true;
       // Disabled if subject is not selected
       if (!selectedSubject) return true;
-      
+
       return false;
     } else {
       // Standard single booking
@@ -665,7 +665,7 @@ const TutorProfile = () => {
       if (!selectedSlot) return true;
       if (!selectedSubject) return true;
       if (!availableSlotsForDate || availableSlotsForDate.length === 0) return true;
-      
+
       return false;
     }
   })();
@@ -773,8 +773,8 @@ const TutorProfile = () => {
                   <label className="text-sm font-bold text-foreground block">
                     Choose the Subject you want to learn:
                   </label>
-                  <Select 
-                    value={selectedSubject} 
+                  <Select
+                    value={selectedSubject}
                     onValueChange={(val) => {
                       setSelectedSubject(val);
                       setSelectedPlan(null);
@@ -813,10 +813,10 @@ const TutorProfile = () => {
                           key={plan.type}
                           onClick={() => isClickable ? setSelectedPlan(plan) : null}
                           className={`flex justify-between items-center rounded-md p-4 transition-all duration-200 border ${selectedPlan?.type === plan.type
-                              ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
-                              : isClickable
-                                ? "bg-secondary hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/30"
-                                : "bg-secondary border-transparent opacity-50 cursor-not-allowed"
+                            ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
+                            : isClickable
+                              ? "bg-secondary hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/30"
+                              : "bg-secondary border-transparent opacity-50 cursor-not-allowed"
                             }`}
                         >
                           <div className="flex items-start gap-2.5">
@@ -918,7 +918,7 @@ const TutorProfile = () => {
                     <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20 text-center">
                       <p className="font-semibold text-destructive mb-2">Logged in as a Tutor</p>
                       <p className="text-xs text-muted-foreground leading-relaxed">
-                        Tutor accounts cannot book classes or request demo sessions from other tutors. 
+                        Tutor accounts cannot book classes or request demo sessions from other tutors.
                         If you wish to book a class, please sign out and register or log in as a Student.
                       </p>
                     </div>
@@ -933,9 +933,9 @@ const TutorProfile = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 text-center">
-                      <p className="font-medium text-amber-800 dark:text-amber-300 mb-2">Waiting for group members to approve.</p>
+                      <p className="font-medium text-amber-800 dark:text-amber-300 mb-2">Waiting for tutor to approve.</p>
                       <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
-                        Email invitations have been sent to the other students. The class will be officially booked once everyone approves.
+                        Email invitations have been sent to the tutor. The class will be officially booked once they approve. Check your mailbox for confirmation shortly
                       </p>
                       <p className="text-sm text-amber-600/80 dark:text-amber-400/80 mt-2 font-medium">
                         Timing: {pendingBooking.timing}
@@ -1058,8 +1058,8 @@ const TutorProfile = () => {
                                 <label className="text-xs font-bold text-muted-foreground">Class Slot #{idx + 1}</label>
                                 <div className="grid grid-cols-2 gap-2">
                                   {/* Day Selector */}
-                                  <Select 
-                                    value={sched.day} 
+                                  <Select
+                                    value={sched.day}
                                     onValueChange={(val) => {
                                       const newSched = [...packSchedule];
                                       newSched[idx] = { day: val, time: '' }; // reset time on day change
@@ -1077,8 +1077,8 @@ const TutorProfile = () => {
                                   </Select>
 
                                   {/* Time Selector */}
-                                  <Select 
-                                    value={sched.time} 
+                                  <Select
+                                    value={sched.time}
                                     onValueChange={(val) => {
                                       const newSched = [...packSchedule];
                                       newSched[idx].time = val;
@@ -1099,14 +1099,14 @@ const TutorProfile = () => {
                               </div>
                             );
                           })}
-                          {packSchedule.some((slot, i) => 
+                          {packSchedule.some((slot, i) =>
                             slot.day && slot.time && packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
                           ) && (
-                            <div className="text-[11px] font-semibold text-destructive mt-2 flex items-center gap-1.5 animate-pulse bg-destructive/10 p-2.5 rounded-lg border border-destructive/20">
-                              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                              <span>Duplicate slots selected. Please choose unique times.</span>
-                            </div>
-                          )}
+                              <div className="text-[11px] font-semibold text-destructive mt-2 flex items-center gap-1.5 animate-pulse bg-destructive/10 p-2.5 rounded-lg border border-destructive/20">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                <span>Duplicate slots selected. Please choose unique times.</span>
+                              </div>
+                            )}
                         </div>
 
 
@@ -1177,8 +1177,8 @@ const TutorProfile = () => {
                                   onClick={() => setSelectedSlot(timing)}
                                   disabled={isSlotDisabled}
                                   className={`w-full flex justify-between items-center rounded-lg border p-3 text-left text-sm transition-colors ${selectedSlot === timing
-                                      ? "border-primary bg-primary/5 text-foreground"
-                                      : "hover:border-primary/50 text-muted-foreground"
+                                    ? "border-primary bg-primary/5 text-foreground"
+                                    : "hover:border-primary/50 text-muted-foreground"
                                     } ${isSlotDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                                 >
                                   <div className="font-medium text-foreground">{timing}</div>
@@ -1281,14 +1281,14 @@ const TutorProfile = () => {
       {sandboxOrder && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-all duration-300">
           <div className="bg-slate-900 text-slate-100 rounded-3xl border border-slate-800 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] max-w-md w-full overflow-hidden flex flex-col transform transition-all duration-300 scale-100 relative max-h-[90vh]">
-            
+
             {/* Header with gradient */}
             <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-6 text-white relative">
               <div className="absolute top-4 right-4 flex items-center gap-2">
                 <Badge variant="outline" className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 animate-pulse">
                   🧪 Sandbox Mode
                 </Badge>
-                <button 
+                <button
                   onClick={handleCancelSandboxPayment}
                   className="rounded-full p-1.5 bg-black/20 hover:bg-black/40 transition-colors text-white/80 hover:text-white"
                 >
@@ -1306,7 +1306,7 @@ const TutorProfile = () => {
 
             {/* Main content body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              
+
               {/* Class summary card */}
               <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800 space-y-2 text-xs">
                 <div className="flex justify-between">
@@ -1336,33 +1336,30 @@ const TutorProfile = () => {
                 <div className="flex border-b border-slate-800">
                   <button
                     onClick={() => setSandboxMethod("card")}
-                    className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${
-                      sandboxMethod === "card" 
-                        ? "border-indigo-500 text-indigo-400" 
+                    className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${sandboxMethod === "card"
+                        ? "border-indigo-500 text-indigo-400"
                         : "border-transparent text-slate-400 hover:text-slate-200"
-                    }`}
+                      }`}
                   >
                     <CreditCard className="inline-block h-4 w-4 mr-1.5 -mt-0.5" />
                     Card
                   </button>
                   <button
                     onClick={() => setSandboxMethod("upi")}
-                    className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${
-                      sandboxMethod === "upi" 
-                        ? "border-indigo-500 text-indigo-400" 
+                    className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${sandboxMethod === "upi"
+                        ? "border-indigo-500 text-indigo-400"
                         : "border-transparent text-slate-400 hover:text-slate-200"
-                    }`}
+                      }`}
                   >
                     <span className="inline-block font-mono font-bold mr-1 bg-slate-800 text-slate-300 text-[10px] px-1 rounded">UPI</span>
                     UPI Pay
                   </button>
                   <button
                     onClick={() => setSandboxMethod("netbanking")}
-                    className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${
-                      sandboxMethod === "netbanking" 
-                        ? "border-indigo-500 text-indigo-400" 
+                    className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${sandboxMethod === "netbanking"
+                        ? "border-indigo-500 text-indigo-400"
                         : "border-transparent text-slate-400 hover:text-slate-200"
-                    }`}
+                      }`}
                   >
                     <Monitor className="inline-block h-4 w-4 mr-1.5 -mt-0.5" />
                     Netbanking
@@ -1372,7 +1369,7 @@ const TutorProfile = () => {
                 {/* Card Fields */}
                 {sandboxMethod === "card" && (
                   <div className="space-y-4 text-xs">
-                    
+
                     {/* Visual Card representation */}
                     <div className="bg-gradient-to-br from-slate-800 to-slate-950 border border-slate-700/50 p-4 rounded-xl shadow-inner relative overflow-hidden h-28 flex flex-col justify-between">
                       <div className="absolute -top-6 -right-6 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
@@ -1434,7 +1431,7 @@ const TutorProfile = () => {
                   <div className="space-y-4 text-xs">
                     <div className="grid grid-cols-2 gap-2">
                       {["Google Pay", "PhonePe", "Paytm", "BHIM"].map((app) => (
-                        <div 
+                        <div
                           key={app}
                           className="p-2 border border-slate-800 bg-slate-950/40 rounded-lg text-center font-medium text-slate-300 flex items-center justify-center gap-1.5 cursor-pointer hover:border-indigo-500/50 transition-colors"
                         >
@@ -1466,7 +1463,7 @@ const TutorProfile = () => {
                         { name: "ICICI Bank", code: "ICICI" },
                         { name: "Axis Bank", code: "AXIS" }
                       ].map((bank) => (
-                        <div 
+                        <div
                           key={bank.code}
                           className="p-3 border border-slate-800 bg-slate-950/40 rounded-lg text-left font-medium text-slate-300 hover:border-indigo-500/50 cursor-pointer transition-colors flex items-center justify-between"
                         >
@@ -1481,14 +1478,14 @@ const TutorProfile = () => {
 
               {/* Actions Footer */}
               <div className="space-y-2 pt-4">
-                <Button 
+                <Button
                   onClick={handleCompleteSandboxPayment}
                   className="w-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white rounded-xl py-5 font-bold text-sm tracking-wide shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 border-0"
                 >
                   <CheckCircle className="h-4 w-4" /> Authorize Mock Payment
                 </Button>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={handleCancelSandboxPayment}
                   className="w-full text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 rounded-xl py-5 text-xs font-semibold"
                 >
