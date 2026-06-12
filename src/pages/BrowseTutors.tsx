@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
+import { useSearchParams } from "react-router-dom";
 import TutorCard from "@/components/tutors/TutorCard";
 import type { Tutor } from "@/data/mockTutors";
 import API_URL from "@/config/api";
@@ -15,13 +16,13 @@ import API_URL from "@/config/api";
 const normalize = (value?: string | null) => (value || "").trim().toLowerCase();
 
 const ACADEMIC_KEYWORDS = [
-  "mathematics", "math", "physics", "chemistry", "biology", 
-  "coding", "computer science", "english", "history", "geography", 
+  "mathematics", "math", "physics", "chemistry", "biology",
+  "coding", "computer science", "english", "history", "geography",
   "economics", "finance", "foreign languages", "kannada", "accounting"
 ];
 
 const EXTRACURRICULAR_KEYWORDS = [
-  "music", "dance", "art", "drawing", "chess", "yoga", "meditation", 
+  "music", "dance", "art", "drawing", "chess", "yoga", "meditation",
   "speaking", "debate", "writing", "photography", "video"
 ];
 
@@ -43,14 +44,42 @@ const getSubjectCategory = (subject: string, tutorCategory: string): string => {
 };
 
 const BrowseTutors = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryParam = searchParams.get("category");
+
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<string>("all");
+  const [category, setCategory] = useState<string>(() => {
+    if (categoryParam?.toLowerCase() === "academic") return "Academic";
+    if (categoryParam?.toLowerCase() === "extracurricular") return "Extracurricular";
+    return "all";
+  });
   const [subject, setSubject] = useState<string>("all");
   const [mode, setMode] = useState<string>("all");
   const [city, setCity] = useState<string>("all");
   const [day, setDay] = useState("all");
   const [time, setTime] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    if (categoryParam?.toLowerCase() === "academic") {
+      setCategory("Academic");
+    } else if (categoryParam?.toLowerCase() === "extracurricular") {
+      setCategory("Extracurricular");
+    } else {
+      setCategory("all");
+    }
+  }, [categoryParam]);
+
+  const handleCategoryChange = (val: string) => {
+    setCategory(val);
+    const newParams = new URLSearchParams(searchParams);
+    if (val === "all") {
+      newParams.delete("category");
+    } else {
+      newParams.set("category", val);
+    }
+    setSearchParams(newParams);
+  };
 
   const { data: tutors = [], isLoading } = useQuery<Tutor[]>({
     queryKey: ['tutors', 'approved'],
@@ -144,9 +173,10 @@ const BrowseTutors = () => {
     setCity("all");
     setDay("all");
     setTime("all");
+    setSearchParams({});
   };
 
-  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" ||   time !== "all" ||  day !== "all";
+  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all";
 
   return (
     <PageLayout>
@@ -180,7 +210,7 @@ const BrowseTutors = () => {
         <div className="container">
           {/* Filters */}
           <div className={`mb-8 flex flex-wrap gap-3 ${showFilters ? "" : "hidden md:flex"}`}>
-            <Select value={category} onValueChange={setCategory}>
+            <Select value={category} onValueChange={handleCategoryChange}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
@@ -196,7 +226,7 @@ const BrowseTutors = () => {
                 <SelectValue placeholder="Subject" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Subjects</SelectItem>
+                <SelectItem value="all">Select Subject</SelectItem>
                 {allSubjects.map((s) => (
                   <SelectItem key={s} value={s}>{s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}</SelectItem>
                 ))}
@@ -219,7 +249,7 @@ const BrowseTutors = () => {
                 <SelectValue placeholder="City" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Cities</SelectItem>
+                <SelectItem value="all">Select City</SelectItem>
                 {allCities.map((c) => (
                   <SelectItem key={c} value={c}>
                     {c}
