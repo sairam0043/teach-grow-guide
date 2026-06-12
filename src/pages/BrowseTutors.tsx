@@ -14,6 +14,28 @@ import API_URL from "@/config/api";
 
 const normalize = (value?: string | null) => (value || "").trim().toLowerCase();
 
+const ACADEMIC_KEYWORDS = [
+  "mathematics", "math", "physics", "chemistry", "biology", 
+  "coding", "computer science", "english", "history", "geography", 
+  "economics", "finance", "foreign languages", "kannada", "accounting"
+];
+
+const EXTRACURRICULAR_KEYWORDS = [
+  "music", "dance", "art", "drawing", "chess", "yoga", "meditation", 
+  "speaking", "debate", "writing", "photography", "video"
+];
+
+const getSubjectCategory = (subject: string, tutorCategory: string): string => {
+  const s = subject.toLowerCase().trim();
+  if (ACADEMIC_KEYWORDS.some(keyword => s.includes(keyword) || keyword.includes(s))) {
+    return "academic";
+  }
+  if (EXTRACURRICULAR_KEYWORDS.some(keyword => s.includes(keyword) || keyword.includes(s))) {
+    return "extracurricular";
+  }
+  return tutorCategory.toLowerCase().trim();
+};
+
 const BrowseTutors = () => {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -40,10 +62,11 @@ const BrowseTutors = () => {
   const allSubjects = useMemo(() => {
     const subjectMap = new Map<string, string>();
     tutors.forEach((tutor) => {
-      if (selectedCategory !== "all" && normalize(tutor.category) !== selectedCategory) {
-        return;
-      }
       (tutor.subjects || []).forEach((subject) => {
+        const subjectCat = getSubjectCategory(subject, tutor.category);
+        if (selectedCategory !== "all" && subjectCat !== selectedCategory) {
+          return;
+        }
         const key = normalize(subject);
         if (key && !subjectMap.has(key)) subjectMap.set(key, subject.trim());
       });
@@ -80,7 +103,11 @@ const BrowseTutors = () => {
         }
         return true;
       })
-      .filter((t) => selectedCategory === "all" || normalize(t.category) === selectedCategory)
+      .filter((t) => {
+        if (selectedCategory === "all") return true;
+        if (normalize(t.category) === selectedCategory) return true;
+        return (t.subjects || []).some(s => getSubjectCategory(s, t.category) === selectedCategory);
+      })
       .filter((t) => selectedSubject === "all" || (t.subjects || []).some((s) => normalize(s) === selectedSubject))
       .filter((t) => {
         if (selectedMode === "all") return true;
