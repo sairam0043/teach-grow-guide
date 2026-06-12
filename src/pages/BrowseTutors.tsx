@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Search, SlidersHorizontal } from "lucide-react";
@@ -32,16 +32,24 @@ const BrowseTutors = () => {
     }
   });
 
+  const selectedCategory = normalize(category);
+  const selectedSubject = normalize(subject);
+  const selectedMode = normalize(mode);
+  const selectedCity = normalize(city);
+
   const allSubjects = useMemo(() => {
     const subjectMap = new Map<string, string>();
     tutors.forEach((tutor) => {
+      if (selectedCategory !== "all" && normalize(tutor.category) !== selectedCategory) {
+        return;
+      }
       (tutor.subjects || []).forEach((subject) => {
         const key = normalize(subject);
         if (key && !subjectMap.has(key)) subjectMap.set(key, subject.trim());
       });
     });
     return Array.from(subjectMap.values()).sort((a, b) => a.localeCompare(b));
-  }, [tutors]);
+  }, [tutors, selectedCategory]);
 
   const allCities = useMemo(() => {
     const cityMap = new Map<string, string>();
@@ -53,10 +61,11 @@ const BrowseTutors = () => {
     return Array.from(cityMap.values()).sort((a, b) => a.localeCompare(b));
   }, [tutors]);
 
-  const selectedCategory = normalize(category);
-  const selectedSubject = normalize(subject);
-  const selectedMode = normalize(mode);
-  const selectedCity = normalize(city);
+  useEffect(() => {
+    if (subject !== "all" && !allSubjects.some((s) => normalize(s) === selectedSubject)) {
+      setSubject("all");
+    }
+  }, [allSubjects, subject, selectedSubject]);
 
   const filtered = useMemo(() => {
     return tutors
