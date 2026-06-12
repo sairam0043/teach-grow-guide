@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +55,10 @@ const RegisterTutor = () => {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [subjectRates, setSubjectRates] = useState<Record<string, number>>({});
   const [otherSubjectText, setOtherSubjectText] = useState("");
+  const [customSubjects, setCustomSubjects] = useState<{ subject: string; category: string; rate: number }[]>([]);
+  const [newCustomName, setNewCustomName] = useState("");
+  const [newCustomCategory, setNewCustomCategory] = useState("Academic");
+  const [newCustomRate, setNewCustomRate] = useState(500);
   const [bio, setBio] = useState("");
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
@@ -159,18 +164,16 @@ const RegisterTutor = () => {
       });
     });
 
-    if (selectedSubjects.includes("Other") && otherSubjectText.trim()) {
-      const customList = otherSubjectText.split(",");
-      customList.forEach(item => {
-        const parts = item.split(":");
-        const name = parts[0]?.trim();
-        const rate = parts[1] ? Number(parts[1].trim()) : 500;
-        if (name) {
-          finalSubjectRates.push({
-            subject: name,
-            rate: isNaN(rate) ? 500 : rate
-          });
-        }
+    if (selectedSubjects.includes("Other")) {
+      if (customSubjects.length === 0) {
+        toast.error("Please add at least one custom subject under 'Other'.");
+        return;
+      }
+      customSubjects.forEach(cs => {
+        finalSubjectRates.push({
+          subject: `${cs.subject} (${cs.category})`,
+          rate: cs.rate
+        });
       });
     }
 
@@ -391,19 +394,82 @@ const RegisterTutor = () => {
                   )}
 
                   {selectedSubjects.includes("Other") && (
-                    <div className="space-y-2 mt-3 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <Label htmlFor="custom-subjects" className="text-xs font-semibold text-muted-foreground block mb-1">
-                        Specify Your Other Subject(s) & Rates
-                      </Label>
-                      <Input
-                        id="custom-subjects"
-                        required
-                        placeholder="e.g. Sanskrit:400, AI:600 (comma-separated Subject:Rate)"
-                        value={otherSubjectText}
-                        onChange={(e) => setOtherSubjectText(e.target.value)}
-                        className="bg-background shadow-sm text-sm"
-                      />
-                      <p className="text-xs text-muted-foreground">Type custom subjects with rates, e.g. "Sanskrit:400, Artificial Intelligence:600". Default rate is ₹500 if not specified.</p>
+                    <div className="space-y-4 mt-3 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <Label className="text-xs font-semibold block mb-1">Add Custom Subjects</Label>
+
+                      {customSubjects.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {customSubjects.map((cs, idx) => (
+                            <Badge key={idx} variant="secondary" className="flex items-center gap-1.5 px-3 py-1 text-xs">
+                              <span>{cs.subject} ({cs.category}) - ₹{cs.rate}/hr</span>
+                              <button
+                                type="button"
+                                onClick={() => setCustomSubjects(prev => prev.filter((_, i) => i !== idx))}
+                                className="text-muted-foreground hover:text-destructive font-bold text-xs"
+                              >
+                                ✕
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid gap-3 sm:grid-cols-3 items-end bg-background p-3 rounded-lg border">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">Category</Label>
+                          <Select value={newCustomCategory} onValueChange={setNewCustomCategory}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Academic">Academic</SelectItem>
+                              <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">Subject Name</Label>
+                          <Input
+                            placeholder="e.g. Sanskrit"
+                            value={newCustomName}
+                            onChange={(e) => setNewCustomName(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">Rate (₹/hr)</Label>
+                          <div className="flex gap-1.5 items-center">
+                            <Input
+                              type="number"
+                              min={100}
+                              max={10000}
+                              value={newCustomRate}
+                              onChange={(e) => setNewCustomRate(Number(e.target.value))}
+                              className="h-8 text-xs flex-1"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                if (!newCustomName.trim()) {
+                                  toast.error("Please enter a subject name.");
+                                  return;
+                                }
+                                setCustomSubjects(prev => [
+                                  ...prev,
+                                  { subject: newCustomName.trim(), category: newCustomCategory, rate: newCustomRate }
+                                ]);
+                                setNewCustomName("");
+                              }}
+                              className="h-8 text-xs px-3"
+                            >
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -27,6 +27,12 @@ const EXTRACURRICULAR_KEYWORDS = [
 
 const getSubjectCategory = (subject: string, tutorCategory: string): string => {
   const s = subject.toLowerCase().trim();
+  if (s.endsWith("(academic)")) {
+    return "academic";
+  }
+  if (s.endsWith("(extracurricular)")) {
+    return "extracurricular";
+  }
   if (ACADEMIC_KEYWORDS.some(keyword => s.includes(keyword) || keyword.includes(s))) {
     return "academic";
   }
@@ -192,7 +198,7 @@ const BrowseTutors = () => {
               <SelectContent>
                 <SelectItem value="all">All Subjects</SelectItem>
                 {allSubjects.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                  <SelectItem key={s} value={s}>{s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

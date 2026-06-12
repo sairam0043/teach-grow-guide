@@ -138,6 +138,7 @@ const TutorDashboard = () => {
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectRate, setNewSubjectRate] = useState(500);
   const [customSubjectInput, setCustomSubjectInput] = useState(false);
+  const [newSubjectCategory, setNewSubjectCategory] = useState("Academic");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
@@ -1018,7 +1019,9 @@ const TutorDashboard = () => {
                             <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
                               {subjectRates.map((sr, sIdx) => (
                                 <div key={sIdx} className="flex items-center justify-between gap-4 bg-background p-3 rounded-lg border shadow-sm transition-all hover:border-primary/20">
-                                  <span className="text-sm font-bold text-foreground truncate max-w-[200px]">{sr.subject}</span>
+                                  <span className="text-sm font-bold text-foreground truncate max-w-[200px]">
+                                    {sr.subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
+                                  </span>
                                   <div className="flex items-center gap-3 shrink-0">
                                     <div className="flex items-center gap-1">
                                       <span className="text-xs text-muted-foreground font-semibold">₹</span>
@@ -1057,22 +1060,33 @@ const TutorDashboard = () => {
                             <div className="flex-1 w-full space-y-1">
                               <Label className="text-[10px] font-bold text-muted-foreground uppercase">Subject Name</Label>
                               {customSubjectInput ? (
-                                <div className="flex gap-1.5">
-                                  <Input 
-                                    placeholder="Enter subject name..." 
-                                    value={newSubjectName} 
-                                    onChange={(e) => setNewSubjectName(e.target.value)}
-                                    className="h-9 text-xs bg-background"
-                                  />
-                                  <Button 
-                                    type="button" 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={() => { setCustomSubjectInput(false); setNewSubjectName(""); }}
-                                    className="h-9 px-2 text-xs shrink-0"
-                                  >
-                                    Back
-                                  </Button>
+                                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                  <Select value={newSubjectCategory} onValueChange={setNewSubjectCategory}>
+                                    <SelectTrigger className="h-9 text-xs bg-background w-full sm:w-36">
+                                      <SelectValue placeholder="Category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Academic">Academic</SelectItem>
+                                      <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <div className="flex flex-1 gap-1.5 w-full">
+                                    <Input 
+                                      placeholder="Enter subject name..." 
+                                      value={newSubjectName} 
+                                      onChange={(e) => setNewSubjectName(e.target.value)}
+                                      className="h-9 text-xs bg-background"
+                                    />
+                                    <Button 
+                                      type="button" 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      onClick={() => { setCustomSubjectInput(false); setNewSubjectName(""); }}
+                                      className="h-9 px-2 text-xs shrink-0"
+                                    >
+                                      Back
+                                    </Button>
+                                  </div>
                                 </div>
                               ) : (
                                 <Select 
@@ -1131,11 +1145,15 @@ const TutorDashboard = () => {
                                   toast.error("Please select or enter a subject name.");
                                   return;
                                 }
-                                if (subjectRates.some(sr => sr.subject.toLowerCase() === newSubjectName.trim().toLowerCase())) {
+                                const subjectName = customSubjectInput
+                                  ? `${newSubjectName.trim()} (${newSubjectCategory})`
+                                  : newSubjectName.trim();
+                                  
+                                if (subjectRates.some(sr => sr.subject.toLowerCase() === subjectName.toLowerCase())) {
                                   toast.error("This subject is already in your profile.");
                                   return;
                                 }
-                                setSubjectRates(prev => [...prev, { subject: newSubjectName.trim(), rate: newSubjectRate }]);
+                                setSubjectRates(prev => [...prev, { subject: subjectName, rate: newSubjectRate as number }]);
                                 setNewSubjectName("");
                                 setCustomSubjectInput(false);
                               }}

@@ -777,7 +777,9 @@ const TutorProfile = () => {
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {tutor.subjects?.map((s: string) => (
-                    <Badge key={s} variant="secondary" className="px-3 py-1 text-sm">{s}</Badge>
+                    <Badge key={s} variant="secondary" className="px-3 py-1 text-sm">
+                      {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
+                    </Badge>
                   ))}
                 </div>
               </CardContent>
@@ -842,7 +844,9 @@ const TutorProfile = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {tutor.subjects?.map((s: string) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                        <SelectItem key={s} value={s}>
+                          {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

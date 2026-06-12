@@ -62,7 +62,7 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
         <div className="mb-3 flex flex-wrap gap-1.5">
           {tutor.subjects.map((subject) => (
             <Badge key={subject} variant="secondary" className="text-xs">
-              {subject}
+              {subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
             </Badge>
           ))}
         </div>
