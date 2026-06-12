@@ -81,7 +81,7 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
           {tutor.availability && tutor.availability.length > 0 && (
             <span className="flex items-center gap-1 text-primary/80 font-medium">
               <CalendarDays className="h-3.5 w-3.5" />
-              {tutor.availability.map(a => a.day.substring(0, 3)).join(", ")}
+              {Array.from(new Set(tutor.availability.map(a => a.day.substring(0, 3)))).join(", ")}
             </span>
           )}
         </div>
