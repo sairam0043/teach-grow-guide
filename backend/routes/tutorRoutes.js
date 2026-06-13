@@ -429,7 +429,7 @@ router.get('/:id/bookings/student/:studentId', async (req, res) => {
 // Update booking status
 router.put('/booking/:bookingId/status', async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, cancellationReason } = req.body;
     if (!['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'].includes(status)) {
        return res.status(400).json({ message: 'Invalid status' });
     }
@@ -438,9 +438,14 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     
     const oldStatus = booking.status;
     booking.status = status;
+    if (cancellationReason) {
+      booking.cancellationReason = cancellationReason;
+    }
     await booking.save();
     
     console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status}`);
+
+    const isDemo = !booking.planType || booking.planType === 'Free Demo Class';
 
     // Notify student on accept (confirmed) or reject (rejected)
     if (status === 'confirmed' || status === 'rejected') {
@@ -455,7 +460,7 @@ router.put('/booking/:bookingId/status', async (req, res) => {
             
           const emailText = isConfirmed
             ? `Hello ${booking.studentName},\n\nGood news! Your demo booking request with tutor ${booking.tutorName} for ${booking.subject} on ${booking.timing} has been ACCEPTED.\n\nYou can join the private video room directly here: ${booking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`
-            : `Hello ${booking.studentName},\n\nWe would like to inform you that your demo booking request with tutor ${booking.tutorName} for ${booking.subject} on ${booking.timing} was not accepted.\n\nPlease log in to your dashboard to browse other tutors or available times.\n\nBest regards,\nCuvasol Tutor Team`;
+            : `Hello ${booking.studentName},\n\nWe would like to inform you that your demo booking request with tutor ${booking.tutorName} for ${booking.subject} on ${booking.timing} was not accepted.\n\n${isDemo && booking.cancellationReason ? `Reason for decline: ${booking.cancellationReason}\n\n` : ''}Please log in to your dashboard to browse other tutors or available times.\n\nBest regards,\nCuvasol Tutor Team`;
 
           const emailHtml = isConfirmed
             ? `
@@ -492,6 +497,12 @@ router.put('/booking/:bookingId/status', async (req, res) => {
                 <p>Hello <strong>${booking.studentName}</strong>,</p>
                 <p>We regret to inform you that your demo booking request with tutor <strong>${booking.tutorName}</strong> for <strong>${booking.subject}</strong> on <strong>${booking.timing}</strong> was not accepted at this time.</p>
                 
+                ${isDemo && booking.cancellationReason ? `
+                <div style="padding: 12px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; color: #b91c1c; margin: 20px 0;">
+                  <strong>Reason for rejection:</strong> ${booking.cancellationReason}
+                </div>
+                ` : ''}
+                
                 <p>We encourage you to log in to your dashboard to view other qualified tutors or select alternative open slots.</p>
                 
                 <div style="text-align: center; margin: 25px 0;">
@@ -521,6 +532,48 @@ router.put('/booking/:bookingId/status', async (req, res) => {
         }
       } catch (mailError) {
         console.error('[Booking] Failed to send student status update email:', mailError.message);
+      }
+    }
+
+    // Notify tutor on student cancellation (cancelled) for demo class
+    if (status === 'cancelled' && isDemo) {
+      try {
+        const tutor = await Tutor.findById(booking.tutorId);
+        if (tutor) {
+          const tutorUser = await User.findById(tutor.userId);
+          if (tutorUser && tutorUser.email) {
+            console.log(`[Booking] Sending cancellation email to tutor: ${tutorUser.email}`);
+            const emailSubject = `Demo Booking Cancelled by Student: ${booking.subject}`;
+            const emailText = `Hello ${tutor.name},\n\nWe would like to inform you that the demo session booked by ${booking.studentName} for ${booking.subject} at ${booking.timing} has been CANCELLED.\n\nReason: ${booking.cancellationReason || 'No reason provided.'}\n\nBest regards,\nCuvasol Tutor Team`;
+            const emailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #dc2626; text-align: center;">Booking Cancelled by Student</h2>
+                <p>Hello <strong>${tutor.name}</strong>,</p>
+                <p>We would like to inform you that the demo session booked by student <strong>${booking.studentName}</strong> for <strong>${booking.subject}</strong> at <strong>${booking.timing}</strong> has been <strong>cancelled</strong>.</p>
+                
+                <div style="padding: 12px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; color: #b91c1c; margin: 20px 0;">
+                  <strong>Reason for cancellation:</strong> ${booking.cancellationReason || 'No reason provided.'}
+                </div>
+                
+                <p>The time slot has been freed up and is available for other students to book.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                <p style="font-size: 11px; color: #999; text-align: center;">
+                  Best regards,<br/><strong>Cuvasol Tutor Team</strong>
+                </p>
+              </div>
+            `;
+            await transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Classroom" <noreply@cuvasoltutor.com>',
+              to: tutorUser.email,
+              subject: emailSubject,
+              text: emailText,
+              html: emailHtml
+            });
+            console.log(`[Booking] Cancellation email sent to tutor successfully.`);
+          }
+        }
+      } catch (mailError) {
+        console.error('[Booking] Failed to send tutor cancellation email:', mailError.message);
       }
     }
 

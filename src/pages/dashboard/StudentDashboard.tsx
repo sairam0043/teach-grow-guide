@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PageLayout from "@/components/layout/PageLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSelector, useDispatch } from "react-redux";
@@ -113,6 +114,52 @@ const StudentDashboard = () => {
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  // Cancellation Reason states
+  const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancelReasonType, setCancelReasonType] = useState<string>("");
+  const [customCancelReason, setCustomCancelReason] = useState<string>("");
+  const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
+
+  const CANCELLATION_REASONS = [
+    "Schedule Conflict / Time clash",
+    "Found another tutor",
+    "Personal emergency / Health reasons",
+    "No longer need tutoring for this subject",
+    "Other"
+  ];
+
+  const handleCancelSubmit = async () => {
+    if (!cancellingBookingId) return;
+    if (!cancelReasonType) {
+      toast.error("Please select a reason for cancellation");
+      return;
+    }
+    const finalReason = cancelReasonType === "Other" ? customCancelReason : cancelReasonType;
+    if (cancelReasonType === "Other" && !customCancelReason.trim()) {
+      toast.error("Please specify your reason");
+      return;
+    }
+    
+    setIsSubmittingCancellation(true);
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${cancellingBookingId}/status`, { 
+        status: 'cancelled',
+        cancellationReason: finalReason
+      });
+      toast.success("Booking cancelled successfully.");
+      setBookings(prev => prev.map(b => b._id === cancellingBookingId ? { ...b, status: 'cancelled', cancellationReason: finalReason } : b));
+      setIsCancelDialogOpen(false);
+      setCancellingBookingId(null);
+      setCancelReasonType("");
+      setCustomCancelReason("");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to cancel booking");
+    } finally {
+      setIsSubmittingCancellation(false);
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) return;
@@ -500,9 +547,9 @@ const StudentDashboard = () => {
                           </div>
                           
                           <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                            {booking.status === 'confirmed' && (
+                            {(booking.status === 'confirmed' || booking.status === 'pending') && (
                                <>
-                                 {!isBookingPast(booking.timing) && (
+                                 {booking.status === 'confirmed' && !isBookingPast(booking.timing) && (
                                    <Button
                                      size="sm"
                                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
@@ -517,7 +564,10 @@ const StudentDashboard = () => {
                                      </a>
                                    </Button>
                                  )}
-                                 <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => handleBookingAction(booking._id, 'cancelled')}>Cancel Demo</Button>
+                                 <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
+                                    setCancellingBookingId(booking._id);
+                                    setIsCancelDialogOpen(true);
+                                  }}>Cancel Demo</Button>
                                </>
                             )}
                             {booking.status === 'completed' && (
@@ -667,6 +717,61 @@ const StudentDashboard = () => {
             <Button onClick={submitRating} disabled={isSubmittingRating} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold">
               {isSubmittingRating ? "Submitting..." : "Submit Rating"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancellation Reason Dialog */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Demo Session</DialogTitle>
+            <DialogDescription>
+              Please let us and the tutor know why you are cancelling this demo class.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Select Reason</Label>
+              <Select value={cancelReasonType} onValueChange={setCancelReasonType}>
+                <SelectTrigger className="w-full bg-secondary/10">
+                  <SelectValue placeholder="Select a reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CANCELLATION_REASONS.map(r => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {cancelReasonType === "Other" && (
+              <div className="w-full space-y-2 animate-in fade-in duration-200">
+                <Label htmlFor="customCancelReason" className="text-xs text-muted-foreground">Specify Reason</Label>
+                <Textarea
+                  id="customCancelReason"
+                  placeholder="Tell the tutor why you are cancelling..."
+                  value={customCancelReason}
+                  onChange={(e) => setCustomCancelReason(e.target.value)}
+                  className="resize-none bg-secondary/10"
+                  rows={3}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end mt-4">
+              <Button variant="outline" onClick={() => {
+                setIsCancelDialogOpen(false);
+                setCancellingBookingId(null);
+                setCancelReasonType("");
+                setCustomCancelReason("");
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleCancelSubmit} disabled={isSubmittingCancellation} className="bg-destructive hover:bg-destructive/90 text-white font-semibold">
+                {isSubmittingCancellation ? "Submitting..." : "Confirm Cancellation"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +14,7 @@ import { RootState, AppDispatch } from "@/redux/store";
 import axios from "axios";
 import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -28,6 +29,13 @@ const AdminDashboard = () => {
   const [selectedPayoutSubject, setSelectedPayoutSubject] = useState<Record<string, string>>({});
   const [coursePayments, setCoursePayments] = useState<any[]>([]);
   const [loadingCoursePayments, setLoadingCoursePayments] = useState(false);
+  const [selectedTutorForDetail, setSelectedTutorForDetail] = useState<any | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+
+  const handleViewTutorDetail = (tutor: any) => {
+    setSelectedTutorForDetail(tutor);
+    setIsDetailDialogOpen(true);
+  };
 
   const fetchPayouts = async () => {
     try {
@@ -230,7 +238,7 @@ const AdminDashboard = () => {
                       <TableBody>
                         {pendingTutors.map((tutor) => (
                           <TableRow key={tutor.id} className="hover:bg-secondary/10 transition-colors border-b border-border/40">
-                            <TableCell className="py-3">
+                            <TableCell className="py-3 cursor-pointer hover:bg-secondary/20 transition-all rounded-l-lg" onClick={() => handleViewTutorDetail(tutor)} title="Click to view full tutor details">
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-full border border-primary/10 shadow-sm overflow-hidden shrink-0 bg-muted flex items-center justify-center">
                                   {tutor.photo || tutor.avatar ? (
@@ -348,7 +356,7 @@ const AdminDashboard = () => {
                       <TableBody>
                         {approvedTutors.map((tutor) => (
                           <TableRow key={tutor.id} className="hover:bg-secondary/10 transition-colors border-b border-border/40">
-                            <TableCell className="py-3">
+                            <TableCell className="py-3 cursor-pointer hover:bg-secondary/20 transition-all rounded-l-lg" onClick={() => handleViewTutorDetail(tutor)} title="Click to view full tutor details">
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-full border border-primary/10 shadow-sm overflow-hidden shrink-0 bg-muted flex items-center justify-center">
                                   {tutor.photo || tutor.avatar ? (
@@ -763,8 +771,8 @@ const AdminDashboard = () => {
                           {payouts.map((tutorPayout) => {
                             const isExpanded = expandedTutorId === tutorPayout.tutorId;
                             return (
-                              <>
-                                <TableRow key={tutorPayout.tutorId} className="hover:bg-secondary/5 transition-colors border-b border-border/40">
+                              <Fragment key={tutorPayout.tutorId}>
+                                <TableRow className="hover:bg-secondary/5 transition-colors border-b border-border/40">
                                   <TableCell className="text-center">
                                     <Button
                                       size="sm"
@@ -910,7 +918,7 @@ const AdminDashboard = () => {
                                     </TableCell>
                                   </TableRow>
                                 )}
-                              </>
+                              </Fragment>
                             );
                           })}
                         </TableBody>
@@ -923,6 +931,204 @@ const AdminDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Tutor Details Modal */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <Shield className="h-6 w-6 text-primary" /> Tutor Credentials Profile
+            </DialogTitle>
+            <DialogDescription>
+              Full details and verification documents for this tutor profile.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedTutorForDetail && (
+            <div className="space-y-6 py-4">
+              {/* Header profile info */}
+              <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center p-4 rounded-xl bg-secondary/10 border border-border/40">
+                <div className="h-20 w-20 rounded-full border-2 border-primary/20 shadow-md overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                  {selectedTutorForDetail.photo || selectedTutorForDetail.avatar ? (
+                    <img 
+                      src={resolveAssetUrl(selectedTutorForDetail.photo || selectedTutorForDetail.avatar)} 
+                      alt={selectedTutorForDetail.name} 
+                      className="h-full w-full object-cover" 
+                      onError={(e: any) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedTutorForDetail.name || "T")}&background=random&size=200`;
+                      }}
+                    />
+                  ) : (
+                    <span className="font-bold text-3xl text-primary uppercase">
+                      {(selectedTutorForDetail.name || "T").charAt(0)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-bold text-foreground leading-tight">{selectedTutorForDetail.name}</h3>
+                    <Badge variant={selectedTutorForDetail.status === "approved" ? "default" : "secondary"} className={selectedTutorForDetail.status === "approved" ? "bg-emerald-600 hover:bg-emerald-600 border-none" : ""}>
+                      {selectedTutorForDetail.status ? selectedTutorForDetail.status.toUpperCase() : "PENDING"}
+                    </Badge>
+                    <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                      {selectedTutorForDetail.category}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{selectedTutorForDetail.city || "Remote"}</p>
+                  
+                  {/* Reviews rating */}
+                  <div className="flex items-center gap-1 text-sm pt-1">
+                    <Star className="h-4 w-4 fill-warning text-warning" />
+                    <span className="font-semibold text-foreground">{selectedTutorForDetail.rating ?? 0}</span>
+                    <span className="text-muted-foreground">({selectedTutorForDetail.reviewCount ?? 0} reviews)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-card p-4 rounded-xl border">
+                <div>
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
+                  <span className="text-sm font-semibold text-foreground mt-0.5 block">{selectedTutorForDetail.email || "No email provided"}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
+                  <span className="text-sm font-semibold text-foreground mt-0.5 block">{selectedTutorForDetail.phone || "No phone provided"}</span>
+                </div>
+              </div>
+
+              {/* Professional Bio */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Professional Bio</h4>
+                <div className="p-4 rounded-xl bg-secondary/5 border leading-relaxed text-sm text-muted-foreground min-h-[60px] whitespace-pre-wrap">
+                  {selectedTutorForDetail.bio || "No professional bio written yet."}
+                </div>
+              </div>
+
+              {/* Credentials & Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Highest Qualification</span>
+                  <span className="text-sm font-semibold text-foreground bg-secondary/15 px-3 py-2 rounded-lg border border-border/30 block">
+                    {selectedTutorForDetail.qualification || "Not specified"}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Experience</span>
+                  <span className="text-sm font-semibold text-foreground bg-secondary/15 px-3 py-2 rounded-lg border border-border/30 block">
+                    {selectedTutorForDetail.experience ? `${selectedTutorForDetail.experience} Years` : "Not specified"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Subjects and Rates */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Subjects & Hourly Rates</h4>
+                {selectedTutorForDetail.subjectRates && selectedTutorForDetail.subjectRates.length > 0 ? (
+                  <div className="border rounded-xl overflow-hidden bg-card shadow-sm">
+                    <Table>
+                      <TableHeader className="bg-secondary/40 text-[9px] uppercase tracking-wider font-bold">
+                        <TableRow>
+                          <TableHead className="font-bold h-9">Subject</TableHead>
+                          <TableHead className="font-bold h-9 text-right px-4">Hourly Rate</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedTutorForDetail.subjectRates.map((sr: any, idx: number) => (
+                          <TableRow key={idx} className="hover:bg-secondary/5 border-b last:border-0 border-border/40">
+                            <TableCell className="font-bold text-xs py-2">{sr.subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}</TableCell>
+                            <TableCell className="text-right font-extrabold text-xs text-emerald-600 py-2 px-4">₹{sr.rate}/hr</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-secondary/10 rounded-lg text-xs text-muted-foreground italic border border-dashed text-center">
+                    Default rate applies: ₹{selectedTutorForDetail.hourlyRate || 500}/hr (No subject-specific rates set)
+                  </div>
+                )}
+              </div>
+
+              {/* KYC Document Section */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">KYC Verification Documents</h4>
+                {selectedTutorForDetail.verificationDocument ? (
+                  <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">📄</span>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Verification Credential Document</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Uploaded PDF/Image verification proof</p>
+                      </div>
+                    </div>
+                    <a 
+                      href={resolveAssetUrl(selectedTutorForDetail.verificationDocument)} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 py-2 px-4 rounded-lg border border-indigo-200 dark:border-indigo-900/30 transition-colors"
+                    >
+                      Open Document
+                    </a>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-secondary/5 border border-dashed text-center text-xs text-muted-foreground italic">
+                    No KYC verification document has been uploaded yet.
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Actions Footer inside Modal */}
+              <div className="flex flex-wrap gap-2.5 justify-end pt-4 border-t border-border/40">
+                {selectedTutorForDetail.status === "pending" ? (
+                  <>
+                    <Button 
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold" 
+                      onClick={() => {
+                        handleApproval(selectedTutorForDetail.id, "approved");
+                        setIsDetailDialogOpen(false);
+                      }}
+                    >
+                      <CheckCircle className="mr-1.5 h-4 w-4" /> Approve Tutor
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="text-rose-600 hover:bg-rose-50 border-rose-200 font-bold" 
+                      onClick={() => {
+                        handleApproval(selectedTutorForDetail.id, "rejected");
+                        setIsDetailDialogOpen(false);
+                      }}
+                    >
+                      <XCircle className="mr-1.5 h-4 w-4" /> Reject Tutor
+                    </Button>
+                  </>
+                ) : (
+                  <Button 
+                    variant={selectedTutorForDetail.featured ? "outline" : "default"} 
+                    className={`font-bold ${
+                      selectedTutorForDetail.featured 
+                        ? "border-amber-500/50 text-amber-600 hover:bg-amber-50" 
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    }`}
+                    onClick={() => {
+                      toggleFeatured(selectedTutorForDetail);
+                      // Update modal state instantly to reflect UI feature changes
+                      setSelectedTutorForDetail((prev: any) => prev ? { ...prev, featured: !prev.featured } : null);
+                    }}
+                  >
+                    <Star className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.featured ? "fill-amber-400 text-amber-500" : ""}`} />
+                    {selectedTutorForDetail.featured ? "Remove Featured" : "Make Featured"}
+                  </Button>
+                )}
+                <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };

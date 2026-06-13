@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { fetchTutorStats, updateTutorAvailability } from "@/redux/slices/dashboardSlice";
 import { RootState, AppDispatch } from "@/redux/store";
 import { toast } from "@/components/ui/sonner";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import API_URL from "@/config/api";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/assetUrl";
@@ -97,6 +98,52 @@ const TutorDashboard = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  // Rejection Reason states
+  const [rejectingBookingId, setRejectingBookingId] = useState<string | null>(null);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectReasonType, setRejectReasonType] = useState<string>("");
+  const [customRejectReason, setCustomRejectReason] = useState<string>("");
+  const [isSubmittingRejection, setIsSubmittingRejection] = useState(false);
+
+  const REJECTION_REASONS = [
+    "Schedule Conflict / Slot unavailable",
+    "Subject / Skill level mismatch",
+    "Personal emergency / Time off",
+    "Technical / Internet issue",
+    "Other"
+  ];
+
+  const handleRejectSubmit = async () => {
+    if (!rejectingBookingId) return;
+    if (!rejectReasonType) {
+      toast.error("Please select a reason for rejection");
+      return;
+    }
+    const finalReason = rejectReasonType === "Other" ? customRejectReason : rejectReasonType;
+    if (rejectReasonType === "Other" && !customRejectReason.trim()) {
+      toast.error("Please specify your reason");
+      return;
+    }
+    
+    setIsSubmittingRejection(true);
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${rejectingBookingId}/status`, { 
+        status: 'rejected',
+        cancellationReason: finalReason
+      });
+      toast.success("Booking rejected successfully.");
+      setBookings(prev => prev.map(b => b._id === rejectingBookingId ? { ...b, status: 'rejected', cancellationReason: finalReason } : b));
+      setIsRejectDialogOpen(false);
+      setRejectingBookingId(null);
+      setRejectReasonType("");
+      setCustomRejectReason("");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to reject booking");
+    } finally {
+      setIsSubmittingRejection(false);
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) return;
@@ -499,7 +546,10 @@ const TutorDashboard = () => {
                                   size="sm" 
                                   variant="outline" 
                                   className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" 
-                                  onClick={() => handleBookingAction(booking._id, 'rejected')}
+                                  onClick={() => {
+                                    setRejectingBookingId(booking._id);
+                                    setIsRejectDialogOpen(true);
+                                  }}
                                 >
                                   Reject
                                 </Button>
@@ -525,7 +575,10 @@ const TutorDashboard = () => {
                                 <Button size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => handleBookingAction(booking._id, 'completed')}>
                                   <Check className="mr-1 h-4 w-4"/> Mark Completed
                                 </Button>
-                                <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => handleBookingAction(booking._id, 'rejected')}>Reject</Button>
+                                <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
+                                  setRejectingBookingId(booking._id);
+                                  setIsRejectDialogOpen(true);
+                                }}>Reject</Button>
                                </>
                             )}
                           </div>
@@ -1177,6 +1230,61 @@ const TutorDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Rejection Reason Dialog */}
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Demo Request</DialogTitle>
+            <DialogDescription>
+              Please specify the reason why you are declining this demo session request. The student will be notified.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Select Reason</Label>
+              <Select value={rejectReasonType} onValueChange={setRejectReasonType}>
+                <SelectTrigger className="w-full bg-secondary/10">
+                  <SelectValue placeholder="Select a reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {REJECTION_REASONS.map(r => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {rejectReasonType === "Other" && (
+              <div className="w-full space-y-2 animate-in fade-in duration-200">
+                <Label htmlFor="customRejectReason" className="text-xs text-muted-foreground">Specify Reason</Label>
+                <Textarea
+                  id="customRejectReason"
+                  placeholder="Explain to the student why you are rejecting the request..."
+                  value={customRejectReason}
+                  onChange={(e) => setCustomRejectReason(e.target.value)}
+                  className="resize-none bg-secondary/10"
+                  rows={3}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end mt-4">
+              <Button variant="outline" onClick={() => {
+                setIsRejectDialogOpen(false);
+                setRejectingBookingId(null);
+                setRejectReasonType("");
+                setCustomRejectReason("");
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleRejectSubmit} disabled={isSubmittingRejection} className="bg-destructive hover:bg-destructive/90 text-white font-semibold">
+                {isSubmittingRejection ? "Submitting..." : "Confirm Rejection"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };

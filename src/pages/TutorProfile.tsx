@@ -13,6 +13,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { format, getDay, addMinutes, parse, startOfDay, addDays } from "date-fns";
 import PageLayout from "@/components/layout/PageLayout";
 import { useState, useEffect, useRef } from "react";
@@ -32,6 +35,53 @@ const TutorProfile = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
+
+  // Cancellation Reason states
+  const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancelReasonType, setCancelReasonType] = useState<string>("");
+  const [customCancelReason, setCustomCancelReason] = useState<string>("");
+  const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
+
+  const CANCELLATION_REASONS = [
+    "Schedule Conflict / Time clash",
+    "Found another tutor",
+    "Personal emergency / Health reasons",
+    "No longer need tutoring for this subject",
+    "Other"
+  ];
+
+  const handleCancelSubmit = async () => {
+    if (!cancellingBookingId) return;
+    if (!cancelReasonType) {
+      toast.error("Please select a reason for cancellation");
+      return;
+    }
+    const finalReason = cancelReasonType === "Other" ? customCancelReason : cancelReasonType;
+    if (cancelReasonType === "Other" && !customCancelReason.trim()) {
+      toast.error("Please specify your reason");
+      return;
+    }
+    
+    setIsSubmittingCancellation(true);
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${cancellingBookingId}/status`, { 
+        status: 'cancelled',
+        cancellationReason: finalReason
+      });
+      toast.success("Booking cancelled successfully.");
+      setExistingBookings(prev => prev.map(b => b._id === cancellingBookingId ? { ...b, status: 'cancelled', cancellationReason: finalReason } : b));
+      setSelectedSlot(null);
+      setIsCancelDialogOpen(false);
+      setCancellingBookingId(null);
+      setCancelReasonType("");
+      setCustomCancelReason("");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to cancel booking");
+    } finally {
+      setIsSubmittingCancellation(false);
+    }
+  };
   const [selectedPlan, setSelectedPlan] = useState<{ type: string, price: number, isPack?: boolean, sessionsCount?: number } | null>(null);
   const [otherEmails, setOtherEmails] = useState<string[]>(['']);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -275,7 +325,7 @@ const TutorProfile = () => {
       return;
     }
     if (!selectedPlan) {
-      toast.error("Please select a booking option first");
+      toast.error("Select Pricing & Booking option");
       return;
     }
 
@@ -394,9 +444,16 @@ const TutorProfile = () => {
       : `${format(date!, 'PPP')} at ${selectedSlot}`;
 
     if (!isPackBooking) {
-      const existingBooking = existingBookings.find(b => b.timing === formattedTiming && b.status === "confirmed");
+      const existingBooking = existingBookings.find(b => b.timing === formattedTiming && (b.status === "confirmed" || b.status === "pending"));
       if (existingBooking) {
-        // Cancel booking
+        const isDemo = !existingBooking.planType || existingBooking.planType === 'Free Demo Class';
+        if (isDemo) {
+          setCancellingBookingId(existingBooking._id);
+          setIsCancelDialogOpen(true);
+          return;
+        }
+
+        // Cancel paid booking
         try {
           bookingInProgressRef.current = true;
           setIsProcessingPayment(true);
@@ -653,7 +710,7 @@ const TutorProfile = () => {
   };
 
   const formattedSelectedTiming = isValidDate(date) && selectedSlot ? `${format(date as Date, 'PPP')} at ${selectedSlot}` : null;
-  const selectedExisting = formattedSelectedTiming ? existingBookings.find(b => b.timing === formattedSelectedTiming && b.status === "confirmed") : undefined;
+  const selectedExisting = formattedSelectedTiming ? existingBookings.find(b => b.timing === formattedSelectedTiming && (b.status === "confirmed" || b.status === "pending")) : undefined;
 
   const activeDemoBooking = selectedSubject ? existingBookings.find(b => b.subject === selectedSubject && b.status === "confirmed" && !isBookingPast(b.timing)) : undefined;
   const completedBooking = selectedSubject ? existingBookings.find(b => b.subject === selectedSubject && (b.status === "completed" || (b.status === "confirmed" && isBookingPast(b.timing)))) : undefined;
@@ -1005,6 +1062,16 @@ const TutorProfile = () => {
                         Timing: {pendingBooking.timing}
                       </p>
                     </div>
+                    <Button 
+                      variant="destructive"
+                      className="w-full font-semibold"
+                      onClick={() => {
+                        setCancellingBookingId(pendingBooking._id);
+                        setIsCancelDialogOpen(true);
+                      }}
+                    >
+                      Cancel Demo Request
+                    </Button>
                     {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
                       <Button
                         variant="outline"
@@ -1056,7 +1123,7 @@ const TutorProfile = () => {
                       ) : selectedPlan ? (
                         <><CreditCard className="h-5 w-5 text-primary" /> Book a Class</>
                       ) : (
-                        <><CalendarIcon className="h-5 w-5 text-primary" /> Select Booking Option</>
+                        <><CalendarIcon className="h-5 w-5 text-primary" /> Select Pricing & Booking option</>
                       )}
                     </CardTitle>
                   </CardHeader>
@@ -1066,7 +1133,7 @@ const TutorProfile = () => {
                         <p className="text-sm font-semibold text-foreground mb-1">
                           Booking Incomplete
                         </p>
-                        <p className="text-xs text-muted-foreground">Please select an option from the Pricing / Booking list on the left first.</p>
+                        <p className="text-xs text-muted-foreground">Please select an option from the Pricing & Booking list on the left first.</p>
                       </div>
                     )}
 
@@ -1075,7 +1142,7 @@ const TutorProfile = () => {
                         ? "Select a date and an available slot to try a free demo class."
                         : selectedPlan
                           ? `Select a date and an available slot to book a ${selectedPlan.type} class.`
-                          : "Please select an option from the list on the left to continue."}
+                          : "Please select an option from the Pricing & Booking list on the left to continue."}
                     </p>
 
                     {selectedPlan?.isPack ? (
@@ -1312,7 +1379,7 @@ const TutorProfile = () => {
                           ? "Cancel Booking"
                           : selectedPlan
                             ? (selectedPlan.type === 'Free Demo Class' ? "Book Free Demo Session" : `Book Class & Pay ₹${selectedPlan.price}`)
-                            : "Select a Booking Option"
+                            : "Select Pricing & Booking option"
                       )}
                     </Button>
 
@@ -1330,7 +1397,7 @@ const TutorProfile = () => {
                       <p className="text-center text-xs text-muted-foreground mt-2">
                         {selectedPlan
                           ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ₹${selectedPlan.price}${selectedPlan.isPack ? ' (Monthly Pack)' : '/hr'}`)
-                          : "Please select an option to get started"}
+                          : "Select Pricing & Booking option"}
                       </p>
                     )}
                   </CardContent>
@@ -1599,6 +1666,61 @@ const TutorProfile = () => {
           </div>
         </div>
       )}
+
+      {/* Cancellation Reason Dialog */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Demo Session</DialogTitle>
+            <DialogDescription>
+              Please let us and the tutor know why you are cancelling this demo class.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Select Reason</Label>
+              <Select value={cancelReasonType} onValueChange={setCancelReasonType}>
+                <SelectTrigger className="w-full bg-secondary/10">
+                  <SelectValue placeholder="Select a reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CANCELLATION_REASONS.map(r => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {cancelReasonType === "Other" && (
+              <div className="w-full space-y-2 animate-in fade-in duration-200">
+                <Label htmlFor="customCancelReason" className="text-xs text-muted-foreground">Specify Reason</Label>
+                <Textarea
+                  id="customCancelReason"
+                  placeholder="Tell the tutor why you are cancelling..."
+                  value={customCancelReason}
+                  onChange={(e) => setCustomCancelReason(e.target.value)}
+                  className="resize-none bg-secondary/10"
+                  rows={3}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end mt-4">
+              <Button variant="outline" onClick={() => {
+                setIsCancelDialogOpen(false);
+                setCancellingBookingId(null);
+                setCancelReasonType("");
+                setCustomCancelReason("");
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleCancelSubmit} disabled={isSubmittingCancellation} className="bg-destructive hover:bg-destructive/90 text-white font-semibold">
+                {isSubmittingCancellation ? "Submitting..." : "Confirm Cancellation"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };

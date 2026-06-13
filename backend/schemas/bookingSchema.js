@@ -12,6 +12,7 @@ const bookingSchema = new mongoose.Schema({
   amountPaid: { type: Number },
   isRated: { type: Boolean, default: false },
   meetingLink: { type: String },
+  cancellationReason: { type: String },
   groupDetails: {
     isGroup: { type: Boolean, default: false },
     invitedEmails: [{
