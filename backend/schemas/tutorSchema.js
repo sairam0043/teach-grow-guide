@@ -25,10 +25,11 @@ const tutorSchema = new mongoose.Schema({
   featured: { type: Boolean, default: false },
   availableTimings: [{ type: String }],
   availability: [{
-    day: { type: String, required: true },
-    startTime: { type: String, required: true },
-    endTime: { type: String, required: true }
-  }],
+  day: { type: String, required: true },
+  startTime: { type: String, required: true },
+  endTime: { type: String, required: true },
+  timezone: { type: String, default: "Asia/Kolkata" }
+}],
   demoSlots: [slotSchema],
   reviews: [{
     studentName: { type: String },

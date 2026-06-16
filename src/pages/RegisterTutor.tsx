@@ -60,6 +60,9 @@ const RegisterTutor = () => {
   );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
+  const [userTimezone] = useState(
+  Intl.DateTimeFormat().resolvedOptions().timeZone
+);
 
   useEffect(() => {
     return () => {
@@ -343,91 +346,126 @@ const RegisterTutor = () => {
               )}
 
               <div className="space-y-4">
-                <Label className="text-base font-semibold flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-primary" /> Available Demo Timings
-                </Label>
-                <div className="grid gap-3">
-                  {availability.map((dayObj, i) => (
-                    <div key={dayObj.day} className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 border rounded-lg bg-secondary/5 hover:bg-secondary/10 transition-colors">
-                      <div className="flex items-center gap-3 min-w-[120px]">
-                        <Checkbox 
-                           id={`day-${dayObj.day}`} 
-                           checked={dayObj.selected}
-                           onCheckedChange={(checked) => {
-                             const newAvail = [...availability];
-                             newAvail[i].selected = checked === true;
-                             setAvailability(newAvail);
-                           }}
-                        />
-                        <Label htmlFor={`day-${dayObj.day}`} className="font-medium cursor-pointer">{dayObj.day}</Label>
-                      </div>
-                      
-                      {dayObj.selected && (
-                        <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                          {dayObj.slots.map((slot, slotIdx) => (
-                            <div key={slotIdx} className="flex items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-3 w-3 text-muted-foreground" />
-                                <Input 
-                                  type="time" 
-                                  className="w-[130px] h-8 text-xs" 
-                                  value={slot.startTime}
-                                  onChange={(e) => {
-                                    const newAvail = [...availability];
-                                    newAvail[i].slots[slotIdx].startTime = e.target.value;
-                                    setAvailability(newAvail);
-                                  }}
-                                />
-                              </div>
-                              <span className="text-muted-foreground text-xs">to</span>
-                              <div className="flex items-center gap-2">
-                                <Input 
-                                  type="time" 
-                                  className="w-[130px] h-8 text-xs"
-                                  value={slot.endTime}
-                                  onChange={(e) => {
-                                    const newAvail = [...availability];
-                                    newAvail[i].slots[slotIdx].endTime = e.target.value;
-                                    setAvailability(newAvail);
-                                  }}
-                                />
-                              </div>
-                              {dayObj.slots.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newAvail = [...availability];
-                                    newAvail[i].slots = newAvail[i].slots.filter((_, idx) => idx !== slotIdx);
-                                    setAvailability(newAvail);
-                                  }}
-                                  className="text-destructive hover:text-destructive/80"
-                                >
-                                  <PlusCircle className="h-4 w-4 rotate-45" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            size="sm" 
-                            className="w-fit text-xs h-7 gap-1"
-                            onClick={() => {
-                              const newAvail = [...availability];
-                              newAvail[i].slots.push({ startTime: '09:00', endTime: '17:00' });
-                              setAvailability(newAvail);
-                            }}
-                          >
-                            <PlusCircle className="h-3 w-3" /> Add Slot
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">Select the days and times you are generally available for demo sessions. You can fine-tune this later in your dashboard.</p>
-              </div>
+  <Label className="text-base font-semibold flex items-center gap-2">
+    <Calendar className="h-4 w-4 text-primary" />
+    Available Demo Timings
+  </Label>
 
+  <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+    <p className="text-sm font-medium text-blue-700">
+      All times are saved in your timezone:
+      <span className="font-bold ml-1">
+        {userTimezone === "Asia/Calcutta"
+          ? "India Standard Time (IST)"
+          : userTimezone}
+      </span>
+    </p>
+  </div>
+
+  <div className="grid gap-3">
+    {availability.map((dayObj, i) => (
+      <div
+        key={dayObj.day}
+        className="flex flex-col sm:flex-row sm:items-center gap-4 p-3 border rounded-lg bg-secondary/5 hover:bg-secondary/10 transition-colors"
+      >
+        <div className="flex items-center gap-3 min-w-[120px]">
+          <Checkbox
+            id={`day-${dayObj.day}`}
+            checked={dayObj.selected}
+            onCheckedChange={(checked) => {
+              const newAvail = [...availability];
+              newAvail[i].selected = checked === true;
+              setAvailability(newAvail);
+            }}
+          />
+          <Label
+            htmlFor={`day-${dayObj.day}`}
+            className="font-medium cursor-pointer"
+          >
+            {dayObj.day}
+          </Label>
+        </div>
+
+        {dayObj.selected && (
+          <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+            {dayObj.slots.map((slot, slotIdx) => (
+              <div key={slotIdx} className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <Input
+                    type="time"
+                    className="w-[130px] h-8 text-xs"
+                    value={slot.startTime}
+                    onChange={(e) => {
+                      const newAvail = [...availability];
+                      newAvail[i].slots[slotIdx].startTime = e.target.value;
+                      setAvailability(newAvail);
+                    }}
+                  />
+                </div>
+
+                <span className="text-muted-foreground text-xs">to</span>
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    className="w-[130px] h-8 text-xs"
+                    value={slot.endTime}
+                    onChange={(e) => {
+                      const newAvail = [...availability];
+                      newAvail[i].slots[slotIdx].endTime = e.target.value;
+                      setAvailability(newAvail);
+                    }}
+                  />
+                </div>
+
+                {dayObj.slots.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newAvail = [...availability];
+                      newAvail[i].slots = newAvail[i].slots.filter(
+                        (_, idx) => idx !== slotIdx
+                      );
+                      setAvailability(newAvail);
+                    }}
+                    className="text-destructive hover:text-destructive/80"
+                  >
+                    <PlusCircle className="h-4 w-4 rotate-45" />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-fit text-xs h-7 gap-1"
+              onClick={() => {
+                const newAvail = [...availability];
+                newAvail[i].slots.push({
+                  startTime: "09:00",
+                  endTime: "17:00",
+                });
+                setAvailability(newAvail);
+              }}
+            >
+              <PlusCircle className="h-3 w-3" />
+              Add Slot
+            </Button>
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+
+  <p className="text-xs text-muted-foreground">
+    Select the days and times you are generally available for demo sessions.
+    These times are saved in your local timezone and can be converted for
+    students in different countries.
+  </p>
+</div>
               <div className="space-y-2">
                 <Label htmlFor="bio">Bio</Label>
                 <Textarea id="bio" rows={4} maxLength={500} placeholder="Tell students about yourself and your teaching style..." required value={bio} onChange={(e) => setBio(e.target.value)} />

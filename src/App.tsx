@@ -1,10 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import TagManager from "react-gtm-module";
+
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+
 import Index from "./pages/Index";
 import BrowseTutors from "./pages/BrowseTutors";
 import TutorProfile from "./pages/TutorProfile";
@@ -21,8 +25,22 @@ import NotFound from "./pages/NotFound";
 import ApproveBooking from "./pages/ApproveBooking";
 import FAQ from "./pages/faq";
 
-
 const queryClient = new QueryClient();
+
+function TrackPageViews() {
+  const location = useLocation();
+
+  useEffect(() => {
+    TagManager.dataLayer({
+      dataLayer: {
+        event: "page_view",
+        page_path: location.pathname,
+      },
+    });
+  }, [location]);
+
+  return null;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -30,6 +48,8 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <TrackPageViews />
+
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -42,19 +62,39 @@ const App = () => (
             <Route path="/register/student" element={<RegisterStudent />} />
             <Route path="/register/tutor" element={<RegisterTutor />} />
             <Route path="/FAQ" element={<FAQ />} />
+
             <Route
               path="/dashboard/student"
-              element={<ProtectedRoute allowedRoles={["student"]}><StudentDashboard /></ProtectedRoute>}
+              element={
+                <ProtectedRoute allowedRoles={["student"]}>
+                  <StudentDashboard />
+                </ProtectedRoute>
+              }
             />
+
             <Route
               path="/dashboard/tutor"
-              element={<ProtectedRoute allowedRoles={["tutor"]}><TutorDashboard /></ProtectedRoute>}
+              element={
+                <ProtectedRoute allowedRoles={["tutor"]}>
+                  <TutorDashboard />
+                </ProtectedRoute>
+              }
             />
+
             <Route
               path="/dashboard/admin"
-              element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>}
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
             />
-            <Route path="/approve-booking/:bookingId" element={<ApproveBooking />} />
+
+            <Route
+              path="/approve-booking/:bookingId"
+              element={<ApproveBooking />}
+            />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

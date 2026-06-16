@@ -22,6 +22,9 @@ import { resolveAssetUrl } from "@/lib/assetUrl";
 import ChatPanel from "@/components/chat/ChatPanel";
 
 const TutorDashboard = () => {
+  const [userTimezone] = useState(
+  Intl.DateTimeFormat().resolvedOptions().timeZone
+);
   const { user } = useAuth();
   const name = String(user?.user_metadata?.full_name || "Tutor");
   
@@ -44,10 +47,14 @@ const TutorDashboard = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
-    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
-  );
-  const [isSavingAvailability, setIsSavingAvailability] = useState(false);
+
+const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
+  DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
+);
+
+const [isSavingAvailability, setIsSavingAvailability] = useState(false);
+
+
 
   // Profile Edit State
   const [profileData, setProfileData] = useState({
@@ -149,17 +156,37 @@ const TutorDashboard = () => {
       }
     }
 
-    const payload = selectedDays.flatMap(dayObj => 
-      dayObj.slots.map(slot => ({ day: dayObj.day, startTime: slot.startTime, endTime: slot.endTime }))
-    );
-    
-    setIsSavingAvailability(true);
-    dispatch(updateTutorAvailability({ tutorId: tutorProfile.id, availability: payload }))
-      .unwrap()
-      .then(() => toast.success("Availability saved successfully"))
-      .catch(() => toast.error("Failed to save availability"))
-      .finally(() => setIsSavingAvailability(false));
-  };
+    const payload = selectedDays.flatMap(dayObj =>
+  dayObj.slots.map(slot => ({
+    day: dayObj.day,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    timezone: userTimezone
+  }))
+);
+
+setIsSavingAvailability(true);
+
+dispatch(
+  updateTutorAvailability({
+    tutorId: tutorProfile.id,
+    availability: payload,
+  })
+)
+  .unwrap()
+  .then(() => {
+    toast.success("Availability updated successfully!");
+  })
+  .catch(() => {
+    toast.error("Failed to update availability");
+  })
+  .finally(() => {
+    setIsSavingAvailability(false);
+  });
+};
+
+
+// KEEP THE REST OF handleSaveAvailability HERE
 
   const handleBookingAction = async (bookingId: string, status: string) => {
     try {
@@ -461,6 +488,12 @@ const TutorDashboard = () => {
           </TabsContent>
 
           <TabsContent value="availability">
+            <div className="mb-4 p-3 rounded-lg bg-blue-50 border">
+  <p className="text-sm font-medium">
+    All times are saved in your timezone:
+    <span className="font-bold ml-1">{userTimezone}</span>
+  </p>
+</div>
             <Card className="shadow-md border-border/50">
               <CardHeader className="bg-secondary/20 border-b pb-4">
                 <CardTitle className="text-xl flex items-center gap-2"><Calendar className="h-5 w-5 text-orange-500" /> Manage Availability</CardTitle>
