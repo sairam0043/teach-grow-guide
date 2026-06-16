@@ -140,7 +140,7 @@ router.get('/student/:studentId', async (req, res) => {
 router.get('/student/:studentId/bookings', async (req, res) => {
   try {
     const studentId = req.params.studentId;
-    const bookings = await Booking.find({ studentId }).populate('tutorId', 'address googleMapsUrl mode city').sort({ createdAt: -1 });
+    const bookings = await Booking.find({ studentId }).populate('tutorId', 'address googleMapsUrl mode city timezone').sort({ createdAt: -1 });
     const formatted = bookings.map(b => {
       const obj = b.toObject();
       if (b.tutorId) {
@@ -148,6 +148,7 @@ router.get('/student/:studentId/bookings', async (req, res) => {
         obj.tutorGoogleMapsUrl = b.tutorId.googleMapsUrl;
         obj.tutorMode = b.tutorId.mode;
         obj.tutorCity = b.tutorId.city;
+        obj.tutorTimezone = b.tutorId.timezone;
         obj.tutorId = b.tutorId._id.toString();
       }
       return obj;

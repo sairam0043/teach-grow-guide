@@ -24,6 +24,14 @@ import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
+import { 
+  detectUserTimeZone, 
+  COMMON_TIMEZONES, 
+  convertTutorSlotsToStudentTime, 
+  getUtcTimeForLocalTimeInTimeZone, 
+  formatDateInTimeZone,
+  formatBookingTime
+} from "@/utils/timezone";
 
 const TutorProfile = () => {
   const { id } = useParams();
@@ -35,6 +43,18 @@ const TutorProfile = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
+
+  const [studentTimezone, setStudentTimezone] = useState(
+    user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone()
+  );
+
+  useEffect(() => {
+    if (user?.timezone) {
+      setStudentTimezone(user.timezone);
+    } else if (user?.user_metadata?.timezone) {
+      setStudentTimezone(user.user_metadata.timezone);
+    }
+  }, [user]);
 
   // Cancellation Reason states
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
@@ -125,27 +145,61 @@ const TutorProfile = () => {
       );
 
       if (allSelected && !hasDuplicates) {
-        const sessionsList: { date: string, time: string, status: string }[] = [];
+        const sessionsList: { date: string, time: string, status: string, utcDate?: string }[] = [];
         // Iterate through 28 days starting from packStartDate
         for (let i = 0; i < 28; i++) {
           const currentDate = addDays(packStartDate, i);
-          const dayName = format(currentDate, 'EEEE'); // e.g. "Monday"
+          
+          // Get weekday name in studentTimezone
+          const dayName = new Intl.DateTimeFormat('en-US', {
+            weekday: 'long',
+            timeZone: studentTimezone
+          }).format(currentDate);
 
           // Find all selected days matching this weekday
           const matchedSlots = packSchedule.filter(s => s.day === dayName);
           matchedSlots.forEach(slot => {
+            const timeDate = parse(slot.time, 'h:mm a', new Date());
+            const shr = timeDate.getHours();
+            const smin = timeDate.getMinutes();
+            
+            // Extract local parts of currentDate under studentTimezone
+            const studentParts = {
+              year: currentDate.getFullYear(),
+              month: currentDate.getMonth(),
+              day: currentDate.getDate()
+            };
+            
+            const utcTimeMs = getUtcTimeForLocalTimeInTimeZone(
+              studentParts.year,
+              studentParts.month,
+              studentParts.day,
+              shr,
+              smin,
+              studentTimezone
+            );
+            
+            const displayDateStr = formatDateInTimeZone(new Date(utcTimeMs), studentTimezone);
+            const displayTimeStr = new Intl.DateTimeFormat('en-US', {
+              timeZone: studentTimezone,
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            }).format(new Date(utcTimeMs));
+
             sessionsList.push({
-              date: format(currentDate, 'PPP'), // e.g. "June 1st, 2026"
-              time: slot.time,
-              status: 'scheduled'
+              date: displayDateStr,
+              time: displayTimeStr,
+              status: 'scheduled',
+              utcDate: new Date(utcTimeMs).toISOString()
             });
           });
         }
 
         // Sort chronologically
         sessionsList.sort((a, b) => {
-          const dateTimeA = new Date(`${a.date} ${a.time}`);
-          const dateTimeB = new Date(`${b.date} ${b.time}`);
+          const dateTimeA = new Date(a.utcDate!);
+          const dateTimeB = new Date(b.utcDate!);
           return dateTimeA.getTime() - dateTimeB.getTime();
         });
 
@@ -156,80 +210,86 @@ const TutorProfile = () => {
     } else {
       setGeneratedPackSessions([]);
     }
-  }, [packStartDate, packSchedule, selectedPlan]);
+  }, [packStartDate, packSchedule, selectedPlan, studentTimezone]);
 
   const getSlotsForWeekday = (dayName: string) => {
     if (!tutor?.availability) return [];
-    const dayAvailabilities = tutor.availability.filter((a: any) => a.day === dayName);
-    const slots: string[] = [];
-    dayAvailabilities.forEach((dayAvail: any) => {
-      if (dayAvail.startTime && dayAvail.endTime) {
-        let current = parse(dayAvail.startTime, 'HH:mm', new Date());
-        const end = parse(dayAvail.endTime, 'HH:mm', new Date());
-        while (current < end) {
-          slots.push(format(current, 'h:mm a'));
-          current = addMinutes(current, 30);
-        }
-      }
-    });
-    return Array.from(new Set(slots)).sort((a, b) => {
-      const timeA = parse(a, 'h:mm a', new Date());
-      const timeB = parse(b, 'h:mm a', new Date());
-      return timeA.getTime() - timeB.getTime();
-    });
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const targetDayIdx = days.indexOf(dayName);
+    
+    let targetDate = new Date();
+    for (let i = 0; i < 7; i++) {
+      if (targetDate.getDay() === targetDayIdx) break;
+      targetDate = addDays(targetDate, 1);
+    }
+    
+    const slots = convertTutorSlotsToStudentTime(
+      tutor.availability,
+      tutor.timezone || 'Asia/Kolkata',
+      targetDate,
+      studentTimezone
+    );
+    
+    return slots.map(s => s.studentDisplayTime);
   };
 
   const isValidDate = (d: any) => d instanceof Date && !isNaN(d.getTime());
 
   useEffect(() => {
     if (isValidDate(date) && tutor?.availability && tutor.availability.length > 0) {
-      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const dayName = days[getDay(date as Date)];
-      const dayAvailabilities = tutor.availability.filter((a: any) => a.day === dayName);
-
-      if (dayAvailabilities && dayAvailabilities.length > 0) {
-        const slots: string[] = [];
-        dayAvailabilities.forEach((dayAvail: any) => {
-          if (dayAvail.startTime && dayAvail.endTime) {
-            let current = parse(dayAvail.startTime, 'HH:mm', startOfDay(date as Date));
-            const end = parse(dayAvail.endTime, 'HH:mm', startOfDay(date as Date));
-
-            while (current < end) {
-              slots.push(format(current, 'h:mm a'));
-              current = addMinutes(current, 30);
-            }
-          }
-        });
-        // Sort and unique slots in case of overlaps
-        const uniqueSlots = Array.from(new Set(slots)).sort((a, b) => {
-          const timeA = parse(a, 'h:mm a', new Date());
-          const timeB = parse(b, 'h:mm a', new Date());
-          return timeA.getTime() - timeB.getTime();
-        });
-
-        // Filter slots: must be at least 3 hours in the future
-        const filteredSlots = uniqueSlots.filter(slot => {
-          const slotDateTime = new Date(`${format(date as Date, 'yyyy-MM-dd')} ${slot}`);
-          const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
-          return slotDateTime >= minTime;
-        });
-
-        setAvailableSlotsForDate(filteredSlots);
-      } else {
-        setAvailableSlotsForDate([]);
-      }
-    } else if (tutor?.availableTimings) {
-      const filtered = tutor.availableTimings.filter((slot: string) => {
-        if (!isValidDate(date)) return true;
-        const slotDateTime = new Date(`${format(date as Date, 'yyyy-MM-dd')} ${slot}`);
+      const slots = convertTutorSlotsToStudentTime(
+        tutor.availability,
+        tutor.timezone || 'Asia/Kolkata',
+        date as Date,
+        studentTimezone
+      );
+      
+      const filteredSlots = slots.filter(slot => {
         const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
-        return slotDateTime >= minTime;
+        return slot.utcTimeMs >= minTime.getTime();
       });
-      setAvailableSlotsForDate(filtered);
+      
+      setAvailableSlotsForDate(filteredSlots);
+    } else if (tutor?.availableTimings && isValidDate(date)) {
+      // Legacy availabilities conversion using IST fallback
+      const legacyAvailability = tutor.availableTimings.map((timeStr: string) => {
+        const tutorWeekday = new Intl.DateTimeFormat('en-US', {
+          weekday: 'long',
+          timeZone: 'Asia/Kolkata'
+        }).format(date as Date);
+        
+        let parsed = parse(timeStr, 'h:mm a', new Date());
+        if (isNaN(parsed.getTime())) {
+          parsed = parse(timeStr, 'HH:mm', new Date());
+        }
+        const time24 = format(parsed, 'HH:mm');
+        const endParsed = addMinutes(parsed, 30);
+        const endTime24 = format(endParsed, 'HH:mm');
+        
+        return {
+          day: tutorWeekday,
+          startTime: time24,
+          endTime: endTime24
+        };
+      });
+      
+      const slots = convertTutorSlotsToStudentTime(
+        legacyAvailability,
+        'Asia/Kolkata',
+        date as Date,
+        studentTimezone
+      );
+      
+      const filteredSlots = slots.filter(slot => {
+        const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+        return slot.utcTimeMs >= minTime.getTime();
+      });
+      
+      setAvailableSlotsForDate(filteredSlots);
     } else {
       setAvailableSlotsForDate([]);
     }
-  }, [date, tutor]);
+  }, [date, tutor, studentTimezone]);
 
   useEffect(() => {
     const fetchTutor = async () => {
@@ -439,9 +499,17 @@ const TutorProfile = () => {
     }
 
     const isPackBooking = selectedPlan.isPack;
+    let utcTiming: string | undefined;
+    if (!isPackBooking) {
+      const slotObj = availableSlotsForDate.find(s => s.studentDisplayTime === selectedSlot);
+      if (slotObj) {
+        utcTiming = new Date(slotObj.utcTimeMs).toISOString();
+      }
+    }
+
     const formattedTiming = isPackBooking
       ? `Monthly Pack: ${selectedPlan.type} (${packSchedule.map(s => `${s.day}s at ${s.time}`).join(', ')}) [${format(packStartDate!, 'MMM d')} - ${format(addDays(packStartDate!, 27), 'MMM d')}]`
-      : `${format(date!, 'PPP')} at ${selectedSlot}`;
+      : `${formatDateInTimeZone(date!, studentTimezone)} at ${selectedSlot}`;
 
     if (!isPackBooking) {
       const existingBooking = existingBookings.find(b => b.timing === formattedTiming && (b.status === "confirmed" || b.status === "pending"));
@@ -484,7 +552,8 @@ const TutorProfile = () => {
         timing: formattedTiming,
         subject: selectedSubject,
         studentId: user.id,
-        studentName
+        studentName,
+        utcTiming
       };
 
       if (!isDemoBooking) {
@@ -1331,32 +1400,39 @@ const TutorProfile = () => {
                             />
                           </PopoverContent>
                         </Popover>
-
-
-
                         <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-2">
                           {availableSlotsForDate && availableSlotsForDate.length > 0 ? (
-                            availableSlotsForDate.map((timing: string, i: number) => {
-                              const timingString = isValidDate(date) ? `${format(date as Date, 'PPP')} at ${timing}` : timing;
-                              const isBooked = existingBookings.some((b: any) => b.timing === timingString && (b.status === "confirmed" || b.status === "enrolled"));
+                            availableSlotsForDate.map((slot: any, i: number) => {
+                              const timingString = isValidDate(date) ? `${formatDateInTimeZone(date as Date, studentTimezone)} at ${slot.studentDisplayTime}` : slot.studentDisplayTime;
+                              const isBooked = existingBookings.some((b: any) => {
+                                if (b.utcTiming) {
+                                  return new Date(b.utcTiming).getTime() === slot.utcTimeMs && (b.status === "confirmed" || b.status === "enrolled");
+                                }
+                                return b.timing === timingString && (b.status === "confirmed" || b.status === "enrolled");
+                              });
                               const isSlotDisabled = (!selectedPlan && hasActiveBooking && timingString !== activeBookingTiming);
 
                               return (
                                 <button
                                   key={i}
-                                  onClick={() => setSelectedSlot(timing)}
+                                  onClick={() => setSelectedSlot(slot.studentDisplayTime)}
                                   disabled={isSlotDisabled}
-                                  className={`w-full flex justify-between items-center rounded-lg border p-3 text-left text-sm transition-colors ${selectedSlot === timing
+                                  className={`w-full flex justify-between items-center rounded-lg border p-3 text-left text-sm transition-colors ${selectedSlot === slot.studentDisplayTime
                                     ? "border-primary bg-primary/5 text-foreground"
                                     : "hover:border-primary/50 text-muted-foreground"
                                     } ${isSlotDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                                 >
-                                  <div className="font-medium text-foreground">{timing}</div>
+                                  <div className="font-medium text-foreground">
+                                    {slot.studentDisplayTime}
+                                    <span className="ml-1.5 text-xs font-normal text-muted-foreground italic">
+                                      ({slot.tutorDisplayTime} {slot.tutorTimeZoneAbbr})
+                                    </span>
+                                  </div>
                                   <div className="flex items-center">
                                     {isBooked && (
                                       <Badge variant="secondary" className="mr-2 text-xs text-green-600 bg-green-100">Booked</Badge>
                                     )}
-                                    {selectedSlot === timing && (
+                                    {selectedSlot === slot.studentDisplayTime && (
                                       <CheckCircle className="h-4 w-4 text-primary" />
                                     )}
                                   </div>
@@ -1365,9 +1441,35 @@ const TutorProfile = () => {
                             })
                           ) : (
                             <div className="text-sm text-muted-foreground p-3 border rounded text-center bg-secondary/30">
-                              No availability for {isValidDate(date) ? format(date as Date, 'MMM do') : 'this date'}. <br /> Select a highlighted date from the calendar.
+                              No availability for {isValidDate(date) ? formatDateInTimeZone(date as Date, studentTimezone) : 'this date'}. <br /> Select a highlighted date from the calendar.
                             </div>
                           )}
+                        </div>
+
+                        <div className="mt-3 text-[11px] text-muted-foreground flex items-center justify-between bg-secondary/5 p-2 rounded-lg border">
+                          <span>Times shown in: <strong>{studentTimezone}</strong></span>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="text-primary hover:underline font-semibold ml-1">change</button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 p-3" align="end">
+                              <div className="space-y-2">
+                                <Label htmlFor="student-tz-override" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Override Timezone</Label>
+                                <Select value={studentTimezone} onValueChange={setStudentTimezone}>
+                                  <SelectTrigger id="student-tz-override" className="h-8 text-xs bg-background">
+                                    <SelectValue placeholder="Select timezone" />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-[200px]">
+                                    {COMMON_TIMEZONES.map((tz) => (
+                                      <SelectItem key={tz} value={tz} className="text-xs">
+                                        {tz}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         </div>
                       </>
                     )}

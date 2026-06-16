@@ -29,6 +29,7 @@ const tutorSchema = new mongoose.Schema({
   }],
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   featured: { type: Boolean, default: false },
+  timezone: { type: String, default: 'Asia/Kolkata' },
   availableTimings: [{ type: String }],
   availability: [{
     day: { type: String, required: true },

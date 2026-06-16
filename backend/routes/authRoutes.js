@@ -75,7 +75,7 @@ transporter.verify((error, success) => {
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, ...tutorData } = req.body;
 
     // Check if user exists
     let user = await User.findOne({ email });
@@ -86,7 +86,7 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = new User({ email, password: hashedPassword, full_name, phone, role });
+    user = new User({ email, password: hashedPassword, full_name, phone, role, timezone: timezone || 'Asia/Kolkata' });
     await user.save();
 
     if (role === 'tutor') {
@@ -141,7 +141,8 @@ router.post('/register', async (req, res) => {
         photo: tutorData.photo || "https://ui-avatars.com/api/?name=" + encodeURIComponent(full_name) + "&background=random",
         verificationDocument: tutorData.verificationDocument || '',
         address: tutorData.address || '',
-        googleMapsUrl: tutorData.google_maps_url || tutorData.googleMapsUrl || ''
+        googleMapsUrl: tutorData.google_maps_url || tutorData.googleMapsUrl || '',
+        timezone: tutorData.timezone || timezone || 'Asia/Kolkata'
       });
       await tutor.save();
     }
@@ -237,7 +238,7 @@ router.post('/login', async (req, res) => {
 
 router.post('/google', async (req, res) => {
   try {
-    const { idToken, role, action } = req.body;
+    const { idToken, role, action, timezone } = req.body;
 
     const ticket = await client.verifyIdToken({
       idToken,
@@ -268,7 +269,8 @@ router.post('/google', async (req, res) => {
         full_name: name,
         googleId,
         avatar: picture,
-        role: role || 'student' // Use provided role or default to student
+        role: role || 'student', // Use provided role or default to student
+        timezone: timezone || 'Asia/Kolkata'
       });
       await user.save();
 
@@ -282,7 +284,8 @@ router.post('/google', async (req, res) => {
           mode: 'Online',
           experience: 0,
           hourlyRate: 500,
-          photo: user.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name) + "&background=random"
+          photo: user.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name) + "&background=random",
+          timezone: timezone || 'Asia/Kolkata'
         });
         await tutor.save();
 
@@ -451,21 +454,24 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone } = req.body;
+    const { full_name, phone, timezone } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (full_name) user.full_name = full_name;
     if (phone !== undefined) user.phone = phone;
+    if (timezone !== undefined) user.timezone = timezone;
 
     await user.save();
 
     // Also update tutor profile if they are a tutor
     if (user.role === 'tutor') {
-      await Tutor.findOneAndUpdate({ userId: user._id }, { name: full_name });
+      const updateData = { name: full_name };
+      if (timezone !== undefined) updateData.timezone = timezone;
+      await Tutor.findOneAndUpdate({ userId: user._id }, updateData);
     }
 
-    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, role: user.role } });
+    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, role: user.role, timezone: user.timezone } });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

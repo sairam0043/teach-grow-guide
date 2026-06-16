@@ -23,6 +23,7 @@ import API_URL from "@/config/api";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import ChatPanel from "@/components/chat/ChatPanel";
+import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -85,6 +86,21 @@ const TutorDashboard = () => {
   const [tutorProfile, setTutorProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [tutorTimezone, setTutorTimezone] = useState(() => {
+    return user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone();
+  });
+
+  useEffect(() => {
+    if (user?.timezone) {
+      setTutorTimezone(user.timezone);
+    } else if (user?.user_metadata?.timezone) {
+      setTutorTimezone(user.user_metadata.timezone);
+    }
+  }, [user]);
+
+  const timezonesList = tutorTimezone && !COMMON_TIMEZONES.includes(tutorTimezone)
+    ? [tutorTimezone, ...COMMON_TIMEZONES]
+    : COMMON_TIMEZONES;
 
   // Tab redirects
   const [activeTab, setActiveTab] = useState(() => {
@@ -223,6 +239,9 @@ const TutorDashboard = () => {
       axios.get(`${API_URL}/tutors/user/${user.id}`)
         .then(res => {
           setTutorProfile(res.data);
+          if (res.data.timezone) {
+            setTutorTimezone(res.data.timezone);
+          }
           setProfileData({
             bio: res.data.bio || "",
             qualification: res.data.qualification || "",
@@ -366,7 +385,8 @@ const TutorDashboard = () => {
         googleMapsUrl: profileData.googleMapsUrl,
         subjectRates,
         photo: uploadedPhotoUrl,
-        verificationDocument: uploadedDocUrl
+        verificationDocument: uploadedDocUrl,
+        timezone: tutorTimezone
       };
       
       await axios.put(`${API_URL}/tutors/${tutorProfile.id}/profile`, payload);
@@ -375,7 +395,8 @@ const TutorDashboard = () => {
       setTutorProfile((prev: any) => ({ 
         ...prev, 
         photo: uploadedPhotoUrl,
-        verificationDocument: uploadedDocUrl 
+        verificationDocument: uploadedDocUrl,
+        timezone: tutorTimezone
       }));
       setSelectedFile(null);
       setSelectedDocFile(null);
@@ -519,8 +540,8 @@ const TutorDashboard = () => {
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-                            <Calendar className="h-4 w-4"/> {booking.timing}
-                            {booking.status === 'confirmed' && isBookingPast(booking.timing) && (
+                            <Calendar className="h-4 w-4"/> {formatBookingTime(booking, tutorTimezone)}
+                            {booking.status === 'confirmed' && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
                           </p>
@@ -563,7 +584,7 @@ const TutorDashboard = () => {
                             )}
                             {booking.status === 'confirmed' && (
                                <>
-                                {!isBookingPast(booking.timing) && (
+                                {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                                   <Button
                                     size="sm"
                                     className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 animate-pulse"
@@ -648,7 +669,7 @@ const TutorDashboard = () => {
                             </div>
 
                             <div className="flex flex-wrap gap-2 justify-between items-center pt-2">
-                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary"/> {cls.timing}</span>
+                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary"/> {formatBookingTime(cls, tutorTimezone)}</span>
                               
                               <div className="flex gap-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
                                 <Button 
@@ -669,66 +690,72 @@ const TutorDashboard = () => {
                                   <h5 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Calendar className="h-4 w-4 text-primary" /> Monthly Class Calendar Schedule</h5>
                                 </div>
                                 <div className="divide-y divide-border/40">
-                                  {cls.sessions.map((session: any, sIdx: number) => (
-                                    <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card hover:bg-secondary/5 transition-colors gap-3">
-                                      <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
-                                          #{sIdx + 1}
-                                        </div>
-                                        <div>
-                                          <p className="font-bold text-sm text-foreground">{session.date}</p>
-                                          <p className="text-xs text-muted-foreground font-medium flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" /> Time: {session.time}</p>
-                                        </div>
-                                      </div>
+                                  {cls.sessions.map((session: any, sIdx: number) => {
+                                    const formattedSession = session.utcDate
+                                      ? formatSessionDateTime(session.utcDate, tutorTimezone)
+                                      : { date: session.date, time: session.time };
 
-                                      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                                        <Badge variant="outline" className={`px-2.5 py-0.5 border-none text-[10px] uppercase font-bold tracking-wider ${
-                                          session.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                          session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                          'bg-blue-100 text-blue-700'
-                                        }`}>
-                                          {session.status}
-                                        </Badge>
+                                    return (
+                                      <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card hover:bg-secondary/5 transition-colors gap-3">
+                                        <div className="flex items-center gap-3">
+                                          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
+                                            #{sIdx + 1}
+                                          </div>
+                                          <div>
+                                            <p className="font-bold text-sm text-foreground">{formattedSession.date}</p>
+                                            <p className="text-xs text-muted-foreground font-medium flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" /> Time: {formattedSession.time}</p>
+                                          </div>
+                                        </div>
 
-                                        <div className="flex gap-2">
-                                          {session.status === 'scheduled' && (
-                                            <>
-                                              {!isSessionPast(session.date, session.time) && (
-                                                <Button
-                                                  size="sm"
-                                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold text-xs animate-pulse"
-                                                  asChild
-                                                >
-                                                  <a
-                                                    href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
+                                        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                                          <Badge variant="outline" className={`px-2.5 py-0.5 border-none text-[10px] uppercase font-bold tracking-wider ${
+                                            session.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                            session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                            'bg-blue-100 text-blue-700'
+                                          }`}>
+                                            {session.status}
+                                          </Badge>
+
+                                          <div className="flex gap-2">
+                                            {session.status === 'scheduled' && (
+                                              <>
+                                                {!isSessionPast(formattedSession.date, formattedSession.time) && (
+                                                  <Button
+                                                    size="sm"
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold text-xs animate-pulse"
+                                                    asChild
                                                   >
-                                                    <Video className="h-3.5 w-3.5" /> Start Classroom
-                                                  </a>
+                                                    <a
+                                                      href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                    >
+                                                      <Video className="h-3.5 w-3.5" /> Start Classroom
+                                                    </a>
+                                                  </Button>
+                                                )}
+                                                <Button 
+                                                  size="sm" 
+                                                  className="bg-green-600 hover:bg-green-700 text-white shadow-sm text-xs font-semibold"
+                                                  onClick={() => handleSessionStatusChange(cls._id, sIdx, 'completed')}
+                                                >
+                                                  <Check className="mr-1 h-3.5 w-3.5"/> Complete
                                                 </Button>
-                                              )}
-                                              <Button 
-                                                size="sm" 
-                                                className="bg-green-600 hover:bg-green-700 text-white shadow-sm text-xs font-semibold"
-                                                onClick={() => handleSessionStatusChange(cls._id, sIdx, 'completed')}
-                                              >
-                                                <Check className="mr-1 h-3.5 w-3.5"/> Complete
-                                              </Button>
-                                              <Button 
-                                                size="sm" 
-                                                variant="outline" 
-                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 text-xs"
-                                                onClick={() => handleSessionStatusChange(cls._id, sIdx, 'cancelled')}
-                                              >
-                                                Cancel
-                                              </Button>
-                                            </>
-                                          )}
+                                                <Button 
+                                                  size="sm" 
+                                                  variant="outline" 
+                                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 text-xs"
+                                                  onClick={() => handleSessionStatusChange(cls._id, sIdx, 'cancelled')}
+                                                >
+                                                  Cancel
+                                                </Button>
+                                              </>
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -748,12 +775,12 @@ const TutorDashboard = () => {
                           </div>
                           <div className="mt-auto pt-4 border-t flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                               <Clock className="h-4 w-4"/> {cls.timing}
-                               {isBookingPast(cls.timing) && (
+                               <Clock className="h-4 w-4"/> {formatBookingTime(cls, tutorTimezone)}
+                               {(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
                                  <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
                                )}
                              </span>
-                             {!isBookingPast(cls.timing) && (
+                             {!(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
                                <Button
                                  size="sm"
                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse w-full sm:w-auto"
@@ -1060,9 +1087,25 @@ const TutorDashboard = () => {
                           />
                         </div>
                         <div className="space-y-2">
-                           <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
-                           <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
-                         </div>
+                            <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
+                            <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>
+                            <Select value={tutorTimezone} onValueChange={setTutorTimezone}>
+                              <SelectTrigger id="timezone" className="bg-secondary/20 border-border/50">
+                                <SelectValue placeholder="Select timezone" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[300px]">
+                                {timezonesList.map((tz) => (
+                                  <SelectItem key={tz} value={tz}>
+                                    {tz}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
                          {(tutorProfile?.mode?.toLowerCase() === "offline" || tutorProfile?.mode?.toLowerCase() === "both") && (
                            <div className="grid gap-4 sm:grid-cols-2 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">

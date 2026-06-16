@@ -16,6 +16,7 @@ import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import API_URL from "@/config/api";
+import { detectUserTimeZone, COMMON_TIMEZONES } from "@/utils/timezone";
 
 const academicSubjects = [
   "Mathematics", 
@@ -47,6 +48,10 @@ const RegisterTutor = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [timezone, setTimezone] = useState(detectUserTimeZone());
+  const timezonesList = timezone && !COMMON_TIMEZONES.includes(timezone)
+    ? [timezone, ...COMMON_TIMEZONES]
+    : COMMON_TIMEZONES;
   const [city, setCity] = useState("");
   const [qualification, setQualification] = useState("");
   const [experience, setExperience] = useState("");
@@ -245,6 +250,7 @@ const RegisterTutor = () => {
       full_name: name,
       phone,
       role: "tutor",
+      timezone,
       category: category.toLowerCase(),
       subjects: JSON.stringify(finalSubjects),
       subjectRates: JSON.stringify(finalSubjectRates),
@@ -308,6 +314,22 @@ const RegisterTutor = () => {
                   <Label htmlFor="city">City</Label>
                   <Input id="city" required maxLength={100} value={city} onChange={(e) => setCity(e.target.value)} />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Time Zone</Label>
+                <Select value={timezone} onValueChange={setTimezone}>
+                  <SelectTrigger id="timezone">
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {timezonesList.map((tz) => (
+                      <SelectItem key={tz} value={tz}>
+                        {tz}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

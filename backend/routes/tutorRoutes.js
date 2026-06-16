@@ -81,29 +81,42 @@ const getBookingSessionTimestamps = (booking) => {
     const timestamps = [];
     for (const session of booking.sessions) {
       if (session.status !== 'cancelled' && session.status !== 'completed') {
-        const parsed = parseSessionToDate(session.date, session.time);
-        if (parsed) {
-          timestamps.push(parsed.getTime());
+        if (session.utcDate) {
+          timestamps.push(new Date(session.utcDate).getTime());
+        } else {
+          const parsed = parseSessionToDate(session.date, session.time);
+          if (parsed) {
+            timestamps.push(parsed.getTime());
+          }
         }
       }
     }
     return timestamps;
   } else if (booking.timing) {
+    if (booking.utcTiming) {
+      return [new Date(booking.utcTiming).getTime()];
+    }
     const parsed = parseTimingStringToDate(booking.timing);
     return parsed ? [parsed.getTime()] : [];
   }
   return [];
 };
 
-const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSessions, isPack) => {
+const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSessions, isPack, requestedUtcTiming) => {
   const requestedTimestamps = [];
   if (isPack && requestedSessions && requestedSessions.length > 0) {
     for (const s of requestedSessions) {
-      const parsed = parseSessionToDate(s.date, s.time);
-      if (parsed) {
-        requestedTimestamps.push(parsed.getTime());
+      if (s.utcDate) {
+        requestedTimestamps.push(new Date(s.utcDate).getTime());
+      } else {
+        const parsed = parseSessionToDate(s.date, s.time);
+        if (parsed) {
+          requestedTimestamps.push(parsed.getTime());
+        }
       }
     }
+  } else if (requestedUtcTiming) {
+    requestedTimestamps.push(new Date(requestedUtcTiming).getTime());
   } else if (requestedTiming) {
     const parsed = parseTimingStringToDate(requestedTiming);
     if (parsed) {
@@ -271,7 +284,7 @@ router.post('/:id/slots', async (req, res) => {
 router.post('/:id/book', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName } = req.body;
+    const { timing, subject, studentId, studentName, utcTiming } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -298,7 +311,7 @@ router.post('/:id/book', async (req, res) => {
     }
 
     // Check for tutor schedule conflicts
-    const conflict = await checkTutorScheduleConflict(tutor._id, timing, null, false);
+    const conflict = await checkTutorScheduleConflict(tutor._id, timing, null, false, utcTiming);
     if (conflict) {
       return res.status(400).json({ message: `The tutor is already booked or has a pending session at ${timing}.` });
     }
@@ -319,6 +332,7 @@ router.post('/:id/book', async (req, res) => {
       tutorId: tutor._id,
       tutorName: tutor.name,
       timing,
+      utcTiming: utcTiming ? new Date(utcTiming) : undefined,
       subject,
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
@@ -363,7 +377,7 @@ router.post('/:id/book', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions } = req.body;
+    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -408,7 +422,7 @@ router.post('/:id/book-class', async (req, res) => {
     }
 
     // Check for tutor schedule conflicts
-    const conflict = await checkTutorScheduleConflict(tutor._id, timing, sessions, isPack);
+    const conflict = await checkTutorScheduleConflict(tutor._id, timing, sessions, isPack, utcTiming);
     if (conflict) {
       let conflictMsg = `The tutor is already booked or has a pending session at that time.`;
       if (conflict.conflictTimestamp) {
@@ -436,6 +450,7 @@ router.post('/:id/book-class', async (req, res) => {
       tutorId: tutor._id,
       tutorName: tutor.name,
       timing,
+      utcTiming: utcTiming ? new Date(utcTiming) : undefined,
       subject,
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
@@ -458,6 +473,7 @@ router.post('/:id/book-class', async (req, res) => {
         date: session.date,
         time: session.time,
         status: session.status || 'scheduled',
+        utcDate: session.utcDate ? new Date(session.utcDate) : undefined,
         meetingLink: `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}-session-${idx + 1}`
       }));
     }
@@ -890,7 +906,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, timezone } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -947,6 +963,7 @@ router.put('/:id/profile', async (req, res) => {
     if (category !== undefined) currentTutor.category = category;
     if (photo !== undefined) currentTutor.photo = photo;
     if (verificationDocument !== undefined) currentTutor.verificationDocument = verificationDocument;
+    if (timezone !== undefined) currentTutor.timezone = timezone;
 
     await currentTutor.save();
     const tutor = await currentTutor.populate('userId', 'email phone avatar');

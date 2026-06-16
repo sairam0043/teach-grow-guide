@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String },
   phone: { type: String },
   role: { type: String, enum: ['admin', 'student', 'tutor'], default: 'student' },
+  timezone: { type: String, default: 'Asia/Kolkata' },
   resetOtp: { type: String },
   resetOtpExpiry: { type: Date }
 }, { timestamps: true });

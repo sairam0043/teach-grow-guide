@@ -4,6 +4,7 @@ const bookingSchema = new mongoose.Schema({
   tutorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tutor', required: true },
   tutorName: { type: String, required: true },
   timing: { type: String, required: true },
+  utcTiming: { type: Date },
   studentId: { type: String, required: true },
   studentName: { type: String, required: true },
   subject: { type: String, required: true },
@@ -33,6 +34,7 @@ const bookingSchema = new mongoose.Schema({
   sessions: [{
     date: { type: String, required: true },
     time: { type: String, required: true },
+    utcDate: { type: Date },
     meetingLink: { type: String },
     status: { type: String, enum: ['scheduled', 'completed', 'cancelled'], default: 'scheduled' }
   }]

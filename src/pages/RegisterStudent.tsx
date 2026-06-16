@@ -10,6 +10,7 @@ import { GoogleLogin } from "@react-oauth/google";
 
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { detectUserTimeZone } from "@/utils/timezone";
 
 const RegisterStudent = () => {
   useEffect(() => {
@@ -57,6 +58,7 @@ const RegisterStudent = () => {
       full_name: name,
       phone,
       role: "student",
+      timezone: detectUserTimeZone(),
     });
     if (error) {
       toast.error(error.message);

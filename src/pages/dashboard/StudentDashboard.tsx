@@ -20,6 +20,7 @@ import API_URL from "@/config/api";
 import { Badge } from "@/components/ui/badge";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { toast } from "@/components/ui/sonner";
+import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -103,7 +104,22 @@ const StudentDashboard = () => {
   // Profile Form States
   const [profileName, setProfileName] = useState(initialName);
   const [profilePhone, setProfilePhone] = useState(user?.phone || "");
+  const [studentTimezone, setStudentTimezone] = useState(
+    user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone()
+  );
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  useEffect(() => {
+    if (user?.timezone) {
+      setStudentTimezone(user.timezone);
+    } else if (user?.user_metadata?.timezone) {
+      setStudentTimezone(user.user_metadata.timezone);
+    }
+  }, [user]);
+
+  const timezonesList = studentTimezone && !COMMON_TIMEZONES.includes(studentTimezone)
+    ? [studentTimezone, ...COMMON_TIMEZONES]
+    : COMMON_TIMEZONES;
 
   // Rating States
   const [ratingBookingId, setRatingBookingId] = useState<string | null>(null);
@@ -211,7 +227,11 @@ const StudentDashboard = () => {
     if (!user?.id) return;
     setIsUpdatingProfile(true);
     try {
-      await axios.put(`${API_URL}/auth/profile/${user.id}`, { full_name: profileName, phone: profilePhone });
+      await axios.put(`${API_URL}/auth/profile/${user.id}`, { 
+        full_name: profileName, 
+        phone: profilePhone,
+        timezone: studentTimezone
+      });
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");
@@ -399,7 +419,7 @@ const StudentDashboard = () => {
                             </div>
 
                             <div className="flex flex-wrap gap-2 justify-between items-center pt-2">
-                              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary"/> {cls.timing}</span>
+                              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary"/> {formatBookingTime(cls, studentTimezone)}</span>
                               
                               <div className="flex gap-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
                                 {!cls.isRated && completedSessions === totalSessions && (
@@ -432,45 +452,51 @@ const StudentDashboard = () => {
                                   <h5 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Calendar className="h-4 w-4 text-primary" /> Monthly Class Calendar Schedule</h5>
                                 </div>
                                 <div className="divide-y divide-border/40">
-                                  {cls.sessions.map((session: any, sIdx: number) => (
-                                    <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card hover:bg-secondary/5 transition-colors gap-3">
-                                      <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
-                                          #{sIdx + 1}
-                                        </div>
-                                        <div>
-                                          <p className="font-bold text-sm text-foreground">{session.date}</p>
-                                          <p className="text-xs text-muted-foreground font-medium flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" /> Time: {session.time}</p>
-                                        </div>
-                                      </div>
+                                  {cls.sessions.map((session: any, sIdx: number) => {
+                                    const formattedSession = session.utcDate 
+                                      ? formatSessionDateTime(session.utcDate, studentTimezone) 
+                                      : { date: session.date, time: session.time };
 
-                                      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                                        <Badge variant="outline" className={`px-2.5 py-0.5 border-none text-[10px] uppercase font-bold tracking-wider ${
-                                          session.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                          session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                          'bg-blue-100 text-blue-700'
-                                        }`}>
-                                          {session.status}
-                                        </Badge>
+                                    return (
+                                      <div key={sIdx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card hover:bg-secondary/5 transition-colors gap-3">
+                                        <div className="flex items-center gap-3">
+                                          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
+                                            #{sIdx + 1}
+                                          </div>
+                                          <div>
+                                            <p className="font-bold text-sm text-foreground">{formattedSession.date}</p>
+                                            <p className="text-xs text-muted-foreground font-medium flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" /> Time: {formattedSession.time}</p>
+                                          </div>
+                                        </div>
 
-                                        {session.status === 'scheduled' && !isSessionPast(session.date, session.time) && (
-                                          <Button
-                                            size="sm"
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold text-xs"
-                                            asChild
-                                          >
-                                            <a
-                                              href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
+                                        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                                          <Badge variant="outline" className={`px-2.5 py-0.5 border-none text-[10px] uppercase font-bold tracking-wider ${
+                                            session.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                            session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                            'bg-blue-100 text-blue-700'
+                                          }`}>
+                                            {session.status}
+                                          </Badge>
+
+                                          {session.status === 'scheduled' && !isSessionPast(formattedSession.date, formattedSession.time) && (
+                                            <Button
+                                              size="sm"
+                                              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold text-xs"
+                                              asChild
                                             >
-                                              <Video className="h-3.5 w-3.5" /> Join Session
-                                            </a>
-                                          </Button>
-                                        )}
+                                              <a
+                                                href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                              >
+                                                <Video className="h-3.5 w-3.5" /> Join Session
+                                              </a>
+                                            </Button>
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -525,8 +551,8 @@ const StudentDashboard = () => {
                           
                           <div className="mt-auto pt-4 border-t flex justify-between items-center">
                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                               <Clock className="h-4 w-4"/> {cls.timing}
-                               {isBookingPast(cls.timing) && (
+                               <Clock className="h-4 w-4"/> {formatBookingTime(cls, studentTimezone)}
+                               {(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
                                  <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
                                )}
                              </span>
@@ -536,11 +562,11 @@ const StudentDashboard = () => {
                                    setRatingBookingId(cls._id);
                                    setRatingTutorId(cls.tutorId);
                                    setIsRatingDialogOpen(true);
-                                 }}>
-                                   <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
-                                 </Button>
-                               )}
-                               {!isBookingPast(cls.timing) && (
+                                  }}>
+                                    <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
+                                  </Button>
+                                )}
+                               {!(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
                                 <Button
                                   size="sm"
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
@@ -596,8 +622,8 @@ const StudentDashboard = () => {
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-                            <Calendar className="h-4 w-4"/> {booking.timing}
-                            {booking.status === 'confirmed' && isBookingPast(booking.timing) && (
+                            <Calendar className="h-4 w-4"/> {formatBookingTime(booking, studentTimezone)}
+                            {booking.status === 'confirmed' && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
                           </p>
@@ -647,7 +673,7 @@ const StudentDashboard = () => {
                           <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {(booking.status === 'confirmed' || booking.status === 'pending') && (
                                <>
-                                 {booking.status === 'confirmed' && !isBookingPast(booking.timing) && (
+                                 {booking.status === 'confirmed' && !(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                                    <Button
                                      size="sm"
                                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
@@ -768,6 +794,21 @@ const StudentDashboard = () => {
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
                     <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="+1 234 567 890" className="bg-secondary/20 border-border/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>
+                    <Select value={studentTimezone} onValueChange={setStudentTimezone}>
+                      <SelectTrigger id="timezone" className="bg-secondary/20 border-border/50">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {timezonesList.map((tz) => (
+                          <SelectItem key={tz} value={tz}>
+                            {tz}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Button type="submit" disabled={isUpdatingProfile} className="w-full sm:w-auto shadow-md rounded-full px-8">
                     {isUpdatingProfile ? "Saving..." : <><Save className="mr-2 h-4 w-4"/> Save Changes</>}
