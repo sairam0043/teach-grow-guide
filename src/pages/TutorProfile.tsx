@@ -8,7 +8,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -30,7 +30,8 @@ import {
   convertTutorSlotsToStudentTime, 
   getUtcTimeForLocalTimeInTimeZone, 
   formatDateInTimeZone,
-  formatBookingTime
+  formatBookingTime,
+  getTimeZoneAbbreviation
 } from "@/utils/timezone";
 
 const TutorProfile = () => {
@@ -952,7 +953,12 @@ const TutorProfile = () => {
 
             {((tutor?.availability && tutor.availability.length > 0) || (tutor?.availableTimings && tutor.availableTimings.length > 0)) && (
               <Card>
-                <CardHeader><CardTitle>Availability Schedule</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle>Availability Schedule</CardTitle>
+                  <CardDescription>
+                    All timings are shown in the tutor's local timezone: <span className="font-semibold text-foreground">{tutor.timezone ? getTimeZoneAbbreviation(tutor.timezone) : 'IST'}</span>
+                  </CardDescription>
+                </CardHeader>
                 <CardContent>
                   {tutor.availability && tutor.availability.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
