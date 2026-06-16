@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -1051,6 +1051,41 @@ const AdminDashboard = () => {
                   </div>
                 )}
               </div>
+
+               {/* Classroom Location (Offline/Hybrid) */}
+              {(selectedTutorForDetail.mode?.toLowerCase() === "offline" || selectedTutorForDetail.mode?.toLowerCase() === "both") && selectedTutorForDetail.address && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Classroom Location (Offline)</h4>
+                  <div className="p-4 rounded-xl bg-secondary/5 border space-y-3">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Classroom Address</span>
+                      <span className="text-sm font-semibold text-foreground mt-0.5 block">{selectedTutorForDetail.address}</span>
+                    </div>
+
+                    <div className="relative w-full h-40 overflow-hidden rounded-lg border bg-secondary/20 shadow-inner">
+                      <iframe
+                        title="Tutor Classroom Location Map"
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedTutorForDetail.address + ", " + (selectedTutorForDetail.city || ""))}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                      />
+                    </div>
+
+                    {selectedTutorForDetail.googleMapsUrl && (
+                      <a 
+                        href={selectedTutorForDetail.googleMapsUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold text-rose-500 hover:underline inline-flex items-center gap-1"
+                      >
+                        <MapPin className="h-3.5 w-3.5" /> View on Google Maps
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* KYC Document Section */}
               <div className="space-y-2">
