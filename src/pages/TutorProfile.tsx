@@ -842,6 +842,45 @@ const TutorProfile = () => {
               </CardContent>
             </Card>
 
+            {(tutor.mode?.toLowerCase() === "offline" || tutor.mode?.toLowerCase() === "both") && tutor.address && (
+              <Card className="overflow-hidden border-border/50 shadow-sm">
+                <CardHeader className="bg-secondary/10 pb-4">
+                  <CardTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+                    <MapPin className="h-5 w-5 text-rose-500" /> Classroom Location
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-foreground text-sm">Classroom Address</h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {tutor.address}
+                    </p>
+                  </div>
+                  
+                  {/* Embedded Google Map iframe */}
+                  <div className="relative w-full h-64 overflow-hidden rounded-xl border border-border bg-secondary/20 shadow-inner">
+                    <iframe
+                      title="Classroom Location Map"
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      allowFullScreen
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(tutor.address + ", " + (tutor.city || ""))}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                    />
+                  </div>
+
+                  {tutor.googleMapsUrl && (
+                    <Button asChild variant="outline" size="sm" className="w-full sm:w-auto gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl">
+                      <a href={tutor.googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                        <MapPin className="h-4 w-4 text-rose-500" /> Open in Google Maps
+                      </a>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {((tutor?.availability && tutor.availability.length > 0) || (tutor?.availableTimings && tutor.availableTimings.length > 0)) && (
               <Card>
                 <CardHeader><CardTitle>Availability Schedule</CardTitle></CardHeader>

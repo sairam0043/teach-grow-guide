@@ -72,6 +72,7 @@ const AdminDashboard = () => {
       setBookings(bookingsRes.data);
       await fetchPayouts();
       await fetchCoursePayments();
+      dispatch(fetchAdminStats());
     } catch (err) {
       toast.error("Failed to load dashboard data");
     } finally {

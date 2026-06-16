@@ -140,8 +140,19 @@ router.get('/student/:studentId', async (req, res) => {
 router.get('/student/:studentId/bookings', async (req, res) => {
   try {
     const studentId = req.params.studentId;
-    const bookings = await Booking.find({ studentId }).sort({ createdAt: -1 });
-    res.json(bookings);
+    const bookings = await Booking.find({ studentId }).populate('tutorId', 'address googleMapsUrl mode city').sort({ createdAt: -1 });
+    const formatted = bookings.map(b => {
+      const obj = b.toObject();
+      if (b.tutorId) {
+        obj.tutorAddress = b.tutorId.address;
+        obj.tutorGoogleMapsUrl = b.tutorId.googleMapsUrl;
+        obj.tutorMode = b.tutorId.mode;
+        obj.tutorCity = b.tutorId.city;
+        obj.tutorId = b.tutorId._id.toString();
+      }
+      return obj;
+    });
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -18,6 +18,8 @@ const tutorSchema = new mongoose.Schema({
   reviewCount: { type: Number, default: 0 },
   experience: { type: Number, default: 0 },
   city: { type: String },
+  address: { type: String, default: "" },
+  googleMapsUrl: { type: String, default: "" },
   bio: { type: String },
   subjects: [{ type: String }],
   hourlyRate: { type: Number, required: true, default: 500 },

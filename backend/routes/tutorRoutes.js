@@ -68,6 +68,75 @@ const parseTimingStringToDate = (timingStr) => {
   return null;
 };
 
+const parseSessionToDate = (dateStr, timeStr) => {
+  return parseTimingStringToDate(`${dateStr} at ${timeStr}`);
+};
+
+const getBookingSessionTimestamps = (booking) => {
+  const activeStatuses = ['pending', 'pending_payment', 'confirmed', 'enrolled'];
+  if (!activeStatuses.includes(booking.status)) {
+    return [];
+  }
+  if (booking.sessions && booking.sessions.length > 0) {
+    const timestamps = [];
+    for (const session of booking.sessions) {
+      if (session.status !== 'cancelled' && session.status !== 'completed') {
+        const parsed = parseSessionToDate(session.date, session.time);
+        if (parsed) {
+          timestamps.push(parsed.getTime());
+        }
+      }
+    }
+    return timestamps;
+  } else if (booking.timing) {
+    const parsed = parseTimingStringToDate(booking.timing);
+    return parsed ? [parsed.getTime()] : [];
+  }
+  return [];
+};
+
+const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSessions, isPack) => {
+  const requestedTimestamps = [];
+  if (isPack && requestedSessions && requestedSessions.length > 0) {
+    for (const s of requestedSessions) {
+      const parsed = parseSessionToDate(s.date, s.time);
+      if (parsed) {
+        requestedTimestamps.push(parsed.getTime());
+      }
+    }
+  } else if (requestedTiming) {
+    const parsed = parseTimingStringToDate(requestedTiming);
+    if (parsed) {
+      requestedTimestamps.push(parsed.getTime());
+    }
+  }
+
+  if (requestedTimestamps.length === 0) {
+    return null;
+  }
+
+  const activeBookings = await Booking.find({
+    tutorId,
+    status: { $in: ['pending', 'pending_payment', 'confirmed', 'enrolled'] }
+  });
+
+  for (const booking of activeBookings) {
+    const existingTimestamps = getBookingSessionTimestamps(booking);
+    for (const reqTs of requestedTimestamps) {
+      if (existingTimestamps.includes(reqTs)) {
+        return {
+          conflictTimestamp: reqTs,
+          bookingId: booking._id,
+          studentName: booking.studentName,
+          subject: booking.subject
+        };
+      }
+    }
+  }
+
+  return null;
+};
+
 
 // Helper to securely calculate backend prices for a booking plan
 const calculatePlanPrice = (tutor, subject, planType) => {
@@ -228,6 +297,12 @@ router.post('/:id/book', async (req, res) => {
       return res.status(400).json({ message: 'This slot is not available or does not exist.' });
     }
 
+    // Check for tutor schedule conflicts
+    const conflict = await checkTutorScheduleConflict(tutor._id, timing, null, false);
+    if (conflict) {
+      return res.status(400).json({ message: `The tutor is already booked or has a pending session at ${timing}.` });
+    }
+
     // Check if the student already has a pending or active demo with this tutor for this subject
     const existingDemo = await Booking.findOne({ 
       tutorId: tutor._id, 
@@ -332,6 +407,25 @@ router.post('/:id/book-class', async (req, res) => {
       }
     }
 
+    // Check for tutor schedule conflicts
+    const conflict = await checkTutorScheduleConflict(tutor._id, timing, sessions, isPack);
+    if (conflict) {
+      let conflictMsg = `The tutor is already booked or has a pending session at that time.`;
+      if (conflict.conflictTimestamp) {
+        const conflictDate = new Date(conflict.conflictTimestamp);
+        const formattedConflict = conflictDate.toLocaleString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }).replace(',', '');
+        conflictMsg = `The tutor is already booked or has a pending session at ${formattedConflict}.`;
+      }
+      return res.status(400).json({ message: conflictMsg });
+    }
+
     const isGroup = otherStudentsEmails && otherStudentsEmails.length > 0;
     
     // Securely calculate price on the backend
@@ -419,8 +513,19 @@ router.post('/:id/book-class', async (req, res) => {
 // Get student's bookings for a specific tutor
 router.get('/:id/bookings/student/:studentId', async (req, res) => {
   try {
-    const bookings = await Booking.find({ tutorId: req.params.id, studentId: req.params.studentId });
-    res.json(bookings);
+    const bookings = await Booking.find({ tutorId: req.params.id, studentId: req.params.studentId }).populate('tutorId', 'address googleMapsUrl mode city');
+    const formatted = bookings.map(b => {
+      const obj = b.toObject();
+      if (b.tutorId) {
+        obj.tutorAddress = b.tutorId.address;
+        obj.tutorGoogleMapsUrl = b.tutorId.googleMapsUrl;
+        obj.tutorMode = b.tutorId.mode;
+        obj.tutorCity = b.tutorId.city;
+        obj.tutorId = b.tutorId._id.toString();
+      }
+      return obj;
+    });
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -785,7 +890,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -808,6 +913,8 @@ router.put('/:id/profile', async (req, res) => {
     if (bio !== undefined) currentTutor.bio = bio;
     if (qualification !== undefined) currentTutor.qualification = qualification;
     if (experience !== undefined) currentTutor.experience = experience;
+    if (address !== undefined) currentTutor.address = address;
+    if (googleMapsUrl !== undefined) currentTutor.googleMapsUrl = googleMapsUrl;
     
     // Update subjectRates / subjects
     if (subjectRates !== undefined) {
@@ -933,6 +1040,10 @@ router.delete('/:id/admin', async (req, res) => {
     res.status(500).json({ message: 'Error deleting tutor', error: error.message });
   }
 });
+
+router.checkTutorScheduleConflict = checkTutorScheduleConflict;
+router.getBookingSessionTimestamps = getBookingSessionTimestamps;
+router.parseSessionToDate = parseSessionToDate;
 
 module.exports = router;
 

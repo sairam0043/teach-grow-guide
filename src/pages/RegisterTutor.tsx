@@ -52,6 +52,8 @@ const RegisterTutor = () => {
   const [experience, setExperience] = useState("");
   const [category, setCategory] = useState("");
   const [teachingMode, setTeachingMode] = useState("");
+  const [address, setAddress] = useState("");
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [subjectRates, setSubjectRates] = useState<Record<string, number>>({});
   const [otherSubjectText, setOtherSubjectText] = useState("");
@@ -252,6 +254,8 @@ const RegisterTutor = () => {
       qualification,
       city,
       teaching_mode: teachingMode.toLowerCase(),
+      address: (teachingMode === "Offline" || teachingMode === "Both") ? address : "",
+      google_maps_url: (teachingMode === "Offline" || teachingMode === "Both") ? googleMapsUrl : "",
       availability: JSON.stringify(selectedDays.flatMap(dayObj => 
         dayObj.slots.map(slot => ({ day: dayObj.day, startTime: slot.startTime, endTime: slot.endTime }))
       )),
@@ -340,6 +344,32 @@ const RegisterTutor = () => {
                   </Select>
                 </div>
               </div>
+
+              {(teachingMode === "Offline" || teachingMode === "Both") && (
+                <div className="grid gap-4 sm:grid-cols-2 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Classroom Address</Label>
+                    <Input 
+                      id="address" 
+                      required 
+                      maxLength={300} 
+                      placeholder="e.g. 1st Floor, Building Name, Street Name" 
+                      value={address} 
+                      onChange={(e) => setAddress(e.target.value)} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="googleMapsUrl">Google Maps Link</Label>
+                    <Input 
+                      id="googleMapsUrl" 
+                      type="url"
+                      placeholder="e.g. https://maps.app.goo.gl/..." 
+                      value={googleMapsUrl} 
+                      onChange={(e) => setGoogleMapsUrl(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              )}
 
               {subjects.length > 0 && (
                 <div className="space-y-4">

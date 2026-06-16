@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video } from "lucide-react";
+import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -347,6 +347,40 @@ const StudentDashboard = () => {
                                 </h4>
                                 <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1.5"><User className="h-3.5 w-3.5 text-primary"/> Tutor: <span className="font-semibold text-foreground">{cls.tutorName}</span></p>
                               </div>
+
+                              {cls.tutorAddress && (cls.tutorMode?.toLowerCase() === "offline" || cls.tutorMode?.toLowerCase() === "both") && (
+                                <div className="p-3.5 border rounded-xl bg-secondary/5 space-y-3">
+                                  <div className="flex items-start gap-2">
+                                    <MapPin className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                                    <div>
+                                      <p className="text-xs font-bold text-foreground">Classroom Location</p>
+                                      <p className="text-xs text-muted-foreground mt-0.5">{cls.tutorAddress}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="relative w-full h-32 overflow-hidden rounded-lg border bg-secondary/20 shadow-inner">
+                                    <iframe
+                                      title="Classroom Map Preview"
+                                      width="100%"
+                                      height="100%"
+                                      style={{ border: 0 }}
+                                      loading="lazy"
+                                      src={`https://maps.google.com/maps?q=${encodeURIComponent(cls.tutorAddress + ", " + (cls.tutorCity || ""))}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                                    />
+                                  </div>
+
+                                  {cls.tutorGoogleMapsUrl && (
+                                    <a 
+                                      href={cls.tutorGoogleMapsUrl} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-xs font-semibold text-rose-500 hover:underline inline-flex items-center gap-1"
+                                    >
+                                      <MapPin className="h-3 w-3" /> View large map
+                                    </a>
+                                  )}
+                                </div>
+                              )}
                               <div className="text-left sm:text-right w-full sm:w-auto">
                                 <span className="text-xs font-bold text-muted-foreground block uppercase tracking-wider">Plan Type</span>
                                 <span className="font-extrabold text-indigo-500 text-sm sm:text-base">{cls.planType}</span>
@@ -454,6 +488,41 @@ const StudentDashboard = () => {
                              </div>
                              <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
                           </div>
+                          
+                          {cls.tutorAddress && (cls.tutorMode?.toLowerCase() === "offline" || cls.tutorMode?.toLowerCase() === "both") && (
+                            <div className="mb-4 p-3.5 border rounded-xl bg-secondary/5 space-y-3">
+                              <div className="flex items-start gap-2">
+                                <MapPin className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-xs font-bold text-foreground">Classroom Location</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{cls.tutorAddress}</p>
+                                </div>
+                              </div>
+
+                              <div className="relative w-full h-32 overflow-hidden rounded-lg border bg-secondary/20 shadow-inner">
+                                <iframe
+                                  title="Classroom Map Preview"
+                                  width="100%"
+                                  height="100%"
+                                  style={{ border: 0 }}
+                                  loading="lazy"
+                                  src={`https://maps.google.com/maps?q=${encodeURIComponent(cls.tutorAddress + ", " + (cls.tutorCity || ""))}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                                />
+                              </div>
+
+                              {cls.tutorGoogleMapsUrl && (
+                                <a 
+                                  href={cls.tutorGoogleMapsUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-xs font-semibold text-rose-500 hover:underline inline-flex items-center gap-1"
+                                >
+                                  <MapPin className="h-3 w-3" /> View large map
+                                </a>
+                              )}
+                            </div>
+                          )}
+                          
                           <div className="mt-auto pt-4 border-t flex justify-between items-center">
                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                                <Clock className="h-4 w-4"/> {cls.timing}
@@ -532,6 +601,35 @@ const StudentDashboard = () => {
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
                           </p>
+                          
+                          {booking.tutorAddress && (booking.tutorMode?.toLowerCase() === "offline" || booking.tutorMode?.toLowerCase() === "both") && (
+                             <div className="mt-3 p-3 border rounded-xl bg-secondary/5 space-y-2 w-full max-w-md">
+                               <div className="flex items-center gap-1.5">
+                                 <MapPin className="h-3.5 w-3.5 text-rose-500" />
+                                 <span className="text-xs font-semibold text-foreground">Location: {booking.tutorAddress}</span>
+                               </div>
+                               <div className="relative w-full h-32 overflow-hidden rounded-lg border bg-secondary/20 shadow-inner">
+                                 <iframe
+                                   title="Demo Map Preview"
+                                   width="100%"
+                                   height="100%"
+                                   style={{ border: 0 }}
+                                   loading="lazy"
+                                   src={`https://maps.google.com/maps?q=${encodeURIComponent(booking.tutorAddress + ", " + (booking.tutorCity || ""))}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                                 />
+                               </div>
+                               {booking.tutorGoogleMapsUrl && (
+                                 <a 
+                                   href={booking.tutorGoogleMapsUrl} 
+                                   target="_blank" 
+                                   rel="noopener noreferrer"
+                                   className="text-[11px] font-semibold text-rose-500 hover:underline inline-flex items-center gap-1"
+                                 >
+                                   <MapPin className="h-3 w-3" /> View large map
+                                 </a>
+                               )}
+                             </div>
+                           )}
                         </div>
                         <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
                           <div className="flex items-center gap-2">

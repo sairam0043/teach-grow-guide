@@ -139,7 +139,9 @@ router.post('/register', async (req, res) => {
         availableTimings: parsedTimings,
         availability: parsedAvailability,
         photo: tutorData.photo || "https://ui-avatars.com/api/?name=" + encodeURIComponent(full_name) + "&background=random",
-        verificationDocument: tutorData.verificationDocument || ''
+        verificationDocument: tutorData.verificationDocument || '',
+        address: tutorData.address || '',
+        googleMapsUrl: tutorData.google_maps_url || tutorData.googleMapsUrl || ''
       });
       await tutor.save();
     }

@@ -180,6 +180,8 @@ const TutorDashboard = () => {
   const [profileData, setProfileData] = useState({
     bio: "",
     qualification: "",
+    address: "",
+    googleMapsUrl: "",
   });
   const [subjectRates, setSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
   const [newSubjectName, setNewSubjectName] = useState("");
@@ -224,6 +226,8 @@ const TutorDashboard = () => {
           setProfileData({
             bio: res.data.bio || "",
             qualification: res.data.qualification || "",
+            address: res.data.address || "",
+            googleMapsUrl: res.data.googleMapsUrl || "",
           });
           const legacyRates = res.data.subjectRates && res.data.subjectRates.length > 0
             ? res.data.subjectRates
@@ -358,6 +362,8 @@ const TutorDashboard = () => {
       const payload = {
         bio: profileData.bio,
         qualification: profileData.qualification,
+        address: profileData.address,
+        googleMapsUrl: profileData.googleMapsUrl,
         subjectRates,
         photo: uploadedPhotoUrl,
         verificationDocument: uploadedDocUrl
@@ -1054,9 +1060,36 @@ const TutorDashboard = () => {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
-                          <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
-                        </div>
+                           <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
+                           <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
+                         </div>
+
+                         {(tutorProfile?.mode?.toLowerCase() === "offline" || tutorProfile?.mode?.toLowerCase() === "both") && (
+                           <div className="grid gap-4 sm:grid-cols-2 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                             <div className="space-y-2">
+                               <Label htmlFor="address" className="text-sm font-semibold">Classroom Address</Label>
+                               <Input 
+                                 id="address" 
+                                 required
+                                 value={profileData.address} 
+                                 onChange={(e) => setProfileData({...profileData, address: e.target.value})} 
+                                 placeholder="e.g. 1st Floor, Building Name, Street Name" 
+                                 className="bg-secondary/20 shadow-sm"
+                               />
+                             </div>
+                             <div className="space-y-2">
+                               <Label htmlFor="googleMapsUrl" className="text-sm font-semibold">Google Maps Link</Label>
+                               <Input 
+                                 id="googleMapsUrl" 
+                                 type="url"
+                                 value={profileData.googleMapsUrl} 
+                                 onChange={(e) => setProfileData({...profileData, googleMapsUrl: e.target.value})} 
+                                 placeholder="e.g. https://maps.app.goo.gl/..." 
+                                 className="bg-secondary/20 shadow-sm"
+                               />
+                             </div>
+                           </div>
+                         )}
 
                         <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
                           <Label className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
