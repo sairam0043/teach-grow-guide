@@ -373,7 +373,6 @@ const RegisterTutor = () => {
                     <Label htmlFor="address">Classroom Address</Label>
                     <Input 
                       id="address" 
-                      required 
                       maxLength={300} 
                       placeholder="e.g. 1st Floor, Building Name, Street Name" 
                       value={address} 

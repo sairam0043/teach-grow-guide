@@ -1113,7 +1113,6 @@ const TutorDashboard = () => {
                                <Label htmlFor="address" className="text-sm font-semibold">Classroom Address</Label>
                                <Input 
                                  id="address" 
-                                 required
                                  value={profileData.address} 
                                  onChange={(e) => setProfileData({...profileData, address: e.target.value})} 
                                  placeholder="e.g. 1st Floor, Building Name, Street Name" 
