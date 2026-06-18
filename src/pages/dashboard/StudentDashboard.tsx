@@ -15,6 +15,7 @@ import PageLayout from "@/components/layout/PageLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchStudentStats } from "@/redux/slices/dashboardSlice";
+import { updateUser } from "@/redux/slices/authSlice";
 import { RootState, AppDispatch } from "@/redux/store";
 import API_URL from "@/config/api";
 import { Badge } from "@/components/ui/badge";
@@ -110,10 +111,14 @@ const StudentDashboard = () => {
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   useEffect(() => {
-    if (user?.timezone) {
-      setStudentTimezone(user.timezone);
-    } else if (user?.user_metadata?.timezone) {
-      setStudentTimezone(user.user_metadata.timezone);
+    if (user) {
+      setProfileName(String(user.user_metadata?.full_name || user.full_name || "Student"));
+      setProfilePhone(user.phone || "");
+      if (user.timezone) {
+        setStudentTimezone(user.timezone);
+      } else if (user.user_metadata?.timezone) {
+        setStudentTimezone(user.user_metadata.timezone);
+      }
     }
   }, [user]);
 
@@ -227,11 +232,18 @@ const StudentDashboard = () => {
     if (!user?.id) return;
     setIsUpdatingProfile(true);
     try {
-      await axios.put(`${API_URL}/auth/profile/${user.id}`, { 
+      const response = await axios.put(`${API_URL}/auth/profile/${user.id}`, { 
         full_name: profileName, 
         phone: profilePhone,
         timezone: studentTimezone
       });
+      if (response.data && response.data.user) {
+        dispatch(updateUser({
+          full_name: response.data.user.full_name,
+          phone: response.data.user.phone,
+          timezone: response.data.user.timezone
+        }));
+      }
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");

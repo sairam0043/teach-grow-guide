@@ -16,6 +16,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { fetchTutorStats, updateTutorAvailability } from "@/redux/slices/dashboardSlice";
+import { updateUser } from "@/redux/slices/authSlice";
 import { RootState, AppDispatch } from "@/redux/store";
 import { toast } from "@/components/ui/sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -86,15 +87,24 @@ const TutorDashboard = () => {
   const [tutorProfile, setTutorProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<any[]>([]);
+
+  const initialName = String(user?.user_metadata?.full_name || user?.full_name || "Tutor");
+  const [profileName, setProfileName] = useState(initialName);
+  const [profilePhone, setProfilePhone] = useState(user?.phone || "");
+
   const [tutorTimezone, setTutorTimezone] = useState(() => {
     return user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone();
   });
 
   useEffect(() => {
-    if (user?.timezone) {
-      setTutorTimezone(user.timezone);
-    } else if (user?.user_metadata?.timezone) {
-      setTutorTimezone(user.user_metadata.timezone);
+    if (user) {
+      setProfileName(String(user.user_metadata?.full_name || user.full_name || "Tutor"));
+      setProfilePhone(user.phone || "");
+      if (user.timezone) {
+        setTutorTimezone(user.timezone);
+      } else if (user.user_metadata?.timezone) {
+        setTutorTimezone(user.user_metadata.timezone);
+      }
     }
   }, [user]);
 
@@ -345,7 +355,7 @@ const TutorDashboard = () => {
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tutorProfile?.id) return;
+    if (!tutorProfile?.id || !user?.id) return;
     setIsSavingProfile(true);
     try {
       let uploadedPhotoUrl = tutorProfile?.photo || "";
@@ -389,11 +399,27 @@ const TutorDashboard = () => {
         timezone: tutorTimezone
       };
       
-      await axios.put(`${API_URL}/tutors/${tutorProfile.id}/profile`, payload);
+      const [authRes] = await Promise.all([
+        axios.put(`${API_URL}/auth/profile/${user.id}`, {
+          full_name: profileName,
+          phone: profilePhone,
+          timezone: tutorTimezone
+        }),
+        axios.put(`${API_URL}/tutors/${tutorProfile.id}/profile`, payload)
+      ]);
+
+      if (authRes.data && authRes.data.user) {
+        dispatch(updateUser({
+          full_name: authRes.data.user.full_name,
+          phone: authRes.data.user.phone,
+          timezone: authRes.data.user.timezone
+        }));
+      }
       
       // Update local state
       setTutorProfile((prev: any) => ({ 
         ...prev, 
+        name: profileName,
         photo: uploadedPhotoUrl,
         verificationDocument: uploadedDocUrl,
         timezone: tutorTimezone
@@ -1075,6 +1101,29 @@ const TutorDashboard = () => {
 
                    <div className="lg:col-span-2">
                      <form onSubmit={handleProfileUpdate} className="space-y-6">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="name" className="text-sm font-semibold">Full Name</Label>
+                            <Input 
+                              id="name" 
+                              value={profileName} 
+                              onChange={(e) => setProfileName(e.target.value)} 
+                              className="bg-secondary/20 border-border/50 shadow-sm" 
+                              required 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
+                            <Input 
+                              id="phone" 
+                              value={profilePhone} 
+                              onChange={(e) => setProfilePhone(e.target.value)} 
+                              placeholder="+1 234 567 890" 
+                              className="bg-secondary/20 border-border/50 shadow-sm" 
+                            />
+                          </div>
+                        </div>
+
                         <div className="space-y-2">
                           <Label htmlFor="bio" className="text-sm font-semibold">Professional Bio</Label>
                           <textarea 
