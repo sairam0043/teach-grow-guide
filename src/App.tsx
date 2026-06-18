@@ -1,5 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import TagManager from "react-gtm-module";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +27,21 @@ import ApproveBooking from "./pages/ApproveBooking";
 import TutorWelcome from "./pages/TutorWelcome";
 
 const queryClient = new QueryClient();
+
+function TrackPageViews() {
+  const location = useLocation();
+
+  useEffect(() => {
+    TagManager.dataLayer({
+      dataLayer: {
+        event: "page_view",
+        page_path: location.pathname,
+      },
+    });
+  }, [location]);
+
+  return null;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -62,6 +79,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <TrackPageViews />
           <AuthProvider>
             <Routes>
             <Route path="/" element={<Index />} />
