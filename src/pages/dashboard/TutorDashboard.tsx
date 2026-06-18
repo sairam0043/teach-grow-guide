@@ -76,6 +76,13 @@ const isSessionPast = (dateStr: string, timeStr: string): boolean => {
   return false;
 };
 
+const capitalizeName = (str: string): string => {
+  return str
+    .split(' ')
+    .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1) : '')
+    .join(' ');
+};
+
 const TutorDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -1107,7 +1114,7 @@ const TutorDashboard = () => {
                             <Input 
                               id="name" 
                               value={profileName} 
-                              onChange={(e) => setProfileName(e.target.value)} 
+                              onChange={(e) => setProfileName(capitalizeName(e.target.value))} 
                               className="bg-secondary/20 border-border/50 shadow-sm" 
                               required 
                             />

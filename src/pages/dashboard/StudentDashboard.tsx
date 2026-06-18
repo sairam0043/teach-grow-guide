@@ -73,6 +73,13 @@ const isSessionPast = (dateStr: string, timeStr: string): boolean => {
   return false;
 };
 
+const capitalizeName = (str: string): string => {
+  return str
+    .split(' ')
+    .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1) : '')
+    .join(' ');
+};
+
 const StudentDashboard = () => {
   const { user } = useAuth();
   const initialName = String(user?.user_metadata?.full_name || user?.full_name || "Student");
@@ -797,7 +804,7 @@ const StudentDashboard = () => {
                 <form onSubmit={handleProfileUpdate} className="space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-sm font-semibold">Full Name</Label>
-                    <Input id="name" value={profileName} onChange={(e) => setProfileName(e.target.value)} className="bg-secondary/20 border-border/50" />
+                    <Input id="name" value={profileName} onChange={(e) => setProfileName(capitalizeName(e.target.value))} className="bg-secondary/20 border-border/50" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-semibold">Email Address <span className="text-xs font-normal text-muted-foreground">(Cannot be changed)</span></Label>
