@@ -113,7 +113,7 @@ const AIFutureSkills = () => {
           orderId: orderData.orderId,
           coursePaymentId: orderData.coursePayment._id,
           amount: orderData.amount,
-          price: selectedPlan === 'assessment' ? 150 : 1500,
+          price: selectedPlan === 'assessment' ? 1 : 1500,
           purchaseType: selectedPlan,
           studentName,
           studentEmail
@@ -332,7 +332,7 @@ const AIFutureSkills = () => {
                       <span className="text-xs text-muted-foreground block leading-tight">Evaluate coding and AI skills before shortlisting</span>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="font-extrabold text-xl block text-teal-600">₹150</span>
+                      <span className="font-extrabold text-xl block text-teal-600">₹1</span>
                       <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground block">one-time</span>
                     </div>
                   </div>
@@ -343,7 +343,7 @@ const AIFutureSkills = () => {
                       Two-Step Enrollment Process:
                     </h5>
                     <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
-                      <li>Pay ₹150 and complete the skills assessment.</li>
+                      <li>Pay ₹1 and complete the skills assessment.</li>
                       <li>Selected students will receive an email invitation to enroll in the full course (₹1,500).</li>
                     </ol>
                   </div>
@@ -393,7 +393,7 @@ const AIFutureSkills = () => {
                   <div className="bg-teal-500/10 border border-teal-500/20 rounded-2xl p-4 text-center space-y-2">
                     <Check className="mx-auto h-8 w-8 text-teal-600" />
                     <p className="text-sm font-bold text-teal-800 dark:text-teal-300">Assessment Registered</p>
-                    <p className="text-xs text-muted-foreground leading-normal">Your ₹150 assessment payment is verified. Admins will review your score and update shortlisting results shortly.</p>
+                    <p className="text-xs text-muted-foreground leading-normal">Your ₹1 assessment payment is verified. Admins will review your score and update shortlisting results shortly.</p>
                   </div>
                 ) : (
                   <Button
@@ -407,7 +407,7 @@ const AIFutureSkills = () => {
                         Initiating Order...
                       </span>
                     ) : (
-                      "Register for Assessment - ₹150"
+                      "Register for Assessment - ₹1"
                     )}
                   </Button>
                 )}

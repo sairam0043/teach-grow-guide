@@ -259,7 +259,7 @@ router.post('/create-course-order', async (req, res) => {
       }
     }
 
-    const secureAmount = purchaseType === 'assessment' ? 150 : 1500;
+    const secureAmount = purchaseType === 'assessment' ? 1 : 1500;
     const amountInPaise = Math.round(secureAmount * 100);
 
     // Create a pending payment record
@@ -372,7 +372,7 @@ router.post('/verify-course-payment', async (req, res) => {
 
       const emailText = coursePayment.purchaseType === 'full_course'
         ? `Hello ${coursePayment.studentName},\n\nCongratulations! Your payment of ₹1500 has been successfully processed, and you are officially enrolled in the "AI Future Skills Program"!\n\nCourse Details:\n- Starting Date: 1 July 2026\n- Schedule: 1 Hour Daily (Weekdays)\n- Mode: 100% Online Live Interactive Classes\n\nThe live class link and details will be shared with you shortly. If you have any questions, please contact our support team at support@cuvasol.com or +91 95385 17963.\n\nCorporate Address:\nCuvasol Technologies Private Limited, HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura, Bangalore 560016, Karnataka, IN.`
-        : `Hello ${coursePayment.studentName},\n\nThank you for registering for the "AI Future Skills Program" assessment. Your payment of ₹150 has been successfully processed.\n\nPlease complete your assessment at the following link:\n${assessmentUrl}\n\nImportant Notes:\n- This assessment link is active for only 24 hours from the time of this email registration.\n- You can attempt the assessment only once.\n- Please make sure you are logged in to your student account before clicking the link.\n\nIf you have any questions, please contact our support team at support@cuvasol.com or +91 95385 17963.\n\nCorporate Address:\nCuvasol Technologies Private Limited, HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura, Bangalore 560016, Karnataka, IN.`;
+        : `Hello ${coursePayment.studentName},\n\nThank you for registering for the "AI Future Skills Program" assessment. Your payment of ₹1 has been successfully processed.\n\nPlease complete your assessment at the following link:\n${assessmentUrl}\n\nImportant Notes:\n- This assessment link is active for only 24 hours from the time of this email registration.\n- You can attempt the assessment only once.\n- Please make sure you are logged in to your student account before clicking the link.\n\nIf you have any questions, please contact our support team at support@cuvasol.com or +91 95385 17963.\n\nCorporate Address:\nCuvasol Technologies Private Limited, HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura, Bangalore 560016, Karnataka, IN.`;
 
       const emailHtml = coursePayment.purchaseType === 'full_course'
         ? `
@@ -401,7 +401,7 @@ router.post('/verify-course-payment', async (req, res) => {
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
             <h2 style="color: #0d9488; text-align: center;">Assessment Registration Confirmed</h2>
             <p>Hello <strong>${coursePayment.studentName}</strong>,</p>
-            <p>Thank you for registering for the <strong>AI Future Skills Program</strong> assessment. Your payment of <strong>₹150</strong> has been successfully processed.</p>
+            <p>Thank you for registering for the <strong>AI Future Skills Program</strong> assessment. Your payment of <strong>₹1</strong> has been successfully processed.</p>
             <p>Please click the button below to start your assessment:</p>
             
             <div style="text-align: center; margin: 25px 0;">
