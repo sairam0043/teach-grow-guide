@@ -67,28 +67,30 @@ export default function ThemeSwitcher({ mode = "desktop" }: ThemeSwitcherProps) 
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground px-1 mb-1">
           App Theme
         </span>
-        <div className="grid grid-cols-2 gap-2">
-          {themes.map((t) => {
-            const IconComponent = t.icon;
-            const isActive = theme === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTheme(t.id)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all duration-300 ${
-                  isActive
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm scale-[1.02]"
-                    : "bg-background hover:bg-secondary/50 text-foreground border-border/40 hover:border-primary/20"
-                }`}
-              >
-                <div className={`p-1 rounded-lg ${isActive ? "bg-white/20 text-white" : t.colorClass}`}>
-                  <IconComponent className="h-3.5 w-3.5" />
-                </div>
-                <span className="truncate flex-1">{t.name}</span>
-                {isActive && <Check className="h-3 w-3 shrink-0 ml-1" />}
-              </button>
-            );
-          })}
+        <div className="max-h-60 overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-2">
+            {themes.map((t) => {
+              const IconComponent = t.icon;
+              const isActive = theme === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-xs font-semibold border transition-all duration-300 ${
+                    isActive
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm scale-[1.02]"
+                      : "bg-background hover:bg-secondary/50 text-foreground border-border/40 hover:border-primary/20"
+                  }`}
+                >
+                  <div className={`p-1 rounded-lg ${isActive ? "bg-white/20 text-white" : t.colorClass}`}>
+                    <IconComponent className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="truncate flex-1">{t.name}</span>
+                  {isActive && <Check className="h-3 w-3 shrink-0 ml-1" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -111,29 +113,31 @@ export default function ThemeSwitcher({ mode = "desktop" }: ThemeSwitcherProps) 
           Select Theme
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="my-1 bg-border/40" />
-        {themes.map((t) => {
-          const IconComponent = t.icon;
-          const isActive = theme === t.id;
-          return (
-            <DropdownMenuItem
-              key={t.id}
-              onClick={() => setTheme(t.id)}
-              className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm cursor-pointer transition-colors duration-200 ${
-                isActive
-                  ? "bg-primary/10 text-primary font-semibold"
-                  : "text-foreground hover:bg-secondary"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className={`p-1 rounded-md ${isActive ? "bg-primary/25 text-primary" : t.colorClass}`}>
-                  <IconComponent className="h-3.5 w-3.5" />
+        <div className="max-h-80 overflow-y-auto pr-1">
+          {themes.map((t) => {
+            const IconComponent = t.icon;
+            const isActive = theme === t.id;
+            return (
+              <DropdownMenuItem
+                key={t.id}
+                onClick={() => setTheme(t.id)}
+                className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm cursor-pointer transition-colors duration-200 ${
+                  isActive
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "text-foreground hover:bg-secondary"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1 rounded-md ${isActive ? "bg-primary/25 text-primary" : t.colorClass}`}>
+                    <IconComponent className="h-3.5 w-3.5" />
+                  </div>
+                  <span>{t.name}</span>
                 </div>
-                <span>{t.name}</span>
-              </div>
-              {isActive && <Check className="h-4 w-4 text-primary shrink-0" />}
-            </DropdownMenuItem>
-          );
-        })}
+                {isActive && <Check className="h-4 w-4 text-primary shrink-0" />}
+              </DropdownMenuItem>
+            );
+          })}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
