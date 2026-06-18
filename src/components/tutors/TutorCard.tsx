@@ -49,7 +49,7 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
       <div className="p-5">
         <div className="mb-2 flex items-start justify-between">
           <div>
-            <h3 className="font-serif text-lg text-card-foreground">{tutor.name}</h3>
+            <h3 className="font-serif text-lg text-card-foreground capitalize">{tutor.name}</h3>
             <p className="text-sm text-muted-foreground">{tutor.experience} years experience</p>
           </div>
           <div className="flex items-center gap-1 text-sm">

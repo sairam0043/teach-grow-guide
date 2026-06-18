@@ -881,7 +881,7 @@ const TutorProfile = () => {
                   <Badge className="bg-primary text-primary-foreground">{tutor.category}</Badge>
                   <Badge variant="secondary">{tutor.mode}</Badge>
                 </div>
-                <h1 className="mb-1 text-3xl font-bold text-foreground">{tutor.name}</h1>
+                <h1 className="mb-1 text-3xl font-bold text-foreground capitalize">{tutor.name}</h1>
                 <p className="mb-2 text-muted-foreground">{tutor.qualification}</p>
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">

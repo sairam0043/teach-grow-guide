@@ -259,7 +259,7 @@ const AdminDashboard = () => {
                                   )}
                                 </div>
                                 <div className="flex flex-col">
-                                  <span className="font-semibold text-foreground leading-tight text-sm">{tutor.name || "–"}</span>
+                                  <span className="font-semibold text-foreground leading-tight text-sm capitalize">{tutor.name || "–"}</span>
                                   <span className="text-[11px] text-muted-foreground mt-0.5">{tutor.city || "Remote"}</span>
                                 </div>
                               </div>
@@ -377,7 +377,7 @@ const AdminDashboard = () => {
                                   )}
                                 </div>
                                 <div className="flex flex-col">
-                                  <span className="font-semibold text-foreground leading-tight text-sm">{tutor.name || "–"}</span>
+                                  <span className="font-semibold text-foreground leading-tight text-sm capitalize">{tutor.name || "–"}</span>
                                   <span className="text-[11px] text-muted-foreground mt-0.5">{tutor.city || "Remote"}</span>
                                 </div>
                               </div>

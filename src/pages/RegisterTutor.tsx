@@ -18,6 +18,13 @@ import axios from "axios";
 import API_URL from "@/config/api";
 import { detectUserTimeZone, COMMON_TIMEZONES } from "@/utils/timezone";
 
+const capitalizeName = (str: string): string => {
+  return str
+    .split(' ')
+    .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1) : '')
+    .join(' ');
+};
+
 const academicSubjects = [
   "Mathematics", 
   "Physics", 
@@ -297,7 +304,7 @@ const RegisterTutor = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input id="name" required maxLength={100} value={name} onChange={(e) => setName(capitalizeName(e.target.value))} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
