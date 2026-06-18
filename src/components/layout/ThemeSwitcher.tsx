@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sun, Moon, Eclipse, Leaf, Sparkles, Check, Flame, Waves, Snowflake, Zap, Heart, Coffee, Crown, Orbit } from "lucide-react";
+import { Sun, Moon, Eclipse, Leaf, Sparkles, Check, Flame, Waves, Snowflake, Zap, Heart, Coffee, Crown, Orbit, BookOpen, Smile, Compass, Feather, Sliders, Award, Shield, Activity, Gamepad2, Settings } from "lucide-react";
 
 const themes = [
   { id: "light", name: "Day Mode", icon: Sun, colorClass: "text-amber-500 bg-amber-500/10" },
@@ -25,6 +25,16 @@ const themes = [
   { id: "dark-mocha", name: "Chocolate Mocha", icon: Coffee, colorClass: "text-yellow-600 bg-yellow-600/10" },
   { id: "dark-crimson", name: "Crimson Velvet", icon: Crown, colorClass: "text-red-500 bg-red-500/10" },
   { id: "dark-nebula", name: "Nebula Abyss", icon: Orbit, colorClass: "text-fuchsia-400 bg-fuchsia-400/10" },
+  { id: "light-blue", name: "Light Royal Blue", icon: BookOpen, colorClass: "text-blue-500 bg-blue-500/10" },
+  { id: "light-rose", name: "Light Rose Blossom", icon: Smile, colorClass: "text-rose-500 bg-rose-500/10" },
+  { id: "light-amber", name: "Light Amber Sunshine", icon: Compass, colorClass: "text-amber-600 bg-amber-600/10" },
+  { id: "light-lavender", name: "Light Lavender Fields", icon: Feather, colorClass: "text-purple-500 bg-purple-500/10" },
+  { id: "light-slate", name: "Light Sleek Steel", icon: Sliders, colorClass: "text-slate-500 bg-slate-500/10" },
+  { id: "dark-gold", name: "Dark Amber Gold", icon: Award, colorClass: "text-yellow-500 bg-yellow-500/10" },
+  { id: "dark-coral", name: "Dark Coral Ember", icon: Shield, colorClass: "text-orange-500 bg-orange-500/10" },
+  { id: "dark-mint", name: "Dark Mint Fresh", icon: Activity, colorClass: "text-emerald-400 bg-emerald-400/10" },
+  { id: "dark-indigo", name: "Dark Electric Indigo", icon: Gamepad2, colorClass: "text-indigo-400 bg-indigo-400/10" },
+  { id: "dark-steel", name: "Dark Charcoal Steel", icon: Settings, colorClass: "text-slate-400 bg-slate-400/10" },
 ];
 
 interface ThemeSwitcherProps {

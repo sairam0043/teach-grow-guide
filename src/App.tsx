@@ -44,7 +44,17 @@ const App = () => (
         "dark-sakura",
         "dark-mocha",
         "dark-crimson",
-        "dark-nebula"
+        "dark-nebula",
+        "light-blue",
+        "light-rose",
+        "light-amber",
+        "light-lavender",
+        "light-slate",
+        "dark-gold",
+        "dark-coral",
+        "dark-mint",
+        "dark-indigo",
+        "dark-steel"
       ]}
       enableSystem={false}
     >
