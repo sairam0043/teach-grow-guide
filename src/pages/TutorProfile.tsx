@@ -956,7 +956,7 @@ const TutorProfile = () => {
                 <CardHeader>
                   <CardTitle>Availability Schedule</CardTitle>
                   <CardDescription>
-                    All timings are shown in the tutor's local timezone: <span className="font-semibold text-foreground">{tutor.timezone ? getTimeZoneAbbreviation(tutor.timezone) : 'IST'}</span>
+                    All timings are shown in the tutor's local timezone: <span className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white dark:bg-amber-600 shadow-sm">{tutor.timezone ? getTimeZoneAbbreviation(tutor.timezone) : 'IST'}</span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

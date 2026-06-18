@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import ThemeSwitcher from "./ThemeSwitcher";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -50,6 +51,7 @@ const Header = () => {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          <ThemeSwitcher mode="desktop" />
           {user ? (
             <>
               <Button variant="ghost" asChild>
@@ -99,6 +101,9 @@ const Header = () => {
                 {link.label}
               </Link>
             ))}
+            <div className="mt-3 mb-1">
+              <ThemeSwitcher mode="mobile" />
+            </div>
             <div className="mt-2 flex flex-col gap-2">
               {user ? (
                 <>

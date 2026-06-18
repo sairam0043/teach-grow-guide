@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -27,12 +28,32 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      themes={[
+        "light",
+        "dark-midnight",
+        "dark-oled",
+        "dark-forest",
+        "dark-purple",
+        "dark-sunset",
+        "dark-ocean",
+        "dark-nordic",
+        "dark-neon",
+        "dark-sakura",
+        "dark-mocha",
+        "dark-crimson",
+        "dark-nebula"
+      ]}
+      enableSystem={false}
+    >
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/tutors" element={<BrowseTutors />} />
             <Route path="/tutors/:id" element={<TutorProfile />} />
@@ -69,6 +90,7 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
