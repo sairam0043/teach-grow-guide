@@ -15,6 +15,7 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import AIFutureSkills from "./pages/AIFutureSkills";
 import AIFullCourseEnrollment from "./pages/AIFullCourseEnrollment";
+import AIAssessment from "./pages/AIAssessment";
 import Terms from "./pages/Terms";
 import Login from "./pages/Login";
 import RegisterStudent from "./pages/RegisterStudent";
@@ -91,6 +92,10 @@ const App = () => (
             <Route 
               path="/ai-program/enroll" 
               element={<ProtectedRoute allowedRoles={["student"]}><AIFullCourseEnrollment /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/ai-program/take-assessment/:paymentId" 
+              element={<ProtectedRoute allowedRoles={["student"]}><AIAssessment /></ProtectedRoute>} 
             />
             <Route path="/terms" element={<Terms />} />
             <Route path="/login" element={<Login />} />

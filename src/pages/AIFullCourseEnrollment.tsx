@@ -315,7 +315,7 @@ const AIFullCourseEnrollment = () => {
                 Enrollment Guarantee
               </h4>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                By completing this checkout, your seat in the batch starting **21 June 2026** is reserved. Daily class links, learning material logins, and mentor group details will be emailed to **{user.email}** within 24 hours of enrollment.
+                By completing this checkout, your seat in the batch starting **1 July 2026** is reserved. Daily class links, learning material logins, and mentor group details will be emailed to **{user.email}** within 24 hours of enrollment.
               </p>
             </div>
           </div>
@@ -345,7 +345,7 @@ const AIFullCourseEnrollment = () => {
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center space-y-2">
                     <CheckCircle className="mx-auto h-8 w-8 text-emerald-600 animate-bounce" />
                     <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Already Enrolled!</p>
-                    <p className="text-xs text-muted-foreground leading-normal">You are successfully enrolled in the full course. Classes start on June 21, 2026.</p>
+                    <p className="text-xs text-muted-foreground leading-normal">You are successfully enrolled in the full course. Classes start on July 1, 2026.</p>
                     <Button variant="outline" className="w-full border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/5 mt-2" asChild>
                       <Link to="/dashboard/student">Go to Student Dashboard</Link>
                     </Button>

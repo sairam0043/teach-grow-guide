@@ -364,13 +364,15 @@ router.post('/verify-course-payment', async (req, res) => {
 
     // Send confirmation email via SMTP
     try {
+      const assessmentUrl = `${getFrontendUrl(req)}/ai-program/take-assessment/${coursePayment._id}`;
+
       const emailSubject = coursePayment.purchaseType === 'full_course' 
         ? 'Enrollment Confirmed: AI Future Skills Program'
         : 'Registration Confirmed: AI Future Skills Assessment';
 
       const emailText = coursePayment.purchaseType === 'full_course'
-        ? `Hello ${coursePayment.studentName},\n\nCongratulations! Your payment of ₹1500 has been successfully processed, and you are officially enrolled in the "AI Future Skills Program"!\n\nCourse Details:\n- Starting Date: 21 June 2026\n- Schedule: 1 Hour Daily (Weekdays)\n- Mode: 100% Online Live Interactive Classes\n\nThe live class link and details will be shared with you shortly. If you have any questions, please contact our support team at support@cuvasol.com or +91 95385 17963.\n\nCorporate Address:\nCuvasol Technologies Private Limited, HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura, Bangalore 560016, Karnataka, IN.`
-        : `Hello ${coursePayment.studentName},\n\nThank you for registering for the "AI Future Skills Program" assessment. Your payment of ₹150 has been successfully processed.\n\nAssessment details and schedule will be sent to this email address shortly. If you have any questions, please contact our support team at support@cuvasol.com or +91 95385 17963.\n\nCorporate Address:\nCuvasol Technologies Private Limited, HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura, Bangalore 560016, Karnataka, IN.`;
+        ? `Hello ${coursePayment.studentName},\n\nCongratulations! Your payment of ₹1500 has been successfully processed, and you are officially enrolled in the "AI Future Skills Program"!\n\nCourse Details:\n- Starting Date: 1 July 2026\n- Schedule: 1 Hour Daily (Weekdays)\n- Mode: 100% Online Live Interactive Classes\n\nThe live class link and details will be shared with you shortly. If you have any questions, please contact our support team at support@cuvasol.com or +91 95385 17963.\n\nCorporate Address:\nCuvasol Technologies Private Limited, HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura, Bangalore 560016, Karnataka, IN.`
+        : `Hello ${coursePayment.studentName},\n\nThank you for registering for the "AI Future Skills Program" assessment. Your payment of ₹150 has been successfully processed.\n\nPlease complete your assessment at the following link:\n${assessmentUrl}\n\nImportant Notes:\n- This assessment link is active for only 24 hours from the time of this email registration.\n- You can attempt the assessment only once.\n- Please make sure you are logged in to your student account before clicking the link.\n\nIf you have any questions, please contact our support team at support@cuvasol.com or +91 95385 17963.\n\nCorporate Address:\nCuvasol Technologies Private Limited, HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura, Bangalore 560016, Karnataka, IN.`;
 
       const emailHtml = coursePayment.purchaseType === 'full_course'
         ? `
@@ -381,7 +383,7 @@ router.post('/verify-course-payment', async (req, res) => {
             <div style="background-color: #f0fdfa; padding: 15px; border-radius: 6px; border: 1px solid #ccfbf1; margin: 20px 0;">
               <h4 style="margin-top: 0; color: #0f766e;">Course Details:</h4>
               <ul style="line-height: 1.6; margin-bottom: 0; padding-left: 20px;">
-                <li><strong>Course Starts:</strong> 21 June 2026</li>
+                <li><strong>Course Starts:</strong> 1 July 2026</li>
                 <li><strong>Schedule:</strong> 1 Hour Daily (Weekdays)</li>
                 <li><strong>Mode:</strong> 100% Online Live Classes</li>
               </ul>
@@ -400,7 +402,23 @@ router.post('/verify-course-payment', async (req, res) => {
             <h2 style="color: #0d9488; text-align: center;">Assessment Registration Confirmed</h2>
             <p>Hello <strong>${coursePayment.studentName}</strong>,</p>
             <p>Thank you for registering for the <strong>AI Future Skills Program</strong> assessment. Your payment of <strong>₹150</strong> has been successfully processed.</p>
-            <p>The assessment guidelines, schedule, and test link will be sent to you shortly.</p>
+            <p>Please click the button below to start your assessment:</p>
+            
+            <div style="text-align: center; margin: 25px 0;">
+              <a href="${assessmentUrl}" style="background-color: #0d9488; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; font-size: 16px;">
+                Start Assessment
+              </a>
+            </div>
+            
+            <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fee2e2; margin: 20px 0; font-size: 13px; color: #991b1b;">
+              <strong>Important Guidelines:</strong>
+              <ul style="margin-top: 5px; margin-bottom: 0; padding-left: 20px;">
+                <li>The link is active for <strong>only 24 hours</strong> from registration.</li>
+                <li>You can only attempt the assessment <strong>one time</strong>.</li>
+                <li>Ensure you are logged into your student account on the website before starting.</li>
+              </ul>
+            </div>
+            
             <p>If you have any questions or need support, feel free to contact us at <a href="mailto:support@cuvasol.com">support@cuvasol.com</a> or call us at <strong>+91 95385 17963</strong>.</p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
             <p style="font-size: 11px; color: #777;">
@@ -530,6 +548,110 @@ router.get('/check-enrollment-status/:studentId', async (req, res) => {
     });
   } catch (err) {
     console.error('[Course Payments] Error in checking enrollment status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/payments/assessment/:paymentId
+router.get('/assessment/:paymentId', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const payment = await CoursePayment.findById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ message: "Assessment record not found" });
+    }
+
+    if (payment.purchaseType !== 'assessment' || payment.status !== 'completed') {
+      return res.status(400).json({ message: "Invalid or inactive assessment reference" });
+    }
+
+    if (payment.assessmentAttempted) {
+      return res.json({
+        status: 'attempted',
+        studentName: payment.studentName,
+        attemptedAt: payment.assessmentAttemptedAt,
+        score: payment.assessmentScore
+      });
+    }
+
+    const completedTime = new Date(payment.updatedAt).getTime();
+    const expiryWindow = 24 * 60 * 60 * 1000; // 24 hours
+    const elapsed = Date.now() - completedTime;
+
+    if (elapsed > expiryWindow) {
+      return res.json({
+        status: 'expired',
+        studentName: payment.studentName,
+        registeredAt: payment.updatedAt
+      });
+    }
+
+    res.json({
+      status: 'valid',
+      studentName: payment.studentName,
+      studentEmail: payment.studentEmail,
+      remainingMs: expiryWindow - elapsed
+    });
+  } catch (err) {
+    console.error('[Course Payments] Error checking assessment status:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/payments/assessment/:paymentId/submit
+router.post('/assessment/:paymentId/submit', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { answers } = req.body;
+
+    const payment = await CoursePayment.findById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ message: "Assessment record not found" });
+    }
+
+    if (payment.purchaseType !== 'assessment' || payment.status !== 'completed') {
+      return res.status(400).json({ message: "Invalid or inactive assessment reference" });
+    }
+
+    if (payment.assessmentAttempted) {
+      return res.status(400).json({ message: "Assessment has already been attempted. Only one attempt is allowed." });
+    }
+
+    const completedTime = new Date(payment.updatedAt).getTime();
+    const expiryWindow = 24 * 60 * 60 * 1000;
+    const elapsed = Date.now() - completedTime;
+
+    if (elapsed > expiryWindow) {
+      return res.status(400).json({ message: "Assessment link has expired (24-hour limit exceeded)." });
+    }
+
+    // Auto-grade the multiple-choice questions
+    // Q1 Correct: "Artificial Intelligence"
+    // Q2 Correct: "Writing instructions to guide an AI's response"
+    // Q3 Correct: "An AI generating false or fabricated information that appears convincing"
+    // Q4 Correct: "Reviewing AI output for bias, truthfulness, and safety"
+    let score = 0;
+    if (answers) {
+      if (answers.q1 === "Artificial Intelligence") score += 25;
+      if (answers.q2 === "Writing instructions to guide an AI's response") score += 25;
+      if (answers.q3 === "Hallucination") score += 25;
+      if (answers.q4 === "Reviewing AI output for bias, truthfulness, and safety") score += 25;
+    }
+
+    payment.assessmentAttempted = true;
+    payment.assessmentAttemptedAt = new Date();
+    payment.assessmentAnswers = answers || {};
+    payment.assessmentScore = score;
+
+    await payment.save();
+
+    res.json({
+      success: true,
+      score,
+      message: "Assessment submitted and graded successfully!"
+    });
+  } catch (err) {
+    console.error('[Course Payments] Error submitting assessment:', err);
     res.status(500).json({ error: err.message });
   }
 });

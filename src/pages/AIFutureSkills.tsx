@@ -262,8 +262,8 @@ const AIFutureSkills = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
                 { icon: Clock, value: "1 Hour Daily", label: "Weekdays schedule" },
-                { icon: Calendar, value: "21 June 2026", label: "Program starts" },
-                { icon: BookOpen, value: "1 Month", label: "Full program length" },
+                { icon: Calendar, value: "1 July 2026", label: "Program starts" },
+                { icon: BookOpen, value: "30 Days", label: "Interactive Program" },
                 { icon: Award, value: "Verifiable Cert", label: "Completion certificate" }
               ].map((item, idx) => (
                 <div key={idx} className="bg-secondary/20 border border-border/40 p-4 rounded-2xl text-center space-y-1 hover:bg-secondary/40 transition-colors">
@@ -375,7 +375,7 @@ const AIFutureSkills = () => {
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center space-y-2">
                     <CheckCircle className="mx-auto h-8 w-8 text-emerald-600 animate-bounce" />
                     <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Already Enrolled!</p>
-                    <p className="text-xs text-muted-foreground leading-normal">You are successfully enrolled in the full course. Classes start on June 21, 2026.</p>
+                    <p className="text-xs text-muted-foreground leading-normal">You are successfully enrolled in the full course. Classes start on July 1, 2026.</p>
                     <Button variant="outline" className="w-full border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/5 mt-2" asChild>
                       <Link to="/dashboard/student">Go to Student Dashboard</Link>
                     </Button>

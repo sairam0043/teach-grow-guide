@@ -31,10 +31,17 @@ const AdminDashboard = () => {
   const [loadingCoursePayments, setLoadingCoursePayments] = useState(false);
   const [selectedTutorForDetail, setSelectedTutorForDetail] = useState<any | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedAssessmentPayment, setSelectedAssessmentPayment] = useState<any | null>(null);
+  const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
 
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
     setIsDetailDialogOpen(true);
+  };
+
+  const handleViewAnswers = (payment: any) => {
+    setSelectedAssessmentPayment(payment);
+    setIsAnswersDialogOpen(true);
   };
 
   const fetchPayouts = async () => {
@@ -657,6 +664,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Email</TableHead>
                           <TableHead className="font-bold h-12">Purchase Type</TableHead>
                           <TableHead className="font-bold h-12">Payment Status</TableHead>
+                          <TableHead className="font-bold h-12">Assessment Status</TableHead>
                           <TableHead className="font-bold h-12 text-right">Amount</TableHead>
                           <TableHead className="font-bold h-12 text-right px-6">Action</TableHead>
                         </TableRow>
@@ -686,6 +694,35 @@ const AdminDashboard = () => {
                               }`}>
                                 {payment.status.toUpperCase().replace('_', ' ')}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {payment.purchaseType === 'assessment' && payment.status === 'completed' ? (
+                                payment.assessmentAttempted ? (
+                                  <Badge 
+                                    className="bg-teal-600 hover:bg-teal-700 text-white font-bold cursor-pointer text-[10px]"
+                                    onClick={() => handleViewAnswers(payment)}
+                                    title="Click to view answers"
+                                  >
+                                    Attempted ({payment.assessmentScore}/100)
+                                  </Badge>
+                                ) : (
+                                  (() => {
+                                    const completedTime = new Date(payment.updatedAt).getTime();
+                                    const isExpired = Date.now() - completedTime > 24 * 60 * 60 * 1000;
+                                    return isExpired ? (
+                                      <Badge variant="outline" className="bg-rose-50 border-rose-200 text-rose-700 text-[10px]">
+                                        Expired
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700 text-[10px] animate-pulse">
+                                        Pending (Active)
+                                      </Badge>
+                                    );
+                                  })()
+                                )
+                              ) : (
+                                <span className="text-muted-foreground text-xs">–</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right font-extrabold text-foreground text-sm">₹{payment.amountPaid}</TableCell>
                             <TableCell className="text-right px-6">
@@ -1158,6 +1195,119 @@ const AdminDashboard = () => {
                   </Button>
                 )}
                 <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Assessment Answers Dialog */}
+      <Dialog open={isAnswersDialogOpen} onOpenChange={setIsAnswersDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-teal-600" />
+              AI Assessment Review
+            </DialogTitle>
+            <DialogDescription>
+              Reviewing quiz responses submitted by {selectedAssessmentPayment?.studentName}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAssessmentPayment && (
+            <div className="space-y-6 mt-4">
+              {/* Score / Meta summary */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-teal-500/15 via-teal-500/5 to-transparent border border-teal-500/20 rounded-2xl">
+                <div>
+                  <h4 className="font-bold text-foreground text-sm">Graded Assessment Score</h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Submitted: {selectedAssessmentPayment.assessmentAttemptedAt ? new Date(selectedAssessmentPayment.assessmentAttemptedAt).toLocaleString() : "N/A"}
+                  </p>
+                </div>
+                <div className="text-center bg-teal-600 text-white font-extrabold px-6 py-2 rounded-xl text-xl shadow-sm">
+                  {selectedAssessmentPayment.assessmentScore}/100
+                </div>
+              </div>
+
+              {/* Answers details */}
+              <div className="space-y-4">
+                {[
+                  {
+                    id: "q1",
+                    question: "What does 'AI' stand for?",
+                    correct: "Artificial Intelligence"
+                  },
+                  {
+                    id: "q2",
+                    question: "What is prompt engineering?",
+                    correct: "Writing instructions to guide an AI's response"
+                  },
+                  {
+                    id: "q3",
+                    question: "If an AI gives an answer that looks correct but is completely made up, what is this called?",
+                    correct: "Hallucination"
+                  },
+                  {
+                    id: "q4",
+                    question: "Which of the following is a key practice of AI safety and ethics?",
+                    correct: "Reviewing AI output for bias, truthfulness, and safety"
+                  }
+                ].map((q, idx) => {
+                  const studentAns = selectedAssessmentPayment.assessmentAnswers?.[q.id];
+                  const isCorrect = studentAns === q.correct;
+
+                  return (
+                    <div key={q.id} className="p-4 border border-border/40 rounded-xl space-y-2.5 bg-card">
+                      <div className="font-bold text-sm text-foreground flex items-start gap-2">
+                        <span className="h-5 w-5 bg-secondary text-foreground text-[10px] rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        {q.question}
+                      </div>
+
+                      <div className="grid gap-2 text-xs">
+                        <div className={`p-2.5 rounded-lg flex items-center justify-between ${
+                          isCorrect 
+                            ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/25" 
+                            : "bg-rose-500/10 text-rose-800 dark:text-rose-300 border border-rose-500/25"
+                        }`}>
+                          <span>
+                            <strong>Student's Answer:</strong> {studentAns || "No answer submitted"}
+                          </span>
+                          {isCorrect ? (
+                            <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                          )}
+                        </div>
+
+                        {!isCorrect && (
+                          <div className="p-2.5 rounded-lg bg-emerald-500/5 text-emerald-800 dark:text-emerald-300 border border-emerald-500/15">
+                            <strong>Correct Option:</strong> {q.correct}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action */}
+              <div className="flex justify-end gap-2.5 pt-2 border-t">
+                {!selectedAssessmentPayment.shortlisted && (
+                  <Button 
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                    onClick={() => {
+                      handleShortlist(selectedAssessmentPayment._id);
+                      setIsAnswersDialogOpen(false);
+                    }}
+                  >
+                    Shortlist Student
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setIsAnswersDialogOpen(false)}>
                   Close
                 </Button>
               </div>
