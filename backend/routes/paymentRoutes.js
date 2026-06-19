@@ -625,33 +625,135 @@ router.post('/assessment/:paymentId/submit', async (req, res) => {
       return res.status(400).json({ message: "Assessment link has expired (24-hour limit exceeded)." });
     }
 
-    // Auto-grade the multiple-choice questions
-    // Q1 Correct: "Artificial Intelligence"
-    // Q2 Correct: "Writing instructions to guide an AI's response"
-    // Q3 Correct: "An AI generating false or fabricated information that appears convincing"
-    // Q4 Correct: "Reviewing AI output for bias, truthfulness, and safety"
-    let score = 0;
+    // Auto-grade the multiple-choice questions (Part A) and keyword grade the theoretical questions (Part B)
+    const MCQ_CORRECT = {
+      q1: "Artificial Intelligence",
+      q2: "A chatbot like ChatGPT",
+      q3: "By looking at thousands of labeled dog photos",
+      q4: "Writing clear instructions to guide an AI's response",
+      q5: "A hallucination",
+      q6: "AI models use data to find patterns and learn from examples",
+      q7: "A step-by-step set of instructions to solve a problem",
+      q8: "A robot has physical sensors and actuators to interact with the physical world",
+      q9: "An AI-generated fake video or image that looks extremely realistic",
+      q10: "Do not share personal details and check with a parent or teacher"
+    };
+
+    const THEORETICAL_KEYWORDS = {
+      t1: ["pattern", "data", "example", "train", "learn", "predict", "feature"],
+      t2: ["role", "context", "instruction", "topic", "friendly", "story", "robot", "detail"],
+      t3: ["fair", "bias", "unfair", "diverse", "mistake", "discrimination", "incorrect"],
+      t4: ["recommend", "map", "assistant", "easy", "save", "time", "search", "smart"],
+      t5: ["incorrect", "hallucination", "cheat", "plagiar", "check", "learn", "fact"]
+    };
+
+    let mcqScore = 0;
+    const questionsScores = {};
+
     if (answers) {
-      if (answers.q1 === "Artificial Intelligence") score += 25;
-      if (answers.q2 === "Writing instructions to guide an AI's response") score += 25;
-      if (answers.q3 === "Hallucination") score += 25;
-      if (answers.q4 === "Reviewing AI output for bias, truthfulness, and safety") score += 25;
+      // Grade Part A (MCQs) - 5 points each
+      Object.keys(MCQ_CORRECT).forEach((qid) => {
+        if (answers[qid] === MCQ_CORRECT[qid]) {
+          mcqScore += 5;
+          questionsScores[qid] = 5;
+        } else {
+          questionsScores[qid] = 0;
+        }
+      });
+
+      // Grade Part B (Theoretical Questions) - up to 10 points each
+      Object.keys(THEORETICAL_KEYWORDS).forEach((tid) => {
+        const studentAns = answers[tid] || "";
+        const studentAnsLower = studentAns.toLowerCase();
+        
+        let matchCount = 0;
+        THEORETICAL_KEYWORDS[tid].forEach((keyword) => {
+          if (studentAnsLower.includes(keyword)) {
+            matchCount++;
+          }
+        });
+
+        let qScore = 0;
+        if (matchCount === 1) qScore = 3;
+        else if (matchCount === 2) qScore = 6;
+        else if (matchCount >= 3) qScore = 10;
+
+        questionsScores[tid] = qScore;
+      });
     }
+
+    const theoreticalScore = Object.keys(THEORETICAL_KEYWORDS).reduce((acc, tid) => acc + (questionsScores[tid] || 0), 0);
+    const finalScore = mcqScore + theoreticalScore;
 
     payment.assessmentAttempted = true;
     payment.assessmentAttemptedAt = new Date();
     payment.assessmentAnswers = answers || {};
-    payment.assessmentScore = score;
+    payment.assessmentQuestionScores = questionsScores;
+    payment.assessmentScore = finalScore;
 
     await payment.save();
 
     res.json({
       success: true,
-      score,
+      score: finalScore,
+      questionScores: questionsScores,
       message: "Assessment submitted and graded successfully!"
     });
   } catch (err) {
     console.error('[Course Payments] Error submitting assessment:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/payments/assessment/:paymentId/update-score
+router.post('/assessment/:paymentId/update-score', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { questionScores } = req.body; // e.g. { t1: 8, t2: 10 }
+
+    const payment = await CoursePayment.findById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ message: "Assessment record not found" });
+    }
+
+    if (payment.purchaseType !== 'assessment' || payment.status !== 'completed') {
+      return res.status(400).json({ message: "Invalid or inactive assessment reference" });
+    }
+
+    if (!payment.assessmentAttempted) {
+      return res.status(400).json({ message: "Assessment has not been attempted yet" });
+    }
+
+    // Merge new scores into payment.assessmentQuestionScores
+    const currentScores = payment.assessmentQuestionScores || {};
+    let finalScore = 0;
+
+    const qids = [
+      'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10',
+      't1', 't2', 't3', 't4', 't5'
+    ];
+
+    qids.forEach((qid) => {
+      if (questionScores && questionScores[qid] !== undefined) {
+        currentScores[qid] = Number(questionScores[qid]);
+      }
+      finalScore += currentScores[qid] || 0;
+    });
+
+    payment.assessmentQuestionScores = currentScores;
+    payment.assessmentScore = finalScore;
+    payment.markModified('assessmentQuestionScores');
+
+    await payment.save();
+
+    res.json({
+      success: true,
+      score: finalScore,
+      questionScores: currentScores,
+      message: "Scores updated successfully!"
+    });
+  } catch (err) {
+    console.error('[Course Payments] Error updating assessment scores:', err);
     res.status(500).json({ error: err.message });
   }
 });

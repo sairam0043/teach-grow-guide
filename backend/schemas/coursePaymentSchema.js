@@ -13,6 +13,7 @@ const coursePaymentSchema = new mongoose.Schema({
   assessmentAttempted: { type: Boolean, default: false },
   assessmentAttemptedAt: { type: Date },
   assessmentAnswers: { type: mongoose.Schema.Types.Mixed },
+  assessmentQuestionScores: { type: mongoose.Schema.Types.Mixed },
   assessmentScore: { type: Number }
 }, { timestamps: true });
 

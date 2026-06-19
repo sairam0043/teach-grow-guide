@@ -33,6 +33,8 @@ const AdminDashboard = () => {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [selectedAssessmentPayment, setSelectedAssessmentPayment] = useState<any | null>(null);
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
+  const [editedScores, setEditedScores] = useState<Record<string, number>>({});
+  const [isSavingScores, setIsSavingScores] = useState(false);
 
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
@@ -41,7 +43,25 @@ const AdminDashboard = () => {
 
   const handleViewAnswers = (payment: any) => {
     setSelectedAssessmentPayment(payment);
+    setEditedScores(payment.assessmentQuestionScores || {});
     setIsAnswersDialogOpen(true);
+  };
+
+  const handleSaveScores = async () => {
+    if (!selectedAssessmentPayment) return;
+    try {
+      setIsSavingScores(true);
+      const res = await axios.post(`${API_URL}/payments/assessment/${selectedAssessmentPayment._id}/update-score`, {
+        questionScores: editedScores
+      });
+      toast.success("Assessment scores updated successfully!");
+      setCoursePayments(prev => prev.map(p => p._id === selectedAssessmentPayment._id ? { ...p, assessmentScore: res.data.score, assessmentQuestionScores: res.data.questionScores } : p));
+      setSelectedAssessmentPayment(prev => prev ? { ...prev, assessmentScore: res.data.score, assessmentQuestionScores: res.data.questionScores } : null);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update scores");
+    } finally {
+      setIsSavingScores(false);
+    }
   };
 
   const fetchPayouts = async () => {
@@ -1226,79 +1246,172 @@ const AdminDashboard = () => {
                     Submitted: {selectedAssessmentPayment.assessmentAttemptedAt ? new Date(selectedAssessmentPayment.assessmentAttemptedAt).toLocaleString() : "N/A"}
                   </p>
                 </div>
-                <div className="text-center bg-teal-600 text-white font-extrabold px-6 py-2 rounded-xl text-xl shadow-sm">
-                  {selectedAssessmentPayment.assessmentScore}/100
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const currentTotal = Object.keys(editedScores).reduce((acc, qid) => acc + (editedScores[qid] || 0), 0);
+                    const isModified = currentTotal !== selectedAssessmentPayment.assessmentScore;
+                    return (
+                      <div className="text-right">
+                        <span className="text-[10px] text-muted-foreground uppercase font-extrabold block">Total Score</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {isModified && (
+                            <span className="text-xs text-muted-foreground line-through mr-1">
+                              {selectedAssessmentPayment.assessmentScore}/100
+                            </span>
+                          )}
+                          <span className={`font-extrabold px-3 py-1.5 rounded-xl text-lg shadow-sm text-white ${isModified ? 'bg-indigo-600' : 'bg-teal-600'}`}>
+                            {currentTotal}/100
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
               {/* Answers details */}
-              <div className="space-y-4">
-                {[
-                  {
-                    id: "q1",
-                    question: "What does 'AI' stand for?",
-                    correct: "Artificial Intelligence"
-                  },
-                  {
-                    id: "q2",
-                    question: "What is prompt engineering?",
-                    correct: "Writing instructions to guide an AI's response"
-                  },
-                  {
-                    id: "q3",
-                    question: "If an AI gives an answer that looks correct but is completely made up, what is this called?",
-                    correct: "Hallucination"
-                  },
-                  {
-                    id: "q4",
-                    question: "Which of the following is a key practice of AI safety and ethics?",
-                    correct: "Reviewing AI output for bias, truthfulness, and safety"
-                  }
-                ].map((q, idx) => {
-                  const studentAns = selectedAssessmentPayment.assessmentAnswers?.[q.id];
-                  const isCorrect = studentAns === q.correct;
+              <div className="space-y-6">
+                {/* Part A: Multiple Choice Questions */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground border-b pb-1.5 flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4 text-teal-600" /> Part A: MCQs (Auto-Graded, 5 pts each)
+                  </h4>
+                  {[
+                    { id: "q1", question: "What does the 'AI' in 'AI Future Skills' stand for?", correct: "Artificial Intelligence" },
+                    { id: "q2", question: "Which of the following is an example of an AI-powered system that can write essays, answer questions, and write code?", correct: "A chatbot like ChatGPT" },
+                    { id: "q3", question: "How does a machine learning model learn to recognize a dog in an image?", correct: "By looking at thousands of labeled dog photos" },
+                    { id: "q4", question: "What is 'prompt engineering' in the context of generative AI?", correct: "Writing clear instructions to guide an AI's response" },
+                    { id: "q5", question: "When an AI chatbot creates an answer that sounds very convincing but is completely made up and incorrect, this is called:", correct: "A hallucination" },
+                    { id: "q6", question: "Why is data important for training Artificial Intelligence models?", correct: "AI models use data to find patterns and learn from examples" },
+                    { id: "q7", question: "What is an 'algorithm' in computer science?", correct: "A step-by-step set of instructions to solve a problem" },
+                    { id: "q8", question: "What is the main difference between a regular computer and an AI robot?", correct: "A robot has physical sensors and actuators to interact with the physical world" },
+                    { id: "q9", question: "What is a 'deepfake'?", correct: "An AI-generated fake video or image that looks extremely realistic" },
+                    { id: "q10", question: "If an AI tool asks you to upload personal details like your home address or phone number to test its features, what is the best practice?", correct: "Do not share personal details and check with a parent or teacher" }
+                  ].map((q, idx) => {
+                    const studentAns = selectedAssessmentPayment.assessmentAnswers?.[q.id];
+                    const isCorrect = studentAns === q.correct;
+                    const qScore = editedScores[q.id] || 0;
 
-                  return (
-                    <div key={q.id} className="p-4 border border-border/40 rounded-xl space-y-2.5 bg-card">
-                      <div className="font-bold text-sm text-foreground flex items-start gap-2">
-                        <span className="h-5 w-5 bg-secondary text-foreground text-[10px] rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                          {idx + 1}
-                        </span>
-                        {q.question}
-                      </div>
-
-                      <div className="grid gap-2 text-xs">
-                        <div className={`p-2.5 rounded-lg flex items-center justify-between ${
-                          isCorrect 
-                            ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/25" 
-                            : "bg-rose-500/10 text-rose-800 dark:text-rose-300 border border-rose-500/25"
-                        }`}>
-                          <span>
-                            <strong>Student's Answer:</strong> {studentAns || "No answer submitted"}
+                    return (
+                      <div key={q.id} className="p-3.5 border border-border/40 rounded-xl space-y-2 bg-card">
+                        <div className="font-semibold text-xs text-foreground flex items-start gap-2">
+                          <span className="h-5 w-5 bg-secondary text-foreground text-[10px] rounded-full flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                            {idx + 1}
                           </span>
-                          {isCorrect ? (
-                            <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
-                          ) : (
-                            <XCircle className="h-4 w-4 text-rose-600 shrink-0" />
-                          )}
+                          <span className="flex-1 leading-snug">{q.question}</span>
+                          <Badge variant="outline" className={`font-bold shrink-0 text-[10px] px-1.5 py-0.5 border-none ${isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                            {qScore} / 5 pts
+                          </Badge>
                         </div>
 
-                        {!isCorrect && (
-                          <div className="p-2.5 rounded-lg bg-emerald-500/5 text-emerald-800 dark:text-emerald-300 border border-emerald-500/15">
-                            <strong>Correct Option:</strong> {q.correct}
+                        <div className="grid gap-1.5 text-xs pl-7">
+                          <div className={`p-2 rounded-lg flex items-center justify-between ${
+                            isCorrect 
+                              ? "bg-emerald-500/5 text-emerald-800 dark:text-emerald-300 border border-emerald-500/10" 
+                              : "bg-rose-500/5 text-rose-800 dark:text-rose-300 border border-rose-500/10"
+                          }`}>
+                            <span className="leading-snug">
+                              <strong>Student's Answer:</strong> {studentAns || "No answer submitted"}
+                            </span>
+                            {isCorrect ? (
+                              <CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                            ) : (
+                              <XCircle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                            )}
                           </div>
-                        )}
+
+                          {!isCorrect && (
+                            <div className="p-2 rounded-lg bg-emerald-500/5 text-emerald-800 dark:text-emerald-300 border border-emerald-500/10">
+                              <strong>Correct Option:</strong> {q.correct}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
+                {/* Part B: Written Explanations */}
+                <div className="space-y-3 pt-2">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground border-b pb-1.5 flex items-center gap-1">
+                    <BookOpen className="h-4 w-4 text-teal-600" /> Part B: Written Explanations (Heuristic Auto-Graded, 10 pts max)
+                  </h4>
+                  {[
+                    { id: "t1", question: "In your own words, explain how an AI model learns to complete a task (like identifying fruits or predicting weather) without being explicitly programmed for it.", keywords: "patterns, data, examples, train, learn, predict, features" },
+                    { id: "t2", question: "Imagine you want an AI chatbot to help you write a science fiction story about a friendly robot. Write a good, detailed prompt that you would use to get the best result.", keywords: "role, context, instructions, topic, friendly, story, robot, details" },
+                    { id: "t3", question: "Why is it important to make sure that the data used to train AI models is fair and diverse? What could happen if the data is biased?", keywords: "fairness, bias, unfair, diverse, mistakes, discrimination, incorrect" },
+                    { id: "t4", question: "Identify one way you or your family uses AI in daily life (e.g., streaming recommendations, map navigation, voice helpers) and explain how it makes tasks easier.", keywords: "recommend, map, assistant, easier, save, time, search, smart" },
+                    { id: "t5", question: "If you use an AI tool to write an assignment or project for school, why is it risky to copy and paste the answer directly without reading or editing it?", keywords: "incorrect, hallucination, cheat, plagiarism, check, learn, fact" }
+                  ].map((t, idx) => {
+                    const studentAns = selectedAssessmentPayment.assessmentAnswers?.[t.id];
+                    const currentScore = editedScores[t.id] !== undefined ? editedScores[t.id] : 0;
+
+                    return (
+                      <div key={t.id} className="p-4 border border-border/40 rounded-xl space-y-3 bg-card shadow-sm">
+                        <div className="font-semibold text-xs text-foreground flex items-start gap-2">
+                          <span className="h-5 w-5 bg-secondary text-foreground text-[10px] rounded-full flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                            {idx + 11}
+                          </span>
+                          <span className="flex-1 leading-snug">{t.question}</span>
+                          <Badge variant="outline" className={`font-bold shrink-0 text-[10px] px-1.5 py-0.5 border-none ${currentScore >= 7 ? 'bg-indigo-100 text-indigo-700' : currentScore >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                            {currentScore} / 10 pts
+                          </Badge>
+                        </div>
+
+                        <div className="text-xs pl-7 space-y-2.5">
+                          {/* Student Answer Textarea display */}
+                          <div className="p-3 bg-secondary/10 rounded-xl border leading-relaxed text-muted-foreground italic min-h-[45px] whitespace-pre-wrap">
+                            {studentAns || "No response submitted."}
+                          </div>
+
+                          {/* Matching Guidelines */}
+                          <div className="text-[10px] text-muted-foreground leading-normal bg-secondary/5 p-2 rounded-lg border border-border/30">
+                            <strong>Grading Target Keywords:</strong> <code className="text-teal-600 dark:text-teal-400">{t.keywords}</code>
+                          </div>
+
+                          {/* Override controls */}
+                          <div className="flex items-center gap-3 mt-1.5 pt-1.5 border-t border-border/30">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground">Override Score:</span>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={0}
+                                max={10}
+                                value={currentScore}
+                                onChange={(e) => {
+                                  const val = Math.max(0, Math.min(10, Number(e.target.value)));
+                                  setEditedScores(prev => ({ ...prev, [t.id]: val }));
+                                }}
+                                className="w-14 h-8 text-center text-xs font-bold rounded-lg border border-border/50 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                              />
+                              <span className="text-xs text-muted-foreground">/ 10 pts</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Action */}
-              <div className="flex justify-end gap-2.5 pt-2 border-t">
+              <div className="flex justify-end gap-2.5 pt-4 border-t">
+                <Button 
+                  disabled={isSavingScores}
+                  variant="outline"
+                  onClick={handleSaveScores}
+                  className="border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/20 font-bold h-10 rounded-lg px-4 shadow-sm"
+                >
+                  {isSavingScores ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
+                      Saving...
+                    </span>
+                  ) : "Save Score Updates"}
+                </Button>
                 {!selectedAssessmentPayment.shortlisted && (
                   <Button 
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 rounded-lg px-4 shadow-sm"
                     onClick={() => {
                       handleShortlist(selectedAssessmentPayment._id);
                       setIsAnswersDialogOpen(false);
