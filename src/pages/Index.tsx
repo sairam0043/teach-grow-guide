@@ -52,14 +52,14 @@ const Index = () => {
       {/* Course Banner Advertisement */}
       <div className="w-full bg-secondary/30 border-b">
         <div className="container max-w-7xl px-4 py-3 sm:py-4">
-          <Link 
-            to="/ai-program" 
+          <Link
+            to="/ai-program"
             className="block overflow-hidden rounded-2xl border border-teal-500/20 hover:border-teal-500/50 transition-all duration-300 shadow-sm hover:shadow-md hover:scale-[1.005]"
           >
-            <img 
-              src="/ai-program-banner.png" 
-              alt="AI Future Skills Program" 
-              className="w-full h-auto block" 
+            <img
+              src="/ai-program-banner.png"
+              alt="AI Future Skills Program"
+              className="w-full h-auto block"
             />
           </Link>
         </div>
@@ -281,7 +281,7 @@ const Index = () => {
         <div className="container">
           <div className="rounded-2xl bg-primary p-10 text-center md:p-16">
             <h2 className="mb-4 text-3xl font-bold text-primary-foreground md:text-4xl">Ready to Start Learning?</h2>
-            <p className="mb-8 text-lg text-primary-foreground/80">Join thousands of students already learning with Cuvasol Tutor</p>
+            <p className="mb-8 text-lg text-primary-foreground/80">Join with Cuvasol Tutor</p>
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Button size="lg" variant="secondary" asChild>
                 <Link to="/register/student">Get Started Free</Link>

@@ -246,7 +246,7 @@ const AIFullCourseEnrollment = () => {
             <div className="bg-secondary/30 rounded-xl p-4 border border-border/40 text-left text-xs mt-6 space-y-2">
               <span className="font-bold text-foreground block">How to enroll:</span>
               <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
-                <li>Go to the main course page and register for the assessment (₹1).</li>
+                <li>Go to the main course page and register for the assessment (₹150).</li>
                 <li>Wait for evaluation and shortlisting by the admissions team.</li>
                 <li>You will receive an invitation email once you are shortlisted!</li>
               </ol>
