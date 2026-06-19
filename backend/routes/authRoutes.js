@@ -163,7 +163,7 @@ router.post('/register', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Support" <noreply@cuvasoltutor.com>',
           to: email,
           subject: 'Welcome to Cuvasol - Your Account is Ready!',
-          text: `Hello ${full_name},\n\nWelcome to Cuvasol! Your student account has been successfully created under the email address: ${email}.\n\nHere are a few things you can do next:\n- Browse qualified tutors and book a Free Demo session.\n- Register for the AI Future Skills Program assessment (₹150) to build core coding & AI skills.\n\nBest regards,\nCuvasol Support Team`,
+          text: `Hello ${full_name},\n\nWelcome to Cuvasol! Your student account has been successfully created under the email address: ${email}.\n\nHere are a few things you can do next:\n- Browse qualified tutors and book a Free Demo session.\n- Register for the AI Future Skills Program assessment (₹100) to build core coding & AI skills.\n\nBest regards,\nCuvasol Support Team`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
               <h2 style="color: #0d9488; text-align: center;">Welcome to Cuvasol!</h2>
@@ -174,7 +174,7 @@ router.post('/register', async (req, res) => {
                 <h4 style="margin-top: 0; color: #0f766e;">Quick Start Checklist:</h4>
                 <ul style="line-height: 1.6; margin-bottom: 0; padding-left: 20px;">
                   <li><strong>Browse Tutors:</strong> Find experienced tutors in various subjects and book a Free Demo.</li>
-                  <li><strong>AI Skills Program:</strong> Register for the assessment exam (₹150) to join our special cohort-based learning program.</li>
+                  <li><strong>AI Skills Program:</strong> Register for the assessment exam (₹100) to join our special cohort-based learning program.</li>
                 </ul>
               </div>
 
