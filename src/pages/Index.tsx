@@ -3,6 +3,7 @@ import axios from "axios";
 import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, BookOpen, Calendar, CreditCard, Star, Users, Award, ArrowRight } from "lucide-react";
+import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
@@ -45,10 +46,93 @@ const Index = () => {
     { icon: Star, value: platformStats?.averageRating || 0, label: "Average Rating" },
   ];
 
-
+  const schemaMarkup = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://tutor.cuvasol.com/#organization",
+        "name": "Cuvasol Tutor",
+        "url": "https://tutor.cuvasol.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://tutor.cuvasol.com/logo.png"
+        },
+        "description": "Find expert tutors in academics, music, art, and more. Book a demo, schedule classes, and start your personalized learning journey with Cuvasol Tutor."
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://tutor.cuvasol.com/#website",
+        "url": "https://tutor.cuvasol.com",
+        "name": "Cuvasol Tutor",
+        "publisher": {
+          "@id": "https://tutor.cuvasol.com/#organization"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://tutor.cuvasol.com/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I find a tutor?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Use our Browse Tutors page to search by subject, category, location, and class mode. You can filter results to find certified tutors that match your specific requirements."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I request a demo class?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Once you find a tutor you're interested in, visit their profile page and click the 'Book Demo' option. Select an available date and time slot, and submit the request. The tutor will confirm your session shortly."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How can I become a tutor?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Visit our 'Become a Tutor' page and fill out the detailed tutor registration form. Our team will review your credentials, background check, and experience, and respond within 2-3 business days."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Are all tutors verified?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, every tutor on Cuvasol Tutor undergoes a comprehensive vetting and verification process including identity validation, educational credential verification, and background checks."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What are your operating hours?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Our support team is available Monday to Saturday, 9:00 AM to 6:00 PM IST. We respond to all contact and support inquiries within 24 hours."
+            }
+          }
+        ]
+      }
+    ]
+  };
 
   return (
     <PageLayout>
+      <Helmet>
+        <title>Cuvasol Tutor - Find the Perfect Tutor Online & Offline</title>
+        <meta name="description" content="Find expert tutors in academics, music, art, and more. Book a free demo class, schedule flexible weekly classes, and start your personalized learning journey with Cuvasol Tutor." />
+        <meta property="og:title" content="Cuvasol Tutor - Find the Perfect Tutor Online & Offline" />
+        <meta property="og:description" content="Find expert tutors in academics, music, art, and more. Book a free demo class, schedule flexible weekly classes, and start your personalized learning journey with Cuvasol Tutor." />
+        <meta property="og:url" content="https://tutor.cuvasol.com" />
+        <meta name="twitter:title" content="Cuvasol Tutor - Find the Perfect Tutor Online & Offline" />
+        <meta name="twitter:description" content="Find expert tutors in academics, music, art, and more. Book a free demo class, schedule flexible weekly classes, and start your personalized learning journey with Cuvasol Tutor." />
+        <script type="application/ld+json">
+          {JSON.stringify(schemaMarkup)}
+        </script>
+      </Helmet>
+
       {/* Course Banner Advertisement */}
       <div className="w-full bg-secondary/30 border-b">
         <div className="container max-w-7xl px-4 py-3 sm:py-4">

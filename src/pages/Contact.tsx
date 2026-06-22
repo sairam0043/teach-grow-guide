@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Mail, Phone, MapPin } from "lucide-react";
+import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,8 +35,39 @@ const Contact = () => {
     }
   };
 
+  const contactSchema = {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    "name": "Contact Cuvasol Tutor",
+    "description": "Get in touch with Cuvasol Tutor support. Contact us for tutor onboarding, session bookings, and student assistance.",
+    "mainEntity": {
+      "@type": "Organization",
+      "name": "Cuvasol Technologies Private Limited",
+      "telephone": "+91 95385 17963",
+      "email": "support@cuvasol.com",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "HD-169, We Work, 78 Old Madras Road, Salarpuria Magnificia, Tin Factory, Mahadevapura",
+        "addressLocality": "Bangalore",
+        "postalCode": "560016",
+        "addressRegion": "Karnataka",
+        "addressCountry": "IN"
+      }
+    }
+  };
+
   return (
     <PageLayout>
+      <Helmet>
+        <title>Contact Us - Support & Inquiries | Cuvasol Tutor</title>
+        <meta name="description" content="Get in touch with Cuvasol Tutor. Have queries about tutor booking, free demos, or our classes? Contact us by phone, email, or visit our Bangalore office." />
+        <meta property="og:title" content="Contact Us | Cuvasol Tutor" />
+        <meta property="og:description" content="Get in touch with Cuvasol Tutor support. Reach out via email, phone, or visit our Bangalore office." />
+        <meta property="og:url" content="https://tutor.cuvasol.com/contact" />
+        <script type="application/ld+json">
+          {JSON.stringify(contactSchema)}
+        </script>
+      </Helmet>
       <section className="bg-primary py-16">
         <div className="container text-center">
           <h1 className="mb-4 text-4xl font-bold text-primary-foreground">Contact Us</h1>

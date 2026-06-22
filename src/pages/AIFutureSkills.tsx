@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Mail, Phone, MapPin, BookOpen, Calendar, Clock, Award, CheckCircle, ArrowLeft, Sparkles, CreditCard, Monitor, Check } from "lucide-react";
+import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -223,8 +224,37 @@ const AIFutureSkills = () => {
     toast.warning("Payment checkout cancelled.");
   };
 
+  const courseSchema = {
+    "@context": "https://schema.org",
+    "@type": "Course",
+    "name": "AI Future Skills Program",
+    "description": "Prepare your child for an AI-powered future. Our program blends creativity, critical thinking, ethics, and hands-on coding to introduce young minds to AI concepts step-by-step.",
+    "provider": {
+      "@type": "Organization",
+      "name": "Cuvasol Tutor",
+      "sameAs": "https://tutor.cuvasol.com"
+    },
+    "courseCode": "AIFS-G59",
+    "offers": {
+      "@type": "Offer",
+      "price": "1600",
+      "priceCurrency": "INR"
+    }
+  };
+
   return (
     <PageLayout>
+      <Helmet>
+        <title>AI Future Skills Program - Coding & AI for Grades 5-9 | Cuvasol Tutor</title>
+        <meta name="description" content="Enroll your child in the 30-day interactive online AI Future Skills Program. Blends neural networks, prompt engineering, and safety/ethics with hands-on coding labs." />
+        <meta property="og:title" content="AI Future Skills Program | Cuvasol Tutor" />
+        <meta property="og:description" content="Prepare your child for an AI-powered future with hands-on coding and prompt engineering labs." />
+        <meta property="og:url" content="https://tutor.cuvasol.com/ai-program" />
+        <meta property="og:image" content="https://tutor.cuvasol.com/ai-program-banner.png" />
+        <script type="application/ld+json">
+          {JSON.stringify(courseSchema)}
+        </script>
+      </Helmet>
       <div className="container py-8 max-w-7xl">
         <Button variant="ghost" asChild className="mb-6 hover:bg-secondary/40">
           <Link to="/"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Home</Link>

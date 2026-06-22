@@ -1,7 +1,15 @@
+import { Helmet } from "react-helmet-async";
 import PageLayout from "@/components/layout/PageLayout";
 
 const Terms = () => (
   <PageLayout>
+    <Helmet>
+      <title>Terms & Conditions | Cuvasol Tutor</title>
+      <meta name="description" content="Review the terms and conditions for using the Cuvasol Tutor platform. Guidelines for students, tutors, class bookings, payments, and cancellations." />
+      <meta property="og:title" content="Terms & Conditions | Cuvasol Tutor" />
+      <meta property="og:description" content="Read the terms of service, payment policies, and cancellation guidelines for Cuvasol Tutor." />
+      <meta property="og:url" content="https://tutor.cuvasol.com/terms" />
+    </Helmet>
     <section className="bg-primary py-16">
       <div className="container text-center">
         <h1 className="mb-4 text-4xl font-bold text-primary-foreground">Terms & Conditions</h1>
@@ -14,7 +22,7 @@ const Terms = () => (
         <div className="mx-auto max-w-3xl space-y-8 text-muted-foreground leading-relaxed">
           <div>
             <h2 className="mb-3 text-xl font-bold text-foreground">1. Acceptance of Terms</h2>
-            <p>By accessing and using TutorHub, you agree to be bound by these terms and conditions. If you do not agree, please do not use the platform.</p>
+            <p>By accessing and using Cuvasol Tutor, you agree to be bound by these terms and conditions. If you do not agree, please do not use the platform.</p>
           </div>
           <div>
             <h2 className="mb-3 text-xl font-bold text-foreground">2. User Accounts</h2>
@@ -22,7 +30,7 @@ const Terms = () => (
           </div>
           <div>
             <h2 className="mb-3 text-xl font-bold text-foreground">3. Tutor Responsibilities</h2>
-            <p>Tutors must provide accurate qualifications and maintain professional conduct. TutorHub reserves the right to suspend accounts that violate our guidelines.</p>
+            <p>Tutors must provide accurate qualifications and maintain professional conduct. Cuvasol Tutor reserves the right to suspend accounts that violate our guidelines.</p>
           </div>
           <div>
             <h2 className="mb-3 text-xl font-bold text-foreground">4. Booking & Payments</h2>
@@ -38,7 +46,7 @@ const Terms = () => (
           </div>
           <div>
             <h2 className="mb-3 text-xl font-bold text-foreground">7. Contact</h2>
-            <p>For questions about these terms, please contact us at support@tutorhub.com.</p>
+            <p>For questions about these terms, please contact us at support@cuvasol.com.</p>
           </div>
         </div>
       </div>

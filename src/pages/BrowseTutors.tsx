@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Search, SlidersHorizontal } from "lucide-react";
+import { Helmet } from "react-helmet-async";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -180,6 +181,13 @@ const BrowseTutors = () => {
 
   return (
     <PageLayout>
+      <Helmet>
+        <title>Find Expert Tutors - Browse Academic & Extracurricular Educators | Cuvasol Tutor</title>
+        <meta name="description" content="Search and filter verified tutors for mathematics, physics, music, dance, art, chess, and more. Find online and offline tutors in your city and schedule a free demo today." />
+        <meta property="og:title" content="Find Expert Tutors | Cuvasol Tutor" />
+        <meta property="og:description" content="Search and filter verified tutors for academics, music, arts, and languages. Find local or online tutors today." />
+        <meta property="og:url" content="https://tutor.cuvasol.com/tutors" />
+      </Helmet>
       <section className="bg-primary py-12">
         <div className="container text-center">
           <h1 className="mb-4 text-3xl font-bold text-primary-foreground md:text-4xl">Find Your Perfect Tutor</h1>

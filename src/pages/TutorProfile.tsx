@@ -6,6 +6,7 @@ declare global {
 
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare } from "lucide-react";
+import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -853,8 +854,38 @@ const TutorProfile = () => {
     }
   })();
 
+  const tutorImageUrl = tutor ? (resolveAssetUrl(tutor.photo) || `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}`) : "";
+  const personSchema = tutor ? {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": tutor.name,
+    "image": tutorImageUrl,
+    "description": tutor.about || `Expert tutor specializing in ${tutor.subjects?.join(', ')}.`,
+    "jobTitle": "Tutor",
+    "knowsAbout": tutor.subjects || [],
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": tutor.city || "India"
+    }
+  } : null;
+
   return (
     <PageLayout>
+      {tutor && (
+        <Helmet>
+          <title>{tutor.name} - Expert Tutor in {tutor.subjects?.join(', ')} | Cuvasol Tutor</title>
+          <meta name="description" content={`Book online or offline classes with ${tutor.name}. Specializing in ${tutor.subjects?.join(', ')} with ${tutor.experience || 'years of'} experience.`} />
+          <meta property="og:title" content={`${tutor.name} - ${tutor.subjects?.join(', ')} Tutor`} />
+          <meta property="og:description" content={`Book lessons with ${tutor.name}. Specializing in ${tutor.subjects?.join(', ')}.`} />
+          <meta property="og:image" content={tutorImageUrl} />
+          <meta property="og:url" content={`https://tutor.cuvasol.com/tutors/${tutor.id}`} />
+          {personSchema && (
+            <script type="application/ld+json">
+              {JSON.stringify(personSchema)}
+            </script>
+          )}
+        </Helmet>
+      )}
       <div className="container py-8">
         <Button variant="ghost" asChild className="mb-6">
           <Link to="/tutors"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Tutors</Link>

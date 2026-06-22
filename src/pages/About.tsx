@@ -1,4 +1,5 @@
 import { Users, Award, Heart, Target } from "lucide-react";
+import { Helmet } from "react-helmet-async";
 import PageLayout from "@/components/layout/PageLayout";
 
 const values = [
@@ -10,6 +11,13 @@ const values = [
 
 const About = () => (
   <PageLayout>
+    <Helmet>
+      <title>About Us - Cuvasol Tutor | Trusted Online & Offline Learning Platform</title>
+      <meta name="description" content="Discover the mission, core values, and story behind Cuvasol Tutor. Connecting students with the highest-rated academic and extracurricular educators." />
+      <meta property="og:title" content="About Us | Cuvasol Tutor" />
+      <meta property="og:description" content="Discover the mission, core values, and story behind Cuvasol Tutor. Connecting students with high-quality academic and extracurricular educators." />
+      <meta property="og:url" content="https://tutor.cuvasol.com/about" />
+    </Helmet>
     <section className="bg-primary py-16">
       <div className="container text-center">
         <h1 className="mb-4 text-4xl font-bold text-primary-foreground">About Cuvasol Tutor</h1>
