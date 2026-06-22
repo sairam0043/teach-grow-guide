@@ -18,7 +18,7 @@ export const resolveAssetUrl = (url?: string | null): string => {
   if (/^https?:\/\/ui-avatars\.com\//i.test(trimmed)) return trimmed;
 
   // Convert stored localhost asset URLs to deployed backend origin.
-  if (/^https?:\/\/localhost:\d+\/uploads\//i.test(trimmed) || /^https?:\/\/127\.0\.0\.1:\d+\/uploads\//i.test(trimmed)) {
+  if (/^https?:\/\/localhost:\d+\//i.test(trimmed) || /^https?:\/\/127\.0\.0\.1:\d+\//i.test(trimmed)) {
     return apiOrigin ? `${apiOrigin}${trimmed.replace(/^https?:\/\/[^/]+/, "")}` : trimmed;
   }
 

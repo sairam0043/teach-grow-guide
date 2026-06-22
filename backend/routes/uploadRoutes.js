@@ -1,29 +1,15 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const Upload = require('../schemas/uploadSchema');
 
 const router = express.Router();
 
-// Ensure uploads directory exists (create at runtime if needed)
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-const fs = require('fs');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const ext = (path.extname(file.originalname) || '').toLowerCase() || '.jpg';
-    const safeExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext) ? ext : '.jpg';
-    cb(null, `tutor-${uuidv4()}${safeExt}`);
-  }
-});
+// Use memory storage for uploads to avoid ephemeral disk wipes
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowed = /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.mimetype);
     if (allowed) cb(null, true);
@@ -31,19 +17,9 @@ const upload = multer({
   }
 });
 
-// Multer storage and upload configuration for PDF/Image verification documents
-const storageDoc = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const ext = (path.extname(file.originalname) || '').toLowerCase();
-    const safeExt = ['.pdf', '.jpg', '.jpeg', '.png'].includes(ext) ? ext : '.pdf';
-    cb(null, `tutor-doc-${uuidv4()}${safeExt}`);
-  }
-});
-
 const uploadDoc = multer({
-  storage: storageDoc,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     const isImage = /^image\/(jpeg|jpg|png)$/i.test(file.mimetype);
     const isPdf = file.mimetype === 'application/pdf';
@@ -52,37 +28,76 @@ const uploadDoc = multer({
   }
 });
 
+// GET /api/upload/file/:id - serve uploaded files directly from MongoDB
+router.get('/file/:id', async (req, res) => {
+  try {
+    const file = await Upload.findById(req.params.id);
+    if (!file) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+    // Set headers to serve inline (so PDFs display properly in browser)
+    res.set({
+      'Content-Type': file.contentType,
+      'Content-Length': file.data.length,
+      'Cache-Control': 'public, max-age=31536000' // cache for 1 year
+    });
+    res.send(file.data);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to retrieve file', error: error.message });
+  }
+});
+
 // POST /api/upload/photo - single file for tutor profile photo
-router.post('/photo', upload.single('photo'), (req, res) => {
+router.post('/photo', upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No image file uploaded.' });
     }
+    
+    // Save binary data to MongoDB
+    const newUpload = new Upload({
+      filename: `tutor-photo-${Date.now()}-${req.file.originalname}`,
+      contentType: req.file.mimetype,
+      data: req.file.buffer
+    });
+    const saved = await newUpload.save();
+
     const configuredBaseUrl = (process.env.BACKEND_URL || '').trim().replace(/\/$/, '');
     const forwardedProto = req.get('x-forwarded-proto');
     const protocol = (forwardedProto || req.protocol || 'http').split(',')[0].trim();
     const inferredBaseUrl = `${protocol}://${req.get('host')}`;
     const baseUrl = configuredBaseUrl || inferredBaseUrl;
-    const photoUrl = `${baseUrl}/uploads/${req.file.filename}`;
-    res.json({ url: photoUrl, filename: req.file.filename });
+    
+    const photoUrl = `${baseUrl}/api/upload/file/${saved._id}`;
+    res.json({ url: photoUrl, filename: saved.filename });
   } catch (error) {
     res.status(500).json({ message: 'Upload failed', error: error.message });
   }
 });
 
 // POST /api/upload/document - single file for tutor verification credential (PDF or Image)
-router.post('/document', uploadDoc.single('document'), (req, res) => {
+router.post('/document', uploadDoc.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No document file uploaded.' });
     }
+    
+    // Save binary data to MongoDB
+    const newUpload = new Upload({
+      filename: `tutor-doc-${Date.now()}-${req.file.originalname}`,
+      contentType: req.file.mimetype,
+      data: req.file.buffer
+    });
+    const saved = await newUpload.save();
+
     const configuredBaseUrl = (process.env.BACKEND_URL || '').trim().replace(/\/$/, '');
     const forwardedProto = req.get('x-forwarded-proto');
     const protocol = (forwardedProto || req.protocol || 'http').split(',')[0].trim();
     const inferredBaseUrl = `${protocol}://${req.get('host')}`;
     const baseUrl = configuredBaseUrl || inferredBaseUrl;
-    const docUrl = `${baseUrl}/uploads/${req.file.filename}`;
-    res.json({ url: docUrl, filename: req.file.filename });
+
+    const docUrl = `${baseUrl}/api/upload/file/${saved._id}`;
+    res.json({ url: docUrl, filename: saved.filename });
   } catch (error) {
     res.status(500).json({ message: 'Document upload failed', error: error.message });
   }
@@ -101,4 +116,3 @@ router.use((err, req, res, next) => {
 });
 
 module.exports = router;
-
