@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Fragment } from "react";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import API_URL from "@/config/api";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Send, User, MessageSquare, ExternalLink, ShieldAlert, ArrowLeft } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
-import { format } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
 
 interface ChatPanelProps {
@@ -343,29 +343,58 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                   </p>
                 </div>
               ) : (
-                messages.map((msg, idx) => {
-                  const isOwn = msg.sender._id.toString() === user?.id;
-                  
-                  return (
-                    <div 
-                      key={msg._id || idx} 
-                      className={`flex flex-col max-w-[75%] ${isOwn ? "ml-auto items-end" : "items-start"}`}
-                    >
-                      {/* Message body */}
-                      <div className={`p-3 rounded-2xl shadow-sm text-sm ${
-                        isOwn 
-                          ? "bg-primary text-primary-foreground rounded-br-none" 
-                          : "bg-card border text-foreground rounded-bl-none"
-                      }`}>
-                        {msg.text}
-                      </div>
-                      {/* Timestamp */}
-                      <span className="text-[9px] text-muted-foreground mt-1 px-1">
-                        {format(new Date(msg.createdAt), "h:mm a")}
-                      </span>
-                    </div>
-                  );
-                })
+                (() => {
+                  const formatSeparatorDate = (date: Date) => {
+                    if (isToday(date)) return "Today";
+                    if (isYesterday(date)) return "Yesterday";
+                    return format(date, "MMMM d, yyyy");
+                  };
+
+                  return messages.map((msg, idx) => {
+                    const isOwn = msg.sender._id.toString() === user?.id;
+                    const currentDate = new Date(msg.createdAt);
+                    
+                    // Determine if date separator is required
+                    let showDateSeparator = false;
+                    if (idx === 0) {
+                      showDateSeparator = true;
+                    } else {
+                      const prevMsg = messages[idx - 1];
+                      const prevDate = new Date(prevMsg.createdAt);
+                      if (currentDate.toDateString() !== prevDate.toDateString()) {
+                        showDateSeparator = true;
+                      }
+                    }
+
+                    return (
+                      <Fragment key={msg._id || idx}>
+                        {showDateSeparator && (
+                          <div className="flex justify-center my-4 w-full select-none">
+                            <span className="bg-secondary/60 text-muted-foreground text-[10px] font-bold px-3 py-1 rounded-full shadow-sm border border-border/20">
+                              {formatSeparatorDate(currentDate)}
+                            </span>
+                          </div>
+                        )}
+                        <div 
+                          className={`flex flex-col max-w-[75%] ${isOwn ? "ml-auto items-end" : "items-start"}`}
+                        >
+                          {/* Message body */}
+                          <div className={`p-3 rounded-2xl shadow-sm text-sm ${
+                            isOwn 
+                              ? "bg-primary text-primary-foreground rounded-br-none" 
+                              : "bg-card border text-foreground rounded-bl-none"
+                          }`}>
+                            {msg.text}
+                          </div>
+                          {/* Timestamp */}
+                          <span className="text-[9px] text-muted-foreground mt-1 px-1">
+                            {format(currentDate, "h:mm a")}
+                          </span>
+                        </div>
+                      </Fragment>
+                    );
+                  });
+                })()
               )}
             </div>
 
