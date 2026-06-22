@@ -15,7 +15,7 @@ import { detectUserTimeZone } from "@/utils/timezone";
 const capitalizeName = (str: string): string => {
   return str
     .split(' ')
-    .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1) : '')
+    .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : '')
     .join(' ');
 };
 
