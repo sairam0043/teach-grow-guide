@@ -42,8 +42,35 @@ router.get('/admin', async (req, res) => {
 // /api/dashboard/admin/bookings
 router.get('/admin/bookings', async (req, res) => {
   try {
-    const bookings = await Booking.find().sort({ createdAt: -1 });
-    res.json(bookings);
+    const bookings = await Booking.find()
+      .populate({
+        path: 'tutorId',
+        populate: { path: 'userId', select: 'email phone' }
+      })
+      .sort({ createdAt: -1 });
+
+    const studentIds = bookings.map(b => b.studentId).filter(Boolean);
+    const students = await User.find({ _id: { $in: studentIds } }, 'email phone full_name');
+    const studentMap = new Map(students.map(s => [s._id.toString(), s]));
+
+    const formatted = bookings.map(b => {
+      const obj = b.toObject();
+      const student = studentMap.get(b.studentId);
+      if (student) {
+        obj.studentEmail = student.email;
+        obj.studentPhone = student.phone;
+      }
+      if (b.tutorId) {
+        obj.tutorEmail = b.tutorId.userId?.email || '';
+        obj.tutorPhone = b.tutorId.userId?.phone || '';
+        obj.tutorUserId = b.tutorId.userId?._id?.toString() || '';
+        // Set tutorId back to its ID string so we don't break simple components
+        obj.tutorId = b.tutorId._id.toString();
+      }
+      return obj;
+    });
+
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

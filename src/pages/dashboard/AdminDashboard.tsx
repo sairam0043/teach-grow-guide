@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,12 @@ import axios from "axios";
 import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/AuthContext";
+import ChatPanel from "@/components/chat/ChatPanel";
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const { user } = useAuth();
   const { adminStats, loading: statsLoading } = useSelector((state: RootState) => state.dashboard);
   const [tutors, setTutors] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -36,9 +39,37 @@ const AdminDashboard = () => {
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
   const [isSavingScores, setIsSavingScores] = useState(false);
 
+  // New States for Admin booking details and support messages
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = sessionStorage.getItem("admin_dashboard_tab");
+    if (saved) {
+      sessionStorage.removeItem("admin_dashboard_tab");
+      return saved;
+    }
+    return "approvals";
+  });
+
+  const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
+    const saved = sessionStorage.getItem("active_chat_user_id");
+    if (saved) {
+      sessionStorage.removeItem("active_chat_user_id");
+      return saved;
+    }
+    return undefined;
+  });
+
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<any | null>(null);
+  const [isBookingDetailDialogOpen, setIsBookingDetailDialogOpen] = useState(false);
+
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
     setIsDetailDialogOpen(true);
+  };
+
+  const handleViewBookingDetail = (booking: any) => {
+    setSelectedBookingForDetail(booking);
+    setIsBookingDetailDialogOpen(true);
   };
 
   const handleViewAnswers = (payment: any) => {
@@ -111,6 +142,32 @@ const AdminDashboard = () => {
     fetchTutors();
     dispatch(fetchAdminStats());
   }, [dispatch]);
+
+  // Poll for unread support messages
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const fetchUnreadCount = async () => {
+      if (document.hidden) return;
+      try {
+        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
+        setUnreadMessagesCount(total);
+      } catch (err) {
+        console.error("Error fetching unread count", err);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 12000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (activeTab === "messages") {
+      setUnreadMessagesCount(0);
+    }
+  }, [activeTab]);
 
   const pendingTutors = tutors.filter((t) => t.status === "pending");
   const approvedTutors = tutors.filter((t) => t.status === "approved");
@@ -210,7 +267,7 @@ const AdminDashboard = () => {
           ))}
         </div>
 
-        <Tabs defaultValue="approvals" className="space-y-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/40 p-1 rounded-xl shadow-sm border mb-4 h-auto justify-start w-full overflow-x-auto whitespace-nowrap">
             <TabsTrigger value="approvals" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">
               Tutor Approvals 
@@ -226,6 +283,14 @@ const AdminDashboard = () => {
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payments</TabsTrigger>
             <TabsTrigger value="platform-courses" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Platform Courses</TabsTrigger>
             <TabsTrigger value="payouts" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Tutor Payouts</TabsTrigger>
+            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              Messages
+              {unreadMessagesCount > 0 && (
+                <Badge variant="destructive" className="ml-1 rounded-full px-2 py-0.5 text-[10px] bg-rose-500 text-white font-extrabold border-none">
+                  {unreadMessagesCount}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="approvals">
@@ -547,12 +612,17 @@ const AdminDashboard = () => {
                           <TableHead className="font-medium h-12">Student Name</TableHead>
                           <TableHead className="font-medium h-12">Timing</TableHead>
                           <TableHead className="font-medium h-12">Status</TableHead>
-                          <TableHead className="font-medium h-12 text-right">Created At</TableHead>
+                          <TableHead className="font-medium h-12">Created At</TableHead>
+                          <TableHead className="font-medium h-12 text-right px-6">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {bookings.map((booking) => (
-                          <TableRow key={booking._id} className="hover:bg-secondary/10 transition-colors">
+                          <TableRow 
+                            key={booking._id} 
+                            className="hover:bg-secondary/10 transition-colors cursor-pointer"
+                            onClick={() => handleViewBookingDetail(booking)}
+                          >
                             <TableCell className="font-mono text-xs text-muted-foreground">{String(booking._id).slice(-8)}</TableCell>
                             <TableCell className="font-semibold text-foreground">{booking.tutorName || "Unknown"}</TableCell>
                             <TableCell>{booking.studentName || "Anonymous"}</TableCell>
@@ -567,7 +637,17 @@ const AdminDashboard = () => {
                                 {booking.status.toUpperCase()}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 font-semibold text-xs rounded-lg"
+                                onClick={() => handleViewBookingDetail(booking)}
+                              >
+                                View Details
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -985,6 +1065,12 @@ const AdminDashboard = () => {
                   </div>
                 )}
               </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="messages">
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-0">
+              <ChatPanel initialActiveUserId={activeChatUserId} />
             </Card>
           </TabsContent>
         </Tabs>
@@ -1421,6 +1507,242 @@ const AdminDashboard = () => {
                   </Button>
                 )}
                 <Button variant="outline" onClick={() => setIsAnswersDialogOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Booking Details Modal */}
+      <Dialog open={isBookingDetailDialogOpen} onOpenChange={setIsBookingDetailDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-primary" /> Booking Detail Audit
+            </DialogTitle>
+            <DialogDescription>
+              View metadata, contact information, and meeting links for this booking transaction.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedBookingForDetail && (
+            <div className="space-y-6 py-4">
+              {/* Core metadata stats grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-secondary/15 border border-border/40">
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Booking ID</span>
+                  <span className="text-xs font-mono font-bold text-foreground mt-0.5 block">
+                    {selectedBookingForDetail._id}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Status</span>
+                  <Badge variant="outline" className={`mt-0.5 border-none font-bold text-[10px] ${
+                    selectedBookingForDetail.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700' :
+                    selectedBookingForDetail.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                    selectedBookingForDetail.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                    selectedBookingForDetail.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {selectedBookingForDetail.status.toUpperCase()}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Subject</span>
+                  <span className="text-sm font-semibold text-foreground mt-0.5 block truncate" title={selectedBookingForDetail.subject}>
+                    {selectedBookingForDetail.subject}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Plan Type</span>
+                  <Badge variant="secondary" className="mt-0.5 text-xs bg-primary/10 text-primary hover:bg-primary/20">
+                    {selectedBookingForDetail.planType || "Demo Session"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Timing and Financials Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-card border">
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Date & Timing</span>
+                  <span className="text-sm font-semibold text-foreground mt-1 flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl bg-card border">
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Amount Paid (Gross)</span>
+                  <span className="text-lg font-bold text-emerald-600 mt-0.5 block">
+                    ₹{selectedBookingForDetail.amountPaid || 0}
+                  </span>
+                </div>
+              </div>
+
+              {/* Participant Profiles: Tutor and Student Side-by-Side */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Tutor Card */}
+                <div className="p-4 rounded-xl bg-card border flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <span className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-wider block">Tutor Information</span>
+                    <h4 className="font-bold text-sm text-foreground">{selectedBookingForDetail.tutorName}</h4>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.tutorEmail || "N/A"}</p>
+                      <p><strong>Phone:</strong> {selectedBookingForDetail.tutorPhone || "N/A"}</p>
+                    </div>
+                  </div>
+                  {selectedBookingForDetail.tutorUserId ? (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full gap-1.5 h-9 font-semibold text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50/50"
+                      onClick={() => {
+                        sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.tutorUserId);
+                        setActiveChatUserId(selectedBookingForDetail.tutorUserId);
+                        setActiveTab("messages");
+                        setIsBookingDetailDialogOpen(false);
+                        toast.success(`Opening chat thread with tutor ${selectedBookingForDetail.tutorName}`);
+                      }}
+                    >
+                      <MessageSquare className="h-4 w-4" /> Message Tutor
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="w-full h-9 text-xs" disabled>
+                      No Tutor Chat Available
+                    </Button>
+                  )}
+                </div>
+
+                {/* Student Card */}
+                <div className="p-4 rounded-xl bg-card border flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <span className="text-[10px] text-sky-600 font-extrabold uppercase tracking-wider block">Student Information</span>
+                    <h4 className="font-bold text-sm text-foreground">{selectedBookingForDetail.studentName}</h4>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.studentEmail || "N/A"}</p>
+                      <p><strong>Phone:</strong> {selectedBookingForDetail.studentPhone || "N/A"}</p>
+                    </div>
+                  </div>
+                  {selectedBookingForDetail.studentId ? (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full gap-1.5 h-9 font-semibold text-xs border-sky-200 text-sky-600 hover:bg-sky-50/50"
+                      onClick={() => {
+                        sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.studentId);
+                        setActiveChatUserId(selectedBookingForDetail.studentId);
+                        setActiveTab("messages");
+                        setIsBookingDetailDialogOpen(false);
+                        toast.success(`Opening chat thread with student ${selectedBookingForDetail.studentName}`);
+                      }}
+                    >
+                      <MessageSquare className="h-4 w-4" /> Message Student
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="w-full h-9 text-xs" disabled>
+                      No Student Chat Available
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Classroom Meeting Room Link details */}
+              <div className="space-y-3">
+                <span className="text-xs font-bold text-foreground uppercase tracking-wider block">Live Session Classrooms</span>
+                
+                {selectedBookingForDetail.sessions && selectedBookingForDetail.sessions.length > 0 ? (
+                  /* Package session calendar logs */
+                  <div className="border rounded-xl overflow-hidden bg-card shadow-inner max-h-60 overflow-y-auto divide-y divide-border/40">
+                    {selectedBookingForDetail.sessions.map((session: any, sIdx: number) => {
+                      const sessMeetLink = session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${selectedBookingForDetail._id}-session-${sIdx + 1}`;
+                      return (
+                        <div key={sIdx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-card hover:bg-secondary/5 transition-colors gap-3">
+                          <div className="flex items-center gap-3">
+                            <span className="h-7 w-7 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
+                              #{sIdx + 1}
+                            </span>
+                            <div>
+                              <p className="font-bold text-xs text-foreground">{session.date}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">Time: {session.time}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+                            <Badge variant="outline" className={`px-2 py-0.5 border-none text-[9px] uppercase font-bold tracking-wider ${
+                              session.status === 'completed' ? 'bg-green-100 text-green-700' :
+                              session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {session.status}
+                            </Badge>
+                            
+                            {session.status !== 'cancelled' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs font-bold bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                                asChild
+                              >
+                                <a 
+                                  href={`${sessMeetLink}#config.prejoinPageEnabled=false&userInfo.displayName="Admin%20Moderator"`}
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                >
+                                  <Video className="h-3.5 w-3.5 mr-1" /> Join Jitsi Room
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Standard / Demo class Jitsi Meet links */
+                  <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl mt-0.5">🎥</span>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Jitsi Meet Classroom Room</p>
+                        <p className="text-[10px] text-muted-foreground mt-1 max-w-sm">
+                          This is a dynamic secure video conference room. You can join the room as a moderator helper to support the live session.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 px-4 text-xs shadow-sm"
+                        asChild
+                      >
+                        <a 
+                          href={`${selectedBookingForDetail.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${selectedBookingForDetail._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="Admin%20Moderator"`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <Video className="h-3.5 w-3.5 mr-1.5" /> Join Room
+                        </a>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 px-3 text-xs"
+                        onClick={() => {
+                          const link = selectedBookingForDetail.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${selectedBookingForDetail._id}`;
+                          navigator.clipboard.writeText(link);
+                          toast.success("Meeting link copied to clipboard!");
+                        }}
+                      >
+                        Copy Link
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal footer controls */}
+              <div className="flex justify-end pt-4 border-t border-border/40">
+                <Button variant="ghost" onClick={() => setIsBookingDetailDialogOpen(false)}>
                   Close
                 </Button>
               </div>
