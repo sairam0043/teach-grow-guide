@@ -574,7 +574,7 @@ const TutorDashboard = () => {
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
                             <Calendar className="h-4 w-4"/> {formatBookingTime(booking, tutorTimezone)}
-                            {booking.status === 'confirmed' && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
+                            {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
                           </p>
@@ -595,24 +595,40 @@ const TutorDashboard = () => {
                           <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {booking.status === 'pending' && (
                               <>
-                                <Button 
-                                  size="sm" 
-                                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold" 
-                                  onClick={() => handleBookingAction(booking._id, 'confirmed')}
-                                >
-                                  <Check className="mr-1 h-4 w-4"/> Accept Request
-                                </Button>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" 
-                                  onClick={() => {
-                                    setRejectingBookingId(booking._id);
-                                    setIsRejectDialogOpen(true);
-                                  }}
-                                >
-                                  Reject
-                                </Button>
+                                {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) ? (
+                                  <>
+                                    <Button 
+                                      size="sm" 
+                                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold" 
+                                      onClick={() => handleBookingAction(booking._id, 'confirmed')}
+                                    >
+                                      <Check className="mr-1 h-4 w-4"/> Accept Request
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" 
+                                      onClick={() => {
+                                        setRejectingBookingId(booking._id);
+                                        setIsRejectDialogOpen(true);
+                                      }}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" 
+                                    onClick={() => {
+                                      setRejectingBookingId(booking._id);
+                                      setIsRejectDialogOpen(true);
+                                    }}
+                                  >
+                                    Dismiss Request
+                                  </Button>
+                                )}
                               </>
                             )}
                             {booking.status === 'confirmed' && (

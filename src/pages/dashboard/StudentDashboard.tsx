@@ -303,7 +303,7 @@ const StudentDashboard = () => {
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
           {[
             { icon: Calendar, label: "Upcoming Classes", value: studentStats?.upcomingClasses || 0, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30", tab: "upcoming" },
-            { icon: Clock, label: "Demo Bookings", value: studentStats?.completedSessions || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
+            { icon: Clock, label: "Demo Bookings", value: studentStats?.demoBookings ?? studentStats?.completedSessions ?? 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
             { icon: BookOpen, label: "Enrolled Courses", value: studentStats?.enrolledCourses || 0, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30", tab: "upcoming" },
             { icon: CreditCard, label: "Total Spent", value: `₹${paymentHistory.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "payments" },
           ].map((stat, idx) => (
@@ -642,7 +642,7 @@ const StudentDashboard = () => {
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
                             <Calendar className="h-4 w-4"/> {formatBookingTime(booking, studentTimezone)}
-                            {booking.status === 'confirmed' && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
+                            {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
                           </p>
@@ -707,10 +707,12 @@ const StudentDashboard = () => {
                                      </a>
                                    </Button>
                                  )}
-                                 <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
-                                    setCancellingBookingId(booking._id);
-                                    setIsCancelDialogOpen(true);
-                                  }}>Cancel Demo</Button>
+                                 {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
+                                   <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
+                                      setCancellingBookingId(booking._id);
+                                      setIsCancelDialogOpen(true);
+                                    }}>Cancel Demo</Button>
+                                 )}
                                </>
                             )}
                             {booking.status === 'completed' && (

@@ -94,7 +94,7 @@ router.get('/tutor/:tutorId', async (req, res) => {
     if (!tutor) return res.status(404).json({ message: "Tutor not found" });
 
     const totalStudents = await Booking.distinct('studentId', { tutorId });
-    const demoRequests = await Booking.countDocuments({ tutorId, status: 'confirmed' }); // Simplification
+    const demoRequests = await Booking.countDocuments({ tutorId, status: { $in: ['pending', 'confirmed'] } });
     const upcomingClasses = await Booking.countDocuments({ tutorId });
 
     // Ensure array exists
@@ -148,14 +148,61 @@ router.get('/tutor/:tutorId/bookings', async (req, res) => {
 router.get('/student/:studentId', async (req, res) => {
   try {
     const studentId = req.params.studentId;
-    const upcomingClasses = await Booking.countDocuments({ studentId, status: 'confirmed' });
+    
+    // Count enrolled courses
     const enrolledCourses = await Booking.countDocuments({ studentId, status: 'enrolled' });
-    const completedSessions = await Booking.countDocuments({ studentId, status: 'completed' });
+    
+    // Count upcoming classes (enrolled classes in the future)
+    const enrolledBookings = await Booking.find({ studentId, status: 'enrolled' });
+    let upcomingClasses = 0;
+    
+    for (const booking of enrolledBookings) {
+      if (booking.sessions && booking.sessions.length > 0) {
+        // Pack booking
+        for (const session of booking.sessions) {
+          if (session.status === 'scheduled') {
+            let isPast = false;
+            if (session.utcDate) {
+              const bufferMs = 2 * 60 * 60 * 1000;
+              isPast = (new Date(session.utcDate).getTime() + bufferMs) < Date.now();
+            } else {
+              const parsed = parseSessionStringToDate(session.date, session.time);
+              if (parsed) {
+                const bufferMs = 2 * 60 * 60 * 1000;
+                isPast = (parsed.getTime() + bufferMs) < Date.now();
+              }
+            }
+            if (!isPast) {
+              upcomingClasses++;
+            }
+          }
+        }
+      } else {
+        // Standard booking
+        let isPast = false;
+        if (booking.utcTiming) {
+          const bufferMs = 2 * 60 * 60 * 1000;
+          isPast = (new Date(booking.utcTiming).getTime() + bufferMs) < Date.now();
+        } else {
+          isPast = isBookingPast(booking.timing);
+        }
+        if (!isPast) {
+          upcomingClasses++;
+        }
+      }
+    }
+
+    // Count demo bookings (pending, confirmed, completed)
+    const demoBookings = await Booking.countDocuments({
+      studentId,
+      status: { $in: ['pending', 'confirmed', 'completed'] }
+    });
     
     res.json({
       enrolledCourses,
       upcomingClasses,
-      completedSessions,
+      completedSessions: demoBookings, // for backward compatibility
+      demoBookings,
       savedTutors: 0
     });
   } catch(err) {
@@ -200,6 +247,20 @@ const parseTimingStringToDate = (timingStr) => {
     }
   } catch (e) {
     console.error("Error parsing timing string on backend:", e);
+  }
+  return null;
+};
+
+const parseSessionStringToDate = (dateStr, timeStr) => {
+  try {
+    const datePartCleaned = dateStr.replace(/(\d+)(st|nd|rd|th)/, '$1');
+    const combined = `${datePartCleaned} ${timeStr}`;
+    const parsed = new Date(combined);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  } catch (e) {
+    console.error("Error parsing session date/time:", e);
   }
   return null;
 };
