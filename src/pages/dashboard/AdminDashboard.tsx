@@ -324,7 +324,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Category</TableHead>
                           <TableHead className="font-bold h-12">Subjects</TableHead>
                           <TableHead className="font-bold h-12">Experience</TableHead>
-                          <TableHead className="font-bold h-12">KYC Document</TableHead>
+                          <TableHead className="font-bold h-12">Resume / CV</TableHead>
                           <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -368,7 +368,7 @@ const AdminDashboard = () => {
                                   rel="noopener noreferrer"
                                   className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:hover:bg-indigo-950/50 py-1.5 px-3 rounded-lg border border-indigo-100 dark:border-indigo-900/20 inline-flex items-center gap-1 transition-all"
                                 >
-                                  📄 View KYC Document
+                                  📄 View Resume/CV
                                 </a>
                               ) : (
                                 <span className="text-xs text-muted-foreground italic">No document</span>
@@ -441,7 +441,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Category</TableHead>
                           <TableHead className="font-bold h-12">Subjects</TableHead>
                           <TableHead className="font-bold h-12">Status</TableHead>
-                          <TableHead className="font-bold h-12">KYC Document</TableHead>
+                          <TableHead className="font-bold h-12">Resume / CV</TableHead>
                           <TableHead className="font-bold h-12 text-center">Featured</TableHead>
                           <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
                         </TableRow>
@@ -487,7 +487,7 @@ const AdminDashboard = () => {
                                   rel="noopener noreferrer"
                                   className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:hover:bg-indigo-950/50 py-1.5 px-3 rounded-lg border border-indigo-100 dark:border-indigo-900/20 inline-flex items-center gap-1 transition-all"
                                 >
-                                  📄 View KYC
+                                  📄 View Resume/CV
                                 </a>
                               ) : (
                                 <span className="text-xs text-muted-foreground italic">No document</span>
@@ -1232,14 +1232,14 @@ const AdminDashboard = () => {
 
               {/* KYC Document Section */}
               <div className="space-y-2">
-                <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">KYC Verification Documents</h4>
+                <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Resume / CV</h4>
                 {selectedTutorForDetail.verificationDocument ? (
                   <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">📄</span>
                       <div>
-                        <p className="text-xs font-bold text-foreground">Verification Credential Document</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">Uploaded PDF/Image verification proof</p>
+                        <p className="text-xs font-bold text-foreground">Resume / CV Document</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Uploaded resume or CV (PDF/Image)</p>
                       </div>
                     </div>
                     <a 
@@ -1253,7 +1253,7 @@ const AdminDashboard = () => {
                   </div>
                 ) : (
                   <div className="p-4 rounded-xl bg-secondary/5 border border-dashed text-center text-xs text-muted-foreground italic">
-                    No KYC verification document has been uploaded yet.
+                    No Resume/CV document has been uploaded yet.
                   </div>
                 )}
               </div>

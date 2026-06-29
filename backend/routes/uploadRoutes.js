@@ -106,7 +106,7 @@ router.post('/document', uploadDoc.single('document'), async (req, res) => {
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'File size too large. Photo limit is 5MB, credentials limit is 10MB.' });
+      return res.status(400).json({ message: 'File size too large. Photo limit is 5MB, Resume/CV limit is 10MB.' });
     }
   }
   if (err.message) {

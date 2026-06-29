@@ -863,7 +863,7 @@ router.put('/:id/admin', async (req, res) => {
               <p>Thank you for your interest in joining <strong>Cuvasol Tutor</strong>.</p>
               <p>Unfortunately, your tutor profile application has not been approved by the administrator at this time. This is usually due to one of the following reasons:</p>
               <ul style="line-height: 1.6;">
-                <li>Incomplete or unclear KYC/verification documents</li>
+                <li>Incomplete or unclear Resume/CV documents</li>
                 <li>Inaccurate profile information</li>
                 <li>Not meeting our current profile criteria</li>
               </ul>

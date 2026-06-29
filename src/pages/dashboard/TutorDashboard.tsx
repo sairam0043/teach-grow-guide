@@ -490,7 +490,7 @@ const TutorDashboard = () => {
             <AlertDescription className="mt-2 text-sm leading-relaxed">
               Your tutor application was rejected by the admin team due to verification discrepancies. 
               <span className="block mt-1 font-semibold text-foreground">
-                How to resolve: Please update your bio, qualification, or re-upload a clean, valid KYC verification document (PDF/Image) below and click "Update Public Profile" to automatically re-submit your profile for review!
+                How to resolve: Please update your bio, qualification, or re-upload a clean, valid Resume/CV document (PDF/Image) below and click "Update Public Profile" to automatically re-submit your profile for review!
               </span>
             </AlertDescription>
           </Alert>
@@ -1074,7 +1074,7 @@ const TutorDashboard = () => {
                       {/* Verification Credentials Display and Upload */}
                       <div className="flex flex-col mb-6 pb-6 border-b">
                         <Label htmlFor="doc-upload" className="text-xs font-semibold text-muted-foreground block mb-2">
-                          Verification Credential (PDF/Image)
+                          Resume / CV (PDF/Image)
                         </Label>
                         <Input 
                           id="doc-upload" 
@@ -1094,7 +1094,7 @@ const TutorDashboard = () => {
                               rel="noopener noreferrer"
                               className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5"
                             >
-                              📄 View Uploaded Credential
+                              📄 View Uploaded Resume/CV
                             </a>
                           </div>
                         )}

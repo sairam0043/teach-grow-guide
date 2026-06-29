@@ -246,7 +246,7 @@ const RegisterTutor = () => {
         });
         docUrl = uploadRes.data?.url;
       } catch (err: unknown) {
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Failed to upload verification document.";
+        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Failed to upload resume/CV.";
         toast.error(msg);
         setLoading(false);
         return;
@@ -654,7 +654,7 @@ const RegisterTutor = () => {
               </div>
 
               <div className="space-y-3">
-                <Label htmlFor="document" className="text-sm font-semibold">Verification Credentials (KYC)</Label>
+                <Label htmlFor="document" className="text-sm font-semibold">Resume / CV</Label>
                 <div className="flex flex-col sm:flex-row items-center gap-4 p-4 border rounded-xl bg-secondary/5">
                   <div className="flex-1 space-y-2 w-full">
                     <Input
@@ -664,7 +664,7 @@ const RegisterTutor = () => {
                       onChange={handleDocChange}
                       className="cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
                     />
-                    <p className="text-xs text-muted-foreground">Upload credential verification PDF, PNG, or JPEG (Max 10MB). E.g., professional degrees, ID proof, teaching certifications.</p>
+                    <p className="text-xs text-muted-foreground">Upload your resume or CV in PDF, PNG, or JPEG format (Max 10MB).</p>
                     {docName && (
                       <p className="text-xs text-emerald-600 font-semibold mt-1">✓ File selected: {docName}</p>
                     )}
