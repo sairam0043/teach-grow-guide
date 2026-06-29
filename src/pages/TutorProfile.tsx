@@ -901,7 +901,7 @@ const TutorProfile = () => {
                   `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`
                 }
                 alt={tutor.name}
-                className="h-40 w-40 rounded-xl object-cover shadow-card"
+                className="h-40 w-40 rounded-xl object-contain bg-secondary/30 shadow-card"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
                   e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;

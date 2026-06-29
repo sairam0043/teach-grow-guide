@@ -930,7 +930,10 @@ router.put('/:id/profile', async (req, res) => {
     if (qualification !== undefined) currentTutor.qualification = qualification;
     if (experience !== undefined) currentTutor.experience = experience;
     if (address !== undefined) currentTutor.address = address;
-    if (googleMapsUrl !== undefined) currentTutor.googleMapsUrl = googleMapsUrl;
+    if (googleMapsUrl !== undefined) {
+      const { expandGoogleMapsUrl } = require('../utils/urlHelper');
+      currentTutor.googleMapsUrl = await expandGoogleMapsUrl(googleMapsUrl);
+    }
     
     // Update subjectRates / subjects
     if (subjectRates !== undefined) {

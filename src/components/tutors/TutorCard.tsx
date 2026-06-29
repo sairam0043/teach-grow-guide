@@ -34,7 +34,7 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
         <img
           src={photoSrc}
           alt={tutor.name}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
           onError={(e) => {
             e.currentTarget.onerror = null; // prevent infinite loops if fallback fails

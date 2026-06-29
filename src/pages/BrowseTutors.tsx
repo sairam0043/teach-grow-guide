@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, Map as MapIcon, Grid as GridIcon } from "lucide-react";
+import TutorMapView from "@/components/tutors/TutorMapView";
 import { Helmet } from "react-helmet-async";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ const BrowseTutors = () => {
   const [day, setDay] = useState("all");
   const [time, setTime] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     if (categoryParam?.toLowerCase() === "academic") {
@@ -210,6 +212,15 @@ const BrowseTutors = () => {
             >
               <SlidersHorizontal className="h-4 w-4" />
             </Button>
+            <Button
+              variant={showMap ? "default" : "secondary"}
+              size="icon"
+              onClick={() => setShowMap(!showMap)}
+              className="md:hidden shrink-0"
+              title={showMap ? "Show List" : "Show Map"}
+            >
+              {showMap ? <GridIcon className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
       </section>
@@ -305,6 +316,24 @@ const BrowseTutors = () => {
                 Clear filters
               </Button>
             )}
+            
+            <Button
+              variant={showMap ? "default" : "outline"}
+              onClick={() => setShowMap(!showMap)}
+              className="gap-2 text-sm font-semibold rounded-lg shadow-sm md:ml-auto"
+            >
+              {showMap ? (
+                <>
+                  <GridIcon className="h-4 w-4" />
+                  Show List Only
+                </>
+              ) : (
+                <>
+                  <MapIcon className="h-4 w-4" />
+                  Find on Map
+                </>
+              )}
+            </Button>
           </div>
 
           {/* Results */}
@@ -319,33 +348,45 @@ const BrowseTutors = () => {
             )}
           </div>
 
-          {isLoading ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="rounded-xl border bg-card p-4 shadow-card">
-                  <Skeleton className="mb-4 h-48 w-full rounded-lg" />
-                  <Skeleton className="mb-2 h-6 w-2/3" />
-                  <Skeleton className="mb-4 h-4 w-1/3" />
-                  <div className="mb-4 flex gap-2">
-                    <Skeleton className="h-6 w-16 rounded-full" />
-                    <Skeleton className="h-6 w-16 rounded-full" />
-                  </div>
-                  <Skeleton className="h-8 w-full" />
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+            {/* Tutors Grid/List Panel */}
+            <div className={`flex-1 ${showMap ? "hidden lg:block lg:w-7/12" : "w-full"}`}>
+              {isLoading ? (
+                <div className={`grid gap-6 sm:grid-cols-2 ${showMap ? "" : "lg:grid-cols-3"}`}>
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="rounded-xl border bg-card p-4 shadow-card animate-pulse">
+                      <Skeleton className="mb-4 h-48 w-full rounded-lg" />
+                      <Skeleton className="mb-2 h-6 w-2/3" />
+                      <Skeleton className="mb-4 h-4 w-1/3" />
+                      <div className="mb-4 flex gap-2">
+                        <Skeleton className="h-6 w-16 rounded-full" />
+                        <Skeleton className="h-6 w-16 rounded-full" />
+                      </div>
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : filtered.length > 0 ? (
+                <div className={`grid gap-6 sm:grid-cols-2 ${showMap ? "lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto pr-2 custom-scrollbar lg:grid-cols-2" : "lg:grid-cols-3"}`}>
+                  {filtered.map((tutor) => (
+                    <TutorCard key={tutor.id} tutor={tutor} />
+                  ))}
+                </div>
+              ) : (
+                <div className="py-20 text-center bg-card border rounded-2xl">
+                  <p className="text-lg text-muted-foreground">No tutors found matching your criteria.</p>
+                  <Button variant="outline" onClick={clearFilters} className="mt-4">Clear filters</Button>
+                </div>
+              )}
             </div>
-          ) : filtered.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((tutor) => (
-                <TutorCard key={tutor.id} tutor={tutor} />
-              ))}
-            </div>
-          ) : (
-            <div className="py-20 text-center">
-              <p className="text-lg text-muted-foreground">No tutors found matching your criteria.</p>
-              <Button variant="outline" onClick={clearFilters} className="mt-4">Clear filters</Button>
-            </div>
-          )}
+
+            {/* Sticky/Responsive Map Panel */}
+            {showMap && (
+              <div className="w-full lg:w-5/12 h-[calc(100vh-250px)] lg:h-[calc(100vh-220px)] lg:sticky lg:top-[100px] rounded-2xl overflow-hidden border shadow-md shrink-0 z-20">
+                <TutorMapView tutors={filtered} selectedCity={city} />
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </PageLayout>
