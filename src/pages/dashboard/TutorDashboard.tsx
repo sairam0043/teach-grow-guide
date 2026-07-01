@@ -362,7 +362,10 @@ const TutorDashboard = () => {
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tutorProfile?.id || !user?.id) return;
+    if (!tutorProfile?.id || !user?.id) {
+      console.warn("[DEBUG] handleProfileUpdate aborted: tutorProfile.id=", tutorProfile?.id, "user.id=", user?.id);
+      return;
+    }
     setIsSavingProfile(true);
     try {
       let uploadedPhotoUrl = tutorProfile?.photo || "";
@@ -406,7 +409,9 @@ const TutorDashboard = () => {
         timezone: tutorTimezone
       };
       
-      const [authRes] = await Promise.all([
+      console.log("[DEBUG] handleProfileUpdate: payload=", payload);
+      
+      const [authRes, tutorRes] = await Promise.all([
         axios.put(`${API_URL}/auth/profile/${user.id}`, {
           full_name: profileName,
           phone: profilePhone,
@@ -423,20 +428,18 @@ const TutorDashboard = () => {
         }));
       }
       
-      // Update local state
-      setTutorProfile((prev: any) => ({ 
-        ...prev, 
-        name: profileName,
-        photo: uploadedPhotoUrl,
-        verificationDocument: uploadedDocUrl,
-        timezone: tutorTimezone
-      }));
+      // Update local state from response
+      if (tutorRes.data) {
+        console.log("[DEBUG] handleProfileUpdate success: res.data=", tutorRes.data);
+        setTutorProfile(tutorRes.data);
+      }
       setSelectedFile(null);
       setSelectedDocFile(null);
       setDocNamePreview("");
       
       toast.success("Public profile updated successfully!");
     } catch (error: any) {
+      console.error("[DEBUG] handleProfileUpdate error:", error, error.response?.data);
       toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
       setIsSavingProfile(false);
@@ -488,8 +491,14 @@ const TutorDashboard = () => {
             <AlertCircle className="h-5 w-5 text-rose-600" />
             <AlertTitle className="font-bold text-lg">Application Status: Rejected</AlertTitle>
             <AlertDescription className="mt-2 text-sm leading-relaxed">
-              Your tutor application was rejected by the admin team due to verification discrepancies. 
-              <span className="block mt-1 font-semibold text-foreground">
+              Your tutor application was rejected by the admin team.
+              {tutorProfile?.rejectionReason && (
+                <div className="mt-3 p-3 bg-rose-200/50 dark:bg-rose-950/40 rounded-xl text-rose-900 dark:text-rose-200 border border-rose-300/40 dark:border-rose-900/50">
+                  <span className="font-bold block mb-1">Reason for Rejection:</span>
+                  <p className="whitespace-pre-wrap leading-relaxed">{tutorProfile.rejectionReason}</p>
+                </div>
+              )}
+              <span className="block mt-3 font-semibold text-foreground">
                 How to resolve: Please update your bio, qualification, or re-upload a clean, valid Resume/CV document (PDF/Image) below and click "Update Public Profile" to automatically re-submit your profile for review!
               </span>
             </AlertDescription>

@@ -133,7 +133,7 @@ const Index = () => {
         </script>
       </Helmet>
 
-      {/* Course Banner Advertisement */}
+      {/* Course Banner Advertisement (Paused)
       <div className="w-full bg-secondary/30 border-b">
         <div className="container max-w-7xl px-4 py-3 sm:py-4">
           <Link
@@ -148,6 +148,7 @@ const Index = () => {
           </Link>
         </div>
       </div>
+      */}
 
       {/* Hero */}
       <section className="relative overflow-hidden bg-primary py-20 lg:py-28">

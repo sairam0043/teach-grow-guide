@@ -231,6 +231,9 @@ router.post('/verify-payment', async (req, res) => {
 // POST /api/payments/create-course-order
 router.post('/create-course-order', async (req, res) => {
   try {
+    // Course is paused: reject new registrations
+    return res.status(403).json({ message: 'Course registration is temporarily paused.' });
+
     const { studentId, studentName, studentEmail, purchaseType } = req.body;
     console.log(`[Course Payments] Order creation requested by ${studentName} (${studentEmail}) for ${purchaseType}`);
 

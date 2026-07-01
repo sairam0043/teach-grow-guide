@@ -2,152 +2,56 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://tutor.cuvasol.com/</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://tutor.cuvasol.com/about</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://tutor.cuvasol.com/contact</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://tutor.cuvasol.com/ai-program</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://tutor.cuvasol.com/terms</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://tutor.cuvasol.com/tutors</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://tutor.cuvasol.com/login</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://tutor.cuvasol.com/register/student</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://tutor.cuvasol.com/register/tutor</loc>
-    <lastmod>2026-06-24</lastmod>
+    <lastmod>2026-07-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a103349a0f4f8e788e4af2e</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a153c44ad55ed85de1358ea</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a168d6fe10a3343a2d0e335</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a16c598de26652310f8754a</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a1ed63debb7531d20b288d9</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a2900cbd38a5defde7fa2c7</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a2a51a06d88a59ca4bee48e</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a2ab5606b9b500d50924812</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a2d071b9d9de5517263b5f6</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a313e8a76468266b4e9ad49</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a338cce56e565f5882595f9</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a338effefe81d08e6194e85</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a36d7e2b31ed895b5d47370</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a38c32298c7a020c6ac9e0a</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a38d22a253acf88295e34b1</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tutor.cuvasol.com/tutors/6a395cbcfd7c06f204d91abb</loc>
-    <lastmod>2026-06-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
   </url>
 </urlset>

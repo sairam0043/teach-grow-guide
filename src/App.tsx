@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import TagManager from "react-gtm-module";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -88,14 +88,14 @@ const App = () => (
             <Route path="/tutors/:id" element={<TutorProfile />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/ai-program" element={<AIFutureSkills />} />
+            <Route path="/ai-program" element={<Navigate to="/" replace />} />
             <Route 
               path="/ai-program/enroll" 
-              element={<ProtectedRoute allowedRoles={["student"]}><AIFullCourseEnrollment /></ProtectedRoute>} 
+              element={<Navigate to="/" replace />} 
             />
             <Route 
               path="/ai-program/take-assessment/:paymentId" 
-              element={<ProtectedRoute allowedRoles={["student"]}><AIAssessment /></ProtectedRoute>} 
+              element={<Navigate to="/" replace />} 
             />
             <Route path="/terms" element={<Terms />} />
             <Route path="/login" element={<Login />} />

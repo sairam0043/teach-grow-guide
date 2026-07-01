@@ -15,6 +15,7 @@ import axios from "axios";
 import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 
@@ -38,6 +39,12 @@ const AdminDashboard = () => {
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
   const [isSavingScores, setIsSavingScores] = useState(false);
+
+  // Rejection Dialog States
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectTutorId, setRejectTutorId] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
 
   // New States for Admin booking details and support messages
   const [activeTab, setActiveTab] = useState(() => {
@@ -176,12 +183,42 @@ const AdminDashboard = () => {
   const totalPlatformRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
 
   const handleApproval = async (tutorId: string, status: "approved" | "rejected") => {
+    if (status === "rejected") {
+      setRejectTutorId(tutorId);
+      setRejectionReason("");
+      setIsRejectDialogOpen(true);
+      return;
+    }
+
     try {
       await axios.put(`${API_URL}/tutors/${tutorId}/admin`, { status });
       toast.success(`Tutor ${status} successfully!`);
       fetchTutors();
     } catch (err) {
       toast.error("Failed to update status");
+    }
+  };
+
+  const submitRejection = async () => {
+    if (!rejectTutorId || !rejectionReason.trim()) {
+      toast.error("Please enter a reason for rejection.");
+      return;
+    }
+    try {
+      setIsRejecting(true);
+      await axios.put(`${API_URL}/tutors/${rejectTutorId}/admin`, {
+        status: "rejected",
+        rejectionReason: rejectionReason.trim(),
+      });
+      toast.success("Tutor application rejected with reason.");
+      setIsRejectDialogOpen(false);
+      setRejectTutorId(null);
+      setRejectionReason("");
+      fetchTutors();
+    } catch (err) {
+      toast.error("Failed to reject tutor application");
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -1075,6 +1112,56 @@ const AdminDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Rejection Reason Modal */}
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-rose-600">
+              <XCircle className="h-5 w-5" /> Reject Tutor Application
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              Please provide a clear reason for rejecting this tutor application. The tutor will see this message on their dashboard and in their email notification, helping them understand what corrections are needed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="rejection-reason" className="text-sm font-semibold text-foreground">
+                Reason for Rejection <span className="text-rose-500">*</span>
+              </label>
+              <Textarea
+                id="rejection-reason"
+                placeholder="e.g., The uploaded resume is blurry and unreadable. Please upload a clear PDF of your resume. Also, please expand your bio to be at least 100 characters."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={5}
+                className="resize-none rounded-xl border-border focus-visible:ring-rose-500 focus-visible:ring-offset-0 focus-visible:border-rose-500 bg-background/50 transition-all"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setIsRejectDialogOpen(false);
+                setRejectTutorId(null);
+                setRejectionReason("");
+              }}
+              disabled={isRejecting}
+              className="rounded-lg h-10 px-4 hover:bg-secondary/20"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitRejection}
+              disabled={!rejectionReason.trim() || isRejecting}
+              className="bg-rose-600 hover:bg-rose-700 text-white rounded-lg h-10 px-4 shadow-md shadow-rose-600/10 font-medium"
+            >
+              {isRejecting ? "Rejecting..." : "Confirm Reject"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Tutor Details Modal */}
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>

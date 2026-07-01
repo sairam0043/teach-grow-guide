@@ -801,10 +801,16 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
 // Admin can update approval status and featured flag
 router.put('/:id/admin', async (req, res) => {
   try {
-    const { status, featured } = req.body;
+    const { status, featured, rejectionReason } = req.body;
     const updateData = {};
-    if (status) updateData.status = status;
+    if (status) {
+      updateData.status = status;
+      if (status === 'approved') {
+        updateData.rejectionReason = '';
+      }
+    }
     if (featured !== undefined) updateData.featured = featured;
+    if (rejectionReason !== undefined) updateData.rejectionReason = rejectionReason;
 
     const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
@@ -855,18 +861,17 @@ router.put('/:id/admin', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutor.userId.email,
           subject: 'Tutor Profile Application Update',
-          text: `Hello ${tutor.name},\n\nThank you for your interest in joining Cuvasol Tutor.\n\nUnfortunately, your tutor profile application has not been approved by the administrator at this time. This could be due to incomplete verification documents or profile guidelines.\n\nYou can log in to your dashboard to update your profile details and re-submit them for review at any time.\n\nAccess your dashboard: ${getFrontendUrl(req)}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
+          text: `Hello ${tutor.name},\n\nThank you for your interest in joining Cuvasol Tutor.\n\nUnfortunately, your tutor profile application has not been approved by the administrator at this time. Reason:\n${tutor.rejectionReason || 'Incomplete verification documents or profile guidelines'}\n\nYou can log in to your dashboard to update your profile details and re-submit them for review at any time.\n\nAccess your dashboard: ${getFrontendUrl(req)}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
               <h2 style="color: #dc2626; text-align: center;">Tutor Profile Update</h2>
               <p>Hello <strong>${tutor.name}</strong>,</p>
               <p>Thank you for your interest in joining <strong>Cuvasol Tutor</strong>.</p>
-              <p>Unfortunately, your tutor profile application has not been approved by the administrator at this time. This is usually due to one of the following reasons:</p>
-              <ul style="line-height: 1.6;">
-                <li>Incomplete or unclear Resume/CV documents</li>
-                <li>Inaccurate profile information</li>
-                <li>Not meeting our current profile criteria</li>
-              </ul>
+              <p>Unfortunately, your tutor profile application has not been approved by the administrator at this time.</p>
+              <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 6px;">
+                <p style="margin: 0; font-weight: bold; color: #991b1b; font-size: 14px;">Reason for rejection:</p>
+                <p style="margin: 6px 0 0 0; color: #7f1d1d; font-size: 14px; white-space: pre-wrap; line-height: 1.5;">${tutor.rejectionReason || 'Verification documents or profile guidelines did not meet our requirements.'}</p>
+              </div>
               <p><strong>The good news:</strong> You can easily update your details and re-submit your profile! Simply log in to your dashboard to make corrections and upload valid documents.</p>
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${getFrontendUrl(req)}/dashboard/tutor" 
@@ -924,6 +929,7 @@ router.put('/:id/profile', async (req, res) => {
     // If the tutor was previously rejected, updating their profile automatically re-submits it for review
     if (currentTutor.status === 'rejected') {
       currentTutor.status = 'pending';
+      currentTutor.rejectionReason = '';
     }
 
     if (bio !== undefined) currentTutor.bio = bio;
