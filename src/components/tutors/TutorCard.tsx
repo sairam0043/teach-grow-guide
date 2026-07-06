@@ -52,11 +52,13 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
             <h3 className="font-serif text-lg text-card-foreground capitalize">{tutor.name}</h3>
             <p className="text-sm text-muted-foreground">{tutor.experience} years experience</p>
           </div>
-          <div className="flex items-center gap-1 text-sm">
-            <Star className="h-4 w-4 fill-warning text-warning" />
-            <span className="font-medium text-card-foreground">{tutor.rating}</span>
-            <span className="text-muted-foreground">({tutor.reviewCount})</span>
-          </div>
+          {tutor.rating > 0 && (
+            <div className="flex items-center gap-1 text-sm">
+              <Star className="h-4 w-4 fill-warning text-warning" />
+              <span className="font-medium text-card-foreground">{tutor.rating}</span>
+              <span className="text-muted-foreground">({tutor.reviewCount})</span>
+            </div>
+          )}
         </div>
 
         <div className="mb-3 flex flex-wrap gap-1.5">

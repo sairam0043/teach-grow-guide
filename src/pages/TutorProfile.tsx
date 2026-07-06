@@ -915,10 +915,12 @@ const TutorProfile = () => {
                 <h1 className="mb-1 text-3xl font-bold text-foreground capitalize">{tutor.name}</h1>
                 <p className="mb-2 text-muted-foreground">{tutor.qualification}</p>
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Star className="h-4 w-4 fill-warning text-warning" />
-                    <strong className="text-foreground">{tutor.rating ?? 0}</strong> ({tutor.reviewCount ?? 0} reviews)
-                  </span>
+                  {tutor.rating > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Star className="h-4 w-4 fill-warning text-warning" />
+                      <strong className="text-foreground">{tutor.rating}</strong> ({tutor.reviewCount ?? 0} reviews)
+                    </span>
+                  )}
                   <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{tutor.experience} years</span>
                   <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{tutor.city}</span>
                 </div>
@@ -1118,56 +1120,58 @@ const TutorProfile = () => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Student Reviews</span>
-                  <Badge variant="secondary" className="flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5 fill-warning text-warning" />
-                    <span className="font-semibold">{tutor.rating ?? 0}</span>
-                    <span className="text-muted-foreground text-xs">({tutor.reviewCount ?? 0} reviews)</span>
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {tutor.reviews && tutor.reviews.length > 0 ? (
-                  <div className="space-y-6">
-                    {tutor.reviews.map((rev: any, idx: number) => (
-                      <div key={idx} className="flex gap-4 border-b border-border/50 pb-6 last:border-0 last:pb-0">
-                        <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
-                          {rev.studentName?.charAt(0).toUpperCase() || 'S'}
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
-                            <span className="font-semibold text-foreground text-sm sm:text-base">{rev.studentName}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {rev.date ? new Date(rev.date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : ""}
-                            </span>
+            {tutor.rating > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Student Reviews</span>
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Star className="h-3.5 w-3.5 fill-warning text-warning" />
+                      <span className="font-semibold">{tutor.rating}</span>
+                      <span className="text-muted-foreground text-xs">({tutor.reviewCount ?? 0} reviews)</span>
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tutor.reviews && tutor.reviews.length > 0 ? (
+                    <div className="space-y-6">
+                      {tutor.reviews.map((rev: any, idx: number) => (
+                        <div key={idx} className="flex gap-4 border-b border-border/50 pb-6 last:border-0 last:pb-0">
+                          <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                            {rev.studentName?.charAt(0).toUpperCase() || 'S'}
                           </div>
-                          <div className="flex gap-0.5 text-yellow-500 pb-1">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`h-4 w-4 ${i < (rev.rating || 0) ? "fill-current text-amber-500" : "text-muted-foreground/20"}`}
-                              />
-                            ))}
+                          <div className="flex-1 space-y-1">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                              <span className="font-semibold text-foreground text-sm sm:text-base">{rev.studentName}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {rev.date ? new Date(rev.date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : ""}
+                              </span>
+                            </div>
+                            <div className="flex gap-0.5 text-yellow-500 pb-1">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-4 w-4 ${i < (rev.rating || 0) ? "fill-current text-amber-500" : "text-muted-foreground/20"}`}
+                                />
+                              ))}
+                            </div>
+                            {rev.reviewText && (
+                              <p className="text-sm text-muted-foreground leading-relaxed">
+                                {rev.reviewText}
+                              </p>
+                            )}
                           </div>
-                          {rev.reviewText && (
-                            <p className="text-sm text-muted-foreground leading-relaxed">
-                              {rev.reviewText}
-                            </p>
-                          )}
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p className="text-sm italic">No written reviews yet. Book a session to be the first to leave feedback!</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p className="text-sm italic">No written reviews yet. Book a session to be the first to leave feedback!</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Booking sidebar */}

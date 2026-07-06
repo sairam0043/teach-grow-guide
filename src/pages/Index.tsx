@@ -39,11 +39,13 @@ const Index = () => {
     }
   });
 
+  const hasAverageRating = platformStats?.averageRating && parseFloat(platformStats.averageRating) > 0;
+
   const stats = [
     { icon: Users, value: platformStats?.totalStudents || 0, label: "Active Students" },
     { icon: Award, value: platformStats?.activeTutors || 0, label: "Expert Tutors" },
     { icon: BookOpen, value: platformStats?.totalBookings || 0, label: "Classes Booked" },
-    { icon: Star, value: platformStats?.averageRating || 0, label: "Average Rating" },
+    ...(hasAverageRating ? [{ icon: Star, value: platformStats.averageRating, label: "Average Rating" }] : []),
   ];
 
   const schemaMarkup = {
@@ -194,7 +196,7 @@ const Index = () => {
       {/* Stats */}
       <section className="border-b bg-card py-12">
         <div className="container">
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
+          <div className={`grid gap-6 ${hasAverageRating ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
             {stats.map((stat, idx) => (
               <motion.div
                 key={stat.label}
