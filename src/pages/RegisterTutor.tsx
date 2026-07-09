@@ -622,9 +622,10 @@ const RegisterTutor = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="hearAboutUs">Where did you hear about us?</Label>
+                <Label htmlFor="hearAboutUs">Where did you hear about us? <span className="text-destructive">*</span></Label>
                 <Input
                   id="hearAboutUs"
+                  required
                   maxLength={200}
                   placeholder="e.g. Google, Social Media, Friend, search engine"
                   value={hearAboutUs}
