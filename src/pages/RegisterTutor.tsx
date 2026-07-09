@@ -74,6 +74,7 @@ const RegisterTutor = () => {
   const [newCustomCategory, setNewCustomCategory] = useState("Academic");
   const [newCustomRate, setNewCustomRate] = useState(500);
   const [bio, setBio] = useState("");
+  const [hearAboutUs, setHearAboutUs] = useState("");
   const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
     DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
@@ -263,6 +264,7 @@ const RegisterTutor = () => {
       subjectRates: JSON.stringify(finalSubjectRates),
       hourlyRate: finalSubjectRates[0]?.rate || 500,
       bio,
+      hearAboutUs,
       experience,
       qualification,
       city,
@@ -434,7 +436,7 @@ const RegisterTutor = () => {
                               <span className="text-xs text-muted-foreground">₹</span>
                               <Input
                                 type="number"
-                                min={100}
+                                min={1}
                                 max={10000}
                                 className="w-24 h-8 text-xs font-bold"
                                 value={subjectRates[s] !== undefined ? subjectRates[s] : 500}
@@ -501,7 +503,7 @@ const RegisterTutor = () => {
                           <div className="flex gap-1.5 items-center">
                             <Input
                               type="number"
-                              min={100}
+                              min={1}
                               max={10000}
                               value={newCustomRate}
                               onChange={(e) => setNewCustomRate(Number(e.target.value))}
@@ -617,6 +619,17 @@ const RegisterTutor = () => {
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground">Select the days and times you are generally available for demo sessions. You can fine-tune this later in your dashboard.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="hearAboutUs">Where did you hear about us?</Label>
+                <Input
+                  id="hearAboutUs"
+                  maxLength={200}
+                  placeholder="e.g. Google, Social Media, Friend, search engine"
+                  value={hearAboutUs}
+                  onChange={(e) => setHearAboutUs(e.target.value)}
+                />
               </div>
 
               <div className="space-y-2">

@@ -1236,7 +1236,7 @@ const TutorDashboard = () => {
                                       <span className="text-xs text-muted-foreground font-semibold">₹</span>
                                       <Input 
                                         type="number" 
-                                        min={100} 
+                                        min={1} 
                                         max={10000} 
                                         className="w-20 h-8 text-xs font-bold text-center" 
                                         value={sr.rate !== undefined ? sr.rate : ""} 
@@ -1334,7 +1334,7 @@ const TutorDashboard = () => {
                                 <span className="text-xs text-muted-foreground">₹</span>
                                 <Input 
                                   type="number" 
-                                  min={100} 
+                                  min={1} 
                                   max={10000} 
                                   className="w-20 h-9 text-xs font-bold text-center bg-background" 
                                   value={newSubjectRate !== undefined ? newSubjectRate : ""} 

@@ -146,7 +146,8 @@ router.post('/register', async (req, res) => {
           const { expandGoogleMapsUrl } = require('../utils/urlHelper');
           return await expandGoogleMapsUrl(rawUrl);
         })(),
-        timezone: tutorData.timezone || timezone || 'Asia/Kolkata'
+        timezone: tutorData.timezone || timezone || 'Asia/Kolkata',
+        hearAboutUs: tutorData.hearAboutUs || ''
       });
       await tutor.save();
     }

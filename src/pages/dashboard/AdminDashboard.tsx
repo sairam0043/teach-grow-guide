@@ -554,6 +554,14 @@ const AdminDashboard = () => {
                                 <Button 
                                   size="sm" 
                                   variant="ghost" 
+                                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
+                                  onClick={() => handleApproval(tutor.id, "rejected")}
+                                >
+                                  <XCircle className="mr-1.5 h-4 w-4" /> Disapprove
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
                                   className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
                                   onClick={() => handleDeleteTutor(tutor.id, tutor.name)}
                                 >
@@ -1229,6 +1237,16 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
+              {/* Source (Where did they hear about us?) */}
+              {selectedTutorForDetail.hearAboutUs && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Where did they hear about us?</h4>
+                  <div className="p-4 rounded-xl bg-indigo-50/20 dark:bg-indigo-950/10 border border-indigo-100/30 leading-relaxed text-sm text-foreground font-medium">
+                    {selectedTutorForDetail.hearAboutUs}
+                  </div>
+                </div>
+              )}
+
               {/* Professional Bio */}
               <div className="space-y-2">
                 <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Professional Bio</h4>
@@ -1370,22 +1388,36 @@ const AdminDashboard = () => {
                     </Button>
                   </>
                 ) : (
-                  <Button 
-                    variant={selectedTutorForDetail.featured ? "outline" : "default"} 
-                    className={`font-bold ${
-                      selectedTutorForDetail.featured 
-                        ? "border-amber-500/50 text-amber-600 hover:bg-amber-50" 
-                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                    }`}
-                    onClick={() => {
-                      toggleFeatured(selectedTutorForDetail);
-                      // Update modal state instantly to reflect UI feature changes
-                      setSelectedTutorForDetail((prev: any) => prev ? { ...prev, featured: !prev.featured } : null);
-                    }}
-                  >
-                    <Star className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.featured ? "fill-amber-400 text-amber-500" : ""}`} />
-                    {selectedTutorForDetail.featured ? "Remove Featured" : "Make Featured"}
-                  </Button>
+                  <>
+                    {selectedTutorForDetail.status === "approved" && (
+                      <Button 
+                        variant="outline"
+                        className="text-rose-600 hover:bg-rose-50 border-rose-200 font-bold" 
+                        onClick={() => {
+                          handleApproval(selectedTutorForDetail.id, "rejected");
+                          setIsDetailDialogOpen(false);
+                        }}
+                      >
+                        <XCircle className="mr-1.5 h-4 w-4" /> Disapprove Tutor
+                      </Button>
+                    )}
+                    <Button 
+                      variant={selectedTutorForDetail.featured ? "outline" : "default"} 
+                      className={`font-bold ${
+                        selectedTutorForDetail.featured 
+                          ? "border-amber-500/50 text-amber-600 hover:bg-amber-50" 
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      }`}
+                      onClick={() => {
+                        toggleFeatured(selectedTutorForDetail);
+                        // Update modal state instantly to reflect UI feature changes
+                        setSelectedTutorForDetail((prev: any) => prev ? { ...prev, featured: !prev.featured } : null);
+                      }}
+                    >
+                      <Star className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.featured ? "fill-amber-400 text-amber-500" : ""}`} />
+                      {selectedTutorForDetail.featured ? "Remove Featured" : "Make Featured"}
+                    </Button>
+                  </>
                 )}
                 <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
                   Close
