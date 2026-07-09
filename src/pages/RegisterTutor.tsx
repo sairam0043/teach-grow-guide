@@ -627,7 +627,7 @@ const RegisterTutor = () => {
                   id="hearAboutUs"
                   required
                   maxLength={200}
-                  placeholder="e.g. Google, Social Media, Friend, search engine"
+                  placeholder="e.g. Facebook, Naukri, Instagram, Google, Friend"
                   value={hearAboutUs}
                   onChange={(e) => setHearAboutUs(e.target.value)}
                 />
