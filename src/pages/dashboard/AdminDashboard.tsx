@@ -433,6 +433,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Subjects</TableHead>
                           <TableHead className="font-bold h-12">Experience</TableHead>
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
+                          <TableHead className="font-bold h-12">Applied</TableHead>
                           <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -481,6 +482,9 @@ const AdminDashboard = () => {
                               ) : (
                                 <span className="text-xs text-muted-foreground italic">No document</span>
                               )}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                              {tutor.createdAt ? new Date(tutor.createdAt).toLocaleDateString() : "–"}
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2.5">
@@ -552,6 +556,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
                           <TableHead className="font-bold h-12 text-center">Verified</TableHead>
                           <TableHead className="font-bold h-12 text-center">Featured</TableHead>
+                          <TableHead className="font-bold h-12">Joined</TableHead>
                           <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -617,6 +622,9 @@ const AdminDashboard = () => {
                               ) : (
                                 <Star className="h-5 w-5 text-muted-foreground opacity-30 mx-auto" />
                               )}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                              {tutor.createdAt ? new Date(tutor.createdAt).toLocaleDateString() : "–"}
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2.5">
@@ -1438,8 +1446,8 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Contact Information */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-card p-4 rounded-xl border">
+               {/* Contact Information */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-card p-4 rounded-xl border">
                 <div>
                   <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
                   <span className="text-sm font-semibold text-foreground mt-0.5 block">{selectedTutorForDetail.email || "No email provided"}</span>
@@ -1447,6 +1455,12 @@ const AdminDashboard = () => {
                 <div>
                   <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
                   <span className="text-sm font-semibold text-foreground mt-0.5 block">{selectedTutorForDetail.phone || "No phone provided"}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Registration Date</span>
+                  <span className="text-sm font-semibold text-foreground mt-0.5 block">
+                    {selectedTutorForDetail.createdAt ? new Date(selectedTutorForDetail.createdAt).toLocaleString() : "Not available"}
+                  </span>
                 </div>
               </div>
 
