@@ -806,7 +806,7 @@ const StudentDashboard = () => {
                 <form onSubmit={handleProfileUpdate} className="space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-sm font-semibold">Full Name</Label>
-                    <Input id="name" value={profileName} onChange={(e) => setProfileName(capitalizeName(e.target.value))} className="bg-secondary/20 border-border/50" />
+                    <Input id="name" value={profileName} onChange={(e) => setProfileName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))} className="bg-secondary/20 border-border/50" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-semibold">Email Address <span className="text-xs font-normal text-muted-foreground">(Cannot be changed)</span></Label>
@@ -814,7 +814,7 @@ const StudentDashboard = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
-                    <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value)} placeholder="+1 234 567 890" className="bg-secondary/20 border-border/50" />
+                    <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} placeholder="+1 234 567 890" className="bg-secondary/20 border-border/50" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>

@@ -271,7 +271,7 @@ const Login = () => {
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="otp">6-Digit OTP</Label>
-                  <Input id="otp" type="text" placeholder="123456" maxLength={6} required value={otp} onChange={(e) => setOtp(e.target.value)} />
+                  <Input id="otp" type="text" placeholder="123456" maxLength={6} required value={otp} onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>

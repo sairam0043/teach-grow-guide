@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Star, MapPin, Monitor, Users, CalendarDays } from "lucide-react";
+import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
@@ -49,7 +49,12 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
       <div className="p-5">
         <div className="mb-2 flex items-start justify-between">
           <div>
-            <h3 className="font-serif text-lg text-card-foreground capitalize">{tutor.name}</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-serif text-lg text-card-foreground capitalize">{tutor.name}</h3>
+              {tutor.isVerified && (
+                <CheckCircle2 className="h-4 w-4 fill-blue-500 text-white shrink-0" title="Verified Tutor" />
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">{tutor.experience} years experience</p>
           </div>
           {tutor.rating > 0 && (

@@ -28,6 +28,7 @@ const tutorSchema = new mongoose.Schema({
     rate: { type: Number, required: true, default: 500 }
   }],
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  isVerified: { type: Boolean, default: false },
   rejectionReason: { type: String, default: "" },
   hearAboutUs: { type: String, default: "" },
   featured: { type: Boolean, default: false },

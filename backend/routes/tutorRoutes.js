@@ -373,6 +373,67 @@ router.post('/:id/book', async (req, res) => {
   }
 });
 
+// Admin can request a verification demo class with the tutor
+router.post('/:id/book-verification-demo', async (req, res) => {
+  try {
+    const tutorId = req.params.id;
+    const { timing, utcTiming } = req.body;
+    
+    if (!timing) return res.status(400).json({ message: 'Timing is required' });
+
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    // Check if there is already an active verification demo booking
+    const existingDemo = await Booking.findOne({ 
+      tutorId: tutor._id, 
+      studentId: 'admin',
+      subject: 'Verification Demo Class',
+      status: { $in: ['pending', 'confirmed'] } 
+    });
+    if (existingDemo) {
+      return res.status(400).json({ message: 'A verification demo is already pending or confirmed for this tutor.' });
+    }
+
+    const newBooking = new Booking({
+      tutorId: tutor._id,
+      tutorName: tutor.name,
+      timing,
+      utcTiming: utcTiming ? new Date(utcTiming) : undefined,
+      subject: 'Verification Demo Class',
+      studentId: 'admin',
+      studentName: 'Admin Verification',
+      status: 'pending'
+    });
+    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-verification-${newBooking._id}`;
+    await newBooking.save();
+
+    // Send email notification to tutor
+    try {
+      const tutorUser = await User.findById(tutor.userId);
+      if (tutorUser && tutorUser.email) {
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: tutorUser.email,
+          subject: 'Action Required: Verification Demo Class Requested',
+          text: `Hello ${tutor.name},\n\nOur administrator has requested a verification demo class with you on ${timing}.\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
+          html: `<h3>Verification Demo Class Requested</h3>
+                 <p>Hello <b>${tutor.name}</b>,</p>
+                 <p>Our administrator has requested a verification demo class with you on <b>${timing}</b>.</p>
+                 <p>Please log in to your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
+                 <p>Best regards,<br/>Cuvasol Tutor Team</p>`,
+        });
+      }
+    } catch (mailError) {
+      console.error('[Verification Booking] Failed to send email:', mailError.message);
+    }
+
+    res.status(200).json({ message: 'Verification demo requested successfully', booking: newBooking });
+  } catch (error) {
+    res.status(500).json({ message: 'Error booking verification demo', error: error.message });
+  }
+});
+
 // Students can book a class directly (skip demo)
 router.post('/:id/book-class', async (req, res) => {
   try {
@@ -573,7 +634,15 @@ router.put('/booking/:bookingId/status', async (req, res) => {
       try {
         const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(booking.studentId);
         const studentUser = isValidObjectId ? await User.findById(booking.studentId) : null;
+        
+        let recipientEmail = null;
         if (studentUser && studentUser.email) {
+          recipientEmail = studentUser.email;
+        } else if (booking.studentId === 'admin') {
+          recipientEmail = process.env.ADMIN_EMAIL || 'admin@cuvasoltutor.com';
+        }
+
+        if (recipientEmail) {
           const isConfirmed = status === 'confirmed';
           const emailSubject = isConfirmed
             ? `Demo Booking Accepted: ${booking.subject} with ${booking.tutorName}`
@@ -641,15 +710,15 @@ router.put('/booking/:bookingId/status', async (req, res) => {
               </div>
             `;
 
-          console.log(`[Booking] Sending status update email to student: ${studentUser.email}`);
+          console.log(`[Booking] Sending status update email to: ${recipientEmail}`);
           await transporter.sendMail({
             from: process.env.EMAIL_FROM || '"Cuvasol Classroom" <noreply@cuvasoltutor.com>',
-            to: studentUser.email,
+            to: recipientEmail,
             subject: emailSubject,
             text: emailText,
             html: emailHtml
           });
-          console.log(`[Booking] Status update email sent to student successfully.`);
+          console.log(`[Booking] Status update email sent successfully.`);
         }
       } catch (mailError) {
         console.error('[Booking] Failed to send student status update email:', mailError.message);
@@ -798,10 +867,10 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
   }
 });
 
-// Admin can update approval status and featured flag
+// Admin can update approval status, featured flag, and verification badge status
 router.put('/:id/admin', async (req, res) => {
   try {
-    const { status, featured, rejectionReason } = req.body;
+    const { status, featured, rejectionReason, isVerified } = req.body;
     const updateData = {};
     if (status) {
       updateData.status = status;
@@ -811,6 +880,7 @@ router.put('/:id/admin', async (req, res) => {
     }
     if (featured !== undefined) updateData.featured = featured;
     if (rejectionReason !== undefined) updateData.rejectionReason = rejectionReason;
+    if (isVerified !== undefined) updateData.isVerified = isVerified;
 
     const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });

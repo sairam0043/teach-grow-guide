@@ -1139,7 +1139,7 @@ const TutorDashboard = () => {
                             <Input 
                               id="name" 
                               value={profileName} 
-                              onChange={(e) => setProfileName(capitalizeName(e.target.value))} 
+                              onChange={(e) => setProfileName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))} 
                               className="bg-secondary/20 border-border/50 shadow-sm" 
                               required 
                             />
@@ -1149,7 +1149,7 @@ const TutorDashboard = () => {
                             <Input 
                               id="phone" 
                               value={profilePhone} 
-                              onChange={(e) => setProfilePhone(e.target.value)} 
+                              onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} 
                               placeholder="+1 234 567 890" 
                               className="bg-secondary/20 border-border/50 shadow-sm" 
                             />
@@ -1169,7 +1169,7 @@ const TutorDashboard = () => {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
-                            <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
+                            <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value.replace(/[^a-zA-Z0-9\s.()/-]/g, '')})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
                           </div>
                           
                           <div className="space-y-2">
@@ -1241,7 +1241,8 @@ const TutorDashboard = () => {
                                         className="w-20 h-8 text-xs font-bold text-center" 
                                         value={sr.rate !== undefined ? sr.rate : ""} 
                                         onChange={(e) => {
-                                          const val = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                                          const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                          const val = cleaned === "" ? "" : parseInt(cleaned, 10);
                                           setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val as number) ? "" : val } : item));
                                         }} 
                                       />
@@ -1283,7 +1284,7 @@ const TutorDashboard = () => {
                                     <Input 
                                       placeholder="Enter subject name..." 
                                       value={newSubjectName} 
-                                      onChange={(e) => setNewSubjectName(e.target.value)}
+                                      onChange={(e) => setNewSubjectName(e.target.value.replace(/[^a-zA-Z0-9\s-]/g, ''))}
                                       className="h-9 text-xs bg-background"
                                     />
                                     <Button 
@@ -1339,7 +1340,8 @@ const TutorDashboard = () => {
                                   className="w-20 h-9 text-xs font-bold text-center bg-background" 
                                   value={newSubjectRate !== undefined ? newSubjectRate : ""} 
                                   onChange={(e) => {
-                                    const val = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                                    const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                    const val = cleaned === "" ? "" : parseInt(cleaned, 10);
                                     setNewSubjectRate(isNaN(val as number) ? "" : val as any);
                                   }} 
                                 />

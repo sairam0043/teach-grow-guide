@@ -83,6 +83,10 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
+    if (role === 'tutor' && (!tutorData.verificationDocument || tutorData.verificationDocument.trim() === '')) {
+      return res.status(400).json({ message: 'Resume/CV document is required for tutor registration.' });
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 

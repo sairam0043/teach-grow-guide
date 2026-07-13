@@ -16,6 +16,7 @@ import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 
@@ -68,6 +69,8 @@ const AdminDashboard = () => {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<any | null>(null);
   const [isBookingDetailDialogOpen, setIsBookingDetailDialogOpen] = useState(false);
+  const [verificationDemoTiming, setVerificationDemoTiming] = useState("");
+  const [isBookingDemo, setIsBookingDemo] = useState(false);
 
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
@@ -77,6 +80,44 @@ const AdminDashboard = () => {
   const handleViewBookingDetail = (booking: any) => {
     setSelectedBookingForDetail(booking);
     setIsBookingDetailDialogOpen(true);
+  };
+
+  const formatDemoTiming = (val: string) => {
+    if (!val) return "";
+    const d = new Date(val);
+    const dateStr = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return `${dateStr} at ${timeStr}`;
+  };
+
+  const handleBookVerificationDemo = async () => {
+    if (!selectedTutorForDetail) return;
+    if (!verificationDemoTiming) {
+      toast.error("Please select a date and time for the demo class.");
+      return;
+    }
+    
+    const d = new Date(verificationDemoTiming);
+    if (d < new Date()) {
+      toast.error("You cannot book a demo class in the past.");
+      return;
+    }
+
+    try {
+      setIsBookingDemo(true);
+      const timingStr = formatDemoTiming(verificationDemoTiming);
+      await axios.post(`${API_URL}/tutors/${selectedTutorForDetail.id}/book-verification-demo`, {
+        timing: timingStr,
+        utcTiming: d.toISOString()
+      });
+      toast.success("Verification demo class booked successfully! A request has been sent to the tutor.");
+      setVerificationDemoTiming("");
+      fetchTutors();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to book verification demo class");
+    } finally {
+      setIsBookingDemo(false);
+    }
   };
 
   const handleViewAnswers = (payment: any) => {
@@ -229,6 +270,16 @@ const AdminDashboard = () => {
       fetchTutors();
     } catch (err) {
       toast.error("Failed to update featured status");
+    }
+  };
+
+  const toggleVerified = async (tutor: any) => {
+    try {
+      await axios.put(`${API_URL}/tutors/${tutor.id}/admin`, { isVerified: !tutor.isVerified });
+      toast.success(tutor.isVerified ? "Removed verified badge" : "Granted verified badge");
+      fetchTutors();
+    } catch (err) {
+      toast.error("Failed to update verification status");
     }
   };
 
@@ -479,6 +530,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Subjects</TableHead>
                           <TableHead className="font-bold h-12">Status</TableHead>
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
+                          <TableHead className="font-bold h-12 text-center">Verified</TableHead>
                           <TableHead className="font-bold h-12 text-center">Featured</TableHead>
                           <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
                         </TableRow>
@@ -531,6 +583,15 @@ const AdminDashboard = () => {
                               )}
                             </TableCell>
                             <TableCell className="text-center">
+                              {tutor.isVerified ? (
+                                <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/30 text-xs font-semibold inline-flex items-center gap-1 cursor-pointer" onClick={() => toggleVerified(tutor)}>
+                                  <CheckCircle className="h-3.5 w-3.5 fill-blue-500 text-white" /> Verified
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic cursor-pointer hover:underline" onClick={() => toggleVerified(tutor)}>Not Verified</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
                               {tutor.featured ? (
                                 <Star className="h-5 w-5 fill-amber-400 text-amber-500 mx-auto drop-shadow-sm filter animate-wiggle" />
                               ) : (
@@ -539,6 +600,18 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2.5">
+                                <Button 
+                                  size="sm" 
+                                  variant={tutor.isVerified ? "outline" : "default"} 
+                                  className={`rounded-lg h-9 px-3 transition-all duration-300 hover:-translate-y-0.5 ${
+                                    tutor.isVerified 
+                                      ? "border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20" 
+                                      : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-blue-500/20"
+                                  }`} 
+                                  onClick={() => toggleVerified(tutor)}
+                                >
+                                  {tutor.isVerified ? "Remove Badge" : "Give Verified"}
+                                </Button>
                                 <Button 
                                   size="sm" 
                                   variant={tutor.featured ? "outline" : "default"} 
@@ -1363,6 +1436,38 @@ const AdminDashboard = () => {
                 )}
               </div>
 
+              {/* Book Verification Demo Section */}
+              <div className="space-y-2 border-t pt-4 border-border/40 mt-4">
+                <h4 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Video className="h-4 w-4 text-blue-500" /> Book Verification Demo Class
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Send a request to the tutor to schedule a demo class with the administrator for verification.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 items-end sm:items-center mt-2 p-4 border rounded-xl bg-secondary/5">
+                  <div className="flex-1 w-full space-y-1">
+                    <label htmlFor="demo-datetime" className="text-[10px] font-bold text-muted-foreground uppercase">
+                      Select Date & Time
+                    </label>
+                    <Input 
+                      id="demo-datetime"
+                      type="datetime-local" 
+                      className="bg-background shadow-sm h-9 text-xs" 
+                      value={verificationDemoTiming}
+                      onChange={(e) => setVerificationDemoTiming(e.target.value)}
+                    />
+                  </div>
+                  <Button 
+                    type="button"
+                    onClick={handleBookVerificationDemo}
+                    disabled={isBookingDemo}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-4 shrink-0 shadow-sm hover:shadow-blue-500/20"
+                  >
+                    {isBookingDemo ? "Booking..." : "Request Demo Class"}
+                  </Button>
+                </div>
+              </div>
+
               {/* Quick Actions Footer inside Modal */}
               <div className="flex flex-wrap gap-2.5 justify-end pt-4 border-t border-border/40">
                 {selectedTutorForDetail.status === "pending" ? (
@@ -1418,10 +1523,25 @@ const AdminDashboard = () => {
                       {selectedTutorForDetail.featured ? "Remove Featured" : "Make Featured"}
                     </Button>
                   </>
-                )}
-                <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
-                  Close
-                </Button>
+                 )}
+                 <Button 
+                   variant={selectedTutorForDetail.isVerified ? "outline" : "default"} 
+                   className={`font-bold ${
+                     selectedTutorForDetail.isVerified 
+                       ? "border-blue-500/50 text-blue-600 hover:bg-blue-50" 
+                       : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-blue-500/20"
+                   }`}
+                   onClick={() => {
+                     toggleVerified(selectedTutorForDetail);
+                     setSelectedTutorForDetail((prev: any) => prev ? { ...prev, isVerified: !prev.isVerified } : null);
+                   }}
+                 >
+                   <CheckCircle className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.isVerified ? "fill-blue-500 text-white" : ""}`} />
+                   {selectedTutorForDetail.isVerified ? "Remove Verified" : "Give Verified"}
+                 </Button>
+                 <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
+                   Close
+                 </Button>
               </div>
             </div>
           )}

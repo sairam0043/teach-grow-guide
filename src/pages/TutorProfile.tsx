@@ -912,7 +912,12 @@ const TutorProfile = () => {
                   <Badge className="bg-primary text-primary-foreground">{tutor.category}</Badge>
                   <Badge variant="secondary">{tutor.mode}</Badge>
                 </div>
-                <h1 className="mb-1 text-3xl font-bold text-foreground capitalize">{tutor.name}</h1>
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className="text-3xl font-bold text-foreground capitalize">{tutor.name}</h1>
+                  {tutor.isVerified && (
+                    <CheckCircle className="h-6 w-6 fill-blue-500 text-white shrink-0" title="Verified Tutor" />
+                  )}
+                </div>
                 <p className="mb-2 text-muted-foreground">{tutor.qualification}</p>
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   {tutor.rating > 0 && (

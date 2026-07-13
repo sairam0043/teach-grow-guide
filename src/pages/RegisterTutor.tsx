@@ -218,6 +218,11 @@ const RegisterTutor = () => {
       }
     }
 
+    if (!docFile) {
+      toast.error("Please upload your Resume/CV.");
+      return;
+    }
+
     setLoading(true);
 
     let photoUrl: string | undefined;
@@ -306,7 +311,7 @@ const RegisterTutor = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" required maxLength={100} value={name} onChange={(e) => setName(capitalizeName(e.target.value))} />
+                  <Input id="name" required maxLength={100} value={name} onChange={(e) => setName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -317,11 +322,11 @@ const RegisterTutor = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
-                  <Input id="city" required maxLength={100} value={city} onChange={(e) => setCity(e.target.value)} />
+                  <Input id="city" required maxLength={100} value={city} onChange={(e) => setCity(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))} />
                 </div>
               </div>
 
@@ -344,11 +349,11 @@ const RegisterTutor = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="qualification">Qualification</Label>
-                  <Input id="qualification" required maxLength={200} value={qualification} onChange={(e) => setQualification(e.target.value)} />
+                  <Input id="qualification" required maxLength={200} value={qualification} onChange={(e) => setQualification(e.target.value.replace(/[^a-zA-Z0-9\s.()/-]/g, ''))} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="experience">Years of Experience</Label>
-                  <Input id="experience" type="number" min={0} max={50} required value={experience} onChange={(e) => setExperience(e.target.value)} />
+                  <Input id="experience" type="number" min={0} max={50} required value={experience} onChange={(e) => setExperience(e.target.value.replace(/[^0-9]/g, ''))} />
                 </div>
               </div>
 
@@ -441,7 +446,8 @@ const RegisterTutor = () => {
                                 className="w-24 h-8 text-xs font-bold"
                                 value={subjectRates[s] !== undefined ? subjectRates[s] : 500}
                                 onChange={(e) => {
-                                  const val = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                                  const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                  const val = cleaned === "" ? "" : parseInt(cleaned, 10);
                                   setSubjectRates(prev => ({ ...prev, [s]: isNaN(val as number) ? "" : val }));
                                 }}
                               />
@@ -493,7 +499,7 @@ const RegisterTutor = () => {
                           <Input
                             placeholder="e.g. Sanskrit"
                             value={newCustomName}
-                            onChange={(e) => setNewCustomName(e.target.value)}
+                            onChange={(e) => setNewCustomName(e.target.value.replace(/[^a-zA-Z0-9\s-]/g, ''))}
                             className="h-8 text-xs"
                           />
                         </div>
@@ -506,7 +512,10 @@ const RegisterTutor = () => {
                               min={1}
                               max={10000}
                               value={newCustomRate}
-                              onChange={(e) => setNewCustomRate(Number(e.target.value))}
+                              onChange={(e) => {
+                                const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                setNewCustomRate(cleaned === "" ? 0 : parseInt(cleaned, 10));
+                              }}
                               className="h-8 text-xs flex-1"
                             />
                             <Button
@@ -629,7 +638,7 @@ const RegisterTutor = () => {
                   maxLength={200}
                   placeholder="e.g. Facebook, Naukri, Instagram, Google, Friend"
                   value={hearAboutUs}
-                  onChange={(e) => setHearAboutUs(e.target.value)}
+                  onChange={(e) => setHearAboutUs(e.target.value.replace(/[^a-zA-Z\s,-]/g, ''))}
                 />
               </div>
 
@@ -668,13 +677,14 @@ const RegisterTutor = () => {
               </div>
 
               <div className="space-y-3">
-                <Label htmlFor="document" className="text-sm font-semibold">Resume / CV</Label>
+                <Label htmlFor="document" className="text-sm font-semibold">Resume / CV <span className="text-destructive">*</span></Label>
                 <div className="flex flex-col sm:flex-row items-center gap-4 p-4 border rounded-xl bg-secondary/5">
                   <div className="flex-1 space-y-2 w-full">
                     <Input
                       id="document"
                       type="file"
                       accept="application/pdf,image/jpeg,image/jpg,image/png"
+                      required
                       onChange={handleDocChange}
                       className="cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
                     />
