@@ -49,7 +49,9 @@ router.get('/admin/bookings', async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    const studentIds = bookings.map(b => b.studentId).filter(Boolean);
+    const studentIds = bookings
+      .map(b => b.studentId)
+      .filter(id => id && /^[0-9a-fA-F]{24}$/.test(id));
     const students = await User.find({ _id: { $in: studentIds } }, 'email phone full_name');
     const studentMap = new Map(students.map(s => [s._id.toString(), s]));
 
