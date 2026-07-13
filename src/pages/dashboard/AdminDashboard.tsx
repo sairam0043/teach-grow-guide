@@ -220,6 +220,8 @@ const AdminDashboard = () => {
   const pendingTutors = tutors.filter((t) => t.status === "pending");
   const approvedTutors = tutors.filter((t) => t.status === "approved");
   const enrolledBookings = bookings.filter((b) => (b.status === "enrolled" || b.status === "completed") && (b.amountPaid || 0) > 0);
+  const studentBookings = bookings.filter((b) => b.subject !== "Verification Demo Class");
+  const verificationDemos = bookings.filter((b) => b.subject === "Verification Demo Class");
 
   const totalPlatformRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
 
@@ -296,6 +298,16 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleUpdateBookingStatus = async (bookingId: string, status: string) => {
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { status });
+      toast.success(`Booking status updated to ${status} successfully.`);
+      fetchTutors();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update booking status");
+    }
+  };
+
   const handleShortlist = async (coursePaymentId: string) => {
     try {
       toast.loading("Shortlisting student and sending email invitation...");
@@ -362,6 +374,14 @@ const AdminDashboard = () => {
               {pendingTutors.length > 0 && (
                 <Badge variant="destructive" className="ml-2 rounded-full px-2 py-0.5 text-[10px] bg-rose-500 text-white font-extrabold border-none">
                   {pendingTutors.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="verification-demos" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              Verification Demos
+              {verificationDemos.filter(b => b.status === 'pending').length > 0 && (
+                <Badge variant="destructive" className="ml-1.5 rounded-full px-2 py-0.5 text-[10px] bg-amber-500 text-white font-extrabold border-none">
+                  {verificationDemos.filter(b => b.status === 'pending').length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -701,6 +721,126 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="verification-demos">
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-b pb-4">
+                <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                  <Video className="h-5 w-5 text-blue-500" /> Tutor Verification Demos
+                </CardTitle>
+                <CardDescription>Monitor and join scheduled mock classes for tutor profile verification.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {loading ? (
+                  <div className="space-y-4 py-4">
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                  </div>
+                ) : verificationDemos.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
+                    <Video className="mx-auto mb-4 h-16 w-16 opacity-30 text-blue-500" />
+                    <h3 className="text-lg font-bold text-foreground mb-1">No Verification Demos Requested</h3>
+                    <p className="text-sm">Requested demo classes for verification will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border shadow-sm overflow-hidden bg-card mt-4">
+                    <Table>
+                      <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold border-b border-border/40">
+                        <TableRow>
+                          <TableHead className="font-bold h-12">Tutor Name</TableHead>
+                          <TableHead className="font-bold h-12">Booking ID</TableHead>
+                          <TableHead className="font-bold h-12">Timing</TableHead>
+                          <TableHead className="font-bold h-12 text-center">Status</TableHead>
+                          <TableHead className="font-bold h-12 text-center">Video Room</TableHead>
+                          <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {verificationDemos.map((demo) => (
+                          <TableRow key={demo._id} className="hover:bg-secondary/10 transition-colors border-b border-border/40">
+                            <TableCell className="py-3 font-semibold text-foreground">
+                              {demo.tutorName || "Unknown Tutor"}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {String(demo._id).slice(-8)}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {demo.timing}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline" className={`px-2.5 py-1 border-none font-bold text-xs ${
+                                demo.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                                demo.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                                demo.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {demo.status.toUpperCase()}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {['confirmed', 'pending'].includes(demo.status) ? (
+                                <Button
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm flex items-center gap-1 mx-auto"
+                                  asChild
+                                >
+                                  <a
+                                    href={demo.meetingLink || `https://meet.jit.si/cuvasol-tutor-verification-${demo._id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Video className="h-4 w-4" /> Join Room
+                                  </a>
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">Unavailable</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right px-6 py-3">
+                              <div className="flex justify-end gap-2">
+                                {demo.status === 'confirmed' && (
+                                  <Button
+                                    size="sm"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg"
+                                    onClick={() => handleUpdateBookingStatus(demo._id, 'completed')}
+                                  >
+                                    Mark Completed
+                                  </Button>
+                                )}
+                                {['pending', 'confirmed'].includes(demo.status) && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold h-9 px-3 rounded-lg"
+                                    onClick={() => {
+                                      if (window.confirm("Are you sure you want to cancel this verification demo booking?")) {
+                                        handleUpdateBookingStatus(demo._id, 'cancelled');
+                                      }
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-9 font-semibold text-xs rounded-lg"
+                                  onClick={() => handleViewBookingDetail(demo)}
+                                >
+                                  View Details
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="bookings">
             <Card className="shadow-md border-border/50">
               <CardHeader className="bg-secondary/20 border-b pb-4">
@@ -714,7 +854,7 @@ const AdminDashboard = () => {
                     <Skeleton className="h-10 w-full" />
                     <Skeleton className="h-10 w-full" />
                   </div>
-                ) : bookings.length === 0 ? (
+                ) : studentBookings.length === 0 ? (
                   <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-4">
                     <BookOpen className="mx-auto mb-4 h-16 w-16 opacity-30 text-purple-500" />
                     <h3 className="text-lg font-semibold text-foreground mb-2">No Bookings Yet</h3>
@@ -735,7 +875,7 @@ const AdminDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {bookings.map((booking) => (
+                        {studentBookings.map((booking) => (
                           <TableRow 
                             key={booking._id} 
                             className="hover:bg-secondary/10 transition-colors cursor-pointer"
