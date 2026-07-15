@@ -25,6 +25,78 @@ router.get('/admin', async (req, res) => {
     tutorsWithRatings.forEach(t => totalRating += t.rating);
     const averageRating = tutorsWithRatings.length > 0 ? (totalRating / tutorsWithRatings.length).toFixed(1) : 0;
 
+    // Geographic Analytics aggregation
+    const tutorsForGeo = await Tutor.find({}, 'city');
+    const geoStats = {
+      North: 0,
+      South: 0,
+      East: 0,
+      West: 0,
+      Unspecified: 0
+    };
+
+    const southKeywords = [
+      'bangalore', 'bengaluru', 'chennai', 'hyderabad', 'hyderbad', 'nuzvid', 'eluru', 'vijayawada', 'visakhapatnam', 'vizag',
+      'guntur', 'nellore', 'tirupati', 'coimbatore', 'madurai', 'mysore', 'mysuru', 'kochi', 'cochin', 'trivandrum', 
+      'thiruvananthapuram', 'thrissur', 'calicut', 'vellore', 'kozhikode', 'mangalore', 'mangaluru', 'pondicherry', 
+      'puducherry', 'hosur', 'trichy', 'tamil nadu', 'kerala', 'karnataka', 'andhra pradesh', 'telangana', 'batlagundu', 
+      'gudalur', 'raichur', 'koppal', 'kanjirappally', 'shimoga', 'narasaraopet', 'palnadu'
+    ];
+    
+    const westKeywords = [
+      'mumbai', 'pune', 'ahmedabad', 'surat', 'vadodara', 'baroda', 'rajkot', 'nagpur', 'indore', 'bhopal', 'goa', 
+      'panaji', 'nashik', 'thane', 'navi mumbai', 'gandhinagar', 'udaipur', 'jodhpur', 'rajasthan', 'gujarat', 
+      'maharashtra', 'dhar', 'shivpuri', 'gwalior', 'madhya pradesh', 'chhattisgarh'
+    ];
+    
+    const northKeywords = [
+      'delhi', 'new delhi', 'noida', 'gurgaon', 'gurugram', 'jaipur', 'lucknow', 'kanpur', 'ghaziabad', 'faridabad', 
+      'chandigarh', 'jalandhar', 'ludhiana', 'agra', 'amritsar', 'srinagar', 'jammu', 'shimla', 'dehradun', 'uttarakhand', 
+      'punjab', 'haryana', 'uttar pradesh', 'himachal pradesh', 'jammu & kashmir', 'cheeka', 'zirakpur', 'haldwani', 'ramnagar'
+    ];
+    
+    const eastKeywords = [
+      'kolkata', 'patna', 'ranchi', 'bhubaneswar', 'guwahati', 'imphal', 'shillong', 'agartala', 'gangtok', 'itanagar', 
+      'aizawl', 'kohima', 'siliguri', 'cuttack', 'jamshedpur', 'bihar', 'jharkhand', 'odisha', 'west bengal', 'assam', 
+      'sikkim', 'meghalaya', 'mizoram', 'manipur', 'nagaland', 'arunachal pradesh', 'tripura', 'chinsurah', 'hooghly', 
+      'kanchrapara', 'puri'
+    ];
+
+    tutorsForGeo.forEach(t => {
+      const city = (t.city || '').toLowerCase().trim();
+      if (!city) {
+        geoStats.Unspecified++;
+      } else if (southKeywords.some(kw => city.includes(kw))) {
+        geoStats.South++;
+      } else if (westKeywords.some(kw => city.includes(kw))) {
+        geoStats.West++;
+      } else if (northKeywords.some(kw => city.includes(kw))) {
+        geoStats.North++;
+      } else if (eastKeywords.some(kw => city.includes(kw))) {
+        geoStats.East++;
+      } else {
+        geoStats.Unspecified++;
+      }
+    });
+
+    const cityCount = {};
+    tutorsForGeo.forEach(t => {
+      let city = (t.city || '').trim();
+      if (city) {
+        city = city.charAt(0).toUpperCase() + city.slice(1).toLowerCase();
+        if (city === 'Bengaluru') city = 'Bangalore';
+        if (city === 'New delhi') city = 'New Delhi';
+        cityCount[city] = (cityCount[city] || 0) + 1;
+      } else {
+        cityCount['Unspecified'] = (cityCount['Unspecified'] || 0) + 1;
+      }
+    });
+
+    const topCities = Object.entries(cityCount)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
     res.json({
       pendingApprovals: pendingTutors,
       activeTutors,
@@ -32,7 +104,9 @@ router.get('/admin', async (req, res) => {
       totalBookings,
       totalRevenue,
       totalCourseRevenue,
-      averageRating
+      averageRating,
+      geoStats,
+      topCities
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

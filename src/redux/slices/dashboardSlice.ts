@@ -43,7 +43,15 @@ export const fetchStudentStats = createAsyncThunk(
 );
 
 interface DashboardState {
-  adminStats: { pendingApprovals: number; activeTutors: number; totalBookings: number; totalStudents: number; totalRevenue: number } | null;
+  adminStats: { 
+    pendingApprovals: number; 
+    activeTutors: number; 
+    totalBookings: number; 
+    totalStudents: number; 
+    totalRevenue: number;
+    geoStats?: { North: number; South: number; East: number; West: number; Unspecified: number };
+    topCities?: Array<{ name: string; count: number }>;
+  } | null;
   tutorStats: { demoRequests: number; activeStudents: number; upcomingClasses: number; totalEarnings: number; availableTimings: string[]; availability?: any[] } | null;
   studentStats: { enrolledCourses: number; upcomingClasses: number; completedSessions: number; demoBookings?: number; savedTutors: number } | null;
   loading: boolean;

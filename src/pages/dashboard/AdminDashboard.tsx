@@ -1,7 +1,8 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -176,9 +177,11 @@ const AdminDashboard = () => {
       setStudents(studentRes.data);
       const bookingsRes = await axios.get(`${API_URL}/dashboard/admin/bookings`);
       setBookings(bookingsRes.data);
-      await fetchPayouts();
-      await fetchCoursePayments();
       dispatch(fetchAdminStats());
+      
+      // Fetch payouts and course payments in the background
+      fetchPayouts();
+      fetchCoursePayments();
     } catch (err) {
       toast.error("Failed to load dashboard data");
     } finally {
@@ -321,6 +324,17 @@ const AdminDashboard = () => {
     }
   };
 
+  const geoStats = adminStats?.geoStats || { North: 0, South: 0, East: 0, West: 0, Unspecified: 0 };
+  const topCitiesData = adminStats?.topCities || [];
+
+  const pieData = [
+    { name: "North India", value: geoStats.North || 0, color: "#6366f1" },
+    { name: "South India", value: geoStats.South || 0, color: "#10b981" },
+    { name: "East India", value: geoStats.East || 0, color: "#f59e0b" },
+    { name: "West India", value: geoStats.West || 0, color: "#0ea5e9" },
+    { name: "Unspecified/Other", value: geoStats.Unspecified || 0, color: "#94a3b8" }
+  ].filter(d => d.value > 0);
+
   return (
     <PageLayout>
       <div className="container py-10 max-w-7xl">
@@ -391,6 +405,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payments</TabsTrigger>
             <TabsTrigger value="platform-courses" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Platform Courses</TabsTrigger>
             <TabsTrigger value="payouts" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Tutor Payouts</TabsTrigger>
+            <TabsTrigger value="geo-analytics" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Geo Analytics</TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
               Messages
               {unreadMessagesCount > 0 && (
@@ -430,6 +445,8 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Tutor Profile</TableHead>
                           <TableHead className="font-bold h-12">Email</TableHead>
                           <TableHead className="font-bold h-12">Category</TableHead>
+                          <TableHead className="font-bold h-12">City</TableHead>
+                          <TableHead className="font-bold h-12">Referral Source</TableHead>
                           <TableHead className="font-bold h-12">Subjects</TableHead>
                           <TableHead className="font-bold h-12">Experience</TableHead>
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
@@ -461,12 +478,17 @@ const AdminDashboard = () => {
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="font-semibold text-foreground leading-tight text-sm capitalize">{tutor.name || "–"}</span>
-                                  <span className="text-[11px] text-muted-foreground mt-0.5">{tutor.city || "Remote"}</span>
+                                  <span className="text-[11px] text-muted-foreground mt-0.5">{tutor.city || "Remote"}{tutor.pincode ? ` (${tutor.pincode})` : ""}</span>
                                 </div>
                               </div>
                             </TableCell>
                             <TableCell className="font-medium text-foreground text-sm">{tutor.email || "–"}</TableCell>
                             <TableCell><Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs font-semibold">{tutor.category}</Badge></TableCell>
+                            <TableCell className="font-semibold text-foreground text-sm capitalize">
+                              {tutor.city || "Remote"}
+                              {tutor.pincode && <span className="text-xs text-muted-foreground block font-normal">{tutor.pincode}</span>}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={tutor.hearAboutUs || "–"}>{tutor.hearAboutUs || "–"}</TableCell>
                             <TableCell className="max-w-[160px] truncate text-sm" title={tutor.subjects?.join(", ")}>{tutor.subjects?.join(", ")}</TableCell>
                             <TableCell className="text-sm font-medium">{tutor.experience} yrs</TableCell>
                             <TableCell>
@@ -551,6 +573,8 @@ const AdminDashboard = () => {
                         <TableRow>
                           <TableHead className="font-bold h-12">Tutor Profile</TableHead>
                           <TableHead className="font-bold h-12">Category</TableHead>
+                          <TableHead className="font-bold h-12">City</TableHead>
+                          <TableHead className="font-bold h-12">Referral Source</TableHead>
                           <TableHead className="font-bold h-12">Subjects</TableHead>
                           <TableHead className="font-bold h-12">Status</TableHead>
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
@@ -584,11 +608,16 @@ const AdminDashboard = () => {
                                 </div>
                                 <div className="flex flex-col">
                                   <span className="font-semibold text-foreground leading-tight text-sm capitalize">{tutor.name || "–"}</span>
-                                  <span className="text-[11px] text-muted-foreground mt-0.5">{tutor.city || "Remote"}</span>
+                                  <span className="text-[11px] text-muted-foreground mt-0.5">{tutor.city || "Remote"}{tutor.pincode ? ` (${tutor.pincode})` : ""}</span>
                                 </div>
                               </div>
                             </TableCell>
                             <TableCell><Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-xs font-semibold">{tutor.category}</Badge></TableCell>
+                            <TableCell className="font-semibold text-foreground text-sm capitalize">
+                              {tutor.city || "Remote"}
+                              {tutor.pincode && <span className="text-xs text-muted-foreground block font-normal">{tutor.pincode}</span>}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={tutor.hearAboutUs || "–"}>{tutor.hearAboutUs || "–"}</TableCell>
                             <TableCell className="max-w-[160px] truncate text-sm">{tutor.subjects?.join(", ")}</TableCell>
                             <TableCell>
                               <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/30 text-xs font-semibold">Active</Badge>
@@ -1334,6 +1363,185 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="geo-analytics" className="space-y-8">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Region Pie Chart Card */}
+              <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent border-b pb-4">
+                  <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                    <Globe className="h-5 w-5 text-indigo-500" /> Regional Distribution (India)
+                  </CardTitle>
+                  <CardDescription>Visual breakdown of registered users by geographical zone.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {statsLoading ? (
+                    <div className="h-[300px] flex items-center justify-center">
+                      <Skeleton className="h-48 w-48 rounded-full" />
+                    </div>
+                  ) : pieData.length === 0 ? (
+                    <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground italic">
+                      <Globe className="h-12 w-12 opacity-30 mb-2" />
+                      <span>No regional data available yet</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                      <div className="w-full sm:w-[50%] h-[260px] relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={pieData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={85}
+                              paddingAngle={4}
+                              dataKey="value"
+                            >
+                              {pieData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              formatter={(value: any) => [`${value} registrations`, 'Count']}
+                              contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className="text-2xl font-extrabold text-foreground">
+                            {pieData.reduce((acc, curr) => acc + curr.value, 0)}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Tutors</span>
+                        </div>
+                      </div>
+                      
+                      <div className="w-full sm:w-[45%] space-y-3">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Zones Summary</h4>
+                        {pieData.map((d, index) => {
+                          const total = pieData.reduce((acc, curr) => acc + curr.value, 0);
+                          const pct = total > 0 ? ((d.value / total) * 100).toFixed(0) : "0";
+                          return (
+                            <div key={index} className="flex items-center justify-between text-sm p-1.5 border-b border-border/30 hover:bg-secondary/5 transition-colors">
+                              <div className="flex items-center gap-2">
+                                <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                                <span className="font-semibold text-foreground">{d.name}</span>
+                              </div>
+                              <span className="font-bold text-muted-foreground">{d.value} ({pct}%)</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Top Cities Bar Chart Card */}
+              <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-sky-500/10 via-sky-500/5 to-transparent border-b pb-4">
+                  <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                    <MapPin className="h-5 w-5 text-sky-500" /> Top Registered Cities
+                  </CardTitle>
+                  <CardDescription>Top 10 cities with the highest count of registered tutors.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {statsLoading ? (
+                    <div className="space-y-4 py-4 h-[300px] flex flex-col justify-end">
+                      <Skeleton className="h-8 w-[80%] rounded" />
+                      <Skeleton className="h-8 w-[60%] rounded" />
+                      <Skeleton className="h-8 w-[90%] rounded" />
+                    </div>
+                  ) : topCitiesData.length === 0 ? (
+                    <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground italic">
+                      <MapPin className="h-12 w-12 opacity-30 mb-2" />
+                      <span>No city registration data available yet</span>
+                    </div>
+                  ) : (
+                    <div className="h-[280px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={topCitiesData}
+                          layout="vertical"
+                          margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.15} />
+                          <XAxis type="number" hide />
+                          <YAxis 
+                            dataKey="name" 
+                            type="category" 
+                            width={100}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fill: 'hsl(var(--foreground))', fontSize: 11, fontWeight: 500 }}
+                          />
+                          <Tooltip 
+                            formatter={(value: any) => [`${value} registrations`, 'Tutors']}
+                            contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                          />
+                          <Bar 
+                            dataKey="count" 
+                            fill="#0ea5e9" 
+                            radius={[0, 4, 4, 0]}
+                            barSize={15}
+                          >
+                            {topCitiesData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={index === 0 ? "#10b981" : "#0ea5e9"} opacity={1 - index * 0.08} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Geographical Zones Raw Table */}
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
+              <CardHeader className="border-b pb-4">
+                <CardTitle className="text-lg font-bold text-foreground">Detailed Regional Breakdown</CardTitle>
+                <CardDescription>Complete statistics per regional zone across India.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="rounded-xl border shadow-sm overflow-hidden bg-card">
+                  <Table>
+                    <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold border-b border-border/40">
+                      <TableRow>
+                        <TableHead className="font-bold h-12">Zone</TableHead>
+                        <TableHead className="font-bold h-12">States / Cities Covered</TableHead>
+                        <TableHead className="font-bold h-12 text-right">Registration Count</TableHead>
+                        <TableHead className="font-bold h-12 text-right px-6">Percentage</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[
+                        { zone: "South India", states: "Karnataka, Tamil Nadu, Andhra Pradesh, Telangana, Kerala (e.g. Bangalore, Chennai, Hyderabad, Nuzvid, Vijayawada, Vizag)", count: geoStats.South || 0, color: "bg-emerald-500" },
+                        { zone: "North India", states: "Delhi, Haryana, Punjab, Uttar Pradesh, Uttarakhand, Himachal (e.g. New Delhi, Noida, Gurgaon, Kanpur, Chandigarh)", count: geoStats.North || 0, color: "bg-indigo-500" },
+                        { zone: "West India", states: "Maharashtra, Gujarat, Goa, Rajasthan, Madhya Pradesh (e.g. Mumbai, Pune, Thane, Ahmedabad, Surat)", count: geoStats.West || 0, color: "bg-sky-500" },
+                        { zone: "East India", states: "West Bengal, Bihar, Odisha, Jharkhand, North-Eastern States (e.g. Kolkata, Patna, Bhubaneswar, Ranchi, Guwahati)", count: geoStats.East || 0, color: "bg-amber-500" },
+                        { zone: "Other / Unspecified", states: "Not specified or couldn't be automatically mapped", count: geoStats.Unspecified || 0, color: "bg-slate-400" },
+                      ].map((item, index) => {
+                        const total = (geoStats.South || 0) + (geoStats.North || 0) + (geoStats.West || 0) + (geoStats.East || 0) + (geoStats.Unspecified || 0);
+                        const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : "0.0";
+                        return (
+                          <TableRow key={index} className="hover:bg-secondary/10 transition-colors border-b border-border/40">
+                            <TableCell className="font-semibold py-4 flex items-center gap-3">
+                              <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
+                              {item.zone}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[400px] truncate" title={item.states}>{item.states}</TableCell>
+                            <TableCell className="text-right font-extrabold text-foreground text-sm">{item.count}</TableCell>
+                            <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400 px-6 text-sm">{pct}%</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="messages">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-0">
               <ChatPanel initialActiveUserId={activeChatUserId} />
@@ -1435,7 +1643,10 @@ const AdminDashboard = () => {
                       {selectedTutorForDetail.category}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{selectedTutorForDetail.city || "Remote"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedTutorForDetail.city || "Remote"}
+                    {selectedTutorForDetail.pincode ? ` - ${selectedTutorForDetail.pincode}` : ""}
+                  </p>
                   
                   {/* Reviews rating */}
                   <div className="flex items-center gap-1 text-sm pt-1">

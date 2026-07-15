@@ -60,6 +60,7 @@ const RegisterTutor = () => {
     ? [timezone, ...COMMON_TIMEZONES]
     : COMMON_TIMEZONES;
   const [city, setCity] = useState("");
+  const [pincode, setPincode] = useState("");
   const [qualification, setQualification] = useState("");
   const [experience, setExperience] = useState("");
   const [category, setCategory] = useState("");
@@ -273,6 +274,7 @@ const RegisterTutor = () => {
       experience,
       qualification,
       city,
+      pincode,
       teaching_mode: teachingMode.toLowerCase(),
       address: (teachingMode === "Offline" || teachingMode === "Both") ? address : "",
       google_maps_url: (teachingMode === "Offline" || teachingMode === "Both") ? googleMapsUrl : "",
@@ -319,7 +321,7 @@ const RegisterTutor = () => {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
                   <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} />
@@ -327,6 +329,17 @@ const RegisterTutor = () => {
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
                   <Input id="city" required maxLength={100} value={city} onChange={(e) => setCity(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pincode">Pincode</Label>
+                  <Input 
+                    id="pincode" 
+                    required 
+                    maxLength={6} 
+                    placeholder="6-digit code" 
+                    value={pincode} 
+                    onChange={(e) => setPincode(e.target.value.replace(/[^0-9]/g, ''))} 
+                  />
                 </div>
               </div>
 

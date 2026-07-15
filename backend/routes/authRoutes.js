@@ -151,7 +151,8 @@ router.post('/register', async (req, res) => {
           return await expandGoogleMapsUrl(rawUrl);
         })(),
         timezone: tutorData.timezone || timezone || 'Asia/Kolkata',
-        hearAboutUs: tutorData.hearAboutUs || ''
+        hearAboutUs: tutorData.hearAboutUs || '',
+        pincode: tutorData.pincode || ''
       });
       await tutor.save();
     }
