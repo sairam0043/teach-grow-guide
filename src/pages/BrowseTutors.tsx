@@ -17,6 +17,51 @@ import API_URL from "@/config/api";
 
 const normalize = (value?: string | null) => (value || "").trim().toLowerCase();
 
+const STANDARD_SUBJECTS = [
+  "Mathematics", 
+  "Physics", 
+  "Chemistry", 
+  "Biology", 
+  "Coding / Computer Science", 
+  "English", 
+  "History", 
+  "Geography", 
+  "Economics & Finance", 
+  "Foreign Languages", 
+  "Music (Vocal/Instruments)", 
+  "Dance", 
+  "Fine Arts & Drawing", 
+  "Chess", 
+  "Yoga & Meditation", 
+  "Public Speaking & Debate", 
+  "Creative Writing", 
+  "Photography & Video",
+  "Malayalam"
+];
+
+const standardizeSubject = (sub: string): string => {
+  return sub
+    .toLowerCase()
+    .replace(/\s*\((academic|extracurricular)\)/i, "")
+    .replace(/&/g, "and")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/malayalama/g, "malayalam")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const getCleanSubjectName = (subject: string): string => {
+  const stripped = subject.replace(/\s*\((Academic|Extracurricular)\)/i, "").trim();
+  const stdStripped = standardizeSubject(stripped);
+  
+  const matchedStandard = STANDARD_SUBJECTS.find(std => standardizeSubject(std) === stdStripped);
+  if (matchedStandard) {
+    return matchedStandard;
+  }
+  
+  return stripped.split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join(' ');
+};
+
 const ACADEMIC_KEYWORDS = [
   "mathematics", "math", "physics", "chemistry", "biology",
   "coding", "computer science", "english", "history", "geography",
@@ -105,8 +150,11 @@ const BrowseTutors = () => {
         if (selectedCategory !== "all" && subjectCat !== selectedCategory) {
           return;
         }
-        const key = normalize(subject);
-        if (key && !subjectMap.has(key)) subjectMap.set(key, subject.trim());
+        const clean = getCleanSubjectName(subject);
+        const key = standardizeSubject(clean);
+        if (key && !subjectMap.has(key)) {
+          subjectMap.set(key, clean);
+        }
       });
     });
     return Array.from(subjectMap.values()).sort((a, b) => a.localeCompare(b));
@@ -123,10 +171,10 @@ const BrowseTutors = () => {
   }, [tutors]);
 
   useEffect(() => {
-    if (subject !== "all" && !allSubjects.some((s) => normalize(s) === selectedSubject)) {
+    if (subject !== "all" && !allSubjects.some((s) => standardizeSubject(s) === standardizeSubject(subject))) {
       setSubject("all");
     }
-  }, [allSubjects, subject, selectedSubject]);
+  }, [allSubjects, subject]);
 
   const filtered = useMemo(() => {
     return tutors
@@ -146,7 +194,11 @@ const BrowseTutors = () => {
         if (normalize(t.category) === selectedCategory) return true;
         return (t.subjects || []).some(s => getSubjectCategory(s, t.category) === selectedCategory);
       })
-      .filter((t) => selectedSubject === "all" || (t.subjects || []).some((s) => normalize(s) === selectedSubject))
+      .filter((t) => {
+        if (selectedSubject === "all") return true;
+        const targetStd = standardizeSubject(subject);
+        return (t.subjects || []).some((s) => standardizeSubject(s) === targetStd);
+      })
       .filter((t) => {
         if (selectedMode === "all") return true;
         const tutorMode = normalize(t.mode);
@@ -247,7 +299,7 @@ const BrowseTutors = () => {
               <SelectContent>
                 <SelectItem value="all">Select Subject</SelectItem>
                 {allSubjects.map((s) => (
-                  <SelectItem key={s} value={s}>{s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}</SelectItem>
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

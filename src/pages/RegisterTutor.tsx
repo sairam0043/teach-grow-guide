@@ -25,6 +25,16 @@ const capitalizeName = (str: string): string => {
     .join(' ');
 };
 
+const standardizeSubjectName = (sub: string): string => {
+  return sub
+    .toLowerCase()
+    .replace(/\s*\((academic|extracurricular)\)/i, "")
+    .replace(/&/g, "and")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const academicSubjects = [
   "Mathematics", 
   "Physics", 
@@ -36,6 +46,7 @@ const academicSubjects = [
   "Geography", 
   "Economics & Finance", 
   "Foreign Languages", 
+  "Malayalam",
   "Other"
 ];
 const extracurricularSubjects = [
@@ -535,13 +546,36 @@ const RegisterTutor = () => {
                               type="button"
                               size="sm"
                               onClick={() => {
-                                if (!newCustomName.trim()) {
+                                const trimmedName = newCustomName.trim();
+                                if (!trimmedName) {
                                   toast.error("Please enter a subject name.");
                                   return;
                                 }
+                                const stdNew = standardizeSubjectName(trimmedName);
+
+                                // Check standard checklist
+                                const isAlreadySelectedStandard = selectedSubjects
+                                  .filter(s => s !== "Other")
+                                  .some(s => standardizeSubjectName(s) === stdNew);
+
+                                if (isAlreadySelectedStandard) {
+                                  toast.error("This subject is already selected in the checklist.");
+                                  return;
+                                }
+
+                                // Check custom subjects list
+                                const isAlreadyInCustom = customSubjects.some(
+                                  cs => standardizeSubjectName(cs.subject) === stdNew
+                                );
+
+                                if (isAlreadyInCustom) {
+                                  toast.error("This subject has already been added.");
+                                  return;
+                                }
+
                                 setCustomSubjects(prev => [
                                   ...prev,
-                                  { subject: newCustomName.trim(), category: newCustomCategory, rate: newCustomRate }
+                                  { subject: trimmedName, category: newCustomCategory, rate: newCustomRate }
                                 ]);
                                 setNewCustomName("");
                               }}

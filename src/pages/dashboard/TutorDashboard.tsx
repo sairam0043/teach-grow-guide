@@ -53,6 +53,16 @@ const isBookingPast = (timingStr: string): boolean => {
   return false;
 };
 
+const standardizeSubjectName = (sub: string): string => {
+  return sub
+    .toLowerCase()
+    .replace(/\s*\((academic|extracurricular)\)/i, "")
+    .replace(/&/g, "and")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const parseSessionStringToDate = (dateStr: string, timeStr: string): Date | null => {
   try {
     const datePartCleaned = dateStr.replace(/(\d+)(st|nd|rd|th)/, '$1');
@@ -1316,9 +1326,10 @@ const TutorDashboard = () => {
                                   <SelectContent>
                                     {[
                                       "Mathematics", "Physics", "Chemistry", "Biology", "Coding / Computer Science", "English", "History", "Geography", "Economics & Finance", "Foreign Languages",
-                                      "Music (Vocal/Instruments)", "Dance", "Fine Arts & Drawing", "Chess", "Yoga & Meditation", "Public Speaking & Debate", "Creative Writing", "Photography & Video"
+                                      "Music (Vocal/Instruments)", "Dance", "Fine Arts & Drawing", "Chess", "Yoga & Meditation", "Public Speaking & Debate", "Creative Writing", "Photography & Video",
+                                      "Malayalam"
                                     ]
-                                      .filter(sub => !subjectRates.some(sr => sr.subject === sub))
+                                      .filter(sub => !subjectRates.some(sr => standardizeSubjectName(sr.subject) === standardizeSubjectName(sub)))
                                       .map(sub => (
                                         <SelectItem key={sub} value={sub}>{sub}</SelectItem>
                                       ))
@@ -1360,7 +1371,8 @@ const TutorDashboard = () => {
                                   ? `${newSubjectName.trim()} (${newSubjectCategory})`
                                   : newSubjectName.trim();
                                   
-                                if (subjectRates.some(sr => sr.subject.toLowerCase() === subjectName.toLowerCase())) {
+                                const stdNew = standardizeSubjectName(subjectName);
+                                if (subjectRates.some(sr => standardizeSubjectName(sr.subject) === stdNew)) {
                                   toast.error("This subject is already in your profile.");
                                   return;
                                 }

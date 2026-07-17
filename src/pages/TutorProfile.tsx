@@ -941,11 +941,19 @@ const TutorProfile = () => {
               <CardHeader><CardTitle>Subjects</CardTitle></CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {tutor.subjects?.map((s: string) => (
-                    <Badge key={s} variant="secondary" className="px-3 py-1 text-sm">
-                      {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
-                    </Badge>
-                  ))}
+                  {(() => {
+                    const seen = new Set<string>();
+                    return (tutor.subjects || []).filter((s) => {
+                      const clean = s.replace(/\s*\((Academic|Extracurricular)\)/i, "").trim().toLowerCase();
+                      if (seen.has(clean)) return false;
+                      seen.add(clean);
+                      return true;
+                    }).map((s: string) => (
+                      <Badge key={s} variant="secondary" className="px-3 py-1 text-sm">
+                        {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
+                      </Badge>
+                    ));
+                  })()}
                 </div>
               </CardContent>
             </Card>
@@ -1052,11 +1060,19 @@ const TutorProfile = () => {
                       <SelectValue placeholder="Select a subject to unlock plans & book..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {tutor.subjects?.map((s: string) => (
-                        <SelectItem key={s} value={s}>
-                          {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
-                        </SelectItem>
-                      ))}
+                      {(() => {
+                        const seen = new Set<string>();
+                        return (tutor.subjects || []).filter((s) => {
+                          const clean = s.replace(/\s*\((Academic|Extracurricular)\)/i, "").trim().toLowerCase();
+                          if (seen.has(clean)) return false;
+                          seen.add(clean);
+                          return true;
+                        }).map((s: string) => (
+                          <SelectItem key={s} value={s}>
+                            {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
+                          </SelectItem>
+                        ));
+                      })()}
                     </SelectContent>
                   </Select>
                 </div>
