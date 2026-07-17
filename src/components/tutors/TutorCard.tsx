@@ -44,6 +44,14 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
         <Badge className="absolute left-3 top-3 bg-primary text-primary-foreground">
           {tutor.category}
         </Badge>
+        {tutor.isVerified && (
+          <img
+            src="/verified-badge.png"
+            alt="Verified Tutor"
+            className="absolute right-3 top-3 h-10 w-10 z-10 drop-shadow-md select-none transition-transform duration-300 hover:scale-110"
+            title="Verified Tutor"
+          />
+        )}
       </div>
 
       <div className="p-5">
