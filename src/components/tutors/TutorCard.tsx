@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Star, MapPin, Monitor, Users, CalendarDays } from "lucide-react";
+import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
@@ -13,13 +13,28 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
   const photoSrc =
     resolveAssetUrl(tutor.photo) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
+
+  const getRateDisplay = () => {
+    // If tutor has subjectRates array, extract values
+    const rates = (tutor as any).subjectRates?.map((sr: any) => sr.rate) || [];
+    if (rates.length === 0) {
+      return `₹${tutor.hourlyRate || 500}`;
+    }
+    const minRate = Math.min(...rates);
+    const maxRate = Math.max(...rates);
+    if (minRate === maxRate) {
+      return `₹${minRate}`;
+    }
+    return `₹${minRate} - ₹${maxRate}`;
+  };
+
   return (
     <div className="group overflow-hidden rounded-xl border bg-card shadow-card transition-shadow hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
         <img
           src={photoSrc}
           alt={tutor.name}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
           onError={(e) => {
             e.currentTarget.onerror = null; // prevent infinite loops if fallback fails
@@ -34,20 +49,27 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
       <div className="p-5">
         <div className="mb-2 flex items-start justify-between">
           <div>
-            <h3 className="font-serif text-lg text-card-foreground">{tutor.name}</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-serif text-lg text-card-foreground capitalize">{tutor.name}</h3>
+              {tutor.isVerified && (
+                <CheckCircle2 className="h-4 w-4 fill-blue-500 text-white shrink-0" title="Verified Tutor" />
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">{tutor.experience} years experience</p>
           </div>
-          <div className="flex items-center gap-1 text-sm">
-            <Star className="h-4 w-4 fill-warning text-warning" />
-            <span className="font-medium text-card-foreground">{tutor.rating}</span>
-            <span className="text-muted-foreground">({tutor.reviewCount})</span>
-          </div>
+          {tutor.rating > 0 && (
+            <div className="flex items-center gap-1 text-sm">
+              <Star className="h-4 w-4 fill-warning text-warning" />
+              <span className="font-medium text-card-foreground">{tutor.rating}</span>
+              <span className="text-muted-foreground">({tutor.reviewCount})</span>
+            </div>
+          )}
         </div>
 
         <div className="mb-3 flex flex-wrap gap-1.5">
           {tutor.subjects.map((subject) => (
             <Badge key={subject} variant="secondary" className="text-xs">
-              {subject}
+              {subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
             </Badge>
           ))}
         </div>
@@ -66,13 +88,13 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
           {tutor.availability && tutor.availability.length > 0 && (
             <span className="flex items-center gap-1 text-primary/80 font-medium">
               <CalendarDays className="h-3.5 w-3.5" />
-              {tutor.availability.map(a => a.day.substring(0, 3)).join(", ")}
+              {Array.from(new Set(tutor.availability.map(a => a.day.substring(0, 3)))).join(", ")}
             </span>
           )}
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-lg font-semibold text-foreground">₹{tutor.hourlyRate}<span className="text-sm font-normal text-muted-foreground">/hr</span></span>
+          <span className="text-lg font-semibold text-foreground">{getRateDisplay()}<span className="text-sm font-normal text-muted-foreground">/hr</span></span>
           <Button size="sm" asChild>
             <Link to={`/tutors/${tutor.id}`}>Book Demo</Link>
           </Button>

@@ -28,6 +28,7 @@ export interface Tutor {
   approvalStatus: ApprovalStatus;
   demoSlots: DemoSlot[];
   availability?: { day: string; startTime: string; endTime: string }[];
+  isVerified?: boolean;
 }
 
 export const mockTutors: Tutor[] = [
@@ -48,6 +49,7 @@ export const mockTutors: Tutor[] = [
     reviewCount: 124,
     hourlyRate: 800,
     approvalStatus: "Approved",
+    isVerified: true,
     demoSlots: [
       { id: "d1", date: "2026-03-12", time: "10:00 AM", available: true },
       { id: "d2", date: "2026-03-12", time: "2:00 PM", available: true },
@@ -71,6 +73,7 @@ export const mockTutors: Tutor[] = [
     reviewCount: 89,
     hourlyRate: 1000,
     approvalStatus: "Approved",
+    isVerified: true,
     demoSlots: [
       { id: "d4", date: "2026-03-12", time: "4:00 PM", available: true },
       { id: "d5", date: "2026-03-14", time: "10:00 AM", available: true },

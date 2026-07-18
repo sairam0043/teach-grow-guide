@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Fragment } from "react";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import API_URL from "@/config/api";
@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Send, User, MessageSquare, ExternalLink, ShieldAlert, ArrowLeft } from "lucide-react";
-import { toast } from "sonner";
-import { format } from "date-fns";
+import { toast } from "@/components/ui/sonner";
+import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
 
 interface ChatPanelProps {
@@ -26,12 +26,13 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
   
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   // 1. Fetch Inbox Conversations
   const fetchInbox = async (showLoading = false) => {
     if (!user?.id) return;
+    if (document.hidden && !showLoading) return; // skip if browser tab is backgrounded/inactive
     if (showLoading) setLoadingInbox(true);
     try {
       const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
@@ -45,7 +46,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
         } else {
           // If not in inbox yet, fetch user details to initialize temporary active chat
           try {
-            const userRes = await axios.get(`${API_URL}/tutors/${initialActiveUserId}`);
+            const userRes = await axios.get(`${API_URL}/tutors/user/${initialActiveUserId}`);
             if (userRes.data) {
               setActiveChat({
                 otherUser: {
@@ -75,6 +76,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
   // 2. Fetch Messages with Active Contact
   const fetchMessages = async (contactId: string, silent = false) => {
     if (!user?.id || !contactId) return;
+    if (document.hidden && silent) return; // skip if browser tab is backgrounded/inactive
     if (!silent) setLoadingMessages(true);
     try {
       const res = await axios.get(`${API_URL}/messages/chat/${user.id}/${contactId}`);
@@ -91,9 +93,11 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     }
   };
 
-  // Scroll to bottom
+  // Scroll to bottom of message list container only (prevents parent page scroll)
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   };
 
   // Trigger Inbox Fetch on load
@@ -116,10 +120,10 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
       // Clear existing polling
       if (pollingRef.current) clearInterval(pollingRef.current);
       
-      // Poll chat history every 4 seconds for real-time socket-like feeling
+      // Poll chat history every 6 seconds for real-time socket-like feeling
       pollingRef.current = setInterval(() => {
         fetchMessages(activeChat.otherUser.id, true);
-      }, 4000);
+      }, 6000);
     }
 
     return () => {
@@ -323,7 +327,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
             </div>
 
             {/* Message Bubble List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {loadingMessages ? (
                 <div className="space-y-4 py-8">
                   <Skeleton className="h-10 w-2/3 rounded-xl" />
@@ -339,31 +343,59 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                   </p>
                 </div>
               ) : (
-                messages.map((msg, idx) => {
-                  const isOwn = msg.sender._id.toString() === user?.id;
-                  
-                  return (
-                    <div 
-                      key={msg._id || idx} 
-                      className={`flex flex-col max-w-[75%] ${isOwn ? "ml-auto items-end" : "items-start"}`}
-                    >
-                      {/* Message body */}
-                      <div className={`p-3 rounded-2xl shadow-sm text-sm ${
-                        isOwn 
-                          ? "bg-primary text-primary-foreground rounded-br-none" 
-                          : "bg-card border text-foreground rounded-bl-none"
-                      }`}>
-                        {msg.text}
-                      </div>
-                      {/* Timestamp */}
-                      <span className="text-[9px] text-muted-foreground mt-1 px-1">
-                        {format(new Date(msg.createdAt), "h:mm a")}
-                      </span>
-                    </div>
-                  );
-                })
+                (() => {
+                  const formatSeparatorDate = (date: Date) => {
+                    if (isToday(date)) return "Today";
+                    if (isYesterday(date)) return "Yesterday";
+                    return format(date, "MMMM d, yyyy");
+                  };
+
+                  return messages.map((msg, idx) => {
+                    const isOwn = msg.sender._id.toString() === user?.id;
+                    const currentDate = new Date(msg.createdAt);
+                    
+                    // Determine if date separator is required
+                    let showDateSeparator = false;
+                    if (idx === 0) {
+                      showDateSeparator = true;
+                    } else {
+                      const prevMsg = messages[idx - 1];
+                      const prevDate = new Date(prevMsg.createdAt);
+                      if (currentDate.toDateString() !== prevDate.toDateString()) {
+                        showDateSeparator = true;
+                      }
+                    }
+
+                    return (
+                      <Fragment key={msg._id || idx}>
+                        {showDateSeparator && (
+                          <div className="flex justify-center my-4 w-full select-none">
+                            <span className="bg-secondary/60 text-muted-foreground text-[10px] font-bold px-3 py-1 rounded-full shadow-sm border border-border/20">
+                              {formatSeparatorDate(currentDate)}
+                            </span>
+                          </div>
+                        )}
+                        <div 
+                          className={`flex flex-col max-w-[75%] ${isOwn ? "ml-auto items-end" : "items-start"}`}
+                        >
+                          {/* Message body */}
+                          <div className={`p-3 rounded-2xl shadow-sm text-sm ${
+                            isOwn 
+                              ? "bg-primary text-primary-foreground rounded-br-none" 
+                              : "bg-card border text-foreground rounded-bl-none"
+                          }`}>
+                            {msg.text}
+                          </div>
+                          {/* Timestamp */}
+                          <span className="text-[9px] text-muted-foreground mt-1 px-1">
+                            {format(currentDate, "h:mm a")}
+                          </span>
+                        </div>
+                      </Fragment>
+                    );
+                  });
+                })()
               )}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Input Send Bar */}

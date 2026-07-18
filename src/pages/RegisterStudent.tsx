@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,8 +8,16 @@ import PageLayout from "@/components/layout/PageLayout";
 import { Eye, EyeOff } from "lucide-react";
 import { GoogleLogin } from "@react-oauth/google";
 
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { detectUserTimeZone } from "@/utils/timezone";
+
+const capitalizeName = (str: string): string => {
+  return str
+    .split(' ')
+    .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : '')
+    .join(' ');
+};
 
 const RegisterStudent = () => {
   useEffect(() => {
@@ -24,8 +32,24 @@ const RegisterStudent = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signUp, googleSignIn } = useAuth();
+  const { signUp, googleSignIn, user, role } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (user) {
+      if (role === "student") {
+        navigate("/dashboard/student");
+      } else if (role === "tutor") {
+        navigate("/dashboard/tutor");
+      } else if (role === "admin") {
+        navigate("/dashboard/admin");
+      }
+    }
+  }, [user, role, navigate]);
+
+  const queryParams = new URLSearchParams(location.search);
+  const redirectUrl = queryParams.get("redirect");
 
 
 
@@ -41,6 +65,7 @@ const RegisterStudent = () => {
       full_name: name,
       phone,
       role: "student",
+      timezone: detectUserTimeZone(),
     });
     if (error) {
       toast.error(error.message);
@@ -51,7 +76,7 @@ const RegisterStudent = () => {
     // Create student record after auth — wait for session
     toast.success("Account created! Please check your email to confirm, then log in.");
     setLoading(false);
-    navigate("/login");
+    navigate(redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login");
   };
 
   return (
@@ -69,7 +94,7 @@ const RegisterStudent = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
-                <Input id="name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+                <Input id="name" required maxLength={100} value={name} onChange={(e) => setName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -77,7 +102,7 @@ const RegisterStudent = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -130,7 +155,7 @@ const RegisterStudent = () => {
 
 
             <div className="mt-6 text-center text-sm text-muted-foreground">
-              Already have an account? <Link to="/login" className="text-primary hover:underline">Log in</Link>
+              Already have an account? <Link to={redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login"} className="text-primary hover:underline">Log in</Link>
               <br />
               Want to teach? <Link to="/register/tutor" className="text-primary hover:underline">Register as Tutor</Link>
             </div>

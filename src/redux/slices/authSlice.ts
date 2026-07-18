@@ -74,6 +74,12 @@ const authSlice = createSlice({
     },
     clearError: (state) => {
       state.error = null;
+    },
+    updateUser: (state, action: PayloadAction<Partial<UserInfo>>) => {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+        localStorage.setItem('user_info', JSON.stringify(state.user));
+      }
     }
   },
   extraReducers: (builder) => {
@@ -101,10 +107,17 @@ const authSlice = createSlice({
       })
       .addCase(registerUser.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
-        localStorage.setItem('auth_token', action.payload.token);
-        localStorage.setItem('user_info', JSON.stringify(action.payload.user));
+        if (action.payload.token) {
+          state.user = action.payload.user;
+          state.token = action.payload.token;
+          localStorage.setItem('auth_token', action.payload.token);
+          localStorage.setItem('user_info', JSON.stringify(action.payload.user));
+        } else {
+          state.user = null;
+          state.token = null;
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user_info');
+        }
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.loading = false;
@@ -117,10 +130,17 @@ const authSlice = createSlice({
       })
       .addCase(googleLogin.fulfilled, (state, action) => {
         state.loading = false;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
-        localStorage.setItem('auth_token', action.payload.token);
-        localStorage.setItem('user_info', JSON.stringify(action.payload.user));
+        if (action.payload.token) {
+          state.user = action.payload.user;
+          state.token = action.payload.token;
+          localStorage.setItem('auth_token', action.payload.token);
+          localStorage.setItem('user_info', JSON.stringify(action.payload.user));
+        } else {
+          state.user = null;
+          state.token = null;
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user_info');
+        }
       })
       .addCase(googleLogin.rejected, (state, action) => {
         state.loading = false;
@@ -129,5 +149,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, clearError } = authSlice.actions;
+export const { logout, clearError, updateUser } = authSlice.actions;
 export default authSlice.reducer;

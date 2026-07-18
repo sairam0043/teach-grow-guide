@@ -1,5 +1,5 @@
 // node backend/scripts/seedCredentials.js
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const mongoose = require('mongoose');
 const User = require('../schemas/userSchema');
 const bcrypt = require('bcryptjs');

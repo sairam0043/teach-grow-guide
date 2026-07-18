@@ -3,10 +3,12 @@ import axios from "axios";
 import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, BookOpen, Calendar, CreditCard, Star, Users, Award, ArrowRight } from "lucide-react";
+import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
 import TutorCard from "@/components/tutors/TutorCard";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import type { Tutor } from "@/data/mockTutors";
 import { useAuth } from "@/contexts/AuthContext";
 import API_URL from "@/config/api";
@@ -37,21 +39,119 @@ const Index = () => {
     }
   });
 
+  const hasAverageRating = platformStats?.averageRating && parseFloat(platformStats.averageRating) > 0;
+
   const stats = [
     { icon: Users, value: platformStats?.totalStudents || 0, label: "Active Students" },
     { icon: Award, value: platformStats?.activeTutors || 0, label: "Expert Tutors" },
     { icon: BookOpen, value: platformStats?.totalBookings || 0, label: "Classes Booked" },
-    { icon: Star, value: platformStats?.averageRating || 0, label: "Average Rating" },
+    ...(hasAverageRating ? [{ icon: Star, value: platformStats.averageRating, label: "Average Rating" }] : []),
   ];
 
-  if (user) {
-    if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
-    if (role === 'tutor') return <Navigate to="/dashboard/tutor" replace />;
-    if (role === 'student') return <Navigate to="/dashboard/student" replace />;
-  }
+  const schemaMarkup = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://tutor.cuvasol.com/#organization",
+        "name": "Cuvasol Tutor",
+        "url": "https://tutor.cuvasol.com",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://tutor.cuvasol.com/logo.png"
+        },
+        "description": "Find expert tutors in academics, music, art, and more. Book a demo, schedule classes, and start your personalized learning journey with Cuvasol Tutor."
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://tutor.cuvasol.com/#website",
+        "url": "https://tutor.cuvasol.com",
+        "name": "Cuvasol Tutor",
+        "publisher": {
+          "@id": "https://tutor.cuvasol.com/#organization"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://tutor.cuvasol.com/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I find a tutor?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Use our Browse Tutors page to search by subject, category, location, and class mode. You can filter results to find certified tutors that match your specific requirements."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I request a demo class?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Once you find a tutor you're interested in, visit their profile page and click the 'Book Demo' option. Select an available date and time slot, and submit the request. The tutor will confirm your session shortly."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How can I become a tutor?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Visit our 'Become a Tutor' page and fill out the detailed tutor registration form. Our team will review your credentials, background check, and experience, and respond within 2-3 business days."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Are all tutors verified?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, every tutor on Cuvasol Tutor undergoes a comprehensive vetting and verification process including identity validation, educational credential verification, and background checks."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What are your operating hours?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Our support team is available Monday to Saturday, 9:00 AM to 6:00 PM IST. We respond to all contact and support inquiries within 24 hours."
+            }
+          }
+        ]
+      }
+    ]
+  };
 
   return (
     <PageLayout>
+      <Helmet>
+        <title>Cuvasol Tutor - Find the Perfect Tutor Online & Offline</title>
+        <meta name="description" content="Find expert tutors in academics, music, art, and more. Book a free demo class, schedule flexible weekly classes, and start your personalized learning journey with Cuvasol Tutor." />
+        <meta property="og:title" content="Cuvasol Tutor - Find the Perfect Tutor Online & Offline" />
+        <meta property="og:description" content="Find expert tutors in academics, music, art, and more. Book a free demo class, schedule flexible weekly classes, and start your personalized learning journey with Cuvasol Tutor." />
+        <meta property="og:url" content="https://tutor.cuvasol.com" />
+        <meta name="twitter:title" content="Cuvasol Tutor - Find the Perfect Tutor Online & Offline" />
+        <meta name="twitter:description" content="Find expert tutors in academics, music, art, and more. Book a free demo class, schedule flexible weekly classes, and start your personalized learning journey with Cuvasol Tutor." />
+        <script type="application/ld+json">
+          {JSON.stringify(schemaMarkup)}
+        </script>
+      </Helmet>
+
+      {/* Course Banner Advertisement (Paused)
+      <div className="w-full bg-secondary/30 border-b">
+        <div className="container max-w-7xl px-4 py-3 sm:py-4">
+          <Link
+            to="/ai-program"
+            className="block overflow-hidden rounded-2xl border border-teal-500/20 hover:border-teal-500/50 transition-all duration-300 shadow-sm hover:shadow-md hover:scale-[1.005]"
+          >
+            <img
+              src="/ai-program-banner.png"
+              alt="AI Future Skills Program"
+              className="w-full h-auto block"
+            />
+          </Link>
+        </div>
+      </div>
+      */}
+
       {/* Hero */}
       <section className="relative overflow-hidden bg-primary py-20 lg:py-28">
         <div className="absolute inset-0 opacity-10">
@@ -77,9 +177,17 @@ const Index = () => {
                   Browse Tutors <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button size="lg" variant="secondary" asChild>
-                <Link to="/register/tutor">Become a Tutor</Link>
-              </Button>
+              {user ? (
+                <Button size="lg" variant="secondary" asChild>
+                  <Link to={role === "admin" ? "/dashboard/admin" : role === "tutor" ? "/dashboard/tutor" : "/dashboard/student"}>
+                    Go to Dashboard
+                  </Link>
+                </Button>
+              ) : (
+                <Button size="lg" variant="secondary" asChild>
+                  <Link to="/register/tutor">Become a Tutor</Link>
+                </Button>
+              )}
             </div>
           </motion.div>
         </div>
@@ -88,7 +196,7 @@ const Index = () => {
       {/* Stats */}
       <section className="border-b bg-card py-12">
         <div className="container">
-          <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
+          <div className={`grid gap-6 ${hasAverageRating ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
             {stats.map((stat, idx) => (
               <motion.div
                 key={stat.label}
@@ -186,12 +294,81 @@ const Index = () => {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section className="py-20 bg-background">
+        <div className="container max-w-4xl">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mb-12 text-center"
+          >
+            <h2 className="mb-3 text-3xl font-bold text-foreground md:text-4xl">Frequently Asked Questions</h2>
+            <p className="text-lg text-muted-foreground">Got questions? We've got answers.</p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+          >
+            <Accordion type="single" collapsible className="w-full space-y-4">
+              <AccordionItem value="item-1" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  How do I find a tutor?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Use our Browse Tutors page to search by subject, class, location, and more. You can filter results to find tutors that match your specific requirements.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-2" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  How do I request a demo class?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Once you find a tutor you're interested in, visit their profile page and fill out the demo class request form. The tutor will contact you to schedule a session.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-3" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  How can I become a tutor?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Visit our Become a Tutor page and fill out the application form. Our team will review your application and get back to you within 2-3 business days.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-4" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  Are all tutors verified?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Yes, every tutor on our platform undergoes a comprehensive verification process including background checks, credential validation, and quality assessment.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-5" className="border rounded-xl px-6 bg-card shadow-sm hover:shadow-md transition-shadow">
+                <AccordionTrigger className="text-lg font-semibold text-foreground hover:no-underline py-5">
+                  What are your operating hours?
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-[15px] pb-5">
+                  Our support team is available Monday to Saturday, 9:00 AM to 6:00 PM. We respond to all inquiries within 24 hours.
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </motion.div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-20">
         <div className="container">
           <div className="rounded-2xl bg-primary p-10 text-center md:p-16">
             <h2 className="mb-4 text-3xl font-bold text-primary-foreground md:text-4xl">Ready to Start Learning?</h2>
-            <p className="mb-8 text-lg text-primary-foreground/80">Join thousands of students already learning with Cuvasol Tutor</p>
+            <p className="mb-8 text-lg text-primary-foreground/80">Join with Cuvasol Tutor</p>
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Button size="lg" variant="secondary" asChild>
                 <Link to="/register/student">Get Started Free</Link>
