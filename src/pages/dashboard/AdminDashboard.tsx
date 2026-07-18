@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -27,6 +27,7 @@ const AdminDashboard = () => {
   const { adminStats, loading: statsLoading } = useSelector((state: RootState) => state.dashboard);
   const [tutors, setTutors] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [payouts, setPayouts] = useState<any[]>([]);
@@ -716,44 +717,78 @@ const AdminDashboard = () => {
                 <CardDescription>View all students on the platform.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                {loading ? (
-                  <div className="space-y-4 py-4">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ) : students.length === 0 ? (
-                  <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-4">
-                    <Users className="mx-auto mb-4 h-16 w-16 opacity-30 text-indigo-500" />
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No Students Found</h3>
-                    <p>No students have registered yet.</p>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border shadow-sm overflow-x-auto mt-4">
-                    <Table>
-                      <TableHeader className="bg-secondary/50 uppercase text-xs">
-                        <TableRow>
-                          <TableHead className="font-medium h-12">Student ID</TableHead>
-                          <TableHead className="font-medium h-12">Full Name</TableHead>
-                          <TableHead className="font-medium h-12">Email</TableHead>
-                          <TableHead className="font-medium h-12">Contact</TableHead>
-                          <TableHead className="font-medium h-12 text-right">Joined</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {students.map((student) => (
-                          <TableRow key={student._id || student.id} className="hover:bg-secondary/10 transition-colors">
-                            <TableCell className="font-mono text-xs text-muted-foreground">{String(student._id || student.id).slice(-8)}</TableCell>
-                            <TableCell className="font-semibold text-foreground">{student.full_name || "–"}</TableCell>
-                            <TableCell>{student.email || "–"}</TableCell>
-                            <TableCell>{student.phone || "–"}</TableCell>
-                            <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
+                <div className="mb-4 relative max-w-sm">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search students by name..."
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    className="pl-9 rounded-lg"
+                    disabled={loading}
+                  />
+                </div>
+                {(() => {
+                  const filteredStudents = students.filter(student =>
+                    (student.full_name || "").toLowerCase().includes(studentSearch.toLowerCase())
+                  );
+
+                  if (loading) {
+                    return (
+                      <div className="space-y-4 py-4">
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                    );
+                  }
+
+                  if (students.length === 0) {
+                    return (
+                      <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-4">
+                        <Users className="mx-auto mb-4 h-16 w-16 opacity-30 text-indigo-500" />
+                        <h3 className="text-lg font-semibold text-foreground mb-2">No Students Found</h3>
+                        <p>No students have registered yet.</p>
+                      </div>
+                    );
+                  }
+
+                  if (filteredStudents.length === 0) {
+                    return (
+                      <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed mt-4">
+                        <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
+                        <h3 className="text-lg font-semibold text-foreground mb-2">No Match Found</h3>
+                        <p>No students match the name "{studentSearch}".</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="rounded-xl border shadow-sm overflow-x-auto mt-4">
+                      <Table>
+                        <TableHeader className="bg-secondary/50 uppercase text-xs">
+                          <TableRow>
+                            <TableHead className="font-medium h-12">Student ID</TableHead>
+                            <TableHead className="font-medium h-12">Full Name</TableHead>
+                            <TableHead className="font-medium h-12">Email</TableHead>
+                            <TableHead className="font-medium h-12">Contact</TableHead>
+                            <TableHead className="font-medium h-12 text-right">Joined</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                        </TableHeader>
+                        <TableBody>
+                          {filteredStudents.map((student) => (
+                            <TableRow key={student._id || student.id} className="hover:bg-secondary/10 transition-colors">
+                              <TableCell className="font-mono text-xs text-muted-foreground">{String(student._id || student.id).slice(-8)}</TableCell>
+                              <TableCell className="font-semibold text-foreground">{student.full_name || "–"}</TableCell>
+                              <TableCell>{student.email || "–"}</TableCell>
+                              <TableCell>{student.phone || "–"}</TableCell>
+                              <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>

@@ -94,29 +94,41 @@ const BrowseTutors = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryParam = searchParams.get("category");
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => sessionStorage.getItem("tutor_search") || "");
   const [category, setCategory] = useState<string>(() => {
     if (categoryParam?.toLowerCase() === "academic") return "Academic";
     if (categoryParam?.toLowerCase() === "extracurricular") return "Extracurricular";
-    return "all";
+    return sessionStorage.getItem("tutor_category") || "all";
   });
-  const [subject, setSubject] = useState<string>("all");
-  const [mode, setMode] = useState<string>("all");
-  const [city, setCity] = useState<string>("all");
-  const [day, setDay] = useState("all");
-  const [time, setTime] = useState("all");
-  const [showFilters, setShowFilters] = useState(false);
-  const [showMap, setShowMap] = useState(false);
+  const [subject, setSubject] = useState<string>(() => sessionStorage.getItem("tutor_subject") || "all");
+  const [mode, setMode] = useState<string>(() => sessionStorage.getItem("tutor_mode") || "all");
+  const [city, setCity] = useState<string>(() => sessionStorage.getItem("tutor_city") || "all");
+  const [day, setDay] = useState(() => sessionStorage.getItem("tutor_day") || "all");
+  const [time, setTime] = useState(() => sessionStorage.getItem("tutor_time") || "all");
+  const [showFilters, setShowFilters] = useState(() => sessionStorage.getItem("tutor_show_filters") === "true");
+  const [showMap, setShowMap] = useState(() => sessionStorage.getItem("tutor_show_map") === "true");
 
   useEffect(() => {
     if (categoryParam?.toLowerCase() === "academic") {
       setCategory("Academic");
     } else if (categoryParam?.toLowerCase() === "extracurricular") {
       setCategory("Extracurricular");
-    } else {
-      setCategory("all");
+    } else if (!categoryParam) {
+      setCategory(sessionStorage.getItem("tutor_category") || "all");
     }
   }, [categoryParam]);
+
+  useEffect(() => {
+    sessionStorage.setItem("tutor_search", search);
+    sessionStorage.setItem("tutor_category", category);
+    sessionStorage.setItem("tutor_subject", subject);
+    sessionStorage.setItem("tutor_mode", mode);
+    sessionStorage.setItem("tutor_city", city);
+    sessionStorage.setItem("tutor_day", day);
+    sessionStorage.setItem("tutor_time", time);
+    sessionStorage.setItem("tutor_show_filters", String(showFilters));
+    sessionStorage.setItem("tutor_show_map", String(showMap));
+  }, [search, category, subject, mode, city, day, time, showFilters, showMap]);
 
   const handleCategoryChange = (val: string) => {
     setCategory(val);
