@@ -140,6 +140,7 @@ router.get('/admin/bookings', async (req, res) => {
         obj.tutorEmail = b.tutorId.userId?.email || '';
         obj.tutorPhone = b.tutorId.userId?.phone || '';
         obj.tutorUserId = b.tutorId.userId?._id?.toString() || '';
+        obj.tutorVerificationDocument = b.tutorId.verificationDocument || '';
         // Set tutorId back to its ID string so we don't break simple components
         obj.tutorId = b.tutorId._id.toString();
       }

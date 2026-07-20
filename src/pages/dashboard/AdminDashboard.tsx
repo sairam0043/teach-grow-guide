@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -2166,7 +2166,15 @@ const AdminDashboard = () => {
             </DialogDescription>
           </DialogHeader>
 
-          {selectedBookingForDetail && (
+          {selectedBookingForDetail && (() => {
+            const tutorObj = tutors.find((t: any) =>
+              (t.id && selectedBookingForDetail.tutorId && (t.id === selectedBookingForDetail.tutorId || t._id === selectedBookingForDetail.tutorId)) ||
+              (t._id && selectedBookingForDetail.tutorId && (t._id === selectedBookingForDetail.tutorId || t.id === selectedBookingForDetail.tutorId)) ||
+              (t.name && selectedBookingForDetail.tutorName && t.name.toLowerCase() === selectedBookingForDetail.tutorName.toLowerCase())
+            );
+            const tutorResumeDoc = selectedBookingForDetail.tutorVerificationDocument || tutorObj?.verificationDocument;
+
+            return (
             <div className="space-y-6 py-4">
               {/* Core metadata stats grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-secondary/15 border border-border/40">
@@ -2228,28 +2236,55 @@ const AdminDashboard = () => {
                     <div className="space-y-1 text-xs text-muted-foreground">
                       <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.tutorEmail || "N/A"}</p>
                       <p><strong>Phone:</strong> {selectedBookingForDetail.tutorPhone || "N/A"}</p>
+                      {tutorResumeDoc ? (
+                        <p className="pt-0.5 flex items-center gap-1">
+                          <strong className="text-muted-foreground">Resume:</strong>{" "}
+                          <a
+                            href={resolveAssetUrl(tutorResumeDoc)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bold text-indigo-600 hover:text-indigo-700 hover:underline inline-flex items-center gap-1"
+                          >
+                            <FileText className="h-3.5 w-3.5" /> View Resume
+                          </a>
+                        </p>
+                      ) : (
+                        <p className="pt-0.5"><strong>Resume:</strong> <span className="italic">Not uploaded</span></p>
+                      )}
                     </div>
                   </div>
-                  {selectedBookingForDetail.tutorUserId ? (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="w-full gap-1.5 h-9 font-semibold text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50/50"
-                      onClick={() => {
-                        sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.tutorUserId);
-                        setActiveChatUserId(selectedBookingForDetail.tutorUserId);
-                        setActiveTab("messages");
-                        setIsBookingDetailDialogOpen(false);
-                        toast.success(`Opening chat thread with tutor ${selectedBookingForDetail.tutorName}`);
-                      }}
-                    >
-                      <MessageSquare className="h-4 w-4" /> Message Tutor
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" className="w-full h-9 text-xs" disabled>
-                      No Tutor Chat Available
-                    </Button>
-                  )}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {selectedBookingForDetail.tutorUserId ? (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 gap-1.5 h-9 font-semibold text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50/50"
+                        onClick={() => {
+                          sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.tutorUserId);
+                          setActiveChatUserId(selectedBookingForDetail.tutorUserId);
+                          setActiveTab("messages");
+                          setIsBookingDetailDialogOpen(false);
+                          toast.success(`Opening chat thread with tutor ${selectedBookingForDetail.tutorName}`);
+                        }}
+                      >
+                        <MessageSquare className="h-4 w-4" /> Message Tutor
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" className="flex-1 h-9 text-xs" disabled>
+                        No Tutor Chat Available
+                      </Button>
+                    )}
+                    {tutorResumeDoc && (
+                      <a
+                        href={resolveAssetUrl(tutorResumeDoc)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 h-9 px-3 font-semibold text-xs rounded-md border border-indigo-200 bg-indigo-50/80 text-indigo-600 hover:bg-indigo-100 transition-colors shrink-0"
+                      >
+                        <FileText className="h-4 w-4" /> View Resume
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 {/* Student Card */}
@@ -2386,7 +2421,8 @@ const AdminDashboard = () => {
                 </Button>
               </div>
             </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </PageLayout>

@@ -1121,7 +1121,7 @@ const TutorProfile = () => {
                 <CardContent>
                   {tutor.availability && tutor.availability.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => {
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
                         const daySlots = tutor.availability.filter((a: any) => a.day === day);
                         if (daySlots.length === 0) return null;
                         return (
@@ -1464,7 +1464,9 @@ const TutorProfile = () => {
                         <div className="space-y-3 p-3.5 border rounded-xl bg-secondary/15">
                           <h4 className="text-xs font-extrabold uppercase tracking-wider text-foreground mb-2">Set Weekly Schedule</h4>
                           {packSchedule.map((sched, idx) => {
-                            const availableDays = Array.from(new Set(tutor?.availability?.map((a: any) => a.day) || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']));
+                            const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                            const rawDays = tutor?.availability?.map((a: any) => a.day) || dayOrder;
+                            const availableDays = Array.from(new Set(rawDays)).sort((a: any, b: any) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
                             const daySlots = sched.day ? getSlotsForWeekday(sched.day) : [];
 
                             return (
