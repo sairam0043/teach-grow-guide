@@ -75,7 +75,7 @@ transporter.verify((error, success) => {
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, ...tutorData } = req.body;
 
     // Check if user exists
     let user = await User.findOne({ email });
@@ -90,7 +90,15 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = new User({ email, password: hashedPassword, full_name, phone, role, timezone: timezone || 'Asia/Kolkata' });
+    user = new User({ 
+      email, 
+      password: hashedPassword, 
+      full_name, 
+      phone, 
+      student_class: student_class || studentClass,
+      role, 
+      timezone: timezone || 'Asia/Kolkata' 
+    });
     await user.save();
 
     if (role === 'tutor') {
@@ -121,6 +129,21 @@ router.post('/register', async (req, res) => {
         }
       } catch (err) { }
 
+      let parsedClassesTaught = [];
+      let parsedBoardsTaught = [];
+      try {
+        if (typeof tutorData.classesTaught === 'string') {
+          parsedClassesTaught = JSON.parse(tutorData.classesTaught);
+        } else if (Array.isArray(tutorData.classesTaught)) {
+          parsedClassesTaught = tutorData.classesTaught;
+        }
+        if (typeof tutorData.boardsTaught === 'string') {
+          parsedBoardsTaught = JSON.parse(tutorData.boardsTaught);
+        } else if (Array.isArray(tutorData.boardsTaught)) {
+          parsedBoardsTaught = tutorData.boardsTaught;
+        }
+      } catch (err) { }
+
       if (parsedSubjectRates.length === 0 && parsedSubjects.length > 0) {
         parsedSubjectRates = parsedSubjects.map(sub => ({
           subject: sub,
@@ -139,6 +162,8 @@ router.post('/register', async (req, res) => {
         bio: tutorData.bio || '',
         hourlyRate: Number(tutorData.hourlyRate) || 500,
         subjects: parsedSubjects,
+        classesTaught: parsedClassesTaught,
+        boardsTaught: parsedBoardsTaught,
         subjectRates: parsedSubjectRates,
         availableTimings: parsedTimings,
         availability: parsedAvailability,
@@ -213,7 +238,7 @@ router.post('/register', async (req, res) => {
     // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, role } });
+    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, role } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -239,7 +264,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, role: user.role } });
+    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, role: user.role } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -323,6 +348,8 @@ router.post('/google', async (req, res) => {
         id: user._id.toString(),
         email: user.email,
         full_name: user.full_name,
+        phone: user.phone,
+        student_class: user.student_class,
         role: user.role,
         avatar: user.avatar
       }
@@ -464,13 +491,16 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone, timezone } = req.body;
+    const { full_name, phone, timezone, student_class, studentClass } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (full_name) user.full_name = full_name;
     if (phone !== undefined) user.phone = phone;
     if (timezone !== undefined) user.timezone = timezone;
+    if (student_class !== undefined || studentClass !== undefined) {
+      user.student_class = student_class || studentClass;
+    }
 
     await user.save();
 
@@ -481,7 +511,7 @@ router.put('/profile/:id', async (req, res) => {
       await Tutor.findOneAndUpdate({ userId: user._id }, updateData);
     }
 
-    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, role: user.role, timezone: user.timezone } });
+    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, role: user.role, timezone: user.timezone } });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

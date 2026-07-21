@@ -981,7 +981,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, timezone } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, timezone, classesTaught, boardsTaught } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -989,6 +989,8 @@ router.put('/:id/profile', async (req, res) => {
     if (hourlyRate !== undefined) updateData.hourlyRate = hourlyRate;
     if (category !== undefined) updateData.category = category;
     if (subjects !== undefined) updateData.subjects = subjects;
+    if (classesTaught !== undefined) currentTutor.classesTaught = classesTaught;
+    if (boardsTaught !== undefined) currentTutor.boardsTaught = boardsTaught;
     if (photo !== undefined) updateData.photo = photo;
     if (verificationDocument !== undefined) updateData.verificationDocument = verificationDocument;
 

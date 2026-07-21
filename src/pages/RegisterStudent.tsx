@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
 import { Eye, EyeOff } from "lucide-react";
@@ -11,6 +12,23 @@ import { GoogleLogin } from "@react-oauth/google";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { detectUserTimeZone } from "@/utils/timezone";
+
+const CLASS_OPTIONS = [
+  "Class 1",
+  "Class 2",
+  "Class 3",
+  "Class 4",
+  "Class 5",
+  "Class 6",
+  "Class 7",
+  "Class 8",
+  "Class 9",
+  "Class 10",
+  "Class 11",
+  "Class 12",
+  "College / University",
+  "Other"
+];
 
 const capitalizeName = (str: string): string => {
   return str
@@ -27,6 +45,8 @@ const RegisterStudent = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [studentClass, setStudentClass] = useState("");
+  const [customClass, setCustomClass] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -51,10 +71,15 @@ const RegisterStudent = () => {
   const queryParams = new URLSearchParams(location.search);
   const redirectUrl = queryParams.get("redirect");
 
-
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const finalClass = studentClass === "Other" ? customClass.trim() : studentClass;
+    if (!finalClass) {
+      toast.error("Please select or specify your class / grade.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast.error("Password and confirm password must match.");
       return;
@@ -64,6 +89,7 @@ const RegisterStudent = () => {
     const { error } = await signUp(email, password, {
       full_name: name,
       phone,
+      student_class: finalClass,
       role: "student",
       timezone: detectUserTimeZone(),
     });
@@ -104,6 +130,33 @@ const RegisterStudent = () => {
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="studentClass">Class / Grade</Label>
+                <Select value={studentClass} onValueChange={setStudentClass} required>
+                  <SelectTrigger id="studentClass">
+                    <SelectValue placeholder="Select Class / Grade" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[260px]">
+                    {CLASS_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {studentClass === "Other" && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Label htmlFor="customClass">Specify Class / Grade</Label>
+                  <Input
+                    id="customClass"
+                    required
+                    placeholder="e.g. Masters, Diploma, Grade 5"
+                    value={customClass}
+                    onChange={(e) => setCustomClass(e.target.value)}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
@@ -153,7 +206,6 @@ const RegisterStudent = () => {
               </Button>
             </form>
 
-
             <div className="mt-6 text-center text-sm text-muted-foreground">
               Already have an account? <Link to={redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login"} className="text-primary hover:underline">Log in</Link>
               <br />
@@ -162,8 +214,8 @@ const RegisterStudent = () => {
           </CardContent>
         </Card>
       </div>
-    </PageLayout>
-  );
+  </PageLayout>
+);
 };
 
 export default RegisterStudent;

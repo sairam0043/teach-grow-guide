@@ -44,6 +44,11 @@ test.describe("Cuvasol Tutor - Basic E2E Tests", () => {
     await page.locator("input#name").fill("Automated Student");
     await page.locator("input#email").fill(`student.${Date.now()}@test.com`);
     await page.locator("input#phone").fill("9876543210");
+
+    // Select Class / Grade
+    await page.locator("button#studentClass").click();
+    await page.locator("div[role='option']:has-text('Class 10')").click();
+
     await page.locator("input#password").fill("studentpass123");
     await page.locator("input#confirmPassword").fill("studentpass123");
 

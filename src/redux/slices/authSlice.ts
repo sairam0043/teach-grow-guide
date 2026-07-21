@@ -6,6 +6,8 @@ interface UserInfo {
   id: string;
   email: string;
   full_name: string;
+  phone?: string;
+  student_class?: string;
   role: 'admin' | 'student' | 'tutor';
   [key: string]: any;
 }

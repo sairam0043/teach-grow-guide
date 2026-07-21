@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2 } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award } from "lucide-react";
+import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -227,6 +228,8 @@ const TutorDashboard = () => {
     googleMapsUrl: "",
   });
   const [subjectRates, setSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectRate, setNewSubjectRate] = useState(500);
   const [customSubjectInput, setCustomSubjectInput] = useState(false);
@@ -275,6 +278,8 @@ const TutorDashboard = () => {
             address: res.data.address || "",
             googleMapsUrl: res.data.googleMapsUrl || "",
           });
+          setSelectedClasses(res.data.classesTaught || []);
+          setSelectedBoards(res.data.boardsTaught || []);
           const legacyRates = res.data.subjectRates && res.data.subjectRates.length > 0
             ? res.data.subjectRates
             : (res.data.subjects || []).map((sub: string) => ({ subject: sub, rate: res.data.hourlyRate || 500 }));
@@ -414,6 +419,8 @@ const TutorDashboard = () => {
         address: profileData.address,
         googleMapsUrl: profileData.googleMapsUrl,
         subjectRates,
+        classesTaught: selectedClasses,
+        boardsTaught: selectedBoards,
         photo: uploadedPhotoUrl,
         verificationDocument: uploadedDocUrl,
         timezone: tutorTimezone
@@ -1223,6 +1230,64 @@ const TutorDashboard = () => {
                              </div>
                            </div>
                          )}
+
+                         <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
+                           <div className="space-y-2">
+                             <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                               <GraduationCap className="h-4 w-4 text-primary" /> Classes / Grade Levels Taught
+                             </Label>
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                               {CLASS_TAUGHT_OPTIONS.map((c) => {
+                                 const isChecked = selectedClasses.includes(c);
+                                 return (
+                                   <button
+                                     key={c}
+                                     type="button"
+                                     onClick={() => setSelectedClasses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                                       isChecked
+                                         ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                         : "bg-background text-foreground border-border hover:bg-secondary/40"
+                                     }`}
+                                   >
+                                     <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground"}`}>
+                                       {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                     </div>
+                                     <span className="truncate">{c}</span>
+                                   </button>
+                                 );
+                               })}
+                             </div>
+                           </div>
+
+                           <div className="space-y-2 pt-3 border-t border-border/40">
+                             <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                               <Award className="h-4 w-4 text-indigo-500" /> Educational Boards Taught
+                             </Label>
+                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                               {BOARD_TAUGHT_OPTIONS.map((b) => {
+                                 const isChecked = selectedBoards.includes(b);
+                                 return (
+                                   <button
+                                     key={b}
+                                     type="button"
+                                     onClick={() => setSelectedBoards(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b])}
+                                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                                       isChecked
+                                         ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                         : "bg-background text-foreground border-border hover:bg-secondary/40"
+                                     }`}
+                                   >
+                                     <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-indigo-600 border-white" : "border-muted-foreground"}`}>
+                                       {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                     </div>
+                                     <span className="truncate">{b}</span>
+                                   </button>
+                                 );
+                               })}
+                             </div>
+                           </div>
+                         </div>
 
                         <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
                           <Label className="text-sm font-extrabold text-foreground flex items-center gap-1.5">

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { Eye, EyeOff, Calendar, Clock, PlusCircle } from "lucide-react";
+import { Eye, EyeOff, Calendar, Clock, PlusCircle, Check, GraduationCap, Award } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleLogin } from "@react-oauth/google";
 
@@ -17,6 +17,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import API_URL from "@/config/api";
 import { detectUserTimeZone, COMMON_TIMEZONES } from "@/utils/timezone";
+
+export const CLASS_TAUGHT_OPTIONS = [
+  "Class 1 - 5 (Primary)",
+  "Class 6 - 8 (Middle School)",
+  "Class 9 - 10 (High School)",
+  "Class 11 - 12 (Senior Secondary)",
+  "College / University",
+  "Competitive Exams"
+];
+
+export const BOARD_TAUGHT_OPTIONS = [
+  "CBSE",
+  "ICSE / ISC",
+  "State Board",
+  "IB (International Baccalaureate)",
+  "IGCSE / Cambridge",
+  "Other / University Board"
+];
 
 const capitalizeName = (str: string): string => {
   return str
@@ -76,6 +94,8 @@ const RegisterTutor = () => {
   const [experience, setExperience] = useState("");
   const [category, setCategory] = useState("");
   const [teachingMode, setTeachingMode] = useState("");
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [address, setAddress] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
@@ -174,12 +194,28 @@ const RegisterTutor = () => {
     });
   };
 
+  const toggleClass = (c: string) => {
+    setSelectedClasses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+  };
 
+  const toggleBoard = (b: string) => {
+    setSelectedBoards(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!category || !teachingMode) {
       toast.error("Please select category and teaching mode.");
+      return;
+    }
+
+    if (selectedClasses.length === 0) {
+      toast.error("Please select at least one class / grade level you teach.");
+      return;
+    }
+
+    if (category === "Academic" && selectedBoards.length === 0) {
+      toast.error("Please select at least one educational board you teach.");
       return;
     }
 
@@ -278,6 +314,8 @@ const RegisterTutor = () => {
       timezone,
       category: category.toLowerCase(),
       subjects: JSON.stringify(finalSubjects),
+      classesTaught: JSON.stringify(selectedClasses),
+      boardsTaught: JSON.stringify(selectedBoards),
       subjectRates: JSON.stringify(finalSubjectRates),
       hourlyRate: finalSubjectRates[0]?.rate || 500,
       bio,
@@ -403,6 +441,66 @@ const RegisterTutor = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                    <GraduationCap className="h-4 w-4 text-primary" /> Classes / Grade Levels Taught <span className="text-xs text-muted-foreground font-normal">(Select all that apply)</span>
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {CLASS_TAUGHT_OPTIONS.map((c) => {
+                      const isChecked = selectedClasses.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => toggleClass(c)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                            isChecked
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-background text-foreground border-border hover:bg-secondary/40"
+                          }`}
+                        >
+                          <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground"}`}>
+                            {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                          <span className="truncate">{c}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {(category === "Academic" || category === "") && (
+                  <div className="space-y-2 pt-3 border-t border-border/40 animate-in fade-in duration-200">
+                    <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                      <Award className="h-4 w-4 text-indigo-500" /> Educational Boards Taught <span className="text-xs text-muted-foreground font-normal">(Select all that apply)</span>
+                    </Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {BOARD_TAUGHT_OPTIONS.map((b) => {
+                        const isChecked = selectedBoards.includes(b);
+                        return (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() => toggleBoard(b)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                              isChecked
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                : "bg-background text-foreground border-border hover:bg-secondary/40"
+                            }`}
+                          >
+                            <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-indigo-600 border-white" : "border-muted-foreground"}`}>
+                              {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+                            <span className="truncate">{b}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {(teachingMode === "Offline" || teachingMode === "Both") && (

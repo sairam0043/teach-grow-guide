@@ -80,6 +80,11 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
               {subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
             </Badge>
           ))}
+          {tutor.boardsTaught && tutor.boardsTaught.map((board) => (
+            <Badge key={board} variant="outline" className="text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/50 font-medium">
+              {board}
+            </Badge>
+          ))}
         </div>
 
         <div className="mb-4 flex flex-col gap-2 text-xs text-muted-foreground">

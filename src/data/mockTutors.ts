@@ -20,6 +20,8 @@ export interface Tutor {
   bio: string;
   category: TutorCategory;
   subjects: string[];
+  classesTaught?: string[];
+  boardsTaught?: string[];
   mode: TeachingMode;
   city: string;
   rating: number;

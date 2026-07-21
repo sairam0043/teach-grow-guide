@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String },
   avatar: { type: String },
   phone: { type: String },
+  student_class: { type: String },
   role: { type: String, enum: ['admin', 'student', 'tutor'], default: 'student' },
   timezone: { type: String, default: 'Asia/Kolkata' },
   resetOtp: { type: String },

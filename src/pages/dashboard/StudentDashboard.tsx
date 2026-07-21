@@ -112,6 +112,9 @@ const StudentDashboard = () => {
   // Profile Form States
   const [profileName, setProfileName] = useState(initialName);
   const [profilePhone, setProfilePhone] = useState(user?.phone || "");
+  const [profileStudentClass, setProfileStudentClass] = useState(
+    user?.student_class || user?.user_metadata?.student_class || ""
+  );
   const [studentTimezone, setStudentTimezone] = useState(
     user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone()
   );
@@ -121,6 +124,7 @@ const StudentDashboard = () => {
     if (user) {
       setProfileName(String(user.user_metadata?.full_name || user.full_name || "Student"));
       setProfilePhone(user.phone || "");
+      setProfileStudentClass(user.student_class || user.user_metadata?.student_class || "");
       if (user.timezone) {
         setStudentTimezone(user.timezone);
       } else if (user.user_metadata?.timezone) {
@@ -242,12 +246,14 @@ const StudentDashboard = () => {
       const response = await axios.put(`${API_URL}/auth/profile/${user.id}`, { 
         full_name: profileName, 
         phone: profilePhone,
+        student_class: profileStudentClass,
         timezone: studentTimezone
       });
       if (response.data && response.data.user) {
         dispatch(updateUser({
           full_name: response.data.user.full_name,
           phone: response.data.user.phone,
+          student_class: response.data.user.student_class,
           timezone: response.data.user.timezone
         }));
       }
@@ -815,6 +821,10 @@ const StudentDashboard = () => {
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
                     <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} placeholder="+1 234 567 890" className="bg-secondary/20 border-border/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="studentClass" className="text-sm font-semibold">Class / Grade</Label>
+                    <Input id="studentClass" value={profileStudentClass} onChange={(e) => setProfileStudentClass(e.target.value)} placeholder="e.g. Class 10, Grade 8, College" className="bg-secondary/20 border-border/50" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>

@@ -23,6 +23,8 @@ const tutorSchema = new mongoose.Schema({
   googleMapsUrl: { type: String, default: "" },
   bio: { type: String },
   subjects: [{ type: String }],
+  classesTaught: [{ type: String }],
+  boardsTaught: [{ type: String }],
   hourlyRate: { type: Number, required: true, default: 500 },
   subjectRates: [{
     subject: { type: String, required: true },

@@ -771,6 +771,7 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Full Name</TableHead>
                             <TableHead className="font-medium h-12">Email</TableHead>
                             <TableHead className="font-medium h-12">Contact</TableHead>
+                            <TableHead className="font-medium h-12">Class / Grade</TableHead>
                             <TableHead className="font-medium h-12 text-right">Joined</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -781,6 +782,7 @@ const AdminDashboard = () => {
                               <TableCell className="font-semibold text-foreground">{student.full_name || "–"}</TableCell>
                               <TableCell>{student.email || "–"}</TableCell>
                               <TableCell>{student.phone || "–"}</TableCell>
+                              <TableCell><Badge variant="outline" className="font-normal bg-secondary/20">{student.student_class || student.studentClass || "–"}</Badge></TableCell>
                               <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
                             </TableRow>
                           ))}

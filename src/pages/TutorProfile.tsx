@@ -5,7 +5,7 @@ declare global {
 }
 
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy } from "lucide-react";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -963,9 +963,14 @@ const TutorProfile = () => {
                 }}
               />
               <div className="flex-1">
-                <div className="mb-2 flex items-center gap-2">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Badge className="bg-primary text-primary-foreground">{tutor.category}</Badge>
                   <Badge variant="secondary">{tutor.mode}</Badge>
+                  {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
+                    <Badge variant="outline" className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/50 font-medium">
+                      {tutor.boardsTaught.join(" • ")}
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3 mb-1">
                   <h1 className="text-3xl font-bold text-foreground capitalize">{tutor.name}</h1>
@@ -1051,7 +1056,7 @@ const TutorProfile = () => {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle>Subjects</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Subjects & Skills</CardTitle></CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {(() => {
@@ -1062,7 +1067,7 @@ const TutorProfile = () => {
                       seen.add(clean);
                       return true;
                     }).map((s: string) => (
-                      <Badge key={s} variant="secondary" className="px-3 py-1 text-sm">
+                      <Badge key={s} variant="secondary" className="px-3 py-1 text-sm font-medium">
                         {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
                       </Badge>
                     ));
@@ -1070,6 +1075,44 @@ const TutorProfile = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {tutor.classesTaught && tutor.classesTaught.length > 0 && (
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <GraduationCap className="h-5 w-5 text-primary" /> Classes / Grade Levels Taught
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {tutor.classesTaught.map((cls: string) => (
+                      <Badge key={cls} variant="outline" className="px-3 py-1 text-xs font-semibold bg-primary/10 text-primary border-primary/20">
+                        {cls}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Award className="h-5 w-5 text-indigo-500" /> Educational Boards Taught
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {tutor.boardsTaught.map((board: string) => (
+                      <Badge key={board} variant="outline" className="px-3 py-1 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/50">
+                        {board}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {(tutor.mode?.toLowerCase() === "offline" || tutor.mode?.toLowerCase() === "both") && tutor.address && (
               <Card className="overflow-hidden border-border/50 shadow-sm">
