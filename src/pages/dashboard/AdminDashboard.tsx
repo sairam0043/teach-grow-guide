@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -571,7 +571,19 @@ const AdminDashboard = () => {
                               {tutor.pincode && <span className="text-xs text-muted-foreground block font-normal">{tutor.pincode}</span>}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={tutor.hearAboutUs || "–"}>{tutor.hearAboutUs || "–"}</TableCell>
-                            <TableCell className="max-w-[160px] truncate text-sm" title={tutor.subjects?.join(", ")}>{tutor.subjects?.join(", ")}</TableCell>
+                            <TableCell className="max-w-[180px] text-sm">
+                              <div className="font-semibold text-foreground truncate" title={tutor.subjects?.join(", ")}>{tutor.subjects?.join(", ") || "–"}</div>
+                              {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
+                                <div className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium truncate mt-0.5" title={`Boards: ${tutor.boardsTaught.join(", ")}`}>
+                                  📋 {tutor.boardsTaught.join(", ")}
+                                </div>
+                              )}
+                              {tutor.classesTaught && tutor.classesTaught.length > 0 && (
+                                <div className="text-[11px] text-primary font-medium truncate mt-0.5" title={`Classes: ${tutor.classesTaught.join(", ")}`}>
+                                  🎓 {tutor.classesTaught.join(", ")}
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell className="text-sm font-medium">{tutor.experience} yrs</TableCell>
                             <TableCell>
                               {tutor.verificationDocument ? (
@@ -690,7 +702,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Category</TableHead>
                           <TableHead className="font-bold h-12">City</TableHead>
                           <TableHead className="font-bold h-12">Referral Source</TableHead>
-                          <TableHead className="font-bold h-12">Subjects</TableHead>
+                          <TableHead className="font-bold h-12">Subjects/Boards/Classes</TableHead>
                           <TableHead className="font-bold h-12">Status</TableHead>
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
                           <TableHead className="font-bold h-12 text-center">Verified</TableHead>
@@ -733,7 +745,19 @@ const AdminDashboard = () => {
                               {tutor.pincode && <span className="text-xs text-muted-foreground block font-normal">{tutor.pincode}</span>}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={tutor.hearAboutUs || "–"}>{tutor.hearAboutUs || "–"}</TableCell>
-                            <TableCell className="max-w-[160px] truncate text-sm">{tutor.subjects?.join(", ")}</TableCell>
+                             <TableCell className="max-w-[180px] text-sm">
+                               <div className="font-semibold text-foreground truncate" title={tutor.subjects?.join(", ")}>{tutor.subjects?.join(", ") || "–"}</div>
+                               {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
+                                 <div className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium truncate mt-0.5" title={`Boards: ${tutor.boardsTaught.join(", ")}`}>
+                                   📋 {tutor.boardsTaught.join(", ")}
+                                 </div>
+                               )}
+                               {tutor.classesTaught && tutor.classesTaught.length > 0 && (
+                                 <div className="text-[11px] text-primary font-medium truncate mt-0.5" title={`Classes: ${tutor.classesTaught.join(", ")}`}>
+                                   🎓 {tutor.classesTaught.join(", ")}
+                                 </div>
+                               )}
+                             </TableCell>
                             <TableCell>
                               <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/30 text-xs font-semibold">Active</Badge>
                             </TableCell>
@@ -1857,6 +1881,47 @@ const AdminDashboard = () => {
                   <span className="text-sm font-semibold text-foreground bg-secondary/15 px-3 py-2 rounded-lg border border-border/30 block">
                     {selectedTutorForDetail.experience ? `${selectedTutorForDetail.experience} Years` : "Not specified"}
                   </span>
+                </div>
+              </div>
+
+              {/* Target Classes and Boards Taught */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block flex items-center gap-1">
+                    <GraduationCap className="h-3.5 w-3.5 text-primary" /> Classes / Grade Levels Taught
+                  </span>
+                  {selectedTutorForDetail.classesTaught && selectedTutorForDetail.classesTaught.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 bg-secondary/15 p-3 rounded-lg border border-border/30">
+                      {selectedTutorForDetail.classesTaught.map((cls: string) => (
+                        <Badge key={cls} variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
+                          {cls}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic bg-secondary/15 p-3 rounded-lg border border-border/30 block">
+                      Not specified
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block flex items-center gap-1">
+                    <Award className="h-3.5 w-3.5 text-indigo-500" /> Educational Boards Taught
+                  </span>
+                  {selectedTutorForDetail.boardsTaught && selectedTutorForDetail.boardsTaught.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 bg-secondary/15 p-3 rounded-lg border border-border/30">
+                      {selectedTutorForDetail.boardsTaught.map((board: string) => (
+                        <Badge key={board} variant="outline" className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/50 text-xs font-semibold">
+                          {board}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic bg-secondary/15 p-3 rounded-lg border border-border/30 block">
+                      Not specified
+                    </span>
+                  )}
                 </div>
               </div>
 
