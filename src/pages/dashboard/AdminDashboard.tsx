@@ -28,6 +28,8 @@ const AdminDashboard = () => {
   const [tutors, setTutors] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [studentSearch, setStudentSearch] = useState("");
+  const [approvedTutorSearch, setApprovedTutorSearch] = useState("");
+  const [pendingTutorSearch, setPendingTutorSearch] = useState("");
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [payouts, setPayouts] = useState<any[]>([]);
@@ -223,6 +225,52 @@ const AdminDashboard = () => {
 
   const pendingTutors = tutors.filter((t) => t.status === "pending");
   const approvedTutors = tutors.filter((t) => t.status === "approved");
+
+  const matchesTutorSearch = (tutor: any, search: string) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase().trim();
+
+    const name = String(tutor.name || tutor.full_name || "").toLowerCase();
+    const email = String(tutor.email || tutor.userId?.email || "").toLowerCase();
+    const phone = String(tutor.phone || tutor.userId?.phone || "").toLowerCase();
+    const city = String(tutor.city || "").toLowerCase();
+    const pincode = String(tutor.pincode || "").toLowerCase();
+    const category = String(tutor.category || "").toLowerCase();
+    const qualification = String(tutor.qualification || "").toLowerCase();
+    const bio = String(tutor.bio || "").toLowerCase();
+    const hearAboutUs = String(tutor.hearAboutUs || "").toLowerCase();
+    const address = String(tutor.address || "").toLowerCase();
+    const mode = String(tutor.mode || "").toLowerCase();
+    const experience = String(tutor.experience || "").toLowerCase();
+    const status = String(tutor.status || "").toLowerCase();
+
+    const subjects = Array.isArray(tutor.subjects) ? tutor.subjects.join(" ").toLowerCase() : "";
+    const classesTaught = Array.isArray(tutor.classesTaught) ? tutor.classesTaught.join(" ").toLowerCase() : "";
+    const boardsTaught = Array.isArray(tutor.boardsTaught) ? tutor.boardsTaught.join(" ").toLowerCase() : "";
+
+    return (
+      name.includes(q) ||
+      email.includes(q) ||
+      phone.includes(q) ||
+      city.includes(q) ||
+      pincode.includes(q) ||
+      category.includes(q) ||
+      qualification.includes(q) ||
+      bio.includes(q) ||
+      hearAboutUs.includes(q) ||
+      address.includes(q) ||
+      mode.includes(q) ||
+      experience.includes(q) ||
+      status.includes(q) ||
+      subjects.includes(q) ||
+      classesTaught.includes(q) ||
+      boardsTaught.includes(q)
+    );
+  };
+
+  const filteredPendingTutors = pendingTutors.filter((t) => matchesTutorSearch(t, pendingTutorSearch));
+  const filteredApprovedTutors = approvedTutors.filter((t) => matchesTutorSearch(t, approvedTutorSearch));
+
   const enrolledBookings = bookings.filter((b) => (b.status === "enrolled" || b.status === "completed") && (b.amountPaid || 0) > 0);
   const studentBookings = bookings.filter((b) => b.subject !== "Verification Demo Class");
   const verificationDemos = bookings.filter((b) => b.subject === "Verification Demo Class");
@@ -426,6 +474,30 @@ const AdminDashboard = () => {
                 <CardDescription>Review credentials and approve applications of newly registered tutors.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
+                <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search pending applications by name, email, city, subject..."
+                      value={pendingTutorSearch}
+                      onChange={(e) => setPendingTutorSearch(e.target.value)}
+                      className="pl-9 pr-8 rounded-xl bg-secondary/20 border-border/60 focus:bg-background transition-all"
+                    />
+                    {pendingTutorSearch && (
+                      <button
+                        onClick={() => setPendingTutorSearch("")}
+                        className="absolute right-2.5 top-2.5 text-xs text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-secondary"
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground font-medium self-end sm:self-center">
+                    Showing <strong className="text-foreground">{filteredPendingTutors.length}</strong> of {pendingTutors.length} pending
+                  </div>
+                </div>
+
                 {loading ? (
                   <div className="space-y-4 py-4">
                     <Skeleton className="h-12 w-full rounded-lg" />
@@ -437,6 +509,15 @@ const AdminDashboard = () => {
                     <CheckCircle className="mx-auto mb-4 h-16 w-16 opacity-30 text-emerald-500" />
                     <h3 className="text-lg font-bold text-foreground mb-1">You're All Caught Up</h3>
                     <p className="text-sm">There are no pending tutor approvals at this time.</p>
+                  </div>
+                ) : filteredPendingTutors.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
+                    <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
+                    <h3 className="text-lg font-bold text-foreground mb-1">No Matching Applications</h3>
+                    <p className="text-sm text-muted-foreground mb-4">No pending applications matched "{pendingTutorSearch}".</p>
+                    <Button variant="outline" size="sm" onClick={() => setPendingTutorSearch("")} className="rounded-lg">
+                      Clear Search Filter
+                    </Button>
                   </div>
                 ) : (
                   <div className="rounded-xl border shadow-sm overflow-hidden bg-card mt-4">
@@ -456,7 +537,7 @@ const AdminDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {pendingTutors.map((tutor) => (
+                        {filteredPendingTutors.map((tutor) => (
                           <TableRow key={tutor.id} className="hover:bg-secondary/10 transition-colors border-b border-border/40">
                             <TableCell className="py-3 cursor-pointer hover:bg-secondary/20 transition-all rounded-l-lg" onClick={() => handleViewTutorDetail(tutor)} title="Click to view full tutor details">
                               <div className="flex items-center gap-3">
@@ -555,6 +636,30 @@ const AdminDashboard = () => {
                 <CardDescription>Manage active tutors and customize their homepage featured status.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
+                <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search tutors by name, email, phone, city, subject, board, class..."
+                      value={approvedTutorSearch}
+                      onChange={(e) => setApprovedTutorSearch(e.target.value)}
+                      className="pl-9 pr-8 rounded-xl bg-secondary/20 border-border/60 focus:bg-background transition-all"
+                    />
+                    {approvedTutorSearch && (
+                      <button
+                        onClick={() => setApprovedTutorSearch("")}
+                        className="absolute right-2.5 top-2.5 text-xs text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-secondary"
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground font-medium self-end sm:self-center">
+                    Showing <strong className="text-foreground">{filteredApprovedTutors.length}</strong> of {approvedTutors.length} tutors
+                  </div>
+                </div>
+
                 {loading ? (
                   <div className="space-y-4 py-4">
                     <Skeleton className="h-12 w-full rounded-lg" />
@@ -566,6 +671,15 @@ const AdminDashboard = () => {
                     <Users className="mx-auto mb-4 h-16 w-16 opacity-30 text-blue-500" />
                     <h3 className="text-lg font-bold text-foreground mb-1">No Active Tutors Found</h3>
                     <p className="text-sm">Tutor profiles will appear here once approved.</p>
+                  </div>
+                ) : filteredApprovedTutors.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
+                    <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
+                    <h3 className="text-lg font-bold text-foreground mb-1">No Matching Tutors Found</h3>
+                    <p className="text-sm text-muted-foreground mb-4">No tutors matched "{approvedTutorSearch}".</p>
+                    <Button variant="outline" size="sm" onClick={() => setApprovedTutorSearch("")} className="rounded-lg">
+                      Clear Search Filter
+                    </Button>
                   </div>
                 ) : (
                   <div className="rounded-xl border shadow-sm overflow-hidden bg-card mt-4">
@@ -586,7 +700,7 @@ const AdminDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {approvedTutors.map((tutor) => (
+                        {filteredApprovedTutors.map((tutor) => (
                           <TableRow key={tutor.id} className="hover:bg-secondary/10 transition-colors border-b border-border/40">
                             <TableCell className="py-3 cursor-pointer hover:bg-secondary/20 transition-all rounded-l-lg" onClick={() => handleViewTutorDetail(tutor)} title="Click to view full tutor details">
                               <div className="flex items-center gap-3">
