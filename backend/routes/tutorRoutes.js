@@ -989,8 +989,6 @@ router.put('/:id/profile', async (req, res) => {
     if (hourlyRate !== undefined) updateData.hourlyRate = hourlyRate;
     if (category !== undefined) updateData.category = category;
     if (subjects !== undefined) updateData.subjects = subjects;
-    if (classesTaught !== undefined) currentTutor.classesTaught = classesTaught;
-    if (boardsTaught !== undefined) currentTutor.boardsTaught = boardsTaught;
     if (photo !== undefined) updateData.photo = photo;
     if (verificationDocument !== undefined) updateData.verificationDocument = verificationDocument;
 
@@ -1008,6 +1006,8 @@ router.put('/:id/profile', async (req, res) => {
     if (qualification !== undefined) currentTutor.qualification = qualification;
     if (experience !== undefined) currentTutor.experience = experience;
     if (address !== undefined) currentTutor.address = address;
+    if (classesTaught !== undefined) currentTutor.classesTaught = classesTaught;
+    if (boardsTaught !== undefined) currentTutor.boardsTaught = boardsTaught;
     if (googleMapsUrl !== undefined) {
       const { expandGoogleMapsUrl } = require('../utils/urlHelper');
       currentTutor.googleMapsUrl = await expandGoogleMapsUrl(googleMapsUrl);
