@@ -508,4 +508,113 @@ router.get('/admin/course-payments', async (req, res) => {
   }
 });
 
+// POST /api/dashboard/admin/send-profile-emails
+router.post('/admin/send-profile-emails', async (req, res) => {
+  try {
+    const { testEmail, onlyIncomplete = true } = req.body;
+    const { sendProfileReminderEmail } = require('../utils/emailService');
+
+    const users = await User.find({});
+    const tutors = await Tutor.find({});
+
+    const tutorMap = new Map();
+    tutors.forEach(t => {
+      if (t.userId) tutorMap.set(t.userId.toString(), t);
+    });
+
+    let targetUsers = testEmail ? users.filter(u => u.email.toLowerCase() === testEmail.toLowerCase()) : users;
+
+    if (testEmail && targetUsers.length === 0) {
+      targetUsers = [{
+        full_name: 'Test Member',
+        email: testEmail,
+        role: 'tutor',
+      }];
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    const results = [];
+
+    let frontendUrl = 'https://tutor.cuvasol.com';
+    if (process.env.FRONTEND_URL) {
+      const urls = process.env.FRONTEND_URL.split(',')
+        .map(u => u.replace(/["']/g, '').trim())
+        .filter(Boolean);
+      const prodUrl = urls.find(url => !url.includes('localhost') && !url.includes('127.0.0.1'));
+      if (prodUrl) frontendUrl = prodUrl;
+    }
+
+    for (const user of targetUsers) {
+      const isTutor = user.role === 'tutor';
+      const tutorDoc = isTutor ? (tutorMap.get(user._id ? user._id.toString() : '') || tutors.find(t => t.name === user.full_name)) : null;
+
+      const missingFields = [];
+      if (isTutor) {
+        if (!tutorDoc || !tutorDoc.boardsTaught || tutorDoc.boardsTaught.length === 0) {
+          missingFields.push('Board Taught (e.g. CBSE, ICSE, State Board, IB)');
+        }
+        if (!tutorDoc || !tutorDoc.classesTaught || tutorDoc.classesTaught.length === 0) {
+          missingFields.push('Class / Grade Taught (e.g. Class 1-12, College)');
+        }
+        if (!user.phone || user.phone.trim() === '') {
+          missingFields.push('Phone Number');
+        }
+        if (!tutorDoc || !tutorDoc.city || tutorDoc.city.trim() === '') {
+          missingFields.push('City / Location');
+        }
+        if (!tutorDoc || !tutorDoc.qualification || tutorDoc.qualification.trim() === '') {
+          missingFields.push('Qualification');
+        }
+        if (!tutorDoc || !tutorDoc.subjects || tutorDoc.subjects.length === 0) {
+          missingFields.push('Subjects Offered');
+        }
+        if (!tutorDoc || !tutorDoc.bio || tutorDoc.bio.trim() === '') {
+          missingFields.push('Profile Bio / Description');
+        }
+      } else {
+        if (!user.student_class || user.student_class.trim() === '') {
+          missingFields.push('Class / Grade Level');
+        }
+        if (!user.phone || user.phone.trim() === '') {
+          missingFields.push('Phone Number');
+        }
+      }
+
+      if (onlyIncomplete && missingFields.length === 0 && !testEmail) {
+        results.push({ email: user.email, status: 'skipped', reason: 'Profile Complete' });
+        continue;
+      }
+
+      try {
+        await sendProfileReminderEmail({
+          name: user.full_name,
+          email: user.email,
+          role: user.role,
+          missingFields,
+          frontendUrl,
+        });
+        successCount++;
+        results.push({ email: user.email, status: 'sent', missingFields });
+      } catch (err) {
+        failCount++;
+        results.push({ email: user.email, status: 'failed', error: err.message });
+      }
+
+      await new Promise(r => setTimeout(r, 250));
+    }
+
+    res.json({
+      message: `Profile reminder emails processing completed.`,
+      totalProcessed: targetUsers.length,
+      successCount,
+      failCount,
+      results,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+

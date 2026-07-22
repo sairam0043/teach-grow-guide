@@ -113,6 +113,7 @@ const RegisterTutor = () => {
   );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
+  const [agreeTerms, setAgreeTerms] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -268,6 +269,11 @@ const RegisterTutor = () => {
 
     if (!docFile) {
       toast.error("Please upload your Resume/CV.");
+      return;
+    }
+
+    if (!agreeTerms) {
+      toast.error("You must accept the Terms & Conditions to submit your tutor application.");
       return;
     }
 
@@ -884,6 +890,21 @@ const RegisterTutor = () => {
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 pt-3 pb-1">
+                <Checkbox 
+                  id="agreeTermsTutor" 
+                  checked={agreeTerms} 
+                  onCheckedChange={(checked) => setAgreeTerms(checked === true)} 
+                />
+                <Label htmlFor="agreeTermsTutor" className="text-xs text-muted-foreground leading-snug cursor-pointer">
+                  I have read and agree to the{" "}
+                  <Link to="/terms" target="_blank" className="text-primary font-semibold underline hover:text-primary/80">
+                    Terms & Conditions
+                  </Link>{" "}
+                  (including the 30% platform commission policy) and Privacy Policy. <span className="text-destructive">*</span>
+                </Label>
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>

@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
+import { format, parse } from "date-fns";
+import { getTimeZoneAbbreviation } from "@/utils/timezone";
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -75,6 +77,25 @@ const AdminDashboard = () => {
   const [isBookingDetailDialogOpen, setIsBookingDetailDialogOpen] = useState(false);
   const [verificationDemoTiming, setVerificationDemoTiming] = useState("");
   const [isBookingDemo, setIsBookingDemo] = useState(false);
+  const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
+
+  const handleSendProfileEmails = async () => {
+    if (!window.confirm("Send Board, Class & Profile completion reminder emails to all members with incomplete profiles?")) {
+      return;
+    }
+    try {
+      setIsSendingProfileEmails(true);
+      toast.loading("Sending profile reminder emails to all members with incomplete profiles...");
+      const res = await axios.post(`${API_URL}/dashboard/admin/send-profile-emails`, { onlyIncomplete: true });
+      toast.dismiss();
+      toast.success(`Profile emails dispatched! Sent: ${res.data.successCount}, Skipped: ${res.data.results?.filter((r: any) => r.status === 'skipped').length || 0}`);
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.response?.data?.error || "Failed to send profile reminder emails");
+    } finally {
+      setIsSendingProfileEmails(false);
+    }
+  };
 
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
@@ -392,15 +413,26 @@ const AdminDashboard = () => {
             <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">Admin Dashboard</h1>
             <p className="text-base text-muted-foreground mt-1.5">Manage platform operations, verify tutor credentials, and track ledger analytics.</p>
           </div>
-          <Button 
-            onClick={fetchTutors} 
-            disabled={loading} 
-            variant="outline" 
-            className="h-10 w-fit shrink-0 self-start md:self-center gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-lg shadow-sm"
-          >
-            <Activity className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh Platform Data
-          </Button>
+          <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
+            <Button 
+              onClick={handleSendProfileEmails} 
+              disabled={isSendingProfileEmails} 
+              variant="default" 
+              className="h-10 gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+            >
+              <Mail className={`h-4 w-4 ${isSendingProfileEmails ? 'animate-bounce' : ''}`} />
+              Send Board & Class Reminder Emails
+            </Button>
+            <Button 
+              onClick={fetchTutors} 
+              disabled={loading} 
+              variant="outline" 
+              className="h-10 gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-lg shadow-sm"
+            >
+              <Activity className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh Platform Data
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
@@ -2025,6 +2057,52 @@ const AdminDashboard = () => {
                 <p className="text-xs text-muted-foreground">
                   Send a request to the tutor to schedule a demo class with the administrator for verification.
                 </p>
+
+                {/* Tutor Availability Info */}
+                {((selectedTutorForDetail.availability && selectedTutorForDetail.availability.length > 0) || 
+                  (selectedTutorForDetail.availableTimings && selectedTutorForDetail.availableTimings.length > 0)) ? (
+                  <div className="mt-3 p-4 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/10 dark:bg-amber-950/5 space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-xs font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" /> Tutor's General Availability
+                      </span>
+                      <Badge variant="outline" className="bg-amber-100/50 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900 text-[10px] font-bold">
+                        Timezone: {selectedTutorForDetail.timezone ? `${getTimeZoneAbbreviation(selectedTutorForDetail.timezone)} (${selectedTutorForDetail.timezone})` : 'IST (Asia/Kolkata)'}
+                      </Badge>
+                    </div>
+
+                    {selectedTutorForDetail.availability && selectedTutorForDetail.availability.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
+                          const daySlots = selectedTutorForDetail.availability.filter((a: any) => a.day === day);
+                          if (daySlots.length === 0) return null;
+                          return (
+                            <div key={day} className="flex flex-col p-2 border rounded-lg bg-background/50">
+                              <span className="font-bold text-foreground text-xs">{day}</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {daySlots.map((slot: any, idx: number) => (
+                                  <Badge key={idx} variant="secondary" className="text-[9px] font-semibold py-0.5 px-1.5 bg-secondary/50">
+                                    {format(parse(slot.startTime, 'HH:mm', new Date()), 'h:mm a')} - {format(parse(slot.endTime, 'HH:mm', new Date()), 'h:mm a')}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {selectedTutorForDetail.availableTimings.map((timing: string, i: number) => (
+                          <Badge key={i} variant="secondary" className="text-[10px] py-0.5 px-2 font-medium">{timing}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 p-3 rounded-xl border border-dashed text-center text-xs text-muted-foreground italic">
+                    No availability timings or days specified by this tutor.
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row gap-3 items-end sm:items-center mt-2 p-4 border rounded-xl bg-secondary/5">
                   <div className="flex-1 w-full space-y-1">
                     <label htmlFor="demo-datetime" className="text-[10px] font-bold text-muted-foreground uppercase">

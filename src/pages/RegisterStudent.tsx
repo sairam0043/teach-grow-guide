@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
@@ -51,6 +52,7 @@ const RegisterStudent = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signUp, googleSignIn, user, role } = useAuth();
   const navigate = useNavigate();
@@ -82,6 +84,11 @@ const RegisterStudent = () => {
 
     if (password !== confirmPassword) {
       toast.error("Password and confirm password must match.");
+      return;
+    }
+
+    if (!agreeTerms) {
+      toast.error("You must accept the Terms & Conditions to register.");
       return;
     }
 
@@ -200,6 +207,20 @@ const RegisterStudent = () => {
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+              </div>
+              <div className="flex items-start gap-2.5 pt-2 pb-1">
+                <Checkbox 
+                  id="agreeTerms" 
+                  checked={agreeTerms} 
+                  onCheckedChange={(checked) => setAgreeTerms(checked === true)} 
+                />
+                <Label htmlFor="agreeTerms" className="text-xs text-muted-foreground leading-snug cursor-pointer">
+                  I have read and agree to the{" "}
+                  <Link to="/terms" target="_blank" className="text-primary font-semibold underline hover:text-primary/80">
+                    Terms & Conditions
+                  </Link>{" "}
+                  and Privacy Policy. <span className="text-destructive">*</span>
+                </Label>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Creating Account..." : "Sign Up"}
