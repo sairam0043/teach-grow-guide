@@ -80,12 +80,24 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
               {subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
             </Badge>
           ))}
-          {tutor.boardsTaught && tutor.boardsTaught.map((board) => (
-            <Badge key={board} variant="outline" className="text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/50 font-medium">
-              {board}
-            </Badge>
-          ))}
         </div>
+
+        {((tutor.boardsTaught && tutor.boardsTaught.length > 0) || (tutor.classesTaught && tutor.classesTaught.length > 0)) && (
+          <div className="mb-3 flex flex-col gap-1.5">
+            {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
+              <div className="flex items-center gap-2 text-xs font-medium text-indigo-600 dark:text-indigo-400" title={`Boards: ${tutor.boardsTaught.join(", ")}`}>
+                <span className="text-sm shrink-0 select-none">📋</span>
+                <span className="truncate">{tutor.boardsTaught.join(", ")}</span>
+              </div>
+            )}
+            {tutor.classesTaught && tutor.classesTaught.length > 0 && (
+              <div className="flex items-center gap-2 text-xs font-medium text-primary" title={`Classes: ${tutor.classesTaught.join(", ")}`}>
+                <span className="text-sm shrink-0 select-none">🎓</span>
+                <span className="truncate">{tutor.classesTaught.join(", ")}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mb-4 flex flex-col gap-2 text-xs text-muted-foreground">
           <div className="flex items-center gap-3">
