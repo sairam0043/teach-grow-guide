@@ -11,7 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Environment files — every variant, anywhere in the tree.
+# .env.example is deliberately tracked as the documented template.
 .env
+.env.*
+!.env.example
 
 
 # Editor directories and files
@@ -25,16 +30,12 @@ dist-ssr
 *.sln
 *.sw?
 
-./backend/node_modules
-./backend/dist
-./backend/dist-ssr
-./backend/*.local
-./backend/.env
-./backend/.env.local
-# ./backend/uploads
+# NOTE: patterns must not start with "./" — git treats those as literal and
+# they match nothing. The rules below are anchored to this file's directory.
+backend/node_modules
+backend/dist
+backend/dist-ssr
+# backend/uploads
 backend/uploads/
-test-results/
 backend/scratch/
-./backend/.env.development.local
-./backend/.env.test.local
-./backend/.env.production.local
+test-results/

@@ -1,5 +1,10 @@
 node_modules/
+
+# Environment files — .env.example is deliberately tracked as the template.
 .env
+.env.*
+!.env.example
+
 # uploads/
 *.log
 .DS_Store

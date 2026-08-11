@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:backend": "npm --prefix backend run dev",
+    "setup": "npm install && npm --prefix backend install",
     "build": "vite build && npm run sitemap",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

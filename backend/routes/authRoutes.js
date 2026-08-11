@@ -40,8 +40,14 @@ const { OAuth2Client } = require('google-auth-library');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const JWT_SECRET = process.env.JWT_SECRET || 'teachgrow_jwt_secret_key';
 const isProduction = process.env.NODE_ENV === 'production';
+
+// The dev fallback is committed to the repo, so anyone could forge a login
+// token against a deploy that never set JWT_SECRET. Require it in production.
+if (isProduction && !process.env.JWT_SECRET) {
+  throw new Error('[Auth] JWT_SECRET is required in production.');
+}
+const JWT_SECRET = process.env.JWT_SECRET || 'teachgrow_jwt_secret_key';
 
 // Mock transporter for development (Logs OTP to console if no SMTP configured)
 console.log('[Transporter] Initializing with:', {

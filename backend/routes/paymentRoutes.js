@@ -54,6 +54,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Configure Razorpay (Will only attempt initialization if keys exist)
+const isProduction = process.env.NODE_ENV === 'production';
 const isRazorpayConfigured = !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
 let razorpayInstance = null;
 
@@ -66,10 +67,23 @@ if (isRazorpayConfigured) {
     console.log('[Razorpay] Initialized successfully in live/test credentials mode.');
   } catch (err) {
     console.error('[Razorpay] Initialization failed:', err.message);
+    if (isProduction) {
+      throw new Error('[Razorpay] Refusing to start in production with unusable credentials.');
+    }
   }
+} else if (isProduction) {
+  // Without keys the routes below fall back to mock orders that skip signature
+  // verification. That is fine locally, but in production it would accept
+  // fabricated payments as real enrolments, so refuse to boot instead.
+  throw new Error('[Razorpay] RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required in production.');
 } else {
   console.log('[Razorpay] Run in Sandbox Mock Fallback Mode (No credentials in .env)');
 }
+
+// A payment may only take the mock path when Razorpay is genuinely unconfigured.
+// The order ID arrives from the client, so trusting its "order_mock_" prefix on
+// its own would let anyone skip signature verification.
+const isMockOrder = (orderId) => !isRazorpayConfigured && String(orderId || '').startsWith('order_mock_');
 
 // POST /api/payments/create-order
 // Create Razorpay or Sandbox Mock Order
@@ -157,9 +171,9 @@ router.post('/verify-payment', async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    const isSandboxPayment = razorpay_order_id.startsWith('order_mock_');
+    const isSandboxPayment = isMockOrder(razorpay_order_id);
 
-    if (!isSandboxPayment && isRazorpayConfigured) {
+    if (!isSandboxPayment) {
       console.log('[Payments] Initiating real cryptographic signature verification...');
       const generatedSignature = crypto
         .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -341,9 +355,9 @@ router.post('/verify-course-payment', async (req, res) => {
       return res.status(404).json({ message: 'Course payment record not found' });
     }
 
-    const isSandboxPayment = razorpay_order_id.startsWith('order_mock_');
+    const isSandboxPayment = isMockOrder(razorpay_order_id);
 
-    if (!isSandboxPayment && isRazorpayConfigured) {
+    if (!isSandboxPayment) {
       console.log('[Course Payments] Verifying Razorpay cryptographic signature...');
       const generatedSignature = crypto
         .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)

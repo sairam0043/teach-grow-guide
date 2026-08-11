@@ -129,7 +129,7 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
         <div className="flex items-center justify-between mt-4">
           <span className="text-lg font-semibold text-foreground">{getRateDisplay()}<span className="text-sm font-normal text-muted-foreground">/hr</span></span>
           <Button size="sm" asChild>
-            <Link to={`/tutors/${tutor.id}`}>Book Demo</Link>
+            <Link to={`/tutors/${tutor.id}`}>Book Free Demo</Link>
           </Button>
         </div>
 
