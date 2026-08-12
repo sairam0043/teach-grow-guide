@@ -189,6 +189,51 @@ const TutorDashboard = () => {
     }
   };
 
+  // Outcome Dialog states
+  const [outcomeBookingId, setOutcomeBookingId] = useState<string | null>(null);
+  const [isOutcomeDialogOpen, setIsOutcomeDialogOpen] = useState(false);
+  const [outcomeType, setOutcomeType] = useState<string>("");
+  const [outcomeNotes, setOutcomeNotes] = useState<string>("");
+  const [isSubmittingOutcome, setIsSubmittingOutcome] = useState(false);
+
+  const handleOutcomeSubmit = async () => {
+    if (!outcomeBookingId) return;
+    if (!outcomeType) {
+      toast.error("Please select an outcome");
+      return;
+    }
+    
+    let status = 'completed';
+    let finalReason = "";
+    
+    if (outcomeType === "Completed successfully") {
+      status = 'completed';
+      finalReason = outcomeNotes.trim() ? `Completed successfully: ${outcomeNotes.trim()}` : "Completed successfully";
+    } else {
+      status = 'cancelled';
+      const baseReason = outcomeType;
+      finalReason = outcomeNotes.trim() ? `${baseReason}: ${outcomeNotes.trim()}` : baseReason;
+    }
+
+    setIsSubmittingOutcome(true);
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${outcomeBookingId}/status`, { 
+        status,
+        cancellationReason: finalReason
+      });
+      toast.success(`Booking status updated to ${status}.`);
+      setBookings(prev => prev.map(b => b._id === outcomeBookingId ? { ...b, status, cancellationReason: finalReason } : b));
+      setIsOutcomeDialogOpen(false);
+      setOutcomeBookingId(null);
+      setOutcomeType("");
+      setOutcomeNotes("");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update booking status");
+    } finally {
+      setIsSubmittingOutcome(false);
+    }
+  };
+
   useEffect(() => {
     if (!user?.id) return;
     
@@ -741,7 +786,14 @@ const TutorDashboard = () => {
                                   </Button>
                                  )}
                                  {booking.subject !== "Verification Demo Class" && (
-                                   <Button size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => handleBookingAction(booking._id, 'completed')}>
+                                   <Button 
+                                     size="sm" 
+                                     className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm" 
+                                     onClick={() => {
+                                       setOutcomeBookingId(booking._id);
+                                       setIsOutcomeDialogOpen(true);
+                                     }}
+                                   >
                                      <Check className="mr-1 h-4 w-4"/> Mark Completed
                                    </Button>
                                  )}
@@ -1722,6 +1774,66 @@ const TutorDashboard = () => {
               </Button>
               <Button onClick={handleRejectSubmit} disabled={isSubmittingRejection} className="bg-destructive hover:bg-destructive/90 text-white font-semibold">
                 {isSubmittingRejection ? "Submitting..." : "Confirm Rejection"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* About the Booking / Outcome Dialog */}
+      <Dialog open={isOutcomeDialogOpen} onOpenChange={setIsOutcomeDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>About the Booking</DialogTitle>
+            <DialogDescription>
+              Please update the session outcome and add any relevant details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Session Outcome</Label>
+              <Select value={outcomeType} onValueChange={setOutcomeType}>
+                <SelectTrigger className="w-full bg-secondary/10">
+                  <SelectValue placeholder="Select outcome..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Completed successfully">Completed successfully</SelectItem>
+                  <SelectItem value="Student did not join (No-show)">Student did not join (No-show)</SelectItem>
+                  <SelectItem value="Tutor was not available at that time">Tutor was not available at that time</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="w-full space-y-2">
+              <Label htmlFor="outcomeNotes" className="text-xs text-muted-foreground">
+                {outcomeType === "Other" ? "Specify Reason / Notes" : "Additional Notes / Reason (Optional)"}
+              </Label>
+              <Textarea
+                id="outcomeNotes"
+                placeholder={outcomeType === "Other" ? "Explain what happened..." : "Provide any extra details if needed..."}
+                value={outcomeNotes}
+                onChange={(e) => setOutcomeNotes(e.target.value)}
+                className="resize-none bg-secondary/10"
+                rows={3}
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end mt-4">
+              <Button variant="outline" onClick={() => {
+                setIsOutcomeDialogOpen(false);
+                setOutcomeBookingId(null);
+                setOutcomeType("");
+                setOutcomeNotes("");
+              }}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleOutcomeSubmit} 
+                disabled={isSubmittingOutcome || !outcomeType} 
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+              >
+                {isSubmittingOutcome ? "Updating..." : "Submit Outcome"}
               </Button>
             </div>
           </div>
