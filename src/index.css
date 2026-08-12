@@ -667,3 +667,12 @@
   background-color: hsl(var(--primary) / 0.9) !important;
   border-color: hsl(var(--primary) / 0.9) !important;
 }
+
+/* Hide scrollbars but keep functionality */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

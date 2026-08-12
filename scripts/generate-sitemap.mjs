@@ -7,8 +7,9 @@ const SITE_URL = 'https://tutor.cuvasol.com';
 const API_ENDPOINTS = [
   'http://localhost:5000/api',
   'http://127.0.0.1:5000/api',
-  'https://cuvasol-tutor.onrender.com/api'
-];
+  process.env.BACKEND_URL ? `${process.env.BACKEND_URL.replace(/\/$/, '')}/api` : null,
+  'https://cuvasol-backend.vercel.app/api'
+].filter(Boolean);
 
 const staticRoutes = [
   '/',

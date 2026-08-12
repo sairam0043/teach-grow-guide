@@ -19,7 +19,7 @@ test.describe("Cancellation of Pending Demo Requests", () => {
     await page.goto(`${BASE_URL}/tutors`);
     
     // 3. Find and click first tutor card
-    const firstTutorLink = page.locator("a:has-text('Book Demo')").first();
+    const firstTutorLink = page.locator("a:has-text('Book Free Demo')").first();
     await expect(firstTutorLink).toBeVisible();
     await firstTutorLink.click();
     await expect(page).toHaveURL(/.*tutors\/.*/);
@@ -93,7 +93,7 @@ test.describe("Cancellation of Pending Demo Requests", () => {
     await page.goto(`${BASE_URL}/tutors`);
     
     // 3. Find and click first tutor card
-    const firstTutorLink = page.locator("a:has-text('Book Demo')").first();
+    const firstTutorLink = page.locator("a:has-text('Book Free Demo')").first();
     await expect(firstTutorLink).toBeVisible();
     await firstTutorLink.click();
     await expect(page).toHaveURL(/.*tutors\/.*/);

@@ -81,7 +81,7 @@ transporter.verify((error, success) => {
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, ...tutorData } = req.body;
 
     // Check if user exists
     let user = await User.findOne({ email });
@@ -102,6 +102,7 @@ router.post('/register', async (req, res) => {
       full_name, 
       phone, 
       student_class: student_class || studentClass,
+      student_or_parent: student_or_parent || studentOrParent || 'Student',
       role, 
       timezone: timezone || 'Asia/Kolkata' 
     });

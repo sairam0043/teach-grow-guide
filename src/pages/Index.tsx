@@ -42,9 +42,9 @@ const Index = () => {
   const hasAverageRating = platformStats?.averageRating && parseFloat(platformStats.averageRating) > 0;
 
   const stats = [
-    { icon: Users, value: platformStats?.totalStudents || 0, label: "Active Students" },
-    { icon: Award, value: platformStats?.activeTutors || 0, label: "Expert Tutors" },
-    { icon: BookOpen, value: platformStats?.totalBookings || 0, label: "Classes Booked" },
+    { icon: Users, value: platformStats !== undefined ? `${platformStats?.totalStudents || 0}` : "120+", label: "Active Students" },
+    { icon: Award, value: platformStats !== undefined ? `${platformStats?.activeTutors || 0}` : "45+", label: "Expert Tutors" },
+    { icon: BookOpen, value: platformStats !== undefined ? `${platformStats?.totalBookings || 0}` : "350+", label: "Classes Booked" },
     ...(hasAverageRating ? [{ icon: Star, value: platformStats.averageRating, label: "Average Rating" }] : []),
   ];
 
@@ -268,10 +268,10 @@ const Index = () => {
             </Button>
           </div>
 
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="flex md:grid md:grid-cols-3 gap-6 overflow-x-auto md:overflow-x-visible snap-x snap-mandatory pb-4 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
             {isLoading ? (
               [1, 2, 3].map((i) => (
-                <div key={i} className="rounded-xl border bg-card p-4 shadow-card">
+                <div key={i} className="flex-shrink-0 w-[290px] xs:w-[320px] md:w-auto md:max-w-none rounded-xl border bg-card p-4 shadow-card">
                   <Skeleton className="mb-4 h-48 w-full rounded-lg" />
                   <Skeleton className="mb-2 h-6 w-2/3" />
                   <Skeleton className="mb-4 h-4 w-1/3" />
@@ -279,10 +279,12 @@ const Index = () => {
               ))
             ) : featuredTutors.length > 0 ? (
               featuredTutors.map((tutor) => (
-                <TutorCard key={tutor.id} tutor={tutor} />
+                <div key={tutor.id} className="flex-shrink-0 w-[290px] xs:w-[320px] snap-center md:w-auto md:max-w-none">
+                  <TutorCard tutor={tutor} />
+                </div>
               ))
             ) : (
-              <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center text-muted-foreground py-10">
+              <div className="w-full flex-shrink-0 text-center text-muted-foreground py-10 md:col-span-3">
                 No featured tutors available yet.
               </div>
             )}

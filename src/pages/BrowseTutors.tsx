@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageLayout from "@/components/layout/PageLayout";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useSearchParams } from "react-router-dom";
 import TutorCard from "@/components/tutors/TutorCard";
 import type { Tutor } from "@/data/mockTutors";
@@ -291,14 +292,142 @@ const BrowseTutors = () => {
                 className="bg-card pl-10"
               />
             </div>
-            <Button
-              variant="secondary"
-              size="icon"
-              onClick={() => setShowFilters(!showFilters)}
-              className="md:hidden"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </Button>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="md:hidden"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[300px] sm:w-[400px] overflow-y-auto">
+                <SheetHeader className="pb-4 border-b text-left">
+                  <SheetTitle>Filter Tutors</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-4 py-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Category</label>
+                    <Select value={category} onValueChange={handleCategoryChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        <SelectItem value="Academic">Academic</SelectItem>
+                        <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Subject</label>
+                    <Select value={subject} onValueChange={setSubject}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Subject" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">Select Subject</SelectItem>
+                        {allSubjects.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Mode</label>
+                    <Select value={mode} onValueChange={setMode}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Modes</SelectItem>
+                        <SelectItem value="Online">Online</SelectItem>
+                        <SelectItem value="Offline">Offline</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">City</label>
+                    <Select value={city} onValueChange={setCity}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="City" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">Select City</SelectItem>
+                        {allCities.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Day</label>
+                    <Select value={day} onValueChange={setDay}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Day" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Select Day</SelectItem>
+                        <SelectItem value="Monday">Monday</SelectItem>
+                        <SelectItem value="Tuesday">Tuesday</SelectItem>
+                        <SelectItem value="Wednesday">Wednesday</SelectItem>
+                        <SelectItem value="Thursday">Thursday</SelectItem>
+                        <SelectItem value="Friday">Friday</SelectItem>
+                        <SelectItem value="Saturday">Saturday</SelectItem>
+                        <SelectItem value="Sunday">Sunday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Time</label>
+                    <Select value={time} onValueChange={setTime}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Time" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">Select time</SelectItem>
+                        {Array.from({ length: 24 }, (_, i) => {
+                          const hour = `${String(i).padStart(2, "0")}:00`;
+                          return (
+                            <SelectItem key={hour} value={hour}>
+                              {hour}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Sort By</label>
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Sort By" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Sort: Default</SelectItem>
+                        <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                        <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {hasFilters && (
+                    <Button variant="outline" onClick={clearFilters} className="w-full mt-4 text-destructive border-destructive/20 hover:bg-destructive/10">
+                      Clear all filters
+                    </Button>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
             <Button
               variant={showMap ? "default" : "secondary"}
               size="icon"
@@ -315,7 +444,7 @@ const BrowseTutors = () => {
       <section className="py-8">
         <div className="container">
           {/* Filters */}
-          <div className={`mb-8 flex flex-wrap gap-3 ${showFilters ? "" : "hidden md:flex"}`}>
+          <div className="mb-8 hidden md:flex flex-wrap gap-3">
             <Select value={category} onValueChange={handleCategoryChange}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Category" />

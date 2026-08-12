@@ -17,14 +17,14 @@ export const resolveAssetUrl = (url?: string | null): string => {
   // Keep external avatar/image providers untouched.
   if (/^https?:\/\/ui-avatars\.com\//i.test(trimmed)) return trimmed;
 
-  // Convert stored localhost asset URLs to deployed backend origin.
-  if (/^https?:\/\/localhost:\d+\//i.test(trimmed) || /^https?:\/\/127\.0\.0\.1:\d+\//i.test(trimmed)) {
+  // Convert stored localhost or Render/Vercel asset URLs to deployed backend origin.
+  if (
+    /^https?:\/\/localhost:\d+\//i.test(trimmed) || 
+    /^https?:\/\/127\.0\.0\.1:\d+\//i.test(trimmed) || 
+    /^https?:\/\/cuvasol-tutor\.onrender\.com\//i.test(trimmed) ||
+    /^https?:\/\/cuvasol-backend\.vercel\.app\//i.test(trimmed)
+  ) {
     return apiOrigin ? `${apiOrigin}${trimmed.replace(/^https?:\/\/[^/]+/, "")}` : trimmed;
-  }
-
-  // Upgrade known backend HTTP URLs to HTTPS to avoid mixed-content warnings.
-  if (/^http:\/\/cuvasol-tutor\.onrender\.com\//i.test(trimmed)) {
-    return trimmed.replace(/^http:\/\//i, "https://");
   }
 
   // If backend returns a relative uploads path, prepend API origin.

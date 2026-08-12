@@ -880,7 +880,7 @@ const TutorProfile = () => {
 
     const subjectsList = tutor.subjects?.join(", ") || "";
 
-    const text = `I found this excellent tutor, ${tutor.name}, specializing in ${subjectsList} on Cuvasol!\n\nCheck out their profile:`;
+    const text = `I found this excellent tutor, ${tutor.name}, specializing in ${subjectsList} on Cuvasol!`;
     const url = window.location.href;
 
     return { text, url };
@@ -889,7 +889,7 @@ const TutorProfile = () => {
   const handleCopyLink = async () => {
     const { text, url } = getShareTextAndUrl();
     try {
-      await navigator.clipboard.writeText(`${text}\nCheck out their profile here: ${url}`);
+      await navigator.clipboard.writeText(`${text}\n\nCheck out their profile here: ${url}`);
       toast.success("Profile link and info copied to clipboard!");
     } catch (err) {
       toast.error("Failed to copy link.");
@@ -899,7 +899,7 @@ const TutorProfile = () => {
   const handleInstagramShare = async () => {
     const { text, url } = getShareTextAndUrl();
     try {
-      await navigator.clipboard.writeText(`${text}\nCheck out their profile here: ${url}`);
+      await navigator.clipboard.writeText(`${text}\n\nCheck out their profile here: ${url}`);
       toast.success("Copied message to clipboard! Opening Instagram...", {
         description: "You can paste the copied text to share it with friends."
       });
@@ -917,8 +917,7 @@ const TutorProfile = () => {
       try {
         await navigator.share({
           title: `${tutor.name} - Tutor Profile`,
-          text: text,
-          url: url,
+          text: `${text}\n\nCheck out their profile here: ${url}`,
         });
       } catch (err) {
         console.error("Error sharing:", err);
@@ -928,8 +927,18 @@ const TutorProfile = () => {
     }
   };
 
-  const whatsappUrl = tutor ? `https://api.whatsapp.com/send?text=${encodeURIComponent(getShareTextAndUrl().text + "\n" + getShareTextAndUrl().url)}` : "#";
-  const facebookUrl = tutor ? `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getShareTextAndUrl().url)}&quote=${encodeURIComponent(getShareTextAndUrl().text)}` : "#";
+  const whatsappUrl = tutor
+    ? (() => {
+        const { text, url } = getShareTextAndUrl();
+        return `https://api.whatsapp.com/send?text=${encodeURIComponent(`${text}\n\nCheck out their profile here: ${url}`)}`;
+      })()
+    : "#";
+  const facebookUrl = tutor
+    ? (() => {
+        const { text, url } = getShareTextAndUrl();
+        return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
+      })()
+    : "#";
 
   const tutorImageUrl = tutor ? (resolveAssetUrl(tutor.photo) || `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}`) : "";
   const personSchema = tutor ? {
@@ -1621,7 +1630,7 @@ const TutorProfile = () => {
                                 {isValidDate(packStartDate) ? format(packStartDate as Date, "PPP") : <span>Pick a start date</span>}
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
+                            <PopoverContent className="w-auto p-0" align="center">
                               <Calendar
                                 mode="single"
                                 selected={packStartDate}
@@ -1737,7 +1746,7 @@ const TutorProfile = () => {
                               {isValidDate(date) ? format(date as Date, "PPP") : <span>Pick a date</span>}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
+                          <PopoverContent className="w-auto p-0" align="center">
                             <Calendar
                               mode="single"
                               selected={date}
