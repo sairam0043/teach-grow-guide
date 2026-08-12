@@ -740,9 +740,11 @@ const TutorDashboard = () => {
                                     </a>
                                   </Button>
                                  )}
-                                <Button size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => handleBookingAction(booking._id, 'completed')}>
-                                  <Check className="mr-1 h-4 w-4"/> Mark Completed
-                                </Button>
+                                 {booking.subject !== "Verification Demo Class" && (
+                                   <Button size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => handleBookingAction(booking._id, 'completed')}>
+                                     <Check className="mr-1 h-4 w-4"/> Mark Completed
+                                   </Button>
+                                 )}
                                 <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
                                   setRejectingBookingId(booking._id);
                                   setIsRejectDialogOpen(true);
