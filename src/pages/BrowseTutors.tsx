@@ -108,7 +108,7 @@ const BrowseTutors = () => {
   const [time, setTime] = useState(() => sessionStorage.getItem("tutor_time") || "all");
   const [showFilters, setShowFilters] = useState(() => sessionStorage.getItem("tutor_show_filters") === "true");
   const [showMap, setShowMap] = useState(() => sessionStorage.getItem("tutor_show_map") === "true");
-  const [sortBy, setSortBy] = useState<string>(() => sessionStorage.getItem("tutor_sort_by") || "default");
+  const [sortBy, setSortBy] = useState<string>(() => sessionStorage.getItem("tutor_sort_by") || "price-asc");
 
   useEffect(() => {
     if (categoryParam?.toLowerCase() === "academic") {
@@ -263,11 +263,11 @@ const BrowseTutors = () => {
     setCity("all");
     setDay("all");
     setTime("all");
-    setSortBy("default");
+    setSortBy("price-asc");
     setSearchParams({});
   };
 
-  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "default";
+  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "price-asc";
 
   return (
     <PageLayout>
@@ -413,9 +413,9 @@ const BrowseTutors = () => {
                         <SelectValue placeholder="Sort By" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="default">Sort: Default</SelectItem>
                         <SelectItem value="price-asc">Price: Low to High</SelectItem>
                         <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                        <SelectItem value="default">Name: A to Z</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -532,9 +532,9 @@ const BrowseTutors = () => {
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Sort: Default</SelectItem>
                 <SelectItem value="price-asc">Price: Low to High</SelectItem>
                 <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                <SelectItem value="default">Name: A to Z</SelectItem>
               </SelectContent>
             </Select>
 
