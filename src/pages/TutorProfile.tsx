@@ -567,7 +567,7 @@ const TutorProfile = () => {
     bookingInProgressRef.current = true;
     setIsProcessingPayment(true);
     try {
-      const studentName = String(user?.user_metadata?.full_name || "Student");
+      const studentName = String(user?.student_name || user?.user_metadata?.student_name || user?.user_metadata?.full_name || user?.full_name || "Student");
       const isDemoBooking = selectedPlan.type === 'Free Demo Class';
 
       const endpoint = isDemoBooking ? `${API_URL}/tutors/${id}/book` : `${API_URL}/tutors/${id}/book-class`;

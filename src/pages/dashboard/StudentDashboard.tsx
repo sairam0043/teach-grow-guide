@@ -115,6 +115,9 @@ const StudentDashboard = () => {
   const [profileStudentClass, setProfileStudentClass] = useState(
     user?.student_class || user?.user_metadata?.student_class || ""
   );
+  const [profileStudentName, setProfileStudentName] = useState(
+    user?.student_name || user?.user_metadata?.student_name || ""
+  );
   const [studentTimezone, setStudentTimezone] = useState(
     user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone()
   );
@@ -125,6 +128,7 @@ const StudentDashboard = () => {
       setProfileName(String(user.user_metadata?.full_name || user.full_name || "Student"));
       setProfilePhone(user.phone || "");
       setProfileStudentClass(user.student_class || user.user_metadata?.student_class || "");
+      setProfileStudentName(user.student_name || user.user_metadata?.student_name || "");
       if (user.timezone) {
         setStudentTimezone(user.timezone);
       } else if (user.user_metadata?.timezone) {
@@ -247,6 +251,7 @@ const StudentDashboard = () => {
         full_name: profileName, 
         phone: profilePhone,
         student_class: profileStudentClass,
+        student_name: user?.student_or_parent === "Parent" ? profileStudentName : undefined,
         timezone: studentTimezone
       });
       if (response.data && response.data.user) {
@@ -254,6 +259,7 @@ const StudentDashboard = () => {
           full_name: response.data.user.full_name,
           phone: response.data.user.phone,
           student_class: response.data.user.student_class,
+          student_name: response.data.user.student_name,
           timezone: response.data.user.timezone
         }));
       }
@@ -814,9 +820,23 @@ const StudentDashboard = () => {
               <CardContent className="p-6">
                 <form onSubmit={handleProfileUpdate} className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-semibold">Full Name</Label>
+                    <Label htmlFor="name" className="text-sm font-semibold">
+                      {user?.student_or_parent === "Parent" ? "Parent's Full Name" : "Full Name"}
+                    </Label>
                     <Input id="name" value={profileName} onChange={(e) => setProfileName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))} className="bg-secondary/20 border-border/50" />
                   </div>
+                  {user?.student_or_parent === "Parent" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="studentName" className="text-sm font-semibold">Student's Full Name</Label>
+                      <Input
+                        id="studentName"
+                        value={profileStudentName}
+                        onChange={(e) => setProfileStudentName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))}
+                        className="bg-secondary/20 border-border/50"
+                        required
+                      />
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-semibold">Email Address <span className="text-xs font-normal text-muted-foreground">(Cannot be changed)</span></Label>
                     <Input id="email" value={String(user?.email || "")} disabled className="bg-secondary/50 opacity-70" />

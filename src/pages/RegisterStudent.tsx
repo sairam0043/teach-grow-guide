@@ -47,6 +47,7 @@ const RegisterStudent = () => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [studentOrParent, setStudentOrParent] = useState("Student");
+  const [studentName, setStudentName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [customClass, setCustomClass] = useState("");
   const [password, setPassword] = useState("");
@@ -94,12 +95,18 @@ const RegisterStudent = () => {
       return;
     }
 
+    if (studentOrParent === "Parent" && !studentName.trim()) {
+      toast.error("Please enter the student's full name.");
+      return;
+    }
+
     setLoading(true);
     const { error } = await signUp(email, password, {
       full_name: name,
       phone,
       student_class: finalClass,
       student_or_parent: studentOrParent,
+      student_name: studentOrParent === "Parent" ? studentName.trim() : "",
       role: "student",
       timezone: detectUserTimeZone(),
     });
@@ -273,7 +280,16 @@ const RegisterStudent = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="studentOrParent">Are you a Student or Parent?</Label>
-                  <Select value={studentOrParent} onValueChange={setStudentOrParent} required>
+                  <Select
+                    value={studentOrParent}
+                    onValueChange={(val) => {
+                      setStudentOrParent(val);
+                      if (val === "Student") {
+                        setStudentName("");
+                      }
+                    }}
+                    required
+                  >
                     <SelectTrigger id="studentOrParent">
                       <SelectValue placeholder="Select Option" />
                     </SelectTrigger>
@@ -283,6 +299,18 @@ const RegisterStudent = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                {studentOrParent === "Parent" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <Label htmlFor="studentName">Student's Full Name</Label>
+                    <Input
+                      id="studentName"
+                      required
+                      maxLength={100}
+                      value={studentName}
+                      onChange={(e) => setStudentName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="studentClass">Class / Grade</Label>
                   <Select value={studentClass} onValueChange={setStudentClass} required>

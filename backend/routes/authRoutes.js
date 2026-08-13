@@ -75,7 +75,7 @@ transporter.verify((error, success) => {
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, ...tutorData } = req.body;
 
     // Check if user exists
     let user = await User.findOne({ email });
@@ -97,6 +97,7 @@ router.post('/register', async (req, res) => {
       phone, 
       student_class: student_class || studentClass,
       student_or_parent: student_or_parent || studentOrParent || 'Student',
+      student_name: student_name || studentName,
       role, 
       timezone: timezone || 'Asia/Kolkata' 
     });
@@ -246,7 +247,7 @@ router.post('/register', async (req, res) => {
     // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, role } });
+    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -272,7 +273,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, role: user.role } });
+    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role: user.role } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -358,6 +359,8 @@ router.post('/google', async (req, res) => {
         full_name: user.full_name,
         phone: user.phone,
         student_class: user.student_class,
+        student_name: user.student_name,
+        student_or_parent: user.student_or_parent,
         role: user.role,
         avatar: user.avatar
       }
@@ -499,7 +502,7 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone, timezone, student_class, studentClass } = req.body;
+    const { full_name, phone, timezone, student_class, studentClass, student_name, studentName } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -508,6 +511,9 @@ router.put('/profile/:id', async (req, res) => {
     if (timezone !== undefined) user.timezone = timezone;
     if (student_class !== undefined || studentClass !== undefined) {
       user.student_class = student_class || studentClass;
+    }
+    if (student_name !== undefined || studentName !== undefined) {
+      user.student_name = student_name || studentName;
     }
 
     await user.save();
@@ -519,7 +525,7 @@ router.put('/profile/:id', async (req, res) => {
       await Tutor.findOneAndUpdate({ userId: user._id }, updateData);
     }
 
-    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, role: user.role, timezone: user.timezone } });
+    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role: user.role, timezone: user.timezone } });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
