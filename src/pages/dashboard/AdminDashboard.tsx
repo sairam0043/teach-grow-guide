@@ -22,7 +22,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
-import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
+
+const CLASS_TAUGHT_OPTIONS = [
+  "Class 1 - 5 (Primary)",
+  "Class 6 - 8 (Middle School)",
+  "Class 9 - 10 (High School)",
+  "Class 11 - 12 (Senior Secondary)",
+  "College / University",
+  "Competitive Exams"
+];
+
+const BOARD_TAUGHT_OPTIONS = [
+  "CBSE",
+  "ICSE / ISC",
+  "State Board",
+  "IB (International Baccalaureate)",
+  "IGCSE / Cambridge",
+  "Other"
+];
 
 const ALL_SUBJECTS = [
   "Mathematics", 
