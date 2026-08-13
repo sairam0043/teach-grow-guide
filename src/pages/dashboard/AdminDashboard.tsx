@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -21,7 +21,31 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { format, parse } from "date-fns";
-import { getTimeZoneAbbreviation } from "@/utils/timezone";
+import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
+import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
+
+const ALL_SUBJECTS = [
+  "Mathematics", 
+  "Physics", 
+  "Chemistry", 
+  "Biology", 
+  "Coding / Computer Science", 
+  "English", 
+  "History", 
+  "Geography", 
+  "Economics & Finance", 
+  "Foreign Languages", 
+  "Malayalam",
+  "Music (Vocal/Instruments)", 
+  "Dance", 
+  "Fine Arts & Drawing", 
+  "Chess", 
+  "Yoga & Meditation", 
+  "Public Speaking & Debate", 
+  "Creative Writing", 
+  "Photography & Video", 
+  "Other"
+];
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -46,6 +70,24 @@ const AdminDashboard = () => {
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
   const [isSavingScores, setIsSavingScores] = useState(false);
+
+  // Edit Profile States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editTimezone, setEditTimezone] = useState("Asia/Kolkata");
+  const [editCategory, setEditCategory] = useState("Academic");
+  const [editCity, setEditCity] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editGoogleMapsUrl, setEditGoogleMapsUrl] = useState("");
+  const [editMode, setEditMode] = useState("Online");
+  const [editQualification, setEditQualification] = useState("");
+  const [editExperience, setEditExperience] = useState<number | string>(0);
+  const [editBio, setEditBio] = useState("");
+  const [editSubjectRates, setEditSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
+  const [editClassesTaught, setEditClassesTaught] = useState<string[]>([]);
+  const [editBoardsTaught, setEditBoardsTaught] = useState<string[]>([]);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Rejection Dialog States
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
@@ -99,7 +141,99 @@ const AdminDashboard = () => {
 
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
+    setIsEditingProfile(false);
+    setEditName(tutor.name || "");
+    setEditPhone(tutor.phone || "");
+    setEditTimezone(tutor.timezone || "Asia/Kolkata");
+    setEditCategory(tutor.category || "Academic");
+    setEditCity(tutor.city || "");
+    setEditAddress(tutor.address || "");
+    setEditGoogleMapsUrl(tutor.googleMapsUrl || "");
+    setEditMode(tutor.mode || "Online");
+    setEditQualification(tutor.qualification || "");
+    setEditExperience(tutor.experience ?? 0);
+    setEditBio(tutor.bio || "");
+    
+    const legacyRates = tutor.subjectRates && tutor.subjectRates.length > 0
+      ? tutor.subjectRates
+      : (tutor.subjects || []).map((sub: string) => ({ subject: sub, rate: tutor.hourlyRate || 300 }));
+    setEditSubjectRates(legacyRates);
+    
+    setEditClassesTaught(tutor.classesTaught || []);
+    setEditBoardsTaught(tutor.boardsTaught || []);
+    
     setIsDetailDialogOpen(true);
+  };
+
+  const handleSaveTutorProfile = async () => {
+    if (!selectedTutorForDetail) return;
+    
+    if (!editName.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+    
+    try {
+      setIsSavingProfile(true);
+      
+      const userId = selectedTutorForDetail.userId?._id || selectedTutorForDetail.userId;
+      if (!userId) {
+        toast.error("User ID associated with tutor not found.");
+        setIsSavingProfile(false);
+        return;
+      }
+      
+      // Update User collection
+      await axios.put(`${API_URL}/auth/profile/${userId}`, {
+        full_name: editName.trim(),
+        phone: editPhone.trim(),
+        timezone: editTimezone
+      });
+      
+      // Update Tutor collection
+      const payload = {
+        bio: editBio,
+        qualification: editQualification,
+        experience: Number(editExperience),
+        address: editAddress,
+        googleMapsUrl: editGoogleMapsUrl,
+        mode: editMode,
+        category: editCategory,
+        subjectRates: editSubjectRates,
+        classesTaught: editClassesTaught,
+        boardsTaught: editBoardsTaught,
+        timezone: editTimezone,
+        city: editCity
+      };
+      
+      const res = await axios.put(`${API_URL}/tutors/${selectedTutorForDetail.id}/profile`, payload);
+      
+      toast.success("Tutor profile updated successfully!");
+      
+      // Update local state in the list
+      setTutors(prev => prev.map(t => t.id === selectedTutorForDetail.id ? { 
+        ...t, 
+        ...res.data, 
+        name: editName.trim(), 
+        phone: editPhone.trim(), 
+        email: selectedTutorForDetail.email 
+      } : t));
+      
+      // Update selected tutor detail in modal
+      setSelectedTutorForDetail({ 
+        ...selectedTutorForDetail, 
+        ...res.data, 
+        name: editName.trim(), 
+        phone: editPhone.trim() 
+      });
+      
+      setIsEditingProfile(false);
+    } catch (error: any) {
+      console.error("Error saving tutor profile:", error);
+      toast.error(error.response?.data?.message || "Failed to update tutor profile");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handleViewBookingDetail = (booking: any) => {
@@ -1820,6 +1954,280 @@ const AdminDashboard = () => {
           </DialogHeader>
 
           {selectedTutorForDetail && (
+            isEditingProfile ? (
+              <div className="space-y-6 py-4">
+                {/* Profile fields: Name, Phone, Timezone */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Full Name</label>
+                    <Input 
+                      value={editName} 
+                      onChange={(e) => setEditName(e.target.value)} 
+                      placeholder="Tutor's Full Name"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</label>
+                    <Input 
+                      value={editPhone} 
+                      onChange={(e) => setEditPhone(e.target.value)} 
+                      placeholder="Phone number"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Timezone</label>
+                    <Select value={editTimezone} onValueChange={setEditTimezone}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Timezone" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {COMMON_TIMEZONES.map((tz) => (
+                          <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Category</label>
+                    <Select value={editCategory} onValueChange={(val) => {
+                      setEditCategory(val);
+                    }}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Academic">Academic</SelectItem>
+                        <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">City</label>
+                    <Input 
+                      value={editCity} 
+                      onChange={(e) => setEditCity(e.target.value)} 
+                      placeholder="City"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Address (Offline Classroom)</label>
+                    <Input 
+                      value={editAddress} 
+                      onChange={(e) => setEditAddress(e.target.value)} 
+                      placeholder="Full Address"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Google Maps URL</label>
+                    <Input 
+                      value={editGoogleMapsUrl} 
+                      onChange={(e) => setEditGoogleMapsUrl(e.target.value)} 
+                      placeholder="https://maps.google.com/..."
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Mode</label>
+                    <Select value={editMode} onValueChange={setEditMode}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Online">Online</SelectItem>
+                        <SelectItem value="Offline">Offline</SelectItem>
+                        <SelectItem value="Both">Online & Offline</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Highest Qualification</label>
+                    <Input 
+                      value={editQualification} 
+                      onChange={(e) => setEditQualification(e.target.value)} 
+                      placeholder="Degree, e.g. B.Tech CS"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Experience (Years)</label>
+                    <Input 
+                      type="number"
+                      value={editExperience} 
+                      onChange={(e) => setEditExperience(e.target.value)} 
+                      placeholder="Years"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Professional Bio</label>
+                  <Textarea 
+                    value={editBio} 
+                    onChange={(e) => setEditBio(e.target.value)} 
+                    placeholder="Tell students about your qualifications and teaching methodology..."
+                    rows={4}
+                    className="bg-background text-sm leading-relaxed"
+                  />
+                </div>
+
+                {/* Classes Taught */}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Classes / Grade Levels Taught</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {CLASS_TAUGHT_OPTIONS.map((c) => {
+                      const isChecked = editClassesTaught.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setEditClassesTaught(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                            isChecked
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-background text-foreground border-border hover:bg-secondary/40"
+                          }`}
+                        >
+                          <span className="truncate">{c}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Boards Taught */}
+                {(editCategory === "Academic") && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Educational Boards Taught</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {BOARD_TAUGHT_OPTIONS.map((b) => {
+                        const isChecked = editBoardsTaught.includes(b);
+                        return (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() => setEditBoardsTaught(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b])}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                              isChecked
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                : "bg-background text-foreground border-border hover:bg-secondary/40"
+                            }`}
+                          >
+                            <span className="truncate">{b}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Subjects & Rates */}
+                <div className="space-y-2 border-t pt-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Subjects & Hourly Rates</label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      className="text-xs h-8 border-primary/20 text-primary hover:bg-primary/5 font-semibold"
+                      onClick={() => setEditSubjectRates(prev => [...prev, { subject: "", rate: 300 }])}
+                    >
+                      + Add Subject
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2 mt-2">
+                    {editSubjectRates.map((sr, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <Select 
+                          value={sr.subject} 
+                          onValueChange={(val) => {
+                            setEditSubjectRates(prev => prev.map((item, i) => i === idx ? { ...item, subject: val } : item));
+                          }}
+                        >
+                          <SelectTrigger className="flex-1 bg-background text-sm">
+                            <SelectValue placeholder="Select Subject" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {ALL_SUBJECTS.map((sub) => (
+                              <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <div className="flex items-center border rounded-lg bg-background px-3 w-32">
+                          <span className="text-muted-foreground text-sm font-semibold">₹</span>
+                          <Input 
+                            type="number"
+                            value={sr.rate}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setEditSubjectRates(prev => prev.map((item, i) => i === idx ? { ...item, rate: val } : item));
+                            }}
+                            className="border-0 shadow-none focus-visible:ring-0 text-right h-9 text-sm font-bold p-1 pr-0"
+                            placeholder="Rate"
+                          />
+                          <span className="text-muted-foreground text-xs font-normal ml-1">/hr</span>
+                        </div>
+
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-muted-foreground hover:text-destructive h-9 w-9"
+                          onClick={() => setEditSubjectRates(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    {editSubjectRates.length === 0 && (
+                      <div className="p-4 rounded-xl border border-dashed text-center text-xs text-muted-foreground italic">
+                        No subjects added. Tutors must teach at least one subject.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Edit Actions Footer */}
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-border/40">
+                  <Button 
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setIsEditingProfile(false)}
+                    disabled={isSavingProfile}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="button"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    onClick={handleSaveTutorProfile}
+                    disabled={isSavingProfile}
+                  >
+                    {isSavingProfile ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-6 py-4">
               {/* Header profile info */}
               <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center p-4 rounded-xl bg-secondary/10 border border-border/40">
@@ -2208,11 +2616,19 @@ const AdminDashboard = () => {
                    <CheckCircle className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.isVerified ? "fill-blue-500 text-white" : ""}`} />
                    {selectedTutorForDetail.isVerified ? "Remove Verified" : "Give Verified"}
                  </Button>
+                 <Button 
+                   variant="outline"
+                   className="border-primary/20 text-primary hover:bg-primary/5 font-bold"
+                   onClick={() => setIsEditingProfile(true)}
+                 >
+                   Edit Profile
+                 </Button>
                  <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
                    Close
                  </Button>
               </div>
             </div>
+            )
           )}
         </DialogContent>
       </Dialog>
