@@ -1,0 +1,623 @@
+import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
+import { Search, SlidersHorizontal, Map as MapIcon, Grid as GridIcon } from "lucide-react";
+import TutorMapView from "@/components/tutors/TutorMapView";
+import { Helmet } from "react-helmet-async";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import PageLayout from "@/components/layout/PageLayout";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useSearchParams } from "react-router-dom";
+import TutorCard from "@/components/tutors/TutorCard";
+import type { Tutor } from "@/data/mockTutors";
+import API_URL from "@/config/api";
+
+const normalize = (value?: string | null) => (value || "").trim().toLowerCase();
+
+const STANDARD_SUBJECTS = [
+  "Mathematics",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Coding / Computer Science",
+  "English",
+  "History",
+  "Geography",
+  "Economics & Finance",
+  "Foreign Languages",
+  "Music (Vocal/Instruments)",
+  "Dance",
+  "Fine Arts & Drawing",
+  "Chess",
+  "Yoga & Meditation",
+  "Public Speaking & Debate",
+  "Creative Writing",
+  "Photography & Video",
+  "Malayalam"
+];
+
+const standardizeSubject = (sub: string): string => {
+  return sub
+    .toLowerCase()
+    .replace(/\s*\((academic|extracurricular)\)/i, "")
+    .replace(/&/g, "and")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/malayalama/g, "malayalam")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const getCleanSubjectName = (subject: string): string => {
+  const stripped = subject.replace(/\s*\((Academic|Extracurricular)\)/i, "").trim();
+  const stdStripped = standardizeSubject(stripped);
+
+  const matchedStandard = STANDARD_SUBJECTS.find(std => standardizeSubject(std) === stdStripped);
+  if (matchedStandard) {
+    return matchedStandard;
+  }
+
+  return stripped.split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : '').join(' ');
+};
+
+const ACADEMIC_KEYWORDS = [
+  "mathematics", "math", "physics", "chemistry", "biology",
+  "coding", "computer science", "english", "history", "geography",
+  "economics", "finance", "foreign languages", "kannada", "accounting"
+];
+
+const EXTRACURRICULAR_KEYWORDS = [
+  "music", "dance", "art", "drawing", "chess", "yoga", "meditation",
+  "speaking", "debate", "writing", "photography", "video"
+];
+
+const getSubjectCategory = (subject: string, tutorCategory: string): string => {
+  const s = subject.toLowerCase().trim();
+  if (s.endsWith("(academic)")) {
+    return "academic";
+  }
+  if (s.endsWith("(extracurricular)")) {
+    return "extracurricular";
+  }
+  if (ACADEMIC_KEYWORDS.some(keyword => s.includes(keyword) || keyword.includes(s))) {
+    return "academic";
+  }
+  if (EXTRACURRICULAR_KEYWORDS.some(keyword => s.includes(keyword) || keyword.includes(s))) {
+    return "extracurricular";
+  }
+  return tutorCategory.toLowerCase().trim();
+};
+
+const BrowseTutors = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryParam = searchParams.get("category");
+
+  const [search, setSearch] = useState(() => sessionStorage.getItem("tutor_search") || "");
+  const [category, setCategory] = useState<string>(() => {
+    if (categoryParam?.toLowerCase() === "academic") return "Academic";
+    if (categoryParam?.toLowerCase() === "extracurricular") return "Extracurricular";
+    return sessionStorage.getItem("tutor_category") || "all";
+  });
+  const [subject, setSubject] = useState<string>(() => sessionStorage.getItem("tutor_subject") || "all");
+  const [mode, setMode] = useState<string>(() => sessionStorage.getItem("tutor_mode") || "all");
+  const [city, setCity] = useState<string>(() => sessionStorage.getItem("tutor_city") || "all");
+  const [day, setDay] = useState(() => sessionStorage.getItem("tutor_day") || "all");
+  const [time, setTime] = useState(() => sessionStorage.getItem("tutor_time") || "all");
+  const [showFilters, setShowFilters] = useState(() => sessionStorage.getItem("tutor_show_filters") === "true");
+  const [showMap, setShowMap] = useState(() => sessionStorage.getItem("tutor_show_map") === "true");
+  const [sortBy, setSortBy] = useState<string>(() => sessionStorage.getItem("tutor_sort_by") || "default");
+
+  useEffect(() => {
+    if (categoryParam?.toLowerCase() === "academic") {
+      setCategory("Academic");
+    } else if (categoryParam?.toLowerCase() === "extracurricular") {
+      setCategory("Extracurricular");
+    } else if (!categoryParam) {
+      setCategory(sessionStorage.getItem("tutor_category") || "all");
+    }
+  }, [categoryParam]);
+
+  useEffect(() => {
+    sessionStorage.setItem("tutor_search", search);
+    sessionStorage.setItem("tutor_category", category);
+    sessionStorage.setItem("tutor_subject", subject);
+    sessionStorage.setItem("tutor_mode", mode);
+    sessionStorage.setItem("tutor_city", city);
+    sessionStorage.setItem("tutor_day", day);
+    sessionStorage.setItem("tutor_time", time);
+    sessionStorage.setItem("tutor_sort_by", sortBy);
+    sessionStorage.setItem("tutor_show_filters", String(showFilters));
+    sessionStorage.setItem("tutor_show_map", String(showMap));
+  }, [search, category, subject, mode, city, day, time, sortBy, showFilters, showMap]);
+
+  const handleCategoryChange = (val: string) => {
+    setCategory(val);
+    const newParams = new URLSearchParams(searchParams);
+    if (val === "all") {
+      newParams.delete("category");
+    } else {
+      newParams.set("category", val);
+    }
+    setSearchParams(newParams);
+  };
+
+  const { data: tutors = [], isLoading } = useQuery<Tutor[]>({
+    queryKey: ['tutors', 'approved'],
+    queryFn: async () => {
+      const res = await axios.get(`${API_URL}/tutors?status=approved`);
+      return res.data;
+    }
+  });
+
+  const selectedCategory = normalize(category);
+  const selectedSubject = normalize(subject);
+  const selectedMode = normalize(mode);
+  const selectedCity = normalize(city);
+
+  const allSubjects = useMemo(() => {
+    const subjectMap = new Map<string, string>();
+    tutors.forEach((tutor) => {
+      (tutor.subjects || []).forEach((subject) => {
+        const subjectCat = getSubjectCategory(subject, tutor.category);
+        if (selectedCategory !== "all" && subjectCat !== selectedCategory) {
+          return;
+        }
+        const clean = getCleanSubjectName(subject);
+        const key = standardizeSubject(clean);
+        if (key && !subjectMap.has(key)) {
+          subjectMap.set(key, clean);
+        }
+      });
+    });
+    return Array.from(subjectMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [tutors, selectedCategory]);
+
+  const allCities = useMemo(() => {
+    const cityMap = new Map<string, string>();
+    tutors.forEach((tutor) => {
+      const city = tutor.city?.trim();
+      const key = normalize(city);
+      if (key && !cityMap.has(key)) cityMap.set(key, city as string);
+    });
+    return Array.from(cityMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [tutors]);
+
+  useEffect(() => {
+    if (subject !== "all" && !allSubjects.some((s) => standardizeSubject(s) === standardizeSubject(subject))) {
+      setSubject("all");
+    }
+  }, [allSubjects, subject]);
+
+  const filtered = useMemo(() => {
+    const result = tutors
+      .filter((t) => {
+        if (search) {
+          const q = normalize(search);
+          return (
+            normalize(t.name).includes(q) ||
+            t.subjects?.some((s) => normalize(s).includes(q)) ||
+            normalize(t.city).includes(q)
+          );
+        }
+        return true;
+      })
+      .filter((t) => {
+        if (selectedCategory === "all") return true;
+        if (normalize(t.category) === selectedCategory) return true;
+        return (t.subjects || []).some(s => getSubjectCategory(s, t.category) === selectedCategory);
+      })
+      .filter((t) => {
+        if (selectedSubject === "all") return true;
+        const targetStd = standardizeSubject(subject);
+        return (t.subjects || []).some((s) => standardizeSubject(s) === targetStd);
+      })
+      .filter((t) => {
+        if (selectedMode === "all") return true;
+        const tutorMode = normalize(t.mode);
+        if (selectedMode === "both") return tutorMode === "both";
+        return tutorMode === selectedMode || tutorMode === "both";
+      })
+      .filter((t) => selectedCity === "all" || normalize(t.city) === selectedCity)
+      .filter((t) => {
+        if (day === "all" && time === "all") return true;
+
+        const slots = t.availability || [];
+        if (slots.length === 0) return false;
+
+        return slots.some((slot) => {
+          const dayMatch = day === "all" || slot.day.toLowerCase() === day.toLowerCase();
+          const timeMatch = time === "all" || (time >= slot.startTime && time < slot.endTime);
+          return dayMatch && timeMatch;
+        });
+      });
+
+    // Helper to get actual price (from subjectRates minimum or fallback to hourlyRate)
+    const getTutorPrice = (tutor: Tutor) => {
+      const rates = (tutor as any).subjectRates?.map((sr: any) => sr.rate) || [];
+      if (rates.length > 0) {
+        return Math.min(...rates);
+      }
+      return tutor.hourlyRate || 0;
+    };
+
+    // Apply sorting (Alphabetical A-Z by default, or price-asc, price-desc)
+    return [...result].sort((a, b) => {
+      if (sortBy === "price-asc") {
+        return getTutorPrice(a) - getTutorPrice(b);
+      }
+      if (sortBy === "price-desc") {
+        return getTutorPrice(b) - getTutorPrice(a);
+      }
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [search, selectedCategory, selectedSubject, selectedMode, selectedCity, day, time, sortBy, tutors]);
+
+  const clearFilters = () => {
+    setSearch("");
+    setCategory("all");
+    setSubject("all");
+    setMode("all");
+    setCity("all");
+    setDay("all");
+    setTime("all");
+    setSortBy("default");
+    setSearchParams({});
+  };
+
+  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "default";
+
+  return (
+    <PageLayout>
+      <Helmet>
+        <title>Find Expert Tutors - Browse Academic & Extracurricular Educators | Cuvasol Tutor</title>
+        <meta name="description" content="Search and filter verified tutors for mathematics, physics, music, dance, art, chess, and more. Find online and offline tutors in your city and schedule a free demo today." />
+        <meta property="og:title" content="Find Expert Tutors | Cuvasol Tutor" />
+        <meta property="og:description" content="Search and filter verified tutors for academics, music, arts, and languages. Find local or online tutors today." />
+        <meta property="og:url" content="https://tutor.cuvasol.com/tutors" />
+      </Helmet>
+      <section className="bg-primary py-12">
+        <div className="container text-center">
+          <h1 className="mb-4 text-3xl font-bold text-primary-foreground md:text-4xl">Find Your Perfect Tutor</h1>
+          <p className="mb-6 text-primary-foreground/80">Browse expert tutors across academics and extracurriculars</p>
+          <div className="mx-auto flex max-w-xl items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, subject, or city..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-card pl-10"
+              />
+            </div>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="md:hidden"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[300px] sm:w-[400px] overflow-y-auto">
+                <SheetHeader className="pb-4 border-b text-left">
+                  <SheetTitle>Filter Tutors</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-4 py-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Category</label>
+                    <Select value={category} onValueChange={handleCategoryChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        <SelectItem value="Academic">Academic</SelectItem>
+                        <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Subject</label>
+                    <Select value={subject} onValueChange={setSubject}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Subject" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">Select Subject</SelectItem>
+                        {allSubjects.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Mode</label>
+                    <Select value={mode} onValueChange={setMode}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Modes</SelectItem>
+                        <SelectItem value="Online">Online</SelectItem>
+                        <SelectItem value="Offline">Offline</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">City</label>
+                    <Select value={city} onValueChange={setCity}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="City" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">Select City</SelectItem>
+                        {allCities.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Day</label>
+                    <Select value={day} onValueChange={setDay}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Day" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Select Day</SelectItem>
+                        <SelectItem value="Monday">Monday</SelectItem>
+                        <SelectItem value="Tuesday">Tuesday</SelectItem>
+                        <SelectItem value="Wednesday">Wednesday</SelectItem>
+                        <SelectItem value="Thursday">Thursday</SelectItem>
+                        <SelectItem value="Friday">Friday</SelectItem>
+                        <SelectItem value="Saturday">Saturday</SelectItem>
+                        <SelectItem value="Sunday">Sunday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Time</label>
+                    <Select value={time} onValueChange={setTime}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Time" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">Select time</SelectItem>
+                        {Array.from({ length: 24 }, (_, i) => {
+                          const hour = `${String(i).padStart(2, "0")}:00`;
+                          return (
+                            <SelectItem key={hour} value={hour}>
+                              {hour}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Sort By</label>
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Sort By" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Sort: Default</SelectItem>
+                        <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                        <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {hasFilters && (
+                    <Button variant="outline" onClick={clearFilters} className="w-full mt-4 text-destructive border-destructive/20 hover:bg-destructive/10">
+                      Clear all filters
+                    </Button>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
+            <Button
+              variant={showMap ? "default" : "secondary"}
+              size="icon"
+              onClick={() => setShowMap(!showMap)}
+              className="md:hidden shrink-0"
+              title={showMap ? "Show List" : "Show Map"}
+            >
+              {showMap ? <GridIcon className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-8">
+        <div className="container">
+          {/* Filters */}
+          <div className="mb-8 hidden md:flex flex-wrap gap-3">
+            <Select value={category} onValueChange={handleCategoryChange}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="Academic">Academic</SelectItem>
+                <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={subject} onValueChange={setSubject}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Subject" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Select Subject</SelectItem>
+                {allSubjects.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={mode} onValueChange={setMode}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Modes</SelectItem>
+                <SelectItem value="Online">Online</SelectItem>
+                <SelectItem value="Offline">Offline</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={city} onValueChange={setCity}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="City" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Select City</SelectItem>
+                {allCities.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={day} onValueChange={setDay}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Day" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Select Day</SelectItem>
+                <SelectItem value="Monday">Monday</SelectItem>
+                <SelectItem value="Tuesday">Tuesday</SelectItem>
+                <SelectItem value="Wednesday">Wednesday</SelectItem>
+                <SelectItem value="Thursday">Thursday</SelectItem>
+                <SelectItem value="Friday">Friday</SelectItem>
+                <SelectItem value="Saturday">Saturday</SelectItem>
+                <SelectItem value="Sunday">Sunday</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Time Dropdown */}
+            <Select value={time} onValueChange={setTime}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Time" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Select time</SelectItem>
+                {Array.from({ length: 24 }, (_, i) => {
+                  const hour = `${String(i).padStart(2, "0")}:00`;
+                  return (
+                    <SelectItem key={hour} value={hour}>
+                      {hour}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Sort: Default</SelectItem>
+                <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                <SelectItem value="price-desc">Price: High to Low</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {hasFilters && (
+              <Button variant="ghost" onClick={clearFilters} className="text-sm">
+                Clear filters
+              </Button>
+            )}
+
+            <Button
+              variant={showMap ? "default" : "outline"}
+              onClick={() => setShowMap(!showMap)}
+              className="gap-2 text-sm font-semibold rounded-lg shadow-sm md:ml-auto"
+            >
+              {showMap ? (
+                <>
+                  <GridIcon className="h-4 w-4" />
+                  Show List Only
+                </>
+              ) : (
+                <>
+                  <MapIcon className="h-4 w-4" />
+                  Find on Map
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Results */}
+          <div className="mb-4 text-sm text-muted-foreground min-h-[20px]">
+            {isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-primary/60 animate-pulse" />
+                Loading tutors...
+              </span>
+            ) : (
+              `${filtered.length} tutor${filtered.length !== 1 ? "s" : ""} found`
+            )}
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+            {/* Tutors Grid/List Panel */}
+            <div className={`flex-1 ${showMap ? "hidden lg:block lg:w-7/12" : "w-full"}`}>
+              {isLoading ? (
+                <div className={`grid gap-6 sm:grid-cols-2 ${showMap ? "" : "lg:grid-cols-3"}`}>
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="rounded-xl border bg-card p-4 shadow-card animate-pulse">
+                      <Skeleton className="mb-4 h-48 w-full rounded-lg" />
+                      <Skeleton className="mb-2 h-6 w-2/3" />
+                      <Skeleton className="mb-4 h-4 w-1/3" />
+                      <div className="mb-4 flex gap-2">
+                        <Skeleton className="h-6 w-16 rounded-full" />
+                        <Skeleton className="h-6 w-16 rounded-full" />
+                      </div>
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ))}
+                </div>
+              ) : filtered.length > 0 ? (
+                <div className={`grid gap-6 sm:grid-cols-2 ${showMap ? "lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto pr-2 custom-scrollbar lg:grid-cols-2" : "lg:grid-cols-3"}`}>
+                  {filtered.map((tutor) => (
+                    <TutorCard key={tutor.id} tutor={tutor} />
+                  ))}
+                </div>
+              ) : (
+                <div className="py-20 text-center bg-card border rounded-2xl">
+                  <p className="text-lg text-muted-foreground">No tutors found matching your criteria.</p>
+                  <Button variant="outline" onClick={clearFilters} className="mt-4">Clear filters</Button>
+                </div>
+              )}
+            </div>
+
+            {/* Sticky/Responsive Map Panel */}
+            {showMap && (
+              <div className="w-full lg:w-5/12 h-[calc(100vh-250px)] lg:h-[calc(100vh-220px)] lg:sticky lg:top-[100px] rounded-2xl overflow-hidden border shadow-md shrink-0 z-20">
+                <TutorMapView tutors={filtered} selectedCity={city} />
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </PageLayout>
+  );
+};
+
+export default BrowseTutors;

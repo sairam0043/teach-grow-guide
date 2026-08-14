@@ -1,0 +1,150 @@
+import { Link } from "react-router-dom";
+import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import type { Tutor } from "@/data/mockTutors";
+import { resolveAssetUrl } from "@/lib/assetUrl";
+
+interface TutorCardProps {
+  tutor: Tutor;
+}
+
+const TutorCard = ({ tutor }: TutorCardProps) => {
+  const photoSrc =
+    resolveAssetUrl(tutor.photo) ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
+
+  const getRateDisplay = () => {
+    // If tutor has subjectRates array, extract values
+    const rates = (tutor as any).subjectRates?.map((sr: any) => sr.rate) || [];
+    if (rates.length === 0) {
+      return `₹${tutor.hourlyRate || 500}`;
+    }
+    const minRate = Math.min(...rates);
+    const maxRate = Math.max(...rates);
+    if (minRate === maxRate) {
+      return `₹${minRate}`;
+    }
+    return `₹${minRate} - ₹${maxRate}`;
+  };
+
+  const getMonthlyPackRate = () => {
+    const rates = (tutor as any).subjectRates?.map((sr: any) => sr.rate) || [];
+    const baseRate = rates.length > 0 ? Math.min(...rates) : (tutor.hourlyRate || 300);
+    return Math.round(baseRate * 12 * 0.70);
+  };
+
+  return (
+    <div className="group overflow-hidden rounded-xl border bg-card shadow-card transition-shadow hover:shadow-card-hover flex flex-col h-full">
+      <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
+        <img
+          src={photoSrc}
+          alt={tutor.name}
+          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null; // prevent infinite loops if fallback fails
+            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
+          }}
+        />
+        <Badge className="absolute left-3 top-3 bg-primary text-primary-foreground">
+          {tutor.category}
+        </Badge>
+        {tutor.isVerified && (
+          <img
+            src="/verified-badge.png"
+            alt="Verified Tutor"
+            className="absolute right-3 top-3 h-10 w-10 z-10 drop-shadow-md select-none transition-transform duration-300 hover:scale-110"
+          />
+        )}
+      </div>
+
+      <div className="p-5 flex flex-col flex-grow">
+        <div className="mb-2 flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-serif text-lg text-card-foreground capitalize">{tutor.name}</h3>
+              {tutor.isVerified && (
+                <CheckCircle2 className="h-4 w-4 fill-blue-500 text-white shrink-0" aria-label="Verified Tutor" />
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">{tutor.experience} years experience</p>
+          </div>
+          {tutor.rating > 0 && (
+            <div className="flex items-center gap-1 text-sm">
+              <Star className="h-4 w-4 fill-warning text-warning" />
+              <span className="font-medium text-card-foreground">{tutor.rating}</span>
+              <span className="text-muted-foreground">({tutor.reviewCount})</span>
+            </div>
+          )}
+        </div>
+
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {tutor.subjects.map((subject) => (
+            <Badge key={subject} variant="secondary" className="text-xs">
+              {subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
+            </Badge>
+          ))}
+        </div>
+
+        {((tutor.boardsTaught && tutor.boardsTaught.length > 0) || (tutor.classesTaught && tutor.classesTaught.length > 0)) && (
+          <div className="mb-3 flex flex-col gap-1.5">
+            {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
+              <div className="flex items-center gap-2 text-xs font-medium text-indigo-600 dark:text-indigo-400" title={`Boards: ${tutor.boardsTaught.join(", ")}`}>
+                <span className="text-sm shrink-0 select-none">📋</span>
+                <span className="truncate">{tutor.boardsTaught.join(", ")}</span>
+              </div>
+            )}
+            {tutor.classesTaught && tutor.classesTaught.length > 0 && (
+              <div className="flex items-center gap-2 text-xs font-medium text-primary" title={`Classes: ${tutor.classesTaught.join(", ")}`}>
+                <span className="text-sm shrink-0 select-none">🎓</span>
+                <span className="truncate">{tutor.classesTaught.join(", ")}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mb-4 flex flex-col gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5" />
+              {tutor.city}
+            </span>
+            <span className="flex items-center gap-1">
+              <Monitor className="h-3.5 w-3.5" />
+              {tutor.mode?.toLowerCase() === "both" ? "Online, Offline" : tutor.mode}
+            </span>
+          </div>
+          {tutor.availability && tutor.availability.length > 0 && (
+            <span className="flex items-center gap-1 text-primary/80 font-medium">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {Array.from(new Set(tutor.availability.map(a => a.day.substring(0, 3)))).join(", ")}
+            </span>
+          )}
+        </div>
+
+        <div className="flex-grow" />
+
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-lg font-semibold text-foreground">{getRateDisplay()}<span className="text-sm font-normal text-muted-foreground">/hr</span></span>
+          <Button size="sm" asChild>
+            <Link to={`/tutors/${tutor.id}`}>Book Free Demo</Link>
+          </Button>
+        </div>
+
+        <div className="mt-3">
+          <Button
+            asChild
+            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition-all duration-300 flex items-center justify-center gap-1.5 border-0 cursor-pointer text-xs sm:text-sm"
+          >
+            <Link to={`/tutors/${tutor.id}?selectPack=true`}>
+              <span>✨</span> 30% OFF - Monthly Pack (₹{getMonthlyPackRate()}/mo)
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TutorCard;
