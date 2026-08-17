@@ -31,6 +31,15 @@ const CLASS_OPTIONS = [
   "Other"
 ];
 
+const HEARD_ABOUT_US_OPTIONS = [
+  "Google Search",
+  "Social Media (Instagram, Facebook, LinkedIn)",
+  "Friend / Family Referral",
+  "Advertisement / Flyer",
+  "School / College",
+  "Other"
+];
+
 const capitalizeName = (str: string): string => {
   return str
     .split(' ')
@@ -50,6 +59,8 @@ const RegisterStudent = () => {
   const [studentName, setStudentName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [customClass, setCustomClass] = useState("");
+  const [heardAboutUs, setHeardAboutUs] = useState("");
+  const [customHeardAboutUs, setCustomHeardAboutUs] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -85,6 +96,12 @@ const RegisterStudent = () => {
       return;
     }
 
+    const finalHeardAboutUs = heardAboutUs === "Other" ? customHeardAboutUs.trim() : heardAboutUs;
+    if (!finalHeardAboutUs) {
+      toast.error("Please specify where you heard about us.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast.error("Password and confirm password must match.");
       return;
@@ -107,6 +124,7 @@ const RegisterStudent = () => {
       student_class: finalClass,
       student_or_parent: studentOrParent,
       student_name: studentOrParent === "Parent" ? studentName.trim() : "",
+      heard_about_us: finalHeardAboutUs,
       role: "student",
       timezone: detectUserTimeZone(),
     });
@@ -335,6 +353,33 @@ const RegisterStudent = () => {
                       placeholder="e.g. Masters, Diploma, Grade 5"
                       value={customClass}
                       onChange={(e) => setCustomClass(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="heardAboutUs">Where did you hear about us?</Label>
+                  <Select value={heardAboutUs} onValueChange={setHeardAboutUs} required>
+                    <SelectTrigger id="heardAboutUs">
+                      <SelectValue placeholder="Select Option" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[260px]">
+                      {HEARD_ABOUT_US_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {heardAboutUs === "Other" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <Label htmlFor="customHeardAboutUs">Specify Where You Heard About Us</Label>
+                    <Input
+                      id="customHeardAboutUs"
+                      required
+                      placeholder="e.g. Local Event, Online Forum, Blog Post"
+                      value={customHeardAboutUs}
+                      onChange={(e) => setCustomHeardAboutUs(e.target.value)}
                     />
                   </div>
                 )}

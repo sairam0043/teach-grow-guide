@@ -84,6 +84,8 @@ const AdminDashboard = () => {
   const [loadingCoursePayments, setLoadingCoursePayments] = useState(false);
   const [selectedTutorForDetail, setSelectedTutorForDetail] = useState<any | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedStudentForDetail, setSelectedStudentForDetail] = useState<any | null>(null);
+  const [isStudentDetailDialogOpen, setIsStudentDetailDialogOpen] = useState(false);
   const [selectedAssessmentPayment, setSelectedAssessmentPayment] = useState<any | null>(null);
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
@@ -155,6 +157,11 @@ const AdminDashboard = () => {
     } finally {
       setIsSendingProfileEmails(false);
     }
+  };
+
+  const handleViewStudentDetail = (student: any) => {
+    setSelectedStudentForDetail(student);
+    setIsStudentDetailDialogOpen(true);
   };
 
   const handleViewTutorDetail = (tutor: any) => {
@@ -1094,6 +1101,7 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Email</TableHead>
                             <TableHead className="font-medium h-12">Contact</TableHead>
                             <TableHead className="font-medium h-12">Class / Grade</TableHead>
+                            <TableHead className="font-medium h-12">Source</TableHead>
                             <TableHead className="font-medium h-12 text-right">Joined</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1101,10 +1109,17 @@ const AdminDashboard = () => {
                           {filteredStudents.map((student) => (
                             <TableRow key={student._id || student.id} className="hover:bg-secondary/10 transition-colors">
                               <TableCell className="font-mono text-xs text-muted-foreground">{String(student._id || student.id).slice(-8)}</TableCell>
-                              <TableCell className="font-semibold text-foreground">{student.full_name || "–"}</TableCell>
+                              <TableCell 
+                                className="font-semibold text-foreground cursor-pointer hover:underline hover:text-primary transition-all" 
+                                onClick={() => handleViewStudentDetail(student)} 
+                                title="Click to view student details"
+                              >
+                                {student.full_name || "–"}
+                              </TableCell>
                               <TableCell>{student.email || "–"}</TableCell>
                               <TableCell>{student.phone || "–"}</TableCell>
                               <TableCell><Badge variant="outline" className="font-normal bg-secondary/20">{student.student_class || student.studentClass || "–"}</Badge></TableCell>
+                              <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
                               <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
                             </TableRow>
                           ))}
@@ -2648,6 +2663,121 @@ const AdminDashboard = () => {
             </div>
             )
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Details Modal */}
+      <Dialog open={isStudentDetailDialogOpen} onOpenChange={setIsStudentDetailDialogOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <GraduationCap className="h-6 w-6 text-indigo-500" /> Student Profile
+            </DialogTitle>
+            <DialogDescription>
+              View detailed registration information for this student account.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStudentForDetail && (
+            <div className="space-y-6 py-4">
+              {/* Header profile section with Avatar */}
+              <div className="flex items-center gap-4 pb-4 border-b">
+                <div className="h-16 w-16 rounded-full border shadow-sm overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                  {selectedStudentForDetail.avatar ? (
+                    <img 
+                      src={resolveAssetUrl(selectedStudentForDetail.avatar)} 
+                      alt={selectedStudentForDetail.full_name} 
+                      className="h-full w-full object-cover" 
+                      onError={(e: any) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentForDetail.full_name || "S")}&background=random&size=200`;
+                      }}
+                    />
+                  ) : (
+                    <span className="font-bold text-2xl text-indigo-500 uppercase">
+                      {(selectedStudentForDetail.full_name || "S").charAt(0)}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-foreground leading-tight">
+                    {selectedStudentForDetail.full_name}
+                  </h3>
+                  <Badge variant="outline" className="mt-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200">
+                    {selectedStudentForDetail.student_or_parent || "Student"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* General details grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
+                  <span className="text-sm font-semibold text-foreground break-all">{selectedStudentForDetail.email || "–"}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
+                  <span className="text-sm font-semibold text-foreground">{selectedStudentForDetail.phone || "–"}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Class / Grade</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    <Badge variant="outline" className="bg-secondary/20">{selectedStudentForDetail.student_class || selectedStudentForDetail.studentClass || "–"}</Badge>
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Time Zone</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {selectedStudentForDetail.timezone ? `${getTimeZoneAbbreviation(selectedStudentForDetail.timezone)} (${selectedStudentForDetail.timezone})` : 'IST (Asia/Kolkata)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Conditional section if Parent was registered */}
+              {selectedStudentForDetail.student_or_parent === "Parent" && selectedStudentForDetail.student_name && (
+                <div className="space-y-1 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
+                  <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Child (Student) Name</span>
+                  <span className="text-sm font-bold text-foreground">{selectedStudentForDetail.student_name}</span>
+                </div>
+              )}
+
+              {/* Referral Source */}
+              <div className="space-y-1 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> How they heard about us
+                </span>
+                <span className="text-sm font-bold text-foreground">
+                  {selectedStudentForDetail.heard_about_us || selectedStudentForDetail.heardAboutUs || "Not specified / Existing User"}
+                </span>
+              </div>
+
+              {/* Dates / Metadata */}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">
+                <div>
+                  <span>Joined Date:</span>
+                  <span className="block font-medium text-foreground mt-0.5">
+                    {selectedStudentForDetail.createdAt ? new Date(selectedStudentForDetail.createdAt).toLocaleString() : "Not available"}
+                  </span>
+                </div>
+                <div>
+                  <span>User ID:</span>
+                  <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all">
+                    {selectedStudentForDetail._id || selectedStudentForDetail.id || "–"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsStudentDetailDialogOpen(false)}
+              className="rounded-lg h-10 px-4 hover:bg-secondary/20"
+            >
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

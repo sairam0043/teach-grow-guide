@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
   student_class: { type: String },
   student_or_parent: { type: String, enum: ['Student', 'Parent'], default: 'Student' },
   student_name: { type: String },
+  heard_about_us: { type: String },
   role: { type: String, enum: ['admin', 'student', 'tutor'], default: 'student' },
   timezone: { type: String, default: 'Asia/Kolkata' },
   resetOtp: { type: String },
