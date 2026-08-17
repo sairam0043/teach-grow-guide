@@ -2773,7 +2773,7 @@ const AdminDashboard = () => {
             <Button
               variant="outline"
               onClick={() => setIsStudentDetailDialogOpen(false)}
-              className="rounded-lg h-10 px-4 hover:bg-secondary/20"
+              className="rounded-lg h-10 px-4 hover:bg-secondary/20 hover:text-foreground"
             >
               Close
             </Button>
