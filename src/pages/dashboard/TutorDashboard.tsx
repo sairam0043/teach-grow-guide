@@ -1824,8 +1824,6 @@ const TutorDashboard = () => {
                         </div>
                       </CardContent>
                     </Card>
-              );
-            })()}
 
                 {/* Referral Stats (Mock Tracker) */}
                 <Card className="border-none shadow-md bg-card/65 backdrop-blur-md">
@@ -1963,7 +1961,9 @@ const TutorDashboard = () => {
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
+          );
+        })()}
+      </TabsContent>
         </Tabs>
       </div>
 

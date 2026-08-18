@@ -48,6 +48,10 @@ const capitalizeName = (str: string): string => {
 };
 
 const RegisterStudent = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { signUp, googleSignIn, user, role } = useAuth();
+
   const [referralCode, setReferralCode] = useState("");
   const [isReferralFromLink, setIsReferralFromLink] = useState(false);
 
@@ -84,9 +88,6 @@ const RegisterStudent = () => {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showFormMobile, setShowFormMobile] = useState(false);
-  const { signUp, googleSignIn, user, role } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     if (user) {
