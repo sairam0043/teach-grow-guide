@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -661,6 +661,10 @@ const TutorDashboard = () => {
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0">Students</TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg px-6 py-2.5 shrink-0">Availability</TabsTrigger>
             <TabsTrigger value="earnings" className="rounded-lg px-6 py-2.5 shrink-0">Earnings</TabsTrigger>
+            <TabsTrigger value="referrals" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              <Gift className="h-4 w-4 text-emerald-500" />
+              Refer & Earn
+            </TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
               Messages
               {unreadMessagesCount > 0 && (
@@ -1721,6 +1725,223 @@ const TutorDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="referrals">
+            <div className="space-y-6">
+              {/* Header block with background gradient */}
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 p-6 md:p-8 text-white shadow-lg">
+                <div className="absolute -right-10 -bottom-10 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+                <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="space-y-2 max-w-2xl">
+                    <span className="inline-flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
+                      <Sparkles className="h-3 w-3 animate-pulse" /> Tutor Rewards Program
+                    </span>
+                    <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Invite Students, Earn ₹50!</h2>
+                    <p className="text-white/95 text-sm md:text-base leading-relaxed">
+                      Help students find great mentors while boosting your own earnings. Share your unique link below to get started.
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-inner">
+                    <Gift className="h-14 w-14 text-white drop-shadow-md animate-bounce" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid with Referral Link and Stats */}
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Referral Link Card */}
+                <Card className="border-none shadow-md bg-card/65 backdrop-blur-md">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Gift className="h-5 w-5 text-emerald-500" />
+                      Your Referral Link
+                    </CardTitle>
+                    <CardDescription>
+                      Share this unique registration link with students or parents.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex gap-2 items-center bg-secondary/35 p-2 rounded-xl border">
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/register/student?ref=${user?.id || ""}`}
+                        className="bg-transparent border-none outline-none text-xs flex-1 px-2 font-mono text-muted-foreground select-all"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const link = `${window.location.origin}/register/student?ref=${user?.id || ""}`;
+                          navigator.clipboard.writeText(link);
+                          toast.success("Referral link copied to clipboard!");
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 shrink-0 rounded-lg h-9"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copy</span>
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                      <a
+                        href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                          `Hey! I'm teaching on Cuvasol Tutor. Register for high-quality classes using my link: ${window.location.origin}/register/student?ref=${user?.id || ""}`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl text-sm transition-all shadow-sm cursor-pointer"
+                      >
+                        <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.019-5.117-2.879-6.98-1.858-1.863-4.331-2.887-6.977-2.889-5.442 0-9.87 4.422-9.873 9.869-.001 1.724.453 3.41 1.32 4.933l-.994 3.633 3.719-.976zm9.9-6.082c-.272-.136-1.614-.796-1.863-.886-.25-.09-.432-.136-.613.136-.182.272-.704.886-.863 1.068-.159.182-.318.204-.59.068-.272-.136-1.15-.424-2.19-1.353-.809-.721-1.355-1.613-1.514-1.886-.159-.272-.017-.419.119-.554.123-.122.272-.318.409-.477.136-.159.182-.272.272-.454.09-.182.045-.341-.023-.477-.068-.136-.613-1.477-.84-2.022-.222-.534-.445-.46-.613-.469-.159-.008-.341-.01-.523-.01s-.477.068-.727.341c-.25.272-.954.932-.954 2.272 0 1.34 1 .272 2.635 1.136 3.488 2.062 5.093 3.84 5.365 4.09.272.25.795.795.795 1.727 0 .932-.727 1.704-.84 1.886-.114.182-.227.363-.454.432s-.432-.023-.704-.159z"/>
+                        </svg>
+                        Share via WhatsApp
+                      </a>
+                      <a
+                        href={`mailto:?subject=${encodeURIComponent(
+                          "Join me on Cuvasol Tutor!"
+                        )}&body=${encodeURIComponent(
+                          `Hi there,\n\nI invite you to register as a student on Cuvasol Tutor using my referral link:\n${window.location.origin}/register/student?ref=${user?.id || ""}\n\nStart your learning journey today!`
+                        )}`}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer"
+                      >
+                        ✉ Email Invitation
+                      </a>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Referral Stats (Mock Tracker) */}
+                <Card className="border-none shadow-md bg-card/65 backdrop-blur-md">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-emerald-500" />
+                      Rewards Tracker
+                    </CardTitle>
+                    <CardDescription>
+                      Monitor your refer-and-earn metrics in real-time.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
+                        <span className="block text-2xl font-black text-foreground">0</span>
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Invited</span>
+                      </div>
+                      <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
+                        <span className="block text-2xl font-black text-foreground">0</span>
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Paid Classes</span>
+                      </div>
+                      <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 text-center">
+                        <span className="block text-2xl font-black text-emerald-600 dark:text-emerald-400">₹0</span>
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mt-1">Earned</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic text-center mt-4">
+                      Referral credits are updated automatically once student classes are completed.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Instructions / Program Rules Card */}
+              <Card className="border-none shadow-md bg-card/65 backdrop-blur-md overflow-hidden relative">
+                {/* Visual side highlights */}
+                <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-emerald-500" />
+                <CardHeader className="pb-3 pl-8">
+                  <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                    📋 Program Rules & Instructions
+                  </CardTitle>
+                  <CardDescription>
+                    Please read the referral guidelines carefully to ensure eligibility.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pl-8 space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                          1
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-foreground">Referral Reward</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Each tutor can refer students. You will receive a <strong className="text-emerald-600 dark:text-emerald-400">₹50 reward</strong> when your referred student registers and successfully completes a class.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                          2
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-foreground">Completed Paid Classes Only</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            The student must complete a <strong className="text-foreground">paid class</strong>. Free demo classes or incomplete bookings do <strong className="text-rose-500">not</strong> qualify for the ₹50 reward.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                          3
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-foreground">First-Time Reward Limit</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            The ₹50 reward applies <strong className="text-foreground">only to the student's first completed class</strong>. Subsequent sessions with that student will not generate additional referral rewards.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                          4
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-foreground">Unlimited Referrals</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            While each referred student generates a reward only once, you can refer an <strong className="text-emerald-600 dark:text-emerald-400">unlimited number of distinct students</strong>.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                          5
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-foreground">New Students Only</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Multiple tutors cannot refer a single student. To qualify, the referred student's email and phone number must not already exist in the database.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 flex items-start gap-3 mt-4">
+                    <AlertCircle className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-emerald-800 dark:text-emerald-400">Flexible Learning Eligibility</h4>
+                      <p className="text-[11px] text-emerald-700/90 dark:text-emerald-400/80 leading-relaxed">
+                        The student is free to take their class with **any tutor** on the platform. As long as they sign up via your link and complete a paid class, your referral reward will be credited.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
