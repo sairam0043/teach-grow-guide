@@ -893,6 +893,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Category</TableHead>
                           <TableHead className="font-bold h-12">City</TableHead>
                           <TableHead className="font-bold h-12">Referral Source</TableHead>
+                          <TableHead className="font-bold h-12">Referrals (Completed/Invited)</TableHead>
                           <TableHead className="font-bold h-12">Subjects/Boards/Classes</TableHead>
                           <TableHead className="font-bold h-12">Status</TableHead>
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
@@ -936,6 +937,18 @@ const AdminDashboard = () => {
                               {tutor.pincode && <span className="text-xs text-muted-foreground block font-normal">{tutor.pincode}</span>}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={tutor.hearAboutUs || "–"}>{tutor.hearAboutUs || "–"}</TableCell>
+                            <TableCell className="text-sm text-foreground">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                  {tutor.referralsCompleted ?? 0} <span className="text-[10px] text-muted-foreground font-normal">/ {tutor.referralsInvited ?? 0}</span>
+                                </span>
+                                {(tutor.referralsEarnings ?? 0) > 0 && (
+                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-500 font-semibold">
+                                    ₹{tutor.referralsEarnings} earned
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
                              <TableCell className="max-w-[180px] text-sm">
                                <div className="font-semibold text-foreground truncate" title={tutor.subjects?.join(", ")}>{tutor.subjects?.join(", ") || "–"}</div>
                                {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (

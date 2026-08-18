@@ -191,20 +191,51 @@ router.get('/', async (req, res) => {
     if (req.query.featured) filter.featured = req.query.featured === 'true';
 
     const tutors = await Tutor.find(filter).populate('userId', 'email phone avatar');
-    // Transform _id to id for frontend compatibility
-    const formattedTutors = tutors.map(t => {
+    // Transform _id to id for frontend compatibility and calculate referral metrics
+    const formattedTutors = await Promise.all(tutors.map(async t => {
       const obj = t.toObject();
       obj.id = obj._id.toString();
       if (obj.userId) {
         obj.email = obj.userId.email;
         obj.phone = obj.userId.phone;
         obj.avatar = obj.userId.avatar;
+
+        // Calculate referral metrics
+        const referredStudents = await User.find({ referredBy: obj.userId._id || obj.userId, role: 'student' });
+        const invitedCount = referredStudents.length;
+        let completedCount = 0;
+
+        if (invitedCount > 0) {
+          const studentIds = referredStudents.map(student => student._id.toString());
+          const bookings = await Booking.find({
+            studentId: { $in: studentIds },
+            amountPaid: { $gt: 0 }
+          });
+
+          for (const studentId of studentIds) {
+            const studentBookings = bookings.filter(b => b.studentId === studentId);
+            const hasCompletedPaidClass = studentBookings.some(b => 
+              b.status === 'completed' || 
+              (b.sessions && b.sessions.some(s => s.status === 'completed'))
+            );
+            if (hasCompletedPaidClass) {
+              completedCount++;
+            }
+          }
+        }
+        obj.referralsInvited = invitedCount;
+        obj.referralsCompleted = completedCount;
+        obj.referralsEarnings = completedCount * 50;
+      } else {
+        obj.referralsInvited = 0;
+        obj.referralsCompleted = 0;
+        obj.referralsEarnings = 0;
       }
       if (obj.demoSlots) {
         obj.demoSlots = obj.demoSlots.map(s => ({...s, id: s._id.toString()}));
       }
       return obj;
-    });
+    }));
     res.json(formattedTutors);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching tutors', error: error.message });

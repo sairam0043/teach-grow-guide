@@ -1826,15 +1826,21 @@ const TutorDashboard = () => {
                   <CardContent>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
-                        <span className="block text-2xl font-black text-foreground">0</span>
+                        <span className="block text-2xl font-black text-foreground">
+                          {tutorStats?.referralStats?.invitedCount ?? 0}
+                        </span>
                         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Invited</span>
                       </div>
                       <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
-                        <span className="block text-2xl font-black text-foreground">0</span>
+                        <span className="block text-2xl font-black text-foreground">
+                          {tutorStats?.referralStats?.completedCount ?? 0}
+                        </span>
                         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Paid Classes</span>
                       </div>
                       <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 text-center">
-                        <span className="block text-2xl font-black text-emerald-600 dark:text-emerald-400">₹0</span>
+                        <span className="block text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                          ₹{tutorStats?.referralStats?.earnings ?? 0}
+                        </span>
                         <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mt-1">Earned</span>
                       </div>
                     </div>

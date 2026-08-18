@@ -50,7 +50,12 @@ const capitalizeName = (str: string): string => {
 const RegisterStudent = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+    const params = new URLSearchParams(location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      sessionStorage.setItem("student_referral_tutor_id", ref);
+    }
+  }, [location.search]);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -117,6 +122,7 @@ const RegisterStudent = () => {
       return;
     }
 
+    const referredBy = sessionStorage.getItem("student_referral_tutor_id") || queryParams.get("ref") || "";
     setLoading(true);
     const { error } = await signUp(email, password, {
       full_name: name,
@@ -127,6 +133,7 @@ const RegisterStudent = () => {
       heard_about_us: finalHeardAboutUs,
       role: "student",
       timezone: detectUserTimeZone(),
+      referredBy,
     });
     if (error) {
       toast.error(error.message);

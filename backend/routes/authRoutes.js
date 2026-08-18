@@ -75,12 +75,18 @@ transporter.verify((error, success) => {
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, heard_about_us, heardAboutUs, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, heard_about_us, heardAboutUs, referredBy, ...tutorData } = req.body;
 
-    // Check if user exists
-    let user = await User.findOne({ email });
+    // Check if user exists by email or phone
+    const phoneQuery = phone ? { phone } : null;
+    const checkQuery = phoneQuery ? { $or: [{ email }, phoneQuery] } : { email };
+    let user = await User.findOne(checkQuery);
     if (user) {
-      return res.status(400).json({ message: 'User already exists' });
+      if (user.email === email) {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      } else {
+        return res.status(400).json({ message: 'User with this phone number already exists' });
+      }
     }
 
     if (role === 'tutor' && (!tutorData.verificationDocument || tutorData.verificationDocument.trim() === '')) {
@@ -100,7 +106,8 @@ router.post('/register', async (req, res) => {
       student_name: student_name || studentName,
       heard_about_us: heard_about_us || heardAboutUs,
       role, 
-      timezone: timezone || 'Asia/Kolkata' 
+      timezone: timezone || 'Asia/Kolkata',
+      referredBy: referredBy || undefined
     });
     await user.save();
 

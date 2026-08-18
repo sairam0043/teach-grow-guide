@@ -52,7 +52,19 @@ interface DashboardState {
     geoStats?: { North: number; South: number; East: number; West: number; Unspecified: number };
     topCities?: Array<{ name: string; count: number }>;
   } | null;
-  tutorStats: { demoRequests: number; activeStudents: number; upcomingClasses: number; totalEarnings: number; availableTimings: string[]; availability?: any[] } | null;
+  tutorStats: { 
+    demoRequests: number; 
+    activeStudents: number; 
+    upcomingClasses: number; 
+    totalEarnings: number; 
+    availableTimings: string[]; 
+    availability?: any[];
+    referralStats?: {
+      invitedCount: number;
+      completedCount: number;
+      earnings: number;
+    };
+  } | null;
   studentStats: { enrolledCourses: number; upcomingClasses: number; completedSessions: number; demoBookings?: number; savedTutors: number } | null;
   loading: boolean;
   error: string | null;

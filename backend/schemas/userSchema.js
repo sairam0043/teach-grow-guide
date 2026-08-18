@@ -14,7 +14,8 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'student', 'tutor'], default: 'student' },
   timezone: { type: String, default: 'Asia/Kolkata' },
   resetOtp: { type: String },
-  resetOtpExpiry: { type: Date }
+  resetOtpExpiry: { type: Date },
+  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);

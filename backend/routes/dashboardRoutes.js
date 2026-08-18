@@ -178,13 +178,48 @@ router.get('/tutor/:tutorId', async (req, res) => {
     const availableTimings = tutor.availableTimings || [];
     const availability = tutor.availability || [];
 
+    // Calculate referral stats
+    let referralStats = { invitedCount: 0, completedCount: 0, earnings: 0 };
+    if (tutor.userId) {
+      const referredStudents = await User.find({ referredBy: tutor.userId, role: 'student' });
+      const invitedCount = referredStudents.length;
+
+      if (invitedCount > 0) {
+        const studentIds = referredStudents.map(student => student._id.toString());
+        // Find bookings for these students
+        const bookings = await Booking.find({
+          studentId: { $in: studentIds },
+          amountPaid: { $gt: 0 }
+        });
+
+        let completedCount = 0;
+        for (const studentId of studentIds) {
+          const studentBookings = bookings.filter(b => b.studentId === studentId);
+          const hasCompletedPaidClass = studentBookings.some(b => 
+            b.status === 'completed' || 
+            (b.sessions && b.sessions.some(s => s.status === 'completed'))
+          );
+          if (hasCompletedPaidClass) {
+            completedCount++;
+          }
+        }
+
+        referralStats = {
+          invitedCount,
+          completedCount,
+          earnings: completedCount * 50
+        };
+      }
+    }
+
     res.json({
       demoRequests,
       activeStudents: totalStudents.length,
       upcomingClasses,
       totalEarnings: demoRequests * tutor.hourlyRate,
       availableTimings,
-      availability
+      availability,
+      referralStats
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
