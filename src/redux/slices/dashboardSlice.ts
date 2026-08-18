@@ -64,6 +64,7 @@ interface DashboardState {
       completedCount: number;
       earnings: number;
     };
+    referralCode?: string;
   } | null;
   studentStats: { enrolledCourses: number; upcomingClasses: number; completedSessions: number; demoBookings?: number; savedTutors: number } | null;
   loading: boolean;

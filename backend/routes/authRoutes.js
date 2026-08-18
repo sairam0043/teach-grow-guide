@@ -96,6 +96,24 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    let referredByUserId = undefined;
+    if (referredBy && referredBy.trim() !== "") {
+      const trimmedRef = referredBy.trim();
+      // First, try to find a tutor by their referralCode (case-insensitive)
+      const referringTutor = await Tutor.findOne({ referralCode: trimmedRef.toUpperCase() });
+      if (referringTutor) {
+        referredByUserId = referringTutor.userId;
+      } else {
+        // Fallback: Check if it's a valid MongoDB ObjectId (for backward compatibility)
+        const mongoose = require('mongoose');
+        if (mongoose.Types.ObjectId.isValid(trimmedRef)) {
+          referredByUserId = trimmedRef;
+        } else {
+          return res.status(400).json({ message: 'Invalid referral code' });
+        }
+      }
+    }
+
     user = new User({ 
       email, 
       password: hashedPassword, 
@@ -107,7 +125,7 @@ router.post('/register', async (req, res) => {
       heard_about_us: heard_about_us || heardAboutUs,
       role, 
       timezone: timezone || 'Asia/Kolkata',
-      referredBy: referredBy || undefined
+      referredBy: referredByUserId
     });
     await user.save();
 

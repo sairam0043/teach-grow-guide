@@ -170,6 +170,14 @@ router.get('/tutor/:tutorId', async (req, res) => {
     const tutor = await Tutor.findById(tutorId).populate('demoSlots');
     if (!tutor) return res.status(404).json({ message: "Tutor not found" });
 
+    // Lazy generate referralCode if not present
+    if (!tutor.referralCode) {
+      const cleanName = (tutor.name || 'TUTOR').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      tutor.referralCode = `${cleanName}${randomNum}`;
+      await tutor.save();
+    }
+
     const totalStudents = await Booking.distinct('studentId', { tutorId });
     const demoRequests = await Booking.countDocuments({ tutorId, status: { $in: ['pending', 'confirmed'] } });
     const upcomingClasses = await Booking.countDocuments({ tutorId });
@@ -219,7 +227,8 @@ router.get('/tutor/:tutorId', async (req, res) => {
       totalEarnings: demoRequests * tutor.hourlyRate,
       availableTimings,
       availability,
-      referralStats
+      referralStats,
+      referralCode: tutor.referralCode
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

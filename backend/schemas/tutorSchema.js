@@ -60,10 +60,16 @@ const tutorSchema = new mongoose.Schema({
     company: { type: String, required: true },
     duration: { type: String, required: true },
     description: { type: String }
-  }]
+  }],
+  referralCode: { type: String, unique: true, sparse: true }
 }, { timestamps: true });
  
 tutorSchema.pre('save', function() {
+  if (!this.referralCode) {
+    const cleanName = (this.name || 'TUTOR').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    this.referralCode = `${cleanName}${randomNum}`;
+  }
   if (this.isNew) {
     if (!this.pricingHistory || this.pricingHistory.length === 0) {
       this.pricingHistory = [];

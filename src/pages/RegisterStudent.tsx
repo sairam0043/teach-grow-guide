@@ -48,12 +48,23 @@ const capitalizeName = (str: string): string => {
 };
 
 const RegisterStudent = () => {
+  const [referralCode, setReferralCode] = useState("");
+  const [isReferralFromLink, setIsReferralFromLink] = useState(false);
+
   useEffect(() => {
     window.scrollTo(0, 0);
     const params = new URLSearchParams(location.search);
     const ref = params.get("ref");
     if (ref) {
-      sessionStorage.setItem("student_referral_tutor_id", ref);
+      sessionStorage.setItem("student_referral_code", ref.toUpperCase());
+      setReferralCode(ref.toUpperCase());
+      setIsReferralFromLink(true);
+    } else {
+      const savedRef = sessionStorage.getItem("student_referral_code");
+      if (savedRef) {
+        setReferralCode(savedRef);
+        setIsReferralFromLink(true);
+      }
     }
   }, [location.search]);
 
@@ -122,7 +133,6 @@ const RegisterStudent = () => {
       return;
     }
 
-    const referredBy = sessionStorage.getItem("student_referral_tutor_id") || queryParams.get("ref") || "";
     setLoading(true);
     const { error } = await signUp(email, password, {
       full_name: name,
@@ -133,7 +143,7 @@ const RegisterStudent = () => {
       heard_about_us: finalHeardAboutUs,
       role: "student",
       timezone: detectUserTimeZone(),
-      referredBy,
+      referredBy: referralCode.trim(),
     });
     if (error) {
       toast.error(error.message);
@@ -390,6 +400,22 @@ const RegisterStudent = () => {
                     />
                   </div>
                 )}
+                <div className="space-y-2">
+                  <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+                  <Input 
+                    id="referralCode" 
+                    placeholder="e.g. TUTOR1234" 
+                    value={referralCode} 
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())} 
+                    readOnly={isReferralFromLink}
+                    className={isReferralFromLink ? "bg-muted text-muted-foreground select-none cursor-not-allowed font-semibold tracking-wider" : "font-semibold tracking-wider"}
+                  />
+                  {isReferralFromLink && (
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                      ✓ Referral code applied automatically from link.
+                    </p>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
