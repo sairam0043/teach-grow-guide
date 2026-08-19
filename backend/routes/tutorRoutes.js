@@ -208,17 +208,17 @@ router.get('/', async (req, res) => {
         if (invitedCount > 0) {
           const studentIds = referredStudents.map(student => student._id.toString());
           const bookings = await Booking.find({
-            studentId: { $in: studentIds },
-            amountPaid: { $gt: 0 }
+            studentId: { $in: studentIds }
           });
 
           for (const studentId of studentIds) {
             const studentBookings = bookings.filter(b => b.studentId === studentId);
-            const hasCompletedPaidClass = studentBookings.some(b => 
-              b.status === 'completed' || 
-              (b.sessions && b.sessions.some(s => s.status === 'completed'))
+            const hasRegularClass = studentBookings.some(b => 
+              b.planType && 
+              b.planType !== 'Free Demo Class' && 
+              !b.planType.toLowerCase().includes('demo')
             );
-            if (hasCompletedPaidClass) {
+            if (hasRegularClass) {
               completedCount++;
             }
           }

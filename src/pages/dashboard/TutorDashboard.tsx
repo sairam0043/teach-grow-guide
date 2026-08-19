@@ -1858,7 +1858,7 @@ const TutorDashboard = () => {
                       </div>
                     </div>
                     <p className="text-[10px] text-muted-foreground italic text-center mt-4">
-                      Referral credits are updated automatically once student classes are completed.
+                      Referral credits are updated automatically once a referred student registers and books a regular class.
                     </p>
                   </CardContent>
                 </Card>
@@ -1886,7 +1886,7 @@ const TutorDashboard = () => {
                         <div className="space-y-1">
                           <h4 className="text-sm font-bold text-foreground">Referral Reward</h4>
                           <p className="text-xs text-muted-foreground leading-relaxed">
-                            Each tutor can refer students. You will receive a <strong className="text-emerald-600 dark:text-emerald-400">₹50 reward</strong> when your referred student registers and successfully completes a class.
+                            Each tutor can refer students. You will receive a <strong className="text-emerald-600 dark:text-emerald-400">₹50 reward</strong> when your referred student registers and books a regular class.
                           </p>
                         </div>
                       </div>
@@ -1898,9 +1898,9 @@ const TutorDashboard = () => {
                           2
                         </div>
                         <div className="space-y-1">
-                          <h4 className="text-sm font-bold text-foreground">Completed Paid Classes Only</h4>
+                          <h4 className="text-sm font-bold text-foreground">Regular Class Bookings Only</h4>
                           <p className="text-xs text-muted-foreground leading-relaxed">
-                            The student must complete a <strong className="text-foreground">paid class</strong>. Free demo classes or incomplete bookings do <strong className="text-rose-500">not</strong> qualify for the ₹50 reward.
+                            The student must book a <strong className="text-foreground">regular class</strong>. Free demo classes do <strong className="text-rose-500">not</strong> qualify for the ₹50 reward.
                           </p>
                         </div>
                       </div>
@@ -1912,9 +1912,9 @@ const TutorDashboard = () => {
                           3
                         </div>
                         <div className="space-y-1">
-                          <h4 className="text-sm font-bold text-foreground">First-Time Reward Limit</h4>
+                          <h4 className="text-sm font-bold text-foreground">First Booking Reward Limit</h4>
                           <p className="text-xs text-muted-foreground leading-relaxed">
-                            The ₹50 reward applies <strong className="text-foreground">only to the student's first completed class</strong>. Subsequent sessions with that student will not generate additional referral rewards.
+                            The ₹50 reward applies <strong className="text-foreground">only to the student's first regular class booking</strong>. Subsequent sessions with that student will not generate additional referral rewards.
                           </p>
                         </div>
                       </div>
@@ -1954,7 +1954,7 @@ const TutorDashboard = () => {
                     <div className="space-y-1">
                       <h4 className="text-xs font-bold text-emerald-800 dark:text-emerald-400">Flexible Learning Eligibility</h4>
                       <p className="text-[11px] text-emerald-700/90 dark:text-emerald-400/80 leading-relaxed">
-                        The student is free to take their class with **any tutor** on the platform. As long as they sign up via your link and complete a paid class, your referral reward will be credited.
+                        The student is free to take their class with **any tutor** on the platform. As long as they sign up via your link and book any regular class, your referral reward will be credited.
                       </p>
                     </div>
                   </div>
