@@ -1898,9 +1898,9 @@ const TutorDashboard = () => {
                           2
                         </div>
                         <div className="space-y-1">
-                          <h4 className="text-sm font-bold text-foreground">Regular Class Bookings Only</h4>
+                          <h4 className="text-sm font-bold text-foreground">Enrolled Regular Classes Only</h4>
                           <p className="text-xs text-muted-foreground leading-relaxed">
-                            The student must book a <strong className="text-foreground">regular class</strong>. Free demo classes do <strong className="text-rose-500">not</strong> qualify for the ₹50 reward.
+                            The student must complete enrollment (checkout) for a <strong className="text-foreground">regular class</strong>. Free demo classes or unpaid bookings do <strong className="text-rose-500">not</strong> qualify.
                           </p>
                         </div>
                       </div>
