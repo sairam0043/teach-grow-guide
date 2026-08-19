@@ -205,7 +205,7 @@ router.get('/tutor/:tutorId', async (req, res) => {
             b.planType && 
             b.planType !== 'Free Demo Class' && 
             !b.planType.toLowerCase().includes('demo') &&
-            (b.status === 'enrolled' || b.status === 'completed')
+            b.status === 'completed'
           );
           if (hasRegularClass) {
             completedCount++;

@@ -217,7 +217,7 @@ router.get('/', async (req, res) => {
               b.planType && 
               b.planType !== 'Free Demo Class' && 
               !b.planType.toLowerCase().includes('demo') &&
-              (b.status === 'enrolled' || b.status === 'completed')
+              b.status === 'completed'
             );
             if (hasRegularClass) {
               completedCount++;
@@ -323,6 +323,16 @@ router.post('/:id/book', async (req, res) => {
 
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    // Check Rule 6: Referred student cannot book with the tutor who referred them
+    if (studentId && studentId !== 'anonymous_student' && /^[0-9a-fA-F]{24}$/.test(studentId)) {
+      const studentUser = await User.findById(studentId);
+      if (studentUser && studentUser.referredBy && tutor.userId) {
+        if (studentUser.referredBy.toString() === tutor.userId.toString()) {
+          return res.status(400).json({ message: 'As per the referral policy (Rule 6), you cannot book sessions with the tutor who referred you.' });
+        }
+      }
+    }
 
     // Validate slot timing is at least 3 hours in the future
     const bookingDate = parseTimingStringToDate(timing);
@@ -483,6 +493,16 @@ router.post('/:id/book-class', async (req, res) => {
 
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    // Check Rule 6: Referred student cannot book with the tutor who referred them
+    if (studentId && studentId !== 'anonymous_student' && /^[0-9a-fA-F]{24}$/.test(studentId)) {
+      const studentUser = await User.findById(studentId);
+      if (studentUser && studentUser.referredBy && tutor.userId) {
+        if (studentUser.referredBy.toString() === tutor.userId.toString()) {
+          return res.status(400).json({ message: 'As per the referral policy (Rule 6), you cannot book sessions with the tutor who referred you.' });
+        }
+      }
+    }
 
     const isPack = planType.includes('Pack');
 
