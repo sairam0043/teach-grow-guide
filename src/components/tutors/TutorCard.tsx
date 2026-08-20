@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2 } from "lucide-react";
+import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2, Scale, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
@@ -7,9 +7,11 @@ import { resolveAssetUrl } from "@/lib/assetUrl";
 
 interface TutorCardProps {
   tutor: Tutor;
+  isCompared?: boolean;
+  onToggleCompare?: (tutor: Tutor) => void;
 }
 
-const TutorCard = ({ tutor }: TutorCardProps) => {
+const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProps) => {
   const photoSrc =
     resolveAssetUrl(tutor.photo) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
@@ -35,7 +37,7 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
   };
 
   return (
-    <div className="group overflow-hidden rounded-xl border bg-card shadow-card transition-shadow hover:shadow-card-hover flex flex-col h-full">
+    <div className={`group overflow-hidden rounded-xl border bg-card shadow-card transition-all hover:shadow-card-hover flex flex-col h-full relative ${isCompared ? "ring-2 ring-primary border-primary/50" : ""}`}>
       <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
         <img
           src={photoSrc}
@@ -56,6 +58,33 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
             alt="Verified Tutor"
             className="absolute right-3 top-3 h-10 w-10 z-10 drop-shadow-md select-none transition-transform duration-300 hover:scale-110"
           />
+        )}
+        
+        {/* Top Compare Button overlay on image */}
+        {onToggleCompare && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              onToggleCompare(tutor);
+            }}
+            className={`absolute bottom-3 right-3 z-10 px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1 shadow-md transition-all backdrop-blur-md ${
+              isCompared
+                ? "bg-primary text-primary-foreground border border-primary"
+                : "bg-background/90 text-foreground hover:bg-background border border-border"
+            }`}
+          >
+            {isCompared ? (
+              <>
+                <Check className="h-3.5 w-3.5" />
+                Compared
+              </>
+            ) : (
+              <>
+                <Scale className="h-3.5 w-3.5" />
+                + Compare
+              </>
+            )}
+          </button>
         )}
       </div>
 
@@ -127,9 +156,23 @@ const TutorCard = ({ tutor }: TutorCardProps) => {
 
         <div className="flex items-center justify-between mt-4">
           <span className="text-lg font-semibold text-foreground">{getRateDisplay()}<span className="text-sm font-normal text-muted-foreground">/hr</span></span>
-          <Button size="sm" asChild>
-            <Link to={`/tutors/${tutor.id}`}>Book Free Demo</Link>
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {onToggleCompare && (
+              <Button
+                size="sm"
+                variant={isCompared ? "default" : "outline"}
+                onClick={() => onToggleCompare(tutor)}
+                className="px-2.5 text-xs h-9"
+                title={isCompared ? "Remove from comparison" : "Add to comparison"}
+              >
+                <Scale className="h-3.5 w-3.5" />
+                <span className="hidden xl:inline ml-1">{isCompared ? "Compared" : "Compare"}</span>
+              </Button>
+            )}
+            <Button size="sm" className="h-9" asChild>
+              <Link to={`/tutors/${tutor.id}`}>Book Free Demo</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="mt-3">
