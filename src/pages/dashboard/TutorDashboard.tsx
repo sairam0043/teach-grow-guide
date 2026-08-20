@@ -1855,6 +1855,9 @@ const TutorDashboard = () => {
                         <p className="text-[10px] text-muted-foreground italic text-center mt-4">
                           Referral credits are updated automatically once a referred student registers and completes a regular class.
                         </p>
+                        <p className="text-[10px] text-muted-foreground text-center mt-2">
+                          If you have any queries reg referral program reach us at <a href="mailto:support@cuvasol.com" className="text-primary hover:underline font-medium">support@cuvasol.com</a>
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
