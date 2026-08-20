@@ -1924,9 +1924,9 @@ const TutorDashboard = () => {
                               4
                             </div>
                             <div className="space-y-1">
-                              <h4 className="text-sm font-bold text-foreground">Unlimited Referrals</h4>
+                              <h4 className="text-sm font-bold text-foreground">Referral Reward Cap</h4>
                               <p className="text-xs text-muted-foreground leading-relaxed">
-                                While each referred student generates a reward only once, you can refer an <strong className="text-emerald-600 dark:text-emerald-400">unlimited number of unique students</strong>.
+                                While you can invite many students, the maximum referral reward you can earn is capped at <strong className="text-emerald-600 dark:text-emerald-400">₹5,000 INR per tutor</strong>.
                               </p>
                             </div>
                           </div>
