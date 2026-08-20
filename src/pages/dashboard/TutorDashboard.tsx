@@ -1843,7 +1843,7 @@ const TutorDashboard = () => {
                             <span className="block text-2xl font-black text-foreground">
                               {tutorStats?.referralStats?.completedCount ?? 0}
                             </span>
-                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Paid Classes</span>
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Successful Referrals</span>
                           </div>
                           <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 text-center">
                             <span className="block text-2xl font-black text-emerald-600 dark:text-emerald-400">
