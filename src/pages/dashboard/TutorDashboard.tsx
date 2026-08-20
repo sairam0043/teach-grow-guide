@@ -1966,7 +1966,7 @@ const TutorDashboard = () => {
                         <div className="space-y-1">
                           <h4 className="text-xs font-bold text-emerald-800 dark:text-emerald-400">Flexible Learning Eligibility</h4>
                           <p className="text-[11px] text-emerald-700/90 dark:text-emerald-400/80 leading-relaxed">
-                            The student is free to take their class with **any tutor** on the platform. As long as they sign up via your link and complete any regular class, your referral reward will be credited.
+                            The student is free to take their class with any tutor on the platform. As long as they sign up through your referral link and **complete a regular class**, you will be eligible to receive the referral reward.
                           </p>
                         </div>
                       </div>
