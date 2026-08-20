@@ -149,7 +149,8 @@ const BrowseTutors = () => {
     queryFn: async () => {
       const res = await axios.get(`${API_URL}/tutors?status=approved`);
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000 // 5 minutes client-side cache
   });
 
   const selectedCategory = normalize(category);

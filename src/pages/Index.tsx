@@ -28,7 +28,8 @@ const Index = () => {
     queryFn: async () => {
       const res = await axios.get(`${API_URL}/tutors?status=approved&featured=true`);
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000 // 5 minutes client-side cache
   });
 
   const { data: platformStats, isLoading: isStatsLoading } = useQuery({

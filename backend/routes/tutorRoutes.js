@@ -190,6 +190,11 @@ router.get('/', async (req, res) => {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.featured) filter.featured = req.query.featured === 'true';
 
+    // Cache public approved tutor listings
+    if (req.query.status === 'approved') {
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    }
+
     const tutors = await Tutor.find(filter).populate('userId', 'email phone avatar');
     // Transform _id to id for frontend compatibility and calculate referral metrics
     const formattedTutors = await Promise.all(tutors.map(async t => {
@@ -200,33 +205,40 @@ router.get('/', async (req, res) => {
         obj.phone = obj.userId.phone;
         obj.avatar = obj.userId.avatar;
 
-        // Calculate referral metrics
-        const referredStudents = await User.find({ referredBy: obj.userId._id || obj.userId, role: 'student' });
-        const invitedCount = referredStudents.length;
-        let completedCount = 0;
+        // Skip expensive referral DB queries for public tutor listings to avoid N+1 DB load
+        if (req.query.status === 'approved') {
+          obj.referralsInvited = 0;
+          obj.referralsCompleted = 0;
+          obj.referralsEarnings = 0;
+        } else {
+          // Calculate referral metrics (for admin dashboard view)
+          const referredStudents = await User.find({ referredBy: obj.userId._id || obj.userId, role: 'student' });
+          const invitedCount = referredStudents.length;
+          let completedCount = 0;
 
-        if (invitedCount > 0) {
-          const studentIds = referredStudents.map(student => student._id.toString());
-          const bookings = await Booking.find({
-            studentId: { $in: studentIds }
-          });
+          if (invitedCount > 0) {
+            const studentIds = referredStudents.map(student => student._id.toString());
+            const bookings = await Booking.find({
+              studentId: { $in: studentIds }
+            });
 
-          for (const studentId of studentIds) {
-            const studentBookings = bookings.filter(b => b.studentId === studentId);
-            const hasRegularClass = studentBookings.some(b => 
-              b.planType && 
-              b.planType !== 'Free Demo Class' && 
-              !b.planType.toLowerCase().includes('demo') &&
-              b.status === 'completed'
-            );
-            if (hasRegularClass) {
-              completedCount++;
+            for (const studentId of studentIds) {
+              const studentBookings = bookings.filter(b => b.studentId === studentId);
+              const hasRegularClass = studentBookings.some(b => 
+                b.planType && 
+                b.planType !== 'Free Demo Class' && 
+                !b.planType.toLowerCase().includes('demo') &&
+                b.status === 'completed'
+              );
+              if (hasRegularClass) {
+                completedCount++;
+              }
             }
           }
+          obj.referralsInvited = invitedCount;
+          obj.referralsCompleted = completedCount;
+          obj.referralsEarnings = completedCount * 50;
         }
-        obj.referralsInvited = invitedCount;
-        obj.referralsCompleted = completedCount;
-        obj.referralsEarnings = completedCount * 50;
       } else {
         obj.referralsInvited = 0;
         obj.referralsCompleted = 0;
@@ -249,6 +261,11 @@ router.get('/:id', async (req, res) => {
     const tutor = await Tutor.findById(req.params.id).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
+    // Cache public approved tutor profile page responses
+    if (tutor.status === 'approved') {
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    }
+
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
     if (obj.userId) {
