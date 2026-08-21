@@ -192,7 +192,7 @@ const AdminDashboard = () => {
       const code = t.referralCode || "";
 
       const escapedName = `"${name.replace(/"/g, '""')}"`;
-      const escapedPhone = `"${phone.replace(/"/g, '""')}"`;
+      const escapedPhone = `"\t${phone.replace(/"/g, '""')}"`;
       const escapedCode = `"${code.replace(/"/g, '""')}"`;
 
       return [escapedName, escapedPhone, escapedCode].join(",");
