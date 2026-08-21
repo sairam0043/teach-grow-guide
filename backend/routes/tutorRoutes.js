@@ -200,6 +200,15 @@ router.get('/', async (req, res) => {
     const formattedTutors = await Promise.all(tutors.map(async t => {
       const obj = t.toObject();
       obj.id = obj._id.toString();
+
+      // Lazy generate referralCode on-the-fly if missing
+      if (!t.referralCode) {
+        const cleanName = (t.name || 'TUTOR').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        t.referralCode = `${cleanName}${randomNum}`;
+        await t.save();
+        obj.referralCode = t.referralCode;
+      }
       if (obj.userId) {
         obj.email = obj.userId.email;
         obj.phone = obj.userId.phone;

@@ -732,10 +732,18 @@ router.post('/admin/send-referral-emails', async (req, res) => {
 
     for (const tutor of targetTutors) {
       try {
+        if (!tutor.referralCode) {
+          const cleanName = (tutor.name || 'TUTOR').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+          const randomNum = Math.floor(1000 + Math.random() * 9000);
+          tutor.referralCode = `${cleanName}${randomNum}`;
+          if (typeof tutor.save === 'function') {
+            await tutor.save();
+          }
+        }
         await sendReferralIntroEmail({
           name: tutor.name,
           email: tutor.userId.email,
-          referralCode: tutor.referralCode || 'NO_CODE',
+          referralCode: tutor.referralCode,
           frontendUrl,
         });
         successCount++;
