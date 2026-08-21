@@ -143,29 +143,14 @@ const AdminDashboard = () => {
   const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
 
   const handleSendReferralEmails = async () => {
-    const testEmailInput = window.prompt(
-      "Enter test email address(es) separated by commas to send preview email(s), or leave it BLANK to send to ALL tutors:"
-    );
-    
-    if (testEmailInput === null) return;
-
-    const testEmailTrimmed = testEmailInput.trim();
-    
-    let confirmMsg = "Send Referral Program introduction emails to ALL registered tutors?";
-    if (testEmailTrimmed) {
-      confirmMsg = `Send a test Referral Program email to: ${testEmailTrimmed}?`;
-    }
-
-    if (!window.confirm(confirmMsg)) {
+    if (!window.confirm("Send Referral Program introduction emails to ALL registered tutors?")) {
       return;
     }
 
     try {
       setIsSendingReferralEmails(true);
-      toast.loading(testEmailTrimmed ? `Sending test email to ${testEmailTrimmed}...` : "Sending referral program emails to all tutors...");
-      const res = await axios.post(`${API_URL}/dashboard/admin/send-referral-emails`, {
-        testEmail: testEmailTrimmed || undefined
-      });
+      toast.loading("Sending referral program emails to all tutors...");
+      const res = await axios.post(`${API_URL}/dashboard/admin/send-referral-emails`);
       toast.dismiss();
       toast.success(`Referral email process completed! Sent: ${res.data.successCount}, Failed: ${res.data.failCount}`);
     } catch (err: any) {
