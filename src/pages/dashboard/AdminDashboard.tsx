@@ -658,11 +658,16 @@ const AdminDashboard = () => {
             </Button>
             <Button 
               onClick={handleDownloadTutorsCSV} 
+              disabled={loading || tutors.length === 0}
               variant="outline" 
-              className="h-10 gap-2 border-indigo-200/60 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-900/40 dark:hover:bg-indigo-950/20 transition-all duration-300 rounded-lg shadow-sm font-semibold"
+              className="h-10 gap-2 border-indigo-200/60 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-900/40 dark:hover:bg-indigo-950/20 transition-all duration-300 rounded-lg shadow-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <FileText className="h-4 w-4" />
-              Download Tutors CSV
+              {loading ? (
+                <Activity className="h-4 w-4 animate-spin text-indigo-500" />
+              ) : (
+                <FileText className="h-4 w-4 text-indigo-500" />
+              )}
+              {loading ? "Loading Tutors..." : "Download Tutors CSV"}
             </Button>
             <Button 
               onClick={fetchTutors} 
