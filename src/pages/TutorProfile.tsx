@@ -106,10 +106,10 @@ const TutorProfile = () => {
       setIsSubmittingCancellation(false);
     }
   };
-  const [selectedPlan, setSelectedPlan] = useState<{ type: string, price: number, isPack?: boolean, sessionsCount?: number } | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<{ type: string, price: number, isPack?: boolean, sessionsCount?: number, subtitle?: string } | null>(null);
   const [otherEmails, setOtherEmails] = useState<string[]>(['']);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [availableSlotsForDate, setAvailableSlotsForDate] = useState<string[]>([]);
+  const [availableSlotsForDate, setAvailableSlotsForDate] = useState<any[]>([]);
   const bookingInProgressRef = useRef(false);
 
   const getSubjectRate = () => {
@@ -321,6 +321,31 @@ const TutorProfile = () => {
         setLoading(true);
         const res = await axios.get(`${API_URL}/tutors/${id}`);
         setTutor(res.data);
+
+        try {
+          // Track recently viewed tutors for students (stored in localStorage)
+          const key = "recentlyViewedTutors";
+          const existingRaw = localStorage.getItem(key) || "[]";
+          const existing = JSON.parse(existingRaw);
+          const tutorId = res.data.id || res.data._id || id;
+          const entry = {
+            id: tutorId,
+            name: res.data.name || res.data.full_name || res.data.displayName || "Tutor",
+            photo: resolveAssetUrl(res.data.photo) || "",
+            url: `/tutors/${tutorId}`,
+            timestamp: Date.now()
+          };
+          // Remove any existing entry with same id
+          const filtered = (existing || []).filter((e: any) => String(e.id) !== String(tutorId));
+          // Add to front
+          filtered.unshift(entry);
+          // Limit to 7
+          const limited = filtered.slice(0, 7);
+          localStorage.setItem(key, JSON.stringify(limited));
+        } catch (e) {
+          // ignore storage errors
+          console.error("Failed to update recently viewed tutors", e);
+        }
 
         // Restore pending booking selections from sessionStorage if present
         const rawPending = sessionStorage.getItem("pending_booking");

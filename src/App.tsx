@@ -26,6 +26,7 @@ import RegisterTutor from "./pages/RegisterTutor";
 import StudentDashboard from "./pages/dashboard/StudentDashboard";
 import TutorDashboard from "./pages/dashboard/TutorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import RecentlyViewed from "./pages/RecentlyViewed";
 import NotFound from "./pages/NotFound";
 import ApproveBooking from "./pages/ApproveBooking";
 import TutorWelcome from "./pages/TutorWelcome";
@@ -207,6 +208,10 @@ const App = () => {
             <Route
               path="/dashboard/student"
               element={<ProtectedRoute allowedRoles={["student"]}><StudentDashboard /></ProtectedRoute>}
+            />
+            <Route
+              path="/recently-viewed"
+              element={<ProtectedRoute allowedRoles={["student"]}><RecentlyViewed /></ProtectedRoute>}
             />
             <Route
               path="/dashboard/tutor"

@@ -12,6 +12,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import type { Tutor } from "@/data/mockTutors";
 import { useAuth } from "@/contexts/AuthContext";
 import API_URL from "@/config/api";
+import ChooseOptionSection from "@/components/home/ChooseOptionSection";
 
 const steps = [
   { icon: Search, title: "Find Your Tutor", description: "Browse expert tutors by subject, category, or location." },
@@ -255,6 +256,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Choose Option Section */}
+      <ChooseOptionSection />
 
       {/* Featured tutors */}
       <section className="bg-secondary/50 py-20">
