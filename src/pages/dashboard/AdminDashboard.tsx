@@ -179,6 +179,38 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDownloadTutorsCSV = () => {
+    if (tutors.length === 0) {
+      toast.error("No tutor data available to download");
+      return;
+    }
+
+    const headers = ["Name", "Phone Number", "Referral Code"];
+    const rows = tutors.map(t => {
+      const name = t.name || t.userId?.full_name || "";
+      const phone = t.phone || t.userId?.phone || "";
+      const code = t.referralCode || "";
+
+      const escapedName = `"${name.replace(/"/g, '""')}"`;
+      const escapedPhone = `"${phone.replace(/"/g, '""')}"`;
+      const escapedCode = `"${code.replace(/"/g, '""')}"`;
+
+      return [escapedName, escapedPhone, escapedCode].join(",");
+    });
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `tutors_referral_codes_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Tutors CSV downloaded successfully!");
+  };
+
   const handleViewStudentDetail = (student: any) => {
     setSelectedStudentForDetail(student);
     setIsStudentDetailDialogOpen(true);
@@ -623,6 +655,14 @@ const AdminDashboard = () => {
             >
               <Sparkles className={`h-4 w-4 ${isSendingReferralEmails ? 'animate-bounce' : ''}`} />
               Send Referral Program Emails
+            </Button>
+            <Button 
+              onClick={handleDownloadTutorsCSV} 
+              variant="outline" 
+              className="h-10 gap-2 border-indigo-200/60 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-900/40 dark:hover:bg-indigo-950/20 transition-all duration-300 rounded-lg shadow-sm font-semibold"
+            >
+              <FileText className="h-4 w-4" />
+              Download Tutors CSV
             </Button>
             <Button 
               onClick={fetchTutors} 
