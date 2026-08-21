@@ -13,6 +13,16 @@ import { GoogleLogin } from "@react-oauth/google";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { detectUserTimeZone } from "@/utils/timezone";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import axios from "axios";
+import API_URL from "@/config/api";
 
 const CLASS_OPTIONS = [
   "Class 1",
@@ -89,6 +99,21 @@ const RegisterStudent = () => {
   const [loading, setLoading] = useState(false);
   const [showFormMobile, setShowFormMobile] = useState(false);
 
+  // OTP Verification States
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+
+  useEffect(() => {
+    let timer: any;
+    if (resendCountdown > 0) {
+      timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
+
   useEffect(() => {
     if (user) {
       if (role === "student") {
@@ -103,6 +128,20 @@ const RegisterStudent = () => {
 
   const queryParams = new URLSearchParams(location.search);
   const redirectUrl = queryParams.get("redirect");
+
+  const handleSendOtp = async () => {
+    setSendingOtp(true);
+    try {
+      const response = await axios.post(`${API_URL}/auth/send-signup-otp`, { email });
+      toast.success(response.data.message || "Verification OTP sent to your email.");
+      setShowOtpModal(true);
+      setResendCountdown(60);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to send verification OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,7 +173,21 @@ const RegisterStudent = () => {
       return;
     }
 
-    setLoading(true);
+    // Trigger OTP instead of direct sign up
+    await handleSendOtp();
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp || otp.trim().length !== 6) {
+      toast.error("Please enter a valid 6-digit OTP.");
+      return;
+    }
+
+    setRegistering(true);
+    const finalClass = studentClass === "Other" ? customClass.trim() : studentClass;
+    const finalHeardAboutUs = heardAboutUs === "Other" ? customHeardAboutUs.trim() : heardAboutUs;
+
     const { error } = await signUp(email, password, {
       full_name: name,
       phone,
@@ -145,16 +198,18 @@ const RegisterStudent = () => {
       role: "student",
       timezone: detectUserTimeZone(),
       referredBy: referralCode.trim(),
+      otp: otp.trim()
     });
+
     if (error) {
       toast.error(error.message);
-      setLoading(false);
+      setRegistering(false);
       return;
     }
 
-    // Create student record after auth — wait for session
-    toast.success("Account created! Please check your email to confirm, then log in.");
-    setLoading(false);
+    toast.success("Account created successfully!");
+    setRegistering(false);
+    setShowOtpModal(false);
     navigate(redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login");
   };
   return (
@@ -475,8 +530,8 @@ const RegisterStudent = () => {
                     and Privacy Policy. <span className="text-destructive">*</span>
                   </Label>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creating Account..." : "Sign Up"}
+                <Button type="submit" className="w-full" disabled={sendingOtp}>
+                  {sendingOtp ? "Sending OTP..." : "Sign Up"}
                 </Button>
               </form>
 
@@ -492,6 +547,62 @@ const RegisterStudent = () => {
 
         </div>
       </div>
+
+      {/* OTP Verification Modal */}
+      <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-foreground">
+              Confirm Email Address
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-2">
+              We've sent a 6-digit verification code to <span className="font-semibold text-foreground">{email}</span>. Please enter it below to complete your registration.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleOtpSubmit} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="signup-otp" className="text-sm font-semibold">
+                Verification OTP Code
+              </Label>
+              <Input
+                id="signup-otp"
+                type="text"
+                maxLength={6}
+                placeholder="123456"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                className="text-center font-bold tracking-widest text-lg h-11"
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+              <span>OTP is valid for 15 minutes.</span>
+              {resendCountdown > 0 ? (
+                <span>Resend in {resendCountdown}s</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  className="text-primary font-semibold hover:underline bg-transparent border-none cursor-pointer"
+                >
+                  Resend OTP
+                </button>
+              )}
+            </div>
+
+            <DialogFooter className="mt-4 pt-2 gap-2 sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setShowOtpModal(false)} disabled={registering}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={registering} className="font-semibold bg-primary text-primary-foreground">
+                {registering ? "Verifying..." : "Confirm & Register"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };

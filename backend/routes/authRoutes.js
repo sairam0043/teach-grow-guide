@@ -33,6 +33,7 @@ const getFrontendUrl = (req) => {
 
 const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
+const SignupOtp = require('../schemas/signupOtpSchema');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -73,9 +74,73 @@ transporter.verify((error, success) => {
   }
 });
 
+// POST /api/auth/send-signup-otp
+router.post('/send-signup-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email address is required' });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+
+    // Generate random 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Save or update OTP in the SignupOtp collection
+    await SignupOtp.findOneAndUpdate(
+      { email },
+      { otp, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    // Send OTP via email
+    try {
+      console.log(`[Auth] Attempting to send verification OTP to: ${email}`);
+      
+      // Development fallback console logging
+      console.log(`[DEVELOPMENT] EMAIL VERIFICATION OTP FOR ${email}: ${otp}`);
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"Cuvasol Support" <noreply@cuvasoltutor.com>',
+        to: email,
+        subject: 'Email Verification OTP - Cuvasol',
+        text: `Your OTP for email verification is: ${otp}. It is valid for 15 minutes.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+            <h2 style="color: #0d9488; text-align: center;">Cuvasol Email Verification</h2>
+            <p>Thank you for signing up with Cuvasol. Please use the following One-Time Password (OTP) to complete your registration:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0d9488; background-color: #f0fdfa; padding: 10px 20px; border-radius: 6px; border: 1px solid #ccfbf1;">
+                ${otp}
+              </span>
+            </div>
+            <p>This OTP is valid for 15 minutes. If you did not request this code, please ignore this email.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p style="font-size: 11px; color: #777; text-align: center;">Cuvasol Support Team</p>
+          </div>
+        `
+      });
+      console.log(`[Auth] Verification OTP sent successfully to ${email}`);
+    } catch (mailError) {
+      console.error('[Auth] Failed to send verification OTP email:', mailError.message);
+      // Log development fallback for local testing in case email service fails
+      console.log(`[DEVELOPMENT FALLBACK] OTP FOR ${email}: ${otp}`);
+    }
+
+    res.json({ message: 'Verification OTP sent to your email.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, heard_about_us, heardAboutUs, referredBy, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, heard_about_us, heardAboutUs, referredBy, otp, ...tutorData } = req.body;
 
     // Check if user exists by email or phone
     const phoneQuery = phone ? { phone } : null;
@@ -87,6 +152,19 @@ router.post('/register', async (req, res) => {
       } else {
         return res.status(400).json({ message: 'User with this phone number already exists' });
       }
+    }
+
+    // Verify OTP for student registration
+    if (role === 'student') {
+      if (!otp) {
+        return res.status(400).json({ message: 'Email verification OTP is required.' });
+      }
+      const otpRecord = await SignupOtp.findOne({ email });
+      if (!otpRecord || otpRecord.otp !== otp.toString().trim()) {
+        return res.status(400).json({ message: 'Invalid or expired verification OTP.' });
+      }
+      // OTP verified! Delete it so it cannot be reused
+      await SignupOtp.deleteOne({ email });
     }
 
     if (role === 'tutor' && (!tutorData.verificationDocument || tutorData.verificationDocument.trim() === '')) {
