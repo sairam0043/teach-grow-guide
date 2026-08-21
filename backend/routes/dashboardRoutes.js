@@ -163,6 +163,31 @@ router.get('/admin/students', async (req, res) => {
   }
 });
 
+// DELETE /api/dashboard/admin/students/:id
+router.delete('/admin/students/:id', async (req, res) => {
+  try {
+    const studentId = req.params.id;
+    const student = await User.findOne({ _id: studentId, role: 'student' });
+    if (!student) {
+      return res.status(404).json({ message: 'Student account not found' });
+    }
+
+    // Delete the student User record
+    await User.findByIdAndDelete(studentId);
+
+    // Delete associated bookings
+    await Booking.deleteMany({ studentId: studentId.toString() });
+
+    // Delete associated course payments
+    await CoursePayment.deleteMany({ studentId: studentId.toString() });
+
+    res.json({ message: 'Student and associated bookings and payments deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // /api/dashboard/tutor/:tutorId
 router.get('/tutor/:tutorId', async (req, res) => {
   try {

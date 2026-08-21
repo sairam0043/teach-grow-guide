@@ -530,6 +530,19 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDeleteStudent = async (studentId: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete student "${name}" and their associated booking/payment history? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await axios.delete(`${API_URL}/dashboard/admin/students/${studentId}`);
+      toast.success(`Student "${name}" deleted successfully.`);
+      fetchTutors();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete student account");
+    }
+  };
+
   const handleUpdateBookingStatus = async (bookingId: string, status: string) => {
     try {
       await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { status });
@@ -1116,6 +1129,7 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Class / Grade</TableHead>
                             <TableHead className="font-medium h-12">Source</TableHead>
                             <TableHead className="font-medium h-12 text-right">Joined</TableHead>
+                            <TableHead className="font-medium h-12 text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1134,6 +1148,17 @@ const AdminDashboard = () => {
                               <TableCell><Badge variant="outline" className="font-normal bg-secondary/20">{student.student_class || student.studentClass || "–"}</Badge></TableCell>
                               <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
                               <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-right">
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
+                                  onClick={() => handleDeleteStudent(student._id || student.id, student.full_name || "Student")}
+                                  title="Delete student account"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
