@@ -240,7 +240,7 @@ router.get('/tutor/:tutorId', async (req, res) => {
         referralStats = {
           invitedCount,
           completedCount,
-          earnings: completedCount * 50
+          earnings: Math.min(completedCount * 100, 5000)
         };
       }
     }
@@ -676,6 +676,82 @@ router.post('/admin/send-profile-emails', async (req, res) => {
     res.json({
       message: `Profile reminder emails processing completed.`,
       totalProcessed: targetUsers.length,
+      successCount,
+      failCount,
+      results,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/dashboard/admin/send-referral-emails
+router.post('/admin/send-referral-emails', async (req, res) => {
+  try {
+    const { testEmail } = req.body;
+    const { sendReferralIntroEmail } = require('../utils/emailService');
+
+    // Fetch all tutors in the database and populate user accounts
+    const tutors = await Tutor.find({}).populate('userId');
+
+    // Filter out tutors that do not have associated user information or email addresses
+    let targetTutors = tutors.filter(t => t.userId && t.userId.email);
+
+    if (testEmail) {
+      const emailList = testEmail.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+      const matchedTutors = [];
+      for (const email of emailList) {
+        const matching = targetTutors.find(t => t.userId && t.userId.email && t.userId.email.toLowerCase() === email);
+        if (matching) {
+          matchedTutors.push(matching);
+        } else {
+          matchedTutors.push({
+            name: 'Test Tutor',
+            referralCode: 'TESTCODE123',
+            userId: {
+              email: email
+            }
+          });
+        }
+      }
+      targetTutors = matchedTutors;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    const results = [];
+
+    let frontendUrl = 'https://tutor.cuvasol.com';
+    if (process.env.FRONTEND_URL) {
+      const urls = process.env.FRONTEND_URL.split(',')
+        .map(u => u.replace(/["']/g, '').trim())
+        .filter(Boolean);
+      const prodUrl = urls.find(url => !url.includes('localhost') && !url.includes('127.0.0.1'));
+      if (prodUrl) frontendUrl = prodUrl;
+    }
+
+    for (const tutor of targetTutors) {
+      try {
+        await sendReferralIntroEmail({
+          name: tutor.name,
+          email: tutor.userId.email,
+          referralCode: tutor.referralCode || 'NO_CODE',
+          frontendUrl,
+        });
+        successCount++;
+        results.push({ email: tutor.userId.email, status: 'sent' });
+      } catch (err) {
+        failCount++;
+        results.push({ email: tutor.userId.email, status: 'failed', error: err.message });
+      }
+
+      // Small rate limiting delay between deliveries
+      await new Promise(r => setTimeout(r, 250));
+    }
+
+    res.json({
+      message: `Referral program introduction emails processing completed.`,
+      totalProcessed: targetTutors.length,
       successCount,
       failCount,
       results,

@@ -140,6 +140,41 @@ const AdminDashboard = () => {
   const [verificationDemoTiming, setVerificationDemoTiming] = useState("");
   const [isBookingDemo, setIsBookingDemo] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
+  const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
+
+  const handleSendReferralEmails = async () => {
+    const testEmailInput = window.prompt(
+      "Enter test email address(es) separated by commas to send preview email(s), or leave it BLANK to send to ALL tutors:"
+    );
+    
+    if (testEmailInput === null) return;
+
+    const testEmailTrimmed = testEmailInput.trim();
+    
+    let confirmMsg = "Send Referral Program introduction emails to ALL registered tutors?";
+    if (testEmailTrimmed) {
+      confirmMsg = `Send a test Referral Program email to: ${testEmailTrimmed}?`;
+    }
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    try {
+      setIsSendingReferralEmails(true);
+      toast.loading(testEmailTrimmed ? `Sending test email to ${testEmailTrimmed}...` : "Sending referral program emails to all tutors...");
+      const res = await axios.post(`${API_URL}/dashboard/admin/send-referral-emails`, {
+        testEmail: testEmailTrimmed || undefined
+      });
+      toast.dismiss();
+      toast.success(`Referral email process completed! Sent: ${res.data.successCount}, Failed: ${res.data.failCount}`);
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.response?.data?.error || "Failed to send referral emails");
+    } finally {
+      setIsSendingReferralEmails(false);
+    }
+  };
 
   const handleSendProfileEmails = async () => {
     if (!window.confirm("Send Board, Class & Profile completion reminder emails to all members with incomplete profiles?")) {
@@ -594,6 +629,15 @@ const AdminDashboard = () => {
             >
               <Mail className={`h-4 w-4 ${isSendingProfileEmails ? 'animate-bounce' : ''}`} />
               Send Board & Class Reminder Emails
+            </Button>
+            <Button 
+              onClick={handleSendReferralEmails} 
+              disabled={isSendingReferralEmails} 
+              variant="default" 
+              className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+            >
+              <Sparkles className={`h-4 w-4 ${isSendingReferralEmails ? 'animate-bounce' : ''}`} />
+              Send Referral Program Emails
             </Button>
             <Button 
               onClick={fetchTutors} 

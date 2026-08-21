@@ -676,8 +676,8 @@ const TutorDashboard = () => {
             <TabsTrigger
               value="profile"
               className={`rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 transition-all ${tutorProfile?.status === "rejected"
-                  ? "border border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold hover:bg-rose-500/20 data-[state=active]:bg-rose-600 data-[state=active]:text-white"
-                  : ""
+                ? "border border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold hover:bg-rose-500/20 data-[state=active]:bg-rose-600 data-[state=active]:text-white"
+                : ""
                 }`}
             >
               <Settings className="h-4 w-4" />
@@ -723,9 +723,9 @@ const TutorDashboard = () => {
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground font-medium">STATUS:</span>
                             <Badge variant="outline" className={`px-3 py-1 border-none ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                  booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-red-100 text-red-700'
+                              booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                                booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-red-100 text-red-700'
                               }`}>
                               {booking.status.toUpperCase()}
                             </Badge>
@@ -906,8 +906,8 @@ const TutorDashboard = () => {
 
                                         <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
                                           <Badge variant="outline" className={`px-2.5 py-0.5 border-none text-[10px] uppercase font-bold tracking-wider ${session.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                              session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                                'bg-blue-100 text-blue-700'
+                                            session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                              'bg-blue-100 text-blue-700'
                                             }`}>
                                             {session.status}
                                           </Badge>
@@ -1385,8 +1385,8 @@ const TutorDashboard = () => {
                                   type="button"
                                   onClick={() => setSelectedClasses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
                                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${isChecked
-                                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                      : "bg-background text-foreground border-border hover:bg-secondary/40"
+                                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                    : "bg-background text-foreground border-border hover:bg-secondary/40"
                                     }`}
                                 >
                                   <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground"}`}>
@@ -1412,8 +1412,8 @@ const TutorDashboard = () => {
                                   type="button"
                                   onClick={() => setSelectedBoards(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b])}
                                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${isChecked
-                                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                                      : "bg-background text-foreground border-border hover:bg-secondary/40"
+                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                    : "bg-background text-foreground border-border hover:bg-secondary/40"
                                     }`}
                                 >
                                   <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-indigo-600 border-white" : "border-muted-foreground"}`}>
@@ -1884,7 +1884,7 @@ const TutorDashboard = () => {
                             <div className="space-y-1">
                               <h4 className="text-sm font-bold text-foreground">Referral Reward</h4>
                               <p className="text-xs text-muted-foreground leading-relaxed">
-                                Each tutor can refer students. You will receive a <strong className="text-emerald-600 dark:text-emerald-400">₹50 reward</strong> when your referred student registers and completes a regular class.
+                                Each tutor can refer students. You will receive a <strong className="text-emerald-600 dark:text-emerald-400">₹100 reward</strong> when your referred student registers and completes a regular class.
                               </p>
                             </div>
                           </div>
@@ -1912,7 +1912,7 @@ const TutorDashboard = () => {
                             <div className="space-y-1">
                               <h4 className="text-sm font-bold text-foreground">First Class Reward Limit</h4>
                               <p className="text-xs text-muted-foreground leading-relaxed">
-                                The ₹50 reward applies <strong className="text-foreground">only to the student's first completed regular class</strong>. Subsequent sessions with that student will not generate additional referral rewards.
+                                The ₹100 reward applies <strong className="text-foreground">only to the student's first completed regular class</strong>. Subsequent sessions with that student will not generate additional referral rewards.
                               </p>
                             </div>
                           </div>
@@ -1923,11 +1923,32 @@ const TutorDashboard = () => {
                             <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
                               4
                             </div>
-                            <div className="space-y-1">
-                              <h4 className="text-sm font-bold text-foreground">Referral Reward Cap</h4>
-                              <p className="text-xs text-muted-foreground leading-relaxed">
-                                While you can invite many students, the maximum referral reward you can earn is capped at <strong className="text-emerald-600 dark:text-emerald-400">₹5,000 INR per tutor</strong>.
-                              </p>
+                            <div className="space-y-1 w-full">
+                              <h4 className="text-sm font-bold text-foreground">Referral Reward Structure & Cap</h4>
+                              <div className="text-xs text-muted-foreground leading-relaxed space-y-2">
+                                <p>Earn ₹100 for each successfully registered student who completes a regular class:</p>
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">1 Ref:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹100</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">3 Refs:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹300</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">5 Refs:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹500</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">10 Refs:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹1,000</span>
+                                  </div>
+                                </div>
+                                <p className="text-[11px] pt-0.5">
+                                  The maximum cumulative referral reward is capped at <strong className="text-foreground">₹5,000 INR per tutor</strong>.
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1948,13 +1969,13 @@ const TutorDashboard = () => {
 
                         <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
                           <div className="flex items-start gap-3">
-                            <div className="h-6 w-6 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                            <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
                               6
                             </div>
                             <div className="space-y-1">
-                              <h4 className="text-sm font-bold text-foreground">No Self-Booking under Referrer</h4>
+                              <h4 className="text-sm font-bold text-foreground">Self-Booking Under Referrer</h4>
                               <p className="text-xs text-muted-foreground leading-relaxed">
-                                A referred student cannot book a class or demo session under the same tutor who referred them.
+                                A referred student <strong className="text-emerald-600 dark:text-emerald-400">can book</strong> a class or demo session with the same tutor who referred them. However, to count as a successful referral, they <strong className="text-foreground">must complete a regular class</strong> (just booking or a demo session alone does not qualify).
                               </p>
                             </div>
                           </div>
