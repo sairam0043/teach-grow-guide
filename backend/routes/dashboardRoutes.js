@@ -130,7 +130,7 @@ router.get('/admin/bookings', async (req, res) => {
     const studentIds = bookings
       .map(b => b.studentId)
       .filter(id => id && /^[0-9a-fA-F]{24}$/.test(id));
-    const students = await User.find({ _id: { $in: studentIds } }, 'email phone full_name');
+    const students = await User.find({ _id: { $in: studentIds } }, 'email phone full_name student_class student_or_parent student_name');
     const studentMap = new Map(students.map(s => [s._id.toString(), s]));
 
     const formatted = bookings.map(b => {
@@ -139,6 +139,8 @@ router.get('/admin/bookings', async (req, res) => {
       if (student) {
         obj.studentEmail = student.email;
         obj.studentPhone = student.phone;
+        obj.studentClass = student.student_class || '';
+        obj.parentName = student.student_or_parent === 'Parent' ? student.full_name : 'N/A';
       }
       if (b.tutorId) {
         obj.tutorEmail = b.tutorId.userId?.email || '';

@@ -22,7 +22,6 @@ export default function ChooseOptionSection() {
       id: "demo",
       icon: CalendarCheck,
       title: "Book a Trial Lesson",
-      tag: "$59",
       description:
         "Experience a full 60-minute lesson with one of our expert tutors and see how effective learning can be. There's no obligation to continue afterwards - and if you're not completely satisfied, we'll refund you in full.",
       buttonText: "Book a Trial Lesson",
@@ -72,7 +71,13 @@ export default function ChooseOptionSection() {
 
                 {/* Title */}
                 <h3 className="mb-4 text-lg font-bold text-foreground">
-                  {item.title} - <span className="font-semibold text-foreground/90">{item.tag}</span>
+                  {item.title}
+                  {item.tag && (
+                    <>
+                      {" - "}
+                      <span className="font-semibold text-foreground/90">{item.tag}</span>
+                    </>
+                  )}
                 </h3>
 
                 {/* Description */}

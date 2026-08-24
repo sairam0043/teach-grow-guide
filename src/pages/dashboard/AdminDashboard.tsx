@@ -3241,6 +3241,9 @@ const AdminDashboard = () => {
                     <div className="space-y-1 text-xs text-muted-foreground">
                       <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.studentEmail || "N/A"}</p>
                       <p><strong>Phone:</strong> {selectedBookingForDetail.studentPhone || "N/A"}</p>
+                      <p><strong>Class:</strong> {selectedBookingForDetail.studentClass || "N/A"}</p>
+                      <p><strong>Parent Name:</strong> {selectedBookingForDetail.parentName || "N/A"}</p>
+                      <p className="truncate"><strong>Subject:</strong> {selectedBookingForDetail.subject || "N/A"}</p>
                     </div>
                   </div>
                   {selectedBookingForDetail.studentId ? (
