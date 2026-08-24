@@ -48,6 +48,7 @@ interface DashboardState {
     activeTutors: number; 
     totalBookings: number; 
     totalStudents: number; 
+    activeStudents?: number;
     totalRevenue: number;
     geoStats?: { North: number; South: number; East: number; West: number; Unspecified: number };
     topCities?: Array<{ name: string; count: number }>;

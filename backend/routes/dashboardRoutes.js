@@ -9,6 +9,9 @@ const CoursePayment = require('../schemas/coursePaymentSchema');
 router.get('/admin', async (req, res) => {
   try {
     const totalStudents = await User.countDocuments({ role: 'student' });
+    const activeStudentIds = await Booking.distinct('studentId');
+    const validActiveStudentIds = activeStudentIds.filter(id => id && /^[0-9a-fA-F]{24}$/.test(id));
+    const activeStudents = await User.countDocuments({ _id: { $in: validActiveStudentIds }, role: 'student' });
     const pendingTutors = await Tutor.countDocuments({ status: 'pending' });
     const activeTutors = await Tutor.countDocuments({ status: 'approved' });
     const totalBookings = await Booking.countDocuments();
@@ -101,6 +104,7 @@ router.get('/admin', async (req, res) => {
       pendingApprovals: pendingTutors,
       activeTutors,
       totalStudents,
+      activeStudents,
       totalBookings,
       totalRevenue,
       totalCourseRevenue,
