@@ -1737,7 +1737,7 @@ const TutorDashboard = () => {
                         <span className="inline-flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
                           <Sparkles className="h-3 w-3 animate-pulse" /> Tutor Rewards Program
                         </span>
-                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Invite Students, Earn ₹50!</h2>
+                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Invite Students, Earn ₹100!</h2>
                         <p className="text-white/95 text-sm md:text-base leading-relaxed">
                           Help students find great mentors while boosting your own earnings. Share your unique link or code below to get started.
                         </p>
