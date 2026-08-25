@@ -269,7 +269,7 @@ router.get('/tutor/:tutorId', async (req, res) => {
 // Update specific tutor's timings
 router.put('/tutor/:tutorId/timings', async (req, res) => {
   try {
-    const { availableTimings, availability } = req.body;
+    const { availableTimings, availability } = req.body || {};
     const updateData = {};
     if (availableTimings !== undefined) updateData.availableTimings = availableTimings;
     if (availability !== undefined) updateData.availability = availability;
@@ -586,7 +586,7 @@ router.get('/admin/course-payments', async (req, res) => {
 // POST /api/dashboard/admin/send-profile-emails
 router.post('/admin/send-profile-emails', async (req, res) => {
   try {
-    const { testEmail, onlyIncomplete = true } = req.body;
+    const { testEmail, onlyIncomplete = true } = req.body || {};
     const { sendProfileReminderEmail } = require('../utils/emailService');
 
     const users = await User.find({});
@@ -694,7 +694,7 @@ router.post('/admin/send-profile-emails', async (req, res) => {
 // POST /api/dashboard/admin/send-referral-emails
 router.post('/admin/send-referral-emails', async (req, res) => {
   try {
-    const { testEmail } = req.body;
+    const { testEmail } = req.body || {};
     const { sendReferralIntroEmail } = require('../utils/emailService');
 
     // Fetch all tutors in the database and populate user accounts

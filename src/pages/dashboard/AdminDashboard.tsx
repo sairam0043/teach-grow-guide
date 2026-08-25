@@ -150,7 +150,7 @@ const AdminDashboard = () => {
     try {
       setIsSendingReferralEmails(true);
       toast.loading("Sending referral program emails to all tutors...");
-      const res = await axios.post(`${API_URL}/dashboard/admin/send-referral-emails`);
+      const res = await axios.post(`${API_URL}/dashboard/admin/send-referral-emails`, {});
       toast.dismiss();
       toast.success(`Referral email process completed! Sent: ${res.data.successCount}, Failed: ${res.data.failCount}`);
     } catch (err: any) {
