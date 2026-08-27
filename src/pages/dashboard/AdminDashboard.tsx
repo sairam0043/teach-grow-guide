@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
+import { getMeetingHref } from "@/utils/meeting";
 
 const CLASS_TAUGHT_OPTIONS = [
   "Class 1 - 5 (Primary)",
@@ -3306,11 +3307,11 @@ const AdminDashboard = () => {
                                 asChild
                               >
                                 <a 
-                                  href={`${sessMeetLink}#config.prejoinPageEnabled=false&userInfo.displayName="Admin%20Moderator"`}
+                                  href={getMeetingHref(sessMeetLink, '', "Admin Moderator", '')}
                                   target="_blank" 
                                   rel="noopener noreferrer"
                                 >
-                                  <Video className="h-3.5 w-3.5 mr-1" /> Join Jitsi Room
+                                  <Video className="h-3.5 w-3.5 mr-1" /> {sessMeetLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Jitsi Room'}
                                 </a>
                               </Button>
                             )}
@@ -3320,12 +3321,16 @@ const AdminDashboard = () => {
                     })}
                   </div>
                 ) : (
-                  /* Standard / Demo class Jitsi Meet links */
+                  /* Standard / Demo class Meet links */
                   <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex items-start gap-3">
                       <span className="text-2xl mt-0.5">🎥</span>
                       <div>
-                        <p className="text-xs font-bold text-foreground">Jitsi Meet Classroom Room</p>
+                        <p className="text-xs font-bold text-foreground">
+                          {selectedBookingForDetail.meetingLink?.includes('meet.google.com') 
+                            ? 'Google Meet Classroom' 
+                            : 'Jitsi Meet Classroom'}
+                        </p>
                         <p className="text-[10px] text-muted-foreground mt-1 max-w-sm">
                           This is a dynamic secure video conference room. You can join the room as a moderator helper to support the live session.
                         </p>
@@ -3339,7 +3344,7 @@ const AdminDashboard = () => {
                         asChild
                       >
                         <a 
-                          href={`${selectedBookingForDetail.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${selectedBookingForDetail._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="Admin%20Moderator"`}
+                          href={getMeetingHref(selectedBookingForDetail.meetingLink, selectedBookingForDetail._id, "Admin Moderator", '')}
                           target="_blank" 
                           rel="noopener noreferrer"
                         >

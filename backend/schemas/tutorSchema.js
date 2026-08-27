@@ -61,7 +61,12 @@ const tutorSchema = new mongoose.Schema({
     duration: { type: String, required: true },
     description: { type: String }
   }],
-  referralCode: { type: String, unique: true, sparse: true }
+  referralCode: { type: String, unique: true, sparse: true },
+  googleTokens: {
+    accessToken: { type: String },
+    refreshToken: { type: String },
+    expiryDate: { type: Number }
+  }
 }, { timestamps: true });
  
 tutorSchema.pre('save', function() {

@@ -6,6 +6,7 @@ const Booking = require('../schemas/bookingSchema');
 const Tutor = require('../schemas/tutorSchema');
 const User = require('../schemas/userSchema');
 const CoursePayment = require('../schemas/coursePaymentSchema');
+const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
 
 const router = express.Router();
 
@@ -183,7 +184,15 @@ router.post('/verify-payment', async (req, res) => {
 
     // 2. Generate Classroom Link if not already created
     if (!booking.meetingLink) {
-      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+      const tutor = await Tutor.findById(booking.tutorId);
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: booking.timing,
+        utcTiming: booking.utcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
     }
     
     await booking.save();
@@ -196,6 +205,8 @@ router.post('/verify-payment', async (req, res) => {
         const tutorUser = await User.findById(tutor.userId);
         if (tutorUser && tutorUser.email) {
           console.log(`[Payments] Attempting to send confirmation email to tutor: ${tutorUser.email}`);
+          const isGoogleMeet = booking.meetingLink && booking.meetingLink.includes('meet.google.com');
+          const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
           await transporter.sendMail({
             from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
             to: tutorUser.email,
@@ -206,7 +217,7 @@ router.post('/verify-payment', async (req, res) => {
                    <p>Payment of <b>₹${booking.amountPaid}</b> has been successfully processed.</p>
                    <p>Student <b>${booking.studentName}</b> is officially enrolled in your course for <b>${booking.subject}</b> at <b>${booking.timing}</b>.</p>
                    <p>You can join the private video room directly by clicking the link below:</p>
-                   <p><a href="${booking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p>
+                   <p><a href="${booking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${meetBtnText}</a></p>
                    <p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
           });
           console.log(`[Payments] Tutor enrollment alert sent to: ${tutorUser.email}`);

@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { toast } from "@/components/ui/sonner";
 import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
+import { getMeetingHref } from "@/utils/meeting";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -519,7 +520,7 @@ const StudentDashboard = () => {
                                               asChild
                                             >
                                               <a
-                                                href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                                href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, profileName, user?.email || '')}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                               >
@@ -607,8 +608,8 @@ const StudentDashboard = () => {
                                   asChild
                                 >
                                   <a
-                                    href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                    target="_blank"
+                                     href={getMeetingHref(cls.meetingLink, cls._id, profileName, user?.email || '')}
+                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
                                     <Video className="h-4 w-4" /> Join Class
@@ -714,7 +715,7 @@ const StudentDashboard = () => {
                                      asChild
                                    >
                                      <a
-                                       href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                       href={getMeetingHref(booking.meetingLink, booking._id, profileName, user?.email || '')}
                                        target="_blank"
                                        rel="noopener noreferrer"
                                      >

@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
+import { getMeetingHref } from "@/utils/meeting";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -142,6 +143,57 @@ const TutorDashboard = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [checkingGoogle, setCheckingGoogle] = useState(true);
+
+  useEffect(() => {
+    const checkGoogleCalendarStatus = async () => {
+      if (!tutorProfile?.id) return;
+      try {
+        const res = await axios.get(`${API_URL}/auth/google-calendar/status`, {
+          params: { tutorId: tutorProfile.id }
+        });
+        setIsGoogleConnected(res.data.connected);
+      } catch (err) {
+        console.error("Error checking Google Calendar status:", err);
+      } finally {
+        setCheckingGoogle(false);
+      }
+    };
+    checkGoogleCalendarStatus();
+  }, [tutorProfile?.id]);
+
+  const handleGoogleConnect = async () => {
+    if (!tutorProfile?.id) return;
+    try {
+      const res = await axios.get(`${API_URL}/auth/google-calendar/url`, {
+        params: { tutorId: tutorProfile.id }
+      });
+      if (res.data.url) {
+        window.location.href = res.data.url;
+      }
+    } catch (err) {
+      console.error("Error getting Google Calendar auth URL:", err);
+      toast.error("Failed to start Google Calendar authentication.");
+    }
+  };
+
+  const handleGoogleDisconnect = async () => {
+    if (!tutorProfile?.id) return;
+    try {
+      const res = await axios.post(`${API_URL}/auth/google-calendar/disconnect`, {
+        tutorId: tutorProfile.id
+      });
+      if (res.data.success) {
+        setIsGoogleConnected(false);
+        toast.success("Successfully disconnected Google Calendar.");
+      }
+    } catch (err) {
+      console.error("Error disconnecting Google Calendar:", err);
+      toast.error("Failed to disconnect Google Calendar.");
+    }
+  };
 
   // Rejection Reason states
   const [rejectingBookingId, setRejectingBookingId] = useState<string | null>(null);
@@ -779,7 +831,7 @@ const TutorDashboard = () => {
                                     asChild
                                   >
                                     <a
-                                      href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                      href={getMeetingHref(booking.meetingLink, booking._id, name, user?.email || '')}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                     >
@@ -922,7 +974,7 @@ const TutorDashboard = () => {
                                                     asChild
                                                   >
                                                     <a
-                                                      href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                                      href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, name, user?.email || '')}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
                                                     >
@@ -983,7 +1035,7 @@ const TutorDashboard = () => {
                                 asChild
                               >
                                 <a
-                                  href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                  href={getMeetingHref(cls.meetingLink, cls._id, name, user?.email || '')}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
@@ -1266,6 +1318,57 @@ const TutorDashboard = () => {
                           </Badge>
                         )}
                       </div>
+                    </div>
+
+                    {/* Google Calendar Sync UI */}
+                    <div className="mt-6 pt-6 border-t border-border">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Calendar className="h-4.5 w-4.5 text-primary" />
+                        <h5 className="font-semibold text-sm text-foreground">Google Calendar Sync</h5>
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                        Sync classes to your calendar and automatically generate Google Meet video links for your booked sessions.
+                      </p>
+
+                      {checkingGoogle ? (
+                        <div className="h-9 w-full bg-secondary animate-pulse rounded-lg" />
+                      ) : isGoogleConnected ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-muted-foreground">Status:</span>
+                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none font-semibold text-[10px] px-2 py-0.5">
+                              Connected
+                            </Badge>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="w-full text-xs font-semibold rounded-lg h-9"
+                            onClick={handleGoogleDisconnect}
+                          >
+                            Disconnect Calendar
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-muted-foreground">Status:</span>
+                            <Badge variant="outline" className="border-border text-muted-foreground text-[10px] px-2 py-0.5">
+                              Disconnected
+                            </Badge>
+                          </div>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                            onClick={handleGoogleConnect}
+                          >
+                            <Calendar className="h-3.5 w-3.5" />
+                            Connect Google Calendar
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -691,4 +691,99 @@ router.post('/contact', async (req, res) => {
   }
 });
 
+router.get('/google-calendar/url', async (req, res) => {
+  try {
+    const { tutorId } = req.query;
+    if (!tutorId) {
+      return res.status(400).json({ message: 'tutorId query parameter is required' });
+    }
+    
+    const { getOAuth2Client } = require('../utils/googleMeetService');
+    const oauth2Client = getOAuth2Client();
+    
+    const scopes = [
+      'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/calendar.events'
+    ];
+    
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: scopes,
+      state: tutorId
+    });
+    
+    res.json({ url });
+  } catch (error) {
+    console.error('[Google OAuth URL] Error generating url:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/google-calendar/save-tokens', async (req, res) => {
+  try {
+    const { code, tutorId } = req.body;
+    if (!code || !tutorId) {
+      return res.status(400).json({ message: 'code and tutorId are required' });
+    }
+    
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor not found' });
+    }
+    
+    const { getOAuth2Client } = require('../utils/googleMeetService');
+    const oauth2Client = getOAuth2Client();
+    
+    const { tokens } = await oauth2Client.getToken(code);
+    
+    tutor.googleTokens = {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token || (tutor.googleTokens && tutor.googleTokens.refreshToken),
+      expiryDate: tokens.expiry_date
+    };
+    
+    await tutor.save();
+    res.json({ success: true, message: 'Google Calendar successfully connected!' });
+  } catch (error) {
+    console.error('[Google OAuth Save Tokens] Error:', error);
+    res.status(500).json({ message: 'Failed to authenticate with Google', error: error.message });
+  }
+});
+
+router.get('/google-calendar/status', async (req, res) => {
+  try {
+    const { tutorId } = req.query;
+    if (!tutorId) {
+      return res.status(400).json({ message: 'tutorId is required' });
+    }
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor not found' });
+    }
+    const connected = !!(tutor.googleTokens && tutor.googleTokens.refreshToken);
+    res.json({ connected });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/google-calendar/disconnect', async (req, res) => {
+  try {
+    const { tutorId } = req.body;
+    if (!tutorId) {
+      return res.status(400).json({ message: 'tutorId is required' });
+    }
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor not found' });
+    }
+    tutor.googleTokens = undefined;
+    await tutor.save();
+    res.json({ success: true, message: 'Disconnected Google Calendar' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router;

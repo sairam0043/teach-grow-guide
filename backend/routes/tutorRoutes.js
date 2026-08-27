@@ -3,6 +3,7 @@ const Tutor = require('../schemas/tutorSchema');
 const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
 const nodemailer = require('nodemailer');
+const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -196,6 +197,42 @@ router.get('/', async (req, res) => {
     }
 
     const tutors = await Tutor.find(filter).populate('userId', 'email phone avatar');
+
+    // Optimization: Bulk fetch all referral data in only 2 queries to avoid N+1 DB load
+    const referredMap = new Map();
+    const bookingsMap = new Map();
+    
+    if (req.query.status !== 'approved') {
+      const tutorUserIds = tutors.map(t => t.userId?._id || t.userId).filter(Boolean);
+      const referredStudents = await User.find({ 
+        referredBy: { $in: tutorUserIds }, 
+        role: 'student' 
+      });
+      
+      referredStudents.forEach(s => {
+        if (s.referredBy) {
+          const refStr = s.referredBy.toString();
+          if (!referredMap.has(refStr)) {
+            referredMap.set(refStr, []);
+          }
+          referredMap.get(refStr).push(s);
+        }
+      });
+
+      const referredStudentIds = referredStudents.map(s => s._id);
+      const bookings = await Booking.find({ studentId: { $in: referredStudentIds } });
+
+      bookings.forEach(b => {
+        if (b.studentId) {
+          const sidStr = b.studentId.toString();
+          if (!bookingsMap.has(sidStr)) {
+            bookingsMap.set(sidStr, []);
+          }
+          bookingsMap.get(sidStr).push(b);
+        }
+      });
+    }
+
     // Transform _id to id for frontend compatibility and calculate referral metrics
     const formattedTutors = await Promise.all(tutors.map(async t => {
       const obj = t.toObject();
@@ -220,19 +257,14 @@ router.get('/', async (req, res) => {
           obj.referralsCompleted = 0;
           obj.referralsEarnings = 0;
         } else {
-          // Calculate referral metrics (for admin dashboard view)
-          const referredStudents = await User.find({ referredBy: obj.userId._id || obj.userId, role: 'student' });
-          const invitedCount = referredStudents.length;
+          const tutorUserIdStr = obj.userId._id ? obj.userId._id.toString() : obj.userId.toString();
+          const tutorReferredStudents = referredMap.get(tutorUserIdStr) || [];
+          const invitedCount = tutorReferredStudents.length;
           let completedCount = 0;
 
           if (invitedCount > 0) {
-            const studentIds = referredStudents.map(student => student._id.toString());
-            const bookings = await Booking.find({
-              studentId: { $in: studentIds }
-            });
-
-            for (const studentId of studentIds) {
-              const studentBookings = bookings.filter(b => b.studentId === studentId);
+            for (const student of tutorReferredStudents) {
+              const studentBookings = bookingsMap.get(student._id.toString()) || [];
               const hasRegularClass = studentBookings.some(b => 
                 b.planType && 
                 b.planType !== 'Free Demo Class' && 
@@ -397,7 +429,14 @@ router.post('/:id/book', async (req, res) => {
       studentName: studentName || "Anonymous",
       status: 'pending'
     });
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-demo-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId,
+      subject,
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-demo-${newBooking._id}`
+    });
     await newBooking.save();
     console.log(`[Booking] Demo session saved for student: ${studentName} with status: pending`);
     
@@ -467,7 +506,14 @@ router.post('/:id/book-verification-demo', async (req, res) => {
       studentName: 'Admin Verification',
       status: 'pending'
     });
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-verification-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId: 'admin',
+      subject: 'Verification Demo Class',
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-verification-${newBooking._id}`
+    });
     await newBooking.save();
 
     // Send email notification to tutor
@@ -591,17 +637,37 @@ router.post('/:id/book-class', async (req, res) => {
       sessions: isPack && sessions ? sessions : undefined
     });
 
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId,
+      subject,
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-class-${newBooking._id}`
+    });
     
-    // Set individual session Jitsi meeting links
+    // Set individual session Google Meet/Jitsi meeting links
     if (isPack && newBooking.sessions && newBooking.sessions.length > 0) {
-      newBooking.sessions = newBooking.sessions.map((session, idx) => ({
-        date: session.date,
-        time: session.time,
-        status: session.status || 'scheduled',
-        utcDate: session.utcDate ? new Date(session.utcDate) : undefined,
-        meetingLink: `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}-session-${idx + 1}`
-      }));
+      const updatedSessions = [];
+      for (let idx = 0; idx < newBooking.sessions.length; idx++) {
+        const session = newBooking.sessions[idx];
+        const sessMeetLink = await generateMeetingLinkForBooking({
+          tutor,
+          studentId,
+          subject: `${subject} (Session ${idx + 1})`,
+          timing: `${session.date} at ${session.time}`,
+          utcTiming: session.utcDate,
+          fallbackJitsiPrefix: `cuvasol-tutor-class-${newBooking._id}-session-${idx + 1}`
+        });
+        updatedSessions.push({
+          date: session.date,
+          time: session.time,
+          status: session.status || 'scheduled',
+          utcDate: session.utcDate ? new Date(session.utcDate) : undefined,
+          meetingLink: sessMeetLink
+        });
+      }
+      newBooking.sessions = updatedSessions;
     }
 
     await newBooking.save();
@@ -637,7 +703,7 @@ router.post('/:id/book-class', async (req, res) => {
             to: tutorUser.email,
             subject: 'New Group Class Booking',
             text: `Hello ${tutor.name},\n\nA new group class has been initiated by ${studentName} for ${subject} at ${timing}.\n\nPlan: ${planType}\n\nYou can join the private video room once all members enroll: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
-            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
+            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${newBooking.meetingLink && newBooking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Jitsi Video Room'}</a></p><p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
           });
           console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
         }
@@ -735,7 +801,7 @@ router.put('/booking/:bookingId/status', async (req, res) => {
                 <div style="text-align: center; margin: 25px 0;">
                   <a href="${booking.meetingLink}" 
                      style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                    Join Video Room (Jitsi)
+                    ${booking.meetingLink && booking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Video Room (Jitsi)'}
                   </a>
                 </div>
 
@@ -861,7 +927,15 @@ router.put('/booking/:bookingId/pay', async (req, res) => {
     booking.planType = planType;
     booking.amountPaid = amountPaid;
     if (!booking.meetingLink) {
-      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+      const tutor = await Tutor.findById(booking.tutorId);
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: booking.timing,
+        utcTiming: booking.utcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
     }
     await booking.save();
     res.json({ message: 'Payment successful, enrolled in course!', booking });
@@ -928,7 +1002,15 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
       booking.status = 'enrolled';
     }
     if (booking.status === 'enrolled' && !booking.meetingLink) {
-      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+      const tutor = await Tutor.findById(booking.tutorId);
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: booking.timing,
+        utcTiming: booking.utcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
     }
     await booking.save();
 

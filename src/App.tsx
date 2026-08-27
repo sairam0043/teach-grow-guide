@@ -30,6 +30,7 @@ import RecentlyViewed from "./pages/RecentlyViewed";
 import NotFound from "./pages/NotFound";
 import ApproveBooking from "./pages/ApproveBooking";
 import TutorWelcome from "./pages/TutorWelcome";
+import GoogleCallback from "./pages/GoogleCallback";
 
 const queryClient = new QueryClient();
 
@@ -226,6 +227,7 @@ const App = () => {
               element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>}
             />
             <Route path="/approve-booking/:bookingId" element={<ApproveBooking />} />
+            <Route path="/google-callback" element={<GoogleCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
