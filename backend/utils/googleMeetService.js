@@ -1,5 +1,5 @@
 const Tutor = require('../schemas/tutorSchema');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 const getOAuth2Client = () => {
   const { google } = require('googleapis');
@@ -78,7 +78,7 @@ const createGoogleMeetEvent = async (tutor, details) => {
       attendees: (details.attendees || []).map(email => ({ email })),
       conferenceData: {
         createRequest: {
-          requestId: uuidv4(),
+          requestId: crypto.randomUUID(),
           conferenceSolutionKey: {
             type: 'hangoutsMeet',
           },
