@@ -1,8 +1,8 @@
-const { google } = require('googleapis');
 const Tutor = require('../schemas/tutorSchema');
 const { v4: uuidv4 } = require('uuid');
 
 const getOAuth2Client = () => {
+  const { google } = require('googleapis');
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -61,6 +61,7 @@ const getOAuth2ClientForTutor = async (tutor) => {
 const createGoogleMeetEvent = async (tutor, details) => {
   try {
     const authClient = await getOAuth2ClientForTutor(tutor);
+    const { google } = require('googleapis');
     const calendar = google.calendar({ version: 'v3', auth: authClient });
 
     const event = {
