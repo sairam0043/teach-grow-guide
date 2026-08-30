@@ -1310,7 +1310,7 @@ const AdminDashboard = () => {
                                   asChild
                                 >
                                   <a
-                                    href={demo.meetingLink || `https://meet.jit.si/cuvasol-tutor-verification-${demo._id}`}
+                                    href={getMeetingHref(demo.meetingLink, demo._id, "Admin Moderator", "", "Verification Demo Class")}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
@@ -3344,7 +3344,7 @@ const AdminDashboard = () => {
                         asChild
                       >
                         <a 
-                          href={getMeetingHref(selectedBookingForDetail.meetingLink, selectedBookingForDetail._id, "Admin Moderator", '')}
+                          href={getMeetingHref(selectedBookingForDetail.meetingLink, selectedBookingForDetail._id, "Admin Moderator", '', selectedBookingForDetail.subject)}
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
@@ -3356,7 +3356,7 @@ const AdminDashboard = () => {
                         variant="outline"
                         className="h-9 px-3 text-xs"
                         onClick={() => {
-                          const link = selectedBookingForDetail.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${selectedBookingForDetail._id}`;
+                          const link = getMeetingHref(selectedBookingForDetail.meetingLink, selectedBookingForDetail._id, "Admin Moderator", '', selectedBookingForDetail.subject);
                           navigator.clipboard.writeText(link);
                           toast.success("Meeting link copied to clipboard!");
                         }}

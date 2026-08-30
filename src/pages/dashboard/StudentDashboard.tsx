@@ -715,7 +715,7 @@ const StudentDashboard = () => {
                                      asChild
                                    >
                                      <a
-                                       href={getMeetingHref(booking.meetingLink, booking._id, profileName, user?.email || '')}
+                                       href={getMeetingHref(booking.meetingLink, booking._id, profileName, user?.email || '', booking.subject)}
                                        target="_blank"
                                        rel="noopener noreferrer"
                                      >

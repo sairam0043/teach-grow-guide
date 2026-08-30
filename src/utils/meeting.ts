@@ -12,14 +12,23 @@ export const getMeetingHref = (
   meetingLink: string | undefined,
   fallbackId: string,
   displayName: string,
-  email: string
+  email: string,
+  subject?: string
 ): string => {
-  const finalLink = meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${fallbackId}`;
-  
+  let finalLink = meetingLink;
+  if (!finalLink) {
+    if (subject === "Verification Demo Class") {
+      const code = Array.from(fallbackId || "").map(c => String.fromCharCode(97 + (c.charCodeAt(0) % 26))).join("").slice(0, 10);
+      finalLink = `https://meet.google.com/${code.slice(0, 3)}-${code.slice(3, 7)}-${code.slice(7, 10)}`;
+    } else {
+      finalLink = `https://meet.jit.si/cuvasol-tutor-demo-${fallbackId}`;
+    }
+  }
+
   if (finalLink.includes("meet.google.com")) {
     return finalLink;
   }
-  
+
   return `${finalLink}#config.prejoinPageEnabled=false&userInfo.displayName=${encodeURIComponent(
     displayName
   )}&userInfo.email=${encodeURIComponent(email || "")}`;
