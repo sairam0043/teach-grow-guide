@@ -137,47 +137,33 @@ const App = () => {
       >
         <TooltipProvider>
           {showNetworkAlert && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-zinc-950/70 backdrop-blur-md animate-in fade-in duration-300">
-              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-lg w-full text-center relative overflow-hidden animate-in zoom-in-95 duration-300">
-                {/* Decorative top border gradient */}
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-500 via-amber-500 to-red-600" />
-                
-                {/* Close button */}
+            <div className="sticky top-0 z-40 border-b border-red-200 bg-red-50/95 text-red-800 backdrop-blur-sm dark:border-red-900/80 dark:bg-red-950/80 dark:text-red-200">
+              <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/60">
+                    <AlertCircle className="h-4 w-4 animate-pulse" />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-semibold">Temporary Network Issue</p>
+                    <p className="text-sm text-red-700 dark:text-red-200">
+                      The website is temporarily facing connection issues. We are working to restore service. Please try again shortly.
+                    </p>
+                  </div>
+                </div>
+
                 <button
-                  onClick={() => setShowNetworkAlert(false)}
-                  className="absolute right-4 top-4 rounded-lg p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all focus:outline-none focus:ring-2 focus:ring-zinc-200 dark:focus:ring-zinc-800 cursor-pointer"
-                  aria-label="Close"
+                  onClick={handleRetry}
+                  disabled={isChecking}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:bg-red-800"
                 >
-                  <X className="h-4 w-4" />
+                  {isChecking ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span>Try Again</span>
                 </button>
-                
-                {/* Large warning icon */}
-                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 shadow-inner">
-                  <AlertCircle className="h-10 w-10 animate-pulse" />
-                </div>
-
-                <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 mb-3 tracking-tight">
-                  Temporary Network Issue
-                </h3>
-                
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 leading-relaxed">
-                  The website is temporarily facing connection issues. We are working to restore service. Please try again shortly.
-                </p>
-
-                <div className="flex justify-center">
-                  <button
-                    onClick={handleRetry}
-                    disabled={isChecking}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-800 text-white rounded-xl text-sm font-semibold shadow-md transition-all duration-200 cursor-pointer min-w-[160px]"
-                  >
-                    {isChecking ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    <span>Try Again</span>
-                  </button>
-                </div>
               </div>
             </div>
           )}
