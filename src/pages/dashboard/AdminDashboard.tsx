@@ -3379,6 +3379,7 @@ const AdminDashboard = () => {
             );
           })()}
         </DialogContent>
+      </Dialog>
       {/* Complete Booking Confirmation Modal */}
       <Dialog open={bookingToComplete !== null} onOpenChange={(open) => !open && setBookingToComplete(null)}>
         <DialogContent className="sm:max-w-[450px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
