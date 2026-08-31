@@ -142,6 +142,7 @@ const AdminDashboard = () => {
   const [isBookingDemo, setIsBookingDemo] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
   const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
+  const [bookingToComplete, setBookingToComplete] = useState<{ id: string; tutorName: string } | null>(null);
 
   const handleSendReferralEmails = async () => {
     if (!window.confirm("Send Referral Program introduction emails to ALL registered tutors?")) {
@@ -1327,7 +1328,7 @@ const AdminDashboard = () => {
                                   <Button
                                     size="sm"
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg"
-                                    onClick={() => handleUpdateBookingStatus(demo._id, 'completed')}
+                                    onClick={() => setBookingToComplete({ id: demo._id, tutorName: demo.tutorName || "Unknown Tutor" })}
                                   >
                                     Mark Completed
                                   </Button>
@@ -3377,6 +3378,38 @@ const AdminDashboard = () => {
             </div>
             );
           })()}
+        </DialogContent>
+      {/* Complete Booking Confirmation Modal */}
+      <Dialog open={bookingToComplete !== null} onOpenChange={(open) => !open && setBookingToComplete(null)}>
+        <DialogContent className="sm:max-w-[450px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-blue-600">
+              <CheckCircle className="h-5 w-5" /> Confirm Demo Completion
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              Are you sure you want to mark the verification demo for <strong>{bookingToComplete?.tutorName}</strong> as completed? This action will update their status and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
+            <Button
+              variant="ghost"
+              onClick={() => setBookingToComplete(null)}
+              className="rounded-lg h-10 px-4 hover:bg-secondary/20 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (bookingToComplete) {
+                  await handleUpdateBookingStatus(bookingToComplete.id, 'completed');
+                  setBookingToComplete(null);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-10 px-4 shadow-md font-semibold"
+            >
+              Mark Completed
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </PageLayout>

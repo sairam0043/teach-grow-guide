@@ -7,9 +7,9 @@ const bcrypt = require('bcryptjs');
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/teachgrow';
 
-const email = 'support@cuvasol.com';
+const email = 'cuvasoltpl@gmail.com';
 const rawPassword = 'saritha@cuvasol';
-const fullName = 'Support Admin';
+const fullName = 'Cuvasol Admin';
 const role = 'admin';
 
 mongoose.connect(MONGO_URI)

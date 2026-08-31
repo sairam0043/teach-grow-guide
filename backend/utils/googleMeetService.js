@@ -125,7 +125,72 @@ const generateMeetingLinkForBooking = async ({
   utcTiming,
   fallbackJitsiPrefix
 }) => {
-  if (tutor.googleTokens && tutor.googleTokens.refreshToken) {
+  const isAdminDemo = studentId === 'admin' || subject === 'Verification Demo Class';
+
+  // If it's a verification demo and the admin Google OAuth refresh token is configured, use admin calendar
+  if (isAdminDemo && process.env.ADMIN_GOOGLE_REFRESH_TOKEN) {
+    try {
+      const authClient = getOAuth2Client();
+      authClient.setCredentials({
+        refresh_token: process.env.ADMIN_GOOGLE_REFRESH_TOKEN,
+      });
+
+      const { google } = require('googleapis');
+      const calendar = google.calendar({ version: 'v3', auth: authClient });
+
+      let startTime = utcTiming ? new Date(utcTiming) : parseTimingStringToDate(timing);
+      if (!startTime || isNaN(startTime.getTime())) {
+        startTime = new Date();
+      }
+      const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+
+      const User = require('../schemas/userSchema');
+      const tutorUser = await User.findById(tutor.userId);
+      
+      const attendees = [{ email: process.env.ADMIN_EMAIL || 'cuvasoltpl@gmail.com' }];
+      if (tutorUser && tutorUser.email) {
+        attendees.push({ email: tutorUser.email });
+      }
+
+      const event = {
+        summary: `Verification Demo Class - ${tutor.name}`,
+        description: `Verification demo session with tutor ${tutor.name}.`,
+        start: {
+          dateTime: startTime.toISOString(),
+          timeZone: tutor.timezone || 'Asia/Kolkata',
+        },
+        end: {
+          dateTime: endTime.toISOString(),
+          timeZone: tutor.timezone || 'Asia/Kolkata',
+        },
+        attendees,
+        conferenceData: {
+          createRequest: {
+            requestId: crypto.randomUUID(),
+            conferenceSolutionKey: {
+              type: 'hangoutsMeet',
+            },
+          },
+        },
+      };
+
+      const response = await calendar.events.insert({
+        calendarId: 'primary',
+        requestBody: event,
+        conferenceDataVersion: 1, // Required to trigger Meet creation
+      });
+
+      if (response.data.hangoutLink) {
+        console.log(`[GoogleMeetService] Generated Admin Meet URL: ${response.data.hangoutLink}`);
+        return response.data.hangoutLink;
+      }
+    } catch (err) {
+      console.error(`[GoogleMeetService] Failed to generate Admin Meet link:`, err.message);
+    }
+  }
+
+  // Otherwise, if it is a normal student booking and the tutor has calendar connected, use tutor calendar
+  if (!isAdminDemo && tutor.googleTokens && tutor.googleTokens.refreshToken) {
     try {
       const User = require('../schemas/userSchema');
       const tutorUser = await User.findById(tutor.userId);
@@ -162,7 +227,7 @@ const generateMeetingLinkForBooking = async ({
     }
   }
 
-  // Fallback for admin verification demo classes to always use Google Meet
+  // Fallback for admin verification demo classes or Jitsi
   if (studentId === 'admin' || subject === 'Verification Demo Class') {
     const crypto = require('crypto');
     const hashSeed = fallbackJitsiPrefix || tutor._id.toString();
