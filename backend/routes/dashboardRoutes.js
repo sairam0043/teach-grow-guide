@@ -426,13 +426,28 @@ const isBookingPast = (timingStr) => {
   return false;
 };
 
-// Reusable Tutor Payouts Report Engine
+// Reusable Tutor Payouts Report Engine (Optimized with single bulk query)
 const calculateTutorPayoutsReport = async () => {
-  const tutors = await Tutor.find().populate('userId', 'email phone full_name');
+  const [tutors, allBookings] = await Promise.all([
+    Tutor.find().populate('userId', 'email phone full_name'),
+    Booking.find({})
+  ]);
+
+  // Group all bookings by tutorId in memory for O(1) instant lookup
+  const bookingsByTutor = new Map();
+  for (const b of allBookings) {
+    if (!b.tutorId) continue;
+    const tId = b.tutorId._id ? b.tutorId._id.toString() : b.tutorId.toString();
+    if (!bookingsByTutor.has(tId)) {
+      bookingsByTutor.set(tId, []);
+    }
+    bookingsByTutor.get(tId).push(b);
+  }
+
   const payoutsReport = [];
 
   for (const tutor of tutors) {
-    const tutorBookings = await Booking.find({ tutorId: tutor._id });
+    const tutorBookings = bookingsByTutor.get(tutor._id.toString()) || [];
     let periods = tutor.pricingHistory || [];
     const allSubjects = Array.from(new Set([
       ...(tutor.subjects || []),

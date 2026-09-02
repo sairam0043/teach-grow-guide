@@ -28,7 +28,11 @@ import {
   Landmark,
   FileSpreadsheet,
   AlertTriangle,
-  Percent
+  Percent,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,6 +59,10 @@ const HRDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [expandedTutorId, setExpandedTutorId] = useState<string | null>(null);
+
+  // Pagination states (20 per page by default)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Modals state
   const [selectedTutorForBank, setSelectedTutorForBank] = useState<any | null>(null);
@@ -130,6 +138,16 @@ const HRDashboard = () => {
 
     return true;
   });
+
+  // Reset pagination when search, filter, or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, pageSize]);
+
+  // Paginated Slicing
+  const totalPages = Math.max(1, Math.ceil(filteredPayouts.length / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedPayouts = filteredPayouts.slice(startIndex, startIndex + pageSize);
 
   const handleOpenBankModal = (tutor: any) => {
     setSelectedTutorForBank(tutor);
@@ -486,7 +504,7 @@ const HRDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPayouts.map(tutor => {
+                    {paginatedPayouts.map(tutor => {
                       const isExpanded = expandedTutorId === tutor.tutorId;
                       const bank = tutor.paymentDetails || {};
                       const hasBank = tutor.hasBankDetails;
@@ -714,6 +732,111 @@ const HRDashboard = () => {
                     })}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!loading && filteredPayouts.length > 0 && (
+              <div className="p-4 border-t border-border/50 bg-secondary/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground font-medium">
+                  <span>
+                    Showing <strong className="text-foreground font-bold">{startIndex + 1}</strong> to <strong className="text-foreground font-bold">{Math.min(startIndex + pageSize, filteredPayouts.length)}</strong> of <strong className="text-foreground font-bold">{filteredPayouts.length}</strong> tutors
+                  </span>
+
+                  <div className="flex items-center gap-1.5 ml-2 sm:ml-4 border-l pl-3 sm:pl-4 border-border/60">
+                    <span className="text-xs text-muted-foreground">Tutors per page:</span>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(val) => {
+                        setPageSize(Number(val));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-20 bg-background text-xs font-semibold">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Page Navigation Buttons */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                      title="First Page"
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                      title="Previous Page"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+
+                    {/* Page Numbers */}
+                    <div className="flex items-center gap-1 px-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2))
+                        .map((page, idx, arr) => {
+                          const prevPage = arr[idx - 1];
+                          const showEllipsis = prevPage && page - prevPage > 1;
+
+                          return (
+                            <Fragment key={page}>
+                              {showEllipsis && <span className="px-1 text-xs text-muted-foreground font-bold">...</span>}
+                              <Button
+                                size="sm"
+                                variant={currentPage === page ? "default" : "outline"}
+                                onClick={() => setCurrentPage(page)}
+                                className={`h-8 w-8 p-0 text-xs font-bold ${
+                                  currentPage === page ? "bg-primary text-primary-foreground shadow-sm" : ""
+                                }`}
+                              >
+                                {page}
+                              </Button>
+                            </Fragment>
+                          );
+                        })}
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0"
+                      title="Next Page"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 p-0"
+                      title="Last Page"
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
