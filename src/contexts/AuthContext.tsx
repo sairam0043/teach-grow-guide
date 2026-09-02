@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/redux/store";
 import { loginUser, registerUser, logout, googleLogin } from "@/redux/slices/authSlice";
 
-type AppRole = "admin" | "student" | "tutor";
+type AppRole = "admin" | "hr" | "student" | "tutor";
 
 interface AppUser {
   id: string;

@@ -241,9 +241,182 @@ const sendReferralIntroEmail = async ({ name, email, referralCode, frontendUrl =
   });
 };
 
+const sendPayoutReceiptEmail = async ({
+  tutorName,
+  tutorEmail,
+  amount,
+  periodMonth,
+  paymentMode,
+  transactionReference,
+  bankDetails,
+  frontendUrl = 'https://tutor.cuvasol.com'
+}) => {
+  const dashboardUrl = `${frontendUrl.replace(/\/$/, '')}/dashboard/tutor`;
+  const maskedAcc = bankDetails?.accountNumber 
+    ? `••••${bankDetails.accountNumber.slice(-4)}` 
+    : 'Registered Account';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Payment Receipt: Tutor Payout Disbursed</title>
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px 25px; text-align: center; color: #ffffff; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+        .header p { margin: 8px 0 0 0; font-size: 14px; opacity: 0.9; }
+        .content { padding: 30px 25px; color: #374151; font-size: 15px; line-height: 1.6; }
+        .amount-box { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 20px; text-align: center; margin: 20px 0; }
+        .amount-title { font-size: 13px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 1px; }
+        .amount-val { font-size: 32px; font-weight: 800; color: #15803d; margin: 6px 0; }
+        .details-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #f9fafb; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; }
+        .details-table td { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+        .details-table td:first-child { color: #6b7280; font-weight: 600; width: 45%; }
+        .details-table td:last-child { color: #111827; font-weight: 700; text-align: right; }
+        .details-table tr:last-child td { border-bottom: none; }
+        .cta-btn { display: inline-block; background-color: #059669; color: #ffffff !important; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 15px; text-align: center; margin: 15px 0; }
+        .footer { background-color: #f9fafb; padding: 20px 25px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Cuvasol Tutor Payout</h1>
+          <p>Payment Disbursed Successfully</p>
+        </div>
+        <div class="content">
+          <p>Hello <strong>${tutorName || 'Tutor'}</strong>,</p>
+          <p>We are pleased to inform you that your tutor payout for <strong>${periodMonth || 'the recent billing cycle'}</strong> has been successfully processed and transferred to your bank account.</p>
+          
+          <div class="amount-box">
+            <div class="amount-title">Total Payout Amount</div>
+            <div class="amount-val">₹${amount}</div>
+            <div style="font-size: 12px; color: #166534;">Transferred via ${paymentMode || 'Bank Transfer'}</div>
+          </div>
+
+          <table class="details-table">
+            <tr>
+              <td>Beneficiary Bank</td>
+              <td>${bankDetails?.bankName || 'Registered Bank'}</td>
+            </tr>
+            <tr>
+              <td>Account Number</td>
+              <td>${maskedAcc}</td>
+            </tr>
+            ${bankDetails?.ifscCode ? `<tr><td>IFSC Code</td><td>${bankDetails.ifscCode}</td></tr>` : ''}
+            ${transactionReference ? `<tr><td>Transaction UTR / Ref</td><td>${transactionReference}</td></tr>` : ''}
+            <tr>
+              <td>Transfer Date</td>
+              <td>${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+            </tr>
+          </table>
+
+          <p style="font-size: 13px; color: #4b5563;">Depending on your bank, IMPS/NEFT transfers may take anywhere from a few minutes to a few hours to reflect in your passbook.</p>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${dashboardUrl}" class="cta-btn">View Tutor Earnings Ledger</a>
+          </div>
+
+          <p style="font-size: 13px; color: #6b7280;">Thank you for delivering exceptional teaching sessions on Cuvasol Tutor!</p>
+        </div>
+        <div class="footer">
+          <p style="margin: 0 0 5px 0;">© ${new Date().getFullYear()} Cuvasol Tutor. All rights reserved.</p>
+          <p style="margin: 0;">Cuvasol Technologies Private Limited</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return await sendEmail({
+    to: tutorEmail,
+    subject: `💰 Payout Disbursed: ₹${amount} - Cuvasol Tutor`,
+    html,
+  });
+};
+
+const sendBankDetailsReminderEmail = async ({
+  tutorName,
+  tutorEmail,
+  pendingAmount = 0,
+  frontendUrl = 'https://tutor.cuvasol.com'
+}) => {
+  const paymentTabUrl = `${frontendUrl.replace(/\/$/, '')}/dashboard/tutor`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Action Required: Setup Your Payout Bank Account</title>
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 30px 25px; text-align: center; color: #ffffff; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+        .header p { margin: 8px 0 0 0; font-size: 14px; opacity: 0.9; }
+        .content { padding: 30px 25px; color: #374151; font-size: 15px; line-height: 1.6; }
+        .alert-box { background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 6px; margin: 20px 0; }
+        .cta-btn { display: inline-block; background-color: #2563eb; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 16px; text-align: center; margin: 20px 0; }
+        .footer { background-color: #f9fafb; padding: 20px 25px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Cuvasol Tutor</h1>
+          <p>Action Required: Setup Payment Account</p>
+        </div>
+        <div class="content">
+          <p>Hello <strong>${tutorName || 'Tutor'}</strong>,</p>
+          <p>Our finance and HR team is preparing monthly tutor payout disbursements.</p>
+          
+          <div class="alert-box">
+            <p style="margin:0; font-weight: 600; color: #1e40af;">
+              ⚠️ Bank details missing: We noticed you have not configured your payout bank account on your dashboard.
+            </p>
+            ${pendingAmount > 0 ? `<p style="margin: 8px 0 0 0; font-size: 14px; color: #1e3a8a;">You currently have <strong>₹${pendingAmount}</strong> in pending earnings awaiting disbursement.</p>` : ''}
+          </div>
+
+          <p>To ensure your earnings are directly and securely deposited into your bank account via RazorpayX, please update your bank details today:</p>
+          
+          <ul style="color: #4b5563; font-size: 14px; line-height: 1.8;">
+            <li>Account Holder Name (as on bank passbook)</li>
+            <li>Bank Name & Account Number</li>
+            <li>IFSC Code & Account Type</li>
+          </ul>
+
+          <div style="text-align: center; margin: 25px 0;">
+            <a href="${paymentTabUrl}" class="cta-btn">Setup Payment Account Now</a>
+          </div>
+
+          <p style="font-size: 13px; color: #6b7280;">If you need any assistance, please reply directly to this email or reach us at <a href="mailto:support@cuvasol.com" style="color: #2563eb;">support@cuvasol.com</a>.</p>
+        </div>
+        <div class="footer">
+          <p style="margin: 0 0 5px 0;">© ${new Date().getFullYear()} Cuvasol Tutor. All rights reserved.</p>
+          <p style="margin: 0;">Cuvasol Technologies Private Limited</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return await sendEmail({
+    to: tutorEmail,
+    subject: `💳 Action Required: Setup Your Payout Bank Account - Cuvasol Tutor`,
+    html,
+  });
+};
+
 module.exports = {
   getTransporter,
   sendEmail,
   sendProfileReminderEmail,
   sendReferralIntroEmail,
+  sendPayoutReceiptEmail,
+  sendBankDetailsReminderEmail,
 };
+

@@ -26,6 +26,7 @@ import RegisterTutor from "./pages/RegisterTutor";
 import StudentDashboard from "./pages/dashboard/StudentDashboard";
 import TutorDashboard from "./pages/dashboard/TutorDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import HRDashboard from "./pages/dashboard/HRDashboard";
 import RecentlyViewed from "./pages/RecentlyViewed";
 import NotFound from "./pages/NotFound";
 import ApproveBooking from "./pages/ApproveBooking";
@@ -75,11 +76,20 @@ const App = () => {
     };
     checkHealth();
 
-    // 2. Response interceptor for network/server failures
+    // 2. Response interceptor for critical network/server failures
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (!error.response || error.response.status >= 500) {
+        const config = error?.config;
+        const isBackgroundOrSilent = 
+          config?.headers?.['x-skip-network-alert'] === 'true' ||
+          (typeof config?.url === 'string' && (
+            config.url.includes('/messages/inbox') ||
+            config.url.includes('/messages/chat')
+          ));
+
+        // Only show the blocking modal for critical application failures
+        if (!isBackgroundOrSilent && (!error.response || error.response.status >= 500)) {
           setShowNetworkAlert(true);
         }
         return Promise.reject(error);
@@ -225,6 +235,14 @@ const App = () => {
             <Route
               path="/dashboard/admin"
               element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>}
+            />
+            <Route
+              path="/dashboard/hr"
+              element={<ProtectedRoute allowedRoles={["admin", "hr"]}><HRDashboard /></ProtectedRoute>}
+            />
+            <Route
+              path="/hr/payouts"
+              element={<ProtectedRoute allowedRoles={["admin", "hr"]}><HRDashboard /></ProtectedRoute>}
             />
             <Route path="/approve-booking/:bookingId" element={<ApproveBooking />} />
             <Route path="/google-callback" element={<GoogleCallback />} />

@@ -204,7 +204,9 @@ const StudentDashboard = () => {
     const fetchUnreadCount = async () => {
       if (document.hidden) return; // skip polling when browser tab is inactive/backgrounded
       try {
-        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+          headers: { 'x-skip-network-alert': 'true' }
+        });
         const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
         setUnreadMessagesCount(total);
       } catch (err) {
@@ -213,7 +215,7 @@ const StudentDashboard = () => {
     };
 
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 12000); // Check every 12 seconds
+    const interval = setInterval(fetchUnreadCount, 25000); // Check every 25 seconds
     return () => clearInterval(interval);
   }, [user?.id]);
 

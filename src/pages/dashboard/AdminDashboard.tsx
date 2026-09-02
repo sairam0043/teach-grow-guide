@@ -1,5 +1,6 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -438,7 +439,9 @@ const AdminDashboard = () => {
     const fetchUnreadCount = async () => {
       if (document.hidden) return;
       try {
-        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+          headers: { 'x-skip-network-alert': 'true' }
+        });
         const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
         setUnreadMessagesCount(total);
       } catch (err) {
@@ -447,7 +450,7 @@ const AdminDashboard = () => {
     };
 
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 12000);
+    const interval = setInterval(fetchUnreadCount, 25000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -640,6 +643,16 @@ const AdminDashboard = () => {
             <p className="text-base text-muted-foreground mt-1.5">Manage platform operations, verify tutor credentials, and track ledger analytics.</p>
           </div>
           <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
+            <Button 
+              asChild
+              className="h-10 gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+            >
+              <Link to="/dashboard/hr">
+                <Landmark className="h-4 w-4" />
+                HR Payouts Portal
+                <ArrowUpRight className="h-3.5 w-3.5 opacity-80" />
+              </Link>
+            </Button>
             <Button 
               onClick={handleSendProfileEmails} 
               disabled={isSendingProfileEmails} 
@@ -1639,10 +1652,20 @@ const AdminDashboard = () => {
           <TabsContent value="payouts">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
-                  <CreditCard className="h-5 w-5 text-emerald-500" /> Tutor Payouts & Ledger Audit
-                </CardTitle>
-                <CardDescription>Track tutor hourly rate changes, completed sessions, and calculated payouts (gross vs net payouts minus 10% platform commission).</CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                      <CreditCard className="h-5 w-5 text-emerald-500" /> Tutor Payouts & Ledger Audit
+                    </CardTitle>
+                    <CardDescription>Track tutor hourly rate changes, completed sessions, and calculated payouts (gross vs net payouts minus 10% platform commission).</CardDescription>
+                  </div>
+                  <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 gap-2 shrink-0 rounded-lg shadow-sm">
+                    <Link to="/dashboard/hr">
+                      <Landmark className="h-4 w-4" /> Open Dedicated HR Payouts Portal
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 {loadingPayouts ? (

@@ -66,7 +66,27 @@ const tutorSchema = new mongoose.Schema({
     accessToken: { type: String },
     refreshToken: { type: String },
     expiryDate: { type: Number }
-  }
+  },
+  paymentDetails: {
+    accountHolderName: { type: String, default: "" },
+    bankName: { type: String, default: "" },
+    accountNumber: { type: String, default: "" },
+    ifscCode: { type: String, default: "" },
+    accountType: { type: String, enum: ['Savings Account', 'Current Account', ''], default: 'Savings Account' },
+    upiId: { type: String, default: "" },
+    isConfirmed: { type: Boolean, default: false },
+    updatedAt: { type: Date }
+  },
+  payoutHistory: [{
+    amount: { type: Number, required: true },
+    periodMonth: { type: String },
+    paymentMode: { type: String, default: 'Bank Transfer (NEFT/IMPS)' },
+    transactionReference: { type: String },
+    disbursedAt: { type: Date, default: Date.now },
+    disbursedBy: { type: String },
+    notes: { type: String },
+    receiptSent: { type: Boolean, default: false }
+  }]
 }, { timestamps: true });
  
 tutorSchema.pre('save', function() {

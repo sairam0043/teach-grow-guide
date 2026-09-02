@@ -1223,6 +1223,59 @@ router.put('/:id/profile', async (req, res) => {
   }
 });
 
+// Tutor can update their payment / bank account details
+router.put('/:id/payment-details', async (req, res) => {
+  try {
+    const { accountHolderName, bankName, accountNumber, ifscCode, accountType, upiId, isConfirmed } = req.body;
+
+    if (!accountHolderName || !accountHolderName.trim()) {
+      return res.status(400).json({ message: 'Account Holder Name is required' });
+    }
+    if (!bankName || !bankName.trim()) {
+      return res.status(400).json({ message: 'Bank Name is required' });
+    }
+    if (!accountNumber || !accountNumber.trim()) {
+      return res.status(400).json({ message: 'Bank Account Number is required' });
+    }
+    if (!ifscCode || !ifscCode.trim()) {
+      return res.status(400).json({ message: 'IFSC Code is required' });
+    }
+    if (!isConfirmed) {
+      return res.status(400).json({ message: 'Please confirm that the bank details provided are accurate and belong to you' });
+    }
+
+    const tutor = await Tutor.findById(req.params.id);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    tutor.paymentDetails = {
+      accountHolderName: accountHolderName.trim(),
+      bankName: bankName.trim(),
+      accountNumber: accountNumber.trim(),
+      ifscCode: ifscCode.trim().toUpperCase(),
+      accountType: accountType || 'Savings Account',
+      upiId: (upiId || '').trim(),
+      isConfirmed: Boolean(isConfirmed),
+      updatedAt: new Date()
+    };
+
+    await tutor.save();
+    await tutor.populate('userId', 'email phone avatar');
+
+    const obj = tutor.toObject();
+    obj.id = obj._id.toString();
+    if (obj.userId) {
+      obj.email = obj.userId.email;
+      obj.phone = obj.userId.phone;
+      obj.avatar = obj.userId.avatar;
+    }
+
+    res.json({ message: 'Payment account details saved successfully!', tutor: obj });
+  } catch (error) {
+    console.error('[Tutor Payment Details] Error saving payment details:', error);
+    res.status(500).json({ message: 'Error saving payment details', error: error.message });
+  }
+});
+
 // Student rates a tutor
 router.post('/:id/rate', async (req, res) => {
   try {
