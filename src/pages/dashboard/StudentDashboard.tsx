@@ -183,10 +183,11 @@ const StudentDashboard = () => {
     try {
       await axios.put(`${API_URL}/tutors/booking/${cancellingBookingId}/status`, { 
         status: 'cancelled',
-        cancellationReason: finalReason
+        cancellationReason: finalReason,
+        cancelledBy: 'Student'
       });
       toast.success("Booking cancelled successfully.");
-      setBookings(prev => prev.map(b => b._id === cancellingBookingId ? { ...b, status: 'cancelled', cancellationReason: finalReason } : b));
+      setBookings(prev => prev.map(b => b._id === cancellingBookingId ? { ...b, status: 'cancelled', cancellationReason: finalReason, cancelledBy: 'Student' } : b));
       setIsCancelDialogOpen(false);
       setCancellingBookingId(null);
       setCancelReasonType("");

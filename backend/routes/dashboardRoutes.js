@@ -150,6 +150,23 @@ router.get('/admin/bookings', async (req, res) => {
         // Set tutorId back to its ID string so we don't break simple components
         obj.tutorId = b.tutorId._id.toString();
       }
+
+      // Ensure cancelledBy, cancellationReason, and cancelledAt are populated
+      if (b.status === 'cancelled' || b.status === 'rejected') {
+        if (!obj.cancelledBy) {
+          if (b.status === 'rejected') {
+            obj.cancelledBy = 'Tutor';
+          } else if (b.studentId === 'admin') {
+            obj.cancelledBy = 'Admin';
+          } else {
+            obj.cancelledBy = 'Student';
+          }
+        }
+        if (!obj.cancelledAt) {
+          obj.cancelledAt = b.updatedAt || b.createdAt;
+        }
+      }
+
       return obj;
     });
 
@@ -246,7 +263,7 @@ router.get('/tutor/:tutorId', async (req, res) => {
         referralStats = {
           invitedCount,
           completedCount,
-          earnings: Math.min(completedCount * 100, 5000)
+          earnings: Math.min(completedCount * 500, 5000)
         };
       }
     }

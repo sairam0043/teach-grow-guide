@@ -91,10 +91,11 @@ const TutorProfile = () => {
     try {
       await axios.put(`${API_URL}/tutors/booking/${cancellingBookingId}/status`, { 
         status: 'cancelled',
-        cancellationReason: finalReason
+        cancellationReason: finalReason,
+        cancelledBy: 'Student'
       });
       toast.success("Booking cancelled successfully.");
-      setExistingBookings(prev => prev.map(b => b._id === cancellingBookingId ? { ...b, status: 'cancelled', cancellationReason: finalReason } : b));
+      setExistingBookings(prev => prev.map(b => b._id === cancellingBookingId ? { ...b, status: 'cancelled', cancellationReason: finalReason, cancelledBy: 'Student' } : b));
       setSelectedSlot(null);
       setIsCancelDialogOpen(false);
       setCancellingBookingId(null);

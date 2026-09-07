@@ -179,15 +179,19 @@ const sendReferralIntroEmail = async ({ name, email, referralCode, frontendUrl =
             <tbody>
               <tr>
                 <td>1 Successful Referral</td>
-                <td class="highlight">₹100</td>
+                <td class="highlight">₹500</td>
               </tr>
               <tr>
                 <td>3 Successful Referrals</td>
-                <td class="highlight">₹300</td>
+                <td class="highlight">₹1,500</td>
               </tr>
               <tr>
                 <td>5 Successful Referrals</td>
-                <td class="highlight">₹500</td>
+                <td class="highlight">₹2,500</td>
+              </tr>
+              <tr>
+                <td>10 Successful Referrals</td>
+                <td class="highlight">₹5,000</td>
               </tr>
             </tbody>
           </table>

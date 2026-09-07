@@ -278,7 +278,7 @@ router.get('/', async (req, res) => {
           }
           obj.referralsInvited = invitedCount;
           obj.referralsCompleted = completedCount;
-          obj.referralsEarnings = Math.min(completedCount * 100, 5000);
+          obj.referralsEarnings = Math.min(completedCount * 500, 5000);
         }
       } else {
         obj.referralsInvited = 0;
@@ -742,7 +742,7 @@ router.get('/:id/bookings/student/:studentId', async (req, res) => {
 // Update booking status
 router.put('/booking/:bookingId/status', async (req, res) => {
   try {
-    const { status, cancellationReason } = req.body;
+    const { status, cancellationReason, cancelledBy } = req.body;
     if (!['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'].includes(status)) {
        return res.status(400).json({ message: 'Invalid status' });
     }
@@ -751,12 +751,24 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     
     const oldStatus = booking.status;
     booking.status = status;
-    if (cancellationReason) {
+    if (cancellationReason !== undefined) {
       booking.cancellationReason = cancellationReason;
+    }
+    if (status === 'cancelled' || status === 'rejected') {
+      booking.cancelledAt = new Date();
+      if (cancelledBy) {
+        booking.cancelledBy = cancelledBy;
+      } else if (status === 'rejected') {
+        booking.cancelledBy = 'Tutor';
+      } else if (booking.studentId === 'admin') {
+        booking.cancelledBy = 'Admin';
+      } else {
+        booking.cancelledBy = 'Student';
+      }
     }
     await booking.save();
     
-    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status}`);
+    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status} (Cancelled By: ${booking.cancelledBy || 'N/A'})`);
 
     const isDemo = !booking.planType || booking.planType === 'Free Demo Class';
 
@@ -998,6 +1010,9 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
 
     if (anyDeclined) {
       booking.status = 'cancelled';
+      booking.cancelledBy = 'Student';
+      booking.cancellationReason = `Declined by group participant: ${email}`;
+      booking.cancelledAt = new Date();
     } else if (allApproved) {
       booking.status = 'enrolled';
     }

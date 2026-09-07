@@ -226,10 +226,11 @@ const TutorDashboard = () => {
     try {
       await axios.put(`${API_URL}/tutors/booking/${rejectingBookingId}/status`, {
         status: 'rejected',
-        cancellationReason: finalReason
+        cancellationReason: finalReason,
+        cancelledBy: 'Tutor'
       });
       toast.success("Booking rejected successfully.");
-      setBookings(prev => prev.map(b => b._id === rejectingBookingId ? { ...b, status: 'rejected', cancellationReason: finalReason } : b));
+      setBookings(prev => prev.map(b => b._id === rejectingBookingId ? { ...b, status: 'rejected', cancellationReason: finalReason, cancelledBy: 'Tutor' } : b));
       setIsRejectDialogOpen(false);
       setRejectingBookingId(null);
       setRejectReasonType("");
@@ -271,10 +272,11 @@ const TutorDashboard = () => {
     try {
       await axios.put(`${API_URL}/tutors/booking/${outcomeBookingId}/status`, {
         status,
-        cancellationReason: finalReason
+        cancellationReason: finalReason,
+        cancelledBy: status === 'cancelled' ? 'Tutor' : undefined
       });
       toast.success(`Booking status updated to ${status}.`);
-      setBookings(prev => prev.map(b => b._id === outcomeBookingId ? { ...b, status, cancellationReason: finalReason } : b));
+      setBookings(prev => prev.map(b => b._id === outcomeBookingId ? { ...b, status, cancellationReason: finalReason, cancelledBy: status === 'cancelled' ? 'Tutor' : b.cancelledBy } : b));
       setIsOutcomeDialogOpen(false);
       setOutcomeBookingId(null);
       setOutcomeType("");
@@ -2096,7 +2098,7 @@ const TutorDashboard = () => {
                         <span className="inline-flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
                           <Sparkles className="h-3 w-3 animate-pulse" /> Tutor Rewards Program
                         </span>
-                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Invite Students, Earn ₹100!</h2>
+                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Invite Students, Earn ₹500!</h2>
                         <p className="text-white/95 text-sm md:text-base leading-relaxed">
                           Help students find great mentors while boosting your own earnings. Share your unique link or code below to get started.
                         </p>
@@ -2243,7 +2245,7 @@ const TutorDashboard = () => {
                             <div className="space-y-1">
                               <h4 className="text-sm font-bold text-foreground">Referral Reward</h4>
                               <p className="text-xs text-muted-foreground leading-relaxed">
-                                Each tutor can refer students. You will receive a <strong className="text-emerald-600 dark:text-emerald-400">₹100 reward</strong> when your referred student registers and completes a regular class.
+                                Each tutor can refer students. You will receive a <strong className="text-emerald-600 dark:text-emerald-400">₹500 reward</strong> when your referred student registers and completes a regular class.
                               </p>
                             </div>
                           </div>
@@ -2271,7 +2273,7 @@ const TutorDashboard = () => {
                             <div className="space-y-1">
                               <h4 className="text-sm font-bold text-foreground">First Class Reward Limit</h4>
                               <p className="text-xs text-muted-foreground leading-relaxed">
-                                The ₹100 reward applies <strong className="text-foreground">only to the student's first completed regular class</strong>. Subsequent sessions with that student will not generate additional referral rewards.
+                                The ₹500 reward applies <strong className="text-foreground">only to the student's first completed regular class</strong>. Subsequent sessions with that student will not generate additional referral rewards.
                               </p>
                             </div>
                           </div>
@@ -2285,23 +2287,23 @@ const TutorDashboard = () => {
                             <div className="space-y-1 w-full">
                               <h4 className="text-sm font-bold text-foreground">Referral Reward Structure & Cap</h4>
                               <div className="text-xs text-muted-foreground leading-relaxed space-y-2">
-                                <p>Earn ₹100 for each successfully registered student who completes a regular class:</p>
+                                <p>Earn ₹500 for each successfully registered student who completes a regular class:</p>
                                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                                   <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
                                     <span className="text-muted-foreground">1 Ref:</span>
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹100</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
-                                    <span className="text-muted-foreground">3 Refs:</span>
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹300</span>
-                                  </div>
-                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
-                                    <span className="text-muted-foreground">5 Refs:</span>
                                     <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹500</span>
                                   </div>
                                   <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">3 Refs:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹1,500</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">5 Refs:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹2,500</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
                                     <span className="text-muted-foreground">10 Refs:</span>
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹1,000</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹5,000</span>
                                   </div>
                                 </div>
                                 <p className="text-[11px] pt-0.5">

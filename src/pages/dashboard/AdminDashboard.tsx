@@ -600,9 +600,13 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleUpdateBookingStatus = async (bookingId: string, status: string) => {
+  const handleUpdateBookingStatus = async (bookingId: string, status: string, cancellationReason?: string) => {
     try {
-      await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { status });
+      await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { 
+        status,
+        cancellationReason: cancellationReason || (status === 'cancelled' ? 'Cancelled by Admin' : undefined),
+        cancelledBy: status === 'cancelled' || status === 'rejected' ? 'Admin' : undefined
+      });
       toast.success(`Booking status updated to ${status} successfully.`);
       fetchTutors();
     } catch (err: any) {
@@ -1307,14 +1311,24 @@ const AdminDashboard = () => {
                               {demo.timing}
                             </TableCell>
                             <TableCell className="text-center">
-                              <Badge variant="outline" className={`px-2.5 py-1 border-none font-bold text-xs ${
-                                demo.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                demo.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                demo.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                                'bg-red-100 text-red-700'
-                              }`}>
-                                {demo.status.toUpperCase()}
-                              </Badge>
+                              <div>
+                                <Badge variant="outline" className={`px-2.5 py-1 border-none font-bold text-xs ${
+                                  demo.status === 'confirmed' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' :
+                                  demo.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' :
+                                  demo.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                                  demo.status === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' :
+                                  'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                                }`}>
+                                  {demo.status === 'cancelled' ? `CANCELLED${demo.cancelledBy ? ` (${demo.cancelledBy.toUpperCase()})` : ''}` :
+                                   demo.status === 'rejected' ? `DECLINED (TUTOR)` :
+                                   demo.status.toUpperCase()}
+                                </Badge>
+                                {demo.cancellationReason && (
+                                  <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px] truncate mx-auto italic" title={`Reason: ${demo.cancellationReason}`}>
+                                    "{demo.cancellationReason}"
+                                  </p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center">
                               {['confirmed', 'pending'].includes(demo.status) ? (
@@ -1425,14 +1439,28 @@ const AdminDashboard = () => {
                             <TableCell>{booking.studentName || "Anonymous"}</TableCell>
                             <TableCell className="text-sm">{booking.timing}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={`border-none ${
-                                booking.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700' :
-                                booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                'bg-secondary text-secondary-foreground'
-                              }`}>
-                                {booking.status.toUpperCase()}
-                              </Badge>
+                              <div className="space-y-1">
+                                <Badge variant="outline" className={`border-none font-semibold ${
+                                  booking.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300' :
+                                  booking.status === 'confirmed' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' :
+                                  booking.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' :
+                                  booking.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                                  booking.status === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' :
+                                  'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                                }`}>
+                                  {booking.status === 'cancelled' ? `Cancelled (${booking.cancelledBy || 'Student'})` :
+                                   booking.status === 'rejected' ? `Declined (${booking.cancelledBy || 'Tutor'})` :
+                                   booking.status.toUpperCase()}
+                                </Badge>
+                                {booking.cancellationReason && (
+                                  <p 
+                                    className="text-[11px] text-muted-foreground truncate max-w-[220px] italic flex items-center gap-1 cursor-help"
+                                    title={`Reason: ${booking.cancellationReason}`}
+                                  >
+                                    <span className="font-medium text-foreground/70">Reason:</span> "{booking.cancellationReason}"
+                                  </p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
@@ -3196,6 +3224,45 @@ const AdminDashboard = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Cancellation & Rejection Audit Banner */}
+              {(selectedBookingForDetail.status === 'cancelled' || selectedBookingForDetail.status === 'rejected') && (
+                <div className="p-4 rounded-xl bg-red-50/80 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 space-y-3 shadow-sm">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300 flex items-center justify-center font-bold shrink-0">
+                        <XCircle className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-red-950 dark:text-red-100">
+                          {selectedBookingForDetail.status === 'rejected' ? 'Demo Request Declined' : 'Class Booking Cancelled'}
+                        </h4>
+                        <p className="text-xs text-red-700 dark:text-red-300/90">
+                          Cancelled / Declined By: <span className="font-bold underline text-red-950 dark:text-red-100">
+                            {selectedBookingForDetail.cancelledBy === 'Tutor' ? `Tutor (${selectedBookingForDetail.tutorName})` :
+                             selectedBookingForDetail.cancelledBy === 'Admin' ? 'Admin / Platform Manager' :
+                             `Student (${selectedBookingForDetail.studentName || 'Student'})`}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    {selectedBookingForDetail.cancelledAt && (
+                      <span className="text-[11px] font-mono text-red-700 dark:text-red-300 bg-white/80 dark:bg-red-900/40 px-2.5 py-1 rounded-md border border-red-200 dark:border-red-800/40 font-medium">
+                        {new Date(selectedBookingForDetail.cancelledAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="bg-white/90 dark:bg-card/80 p-3 rounded-lg border border-red-100 dark:border-red-900/40">
+                    <span className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400 tracking-wider block mb-1">
+                      Reason for Cancellation / Rejection
+                    </span>
+                    <p className="text-sm font-semibold text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedBookingForDetail.cancellationReason || "No specific reason provided."}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Participant Profiles: Tutor and Student Side-by-Side */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">

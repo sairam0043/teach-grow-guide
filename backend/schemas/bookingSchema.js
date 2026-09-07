@@ -14,6 +14,8 @@ const bookingSchema = new mongoose.Schema({
   isRated: { type: Boolean, default: false },
   meetingLink: { type: String },
   cancellationReason: { type: String },
+  cancelledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' },
+  cancelledAt: { type: Date },
   groupDetails: {
     isGroup: { type: Boolean, default: false },
     invitedEmails: [{
