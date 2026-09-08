@@ -67,7 +67,29 @@ interface DashboardState {
     };
     referralCode?: string;
   } | null;
-  studentStats: { enrolledCourses: number; upcomingClasses: number; completedSessions: number; demoBookings?: number; savedTutors: number } | null;
+  studentStats: { 
+    enrolledCourses: number; 
+    upcomingClasses: number; 
+    completedSessions: number; 
+    demoBookings?: number; 
+    savedTutors: number;
+    walletBalance?: number;
+    walletHistory?: Array<{
+      _id?: string;
+      type: 'credit' | 'debit';
+      amount: number;
+      description: string;
+      date: string;
+      bookingId?: string;
+      referredStudentId?: string;
+    }>;
+    referralCode?: string;
+    referralStats?: {
+      invitedCount: number;
+      completedCount: number;
+      earnings: number;
+    };
+  } | null;
   loading: boolean;
   error: string | null;
 }

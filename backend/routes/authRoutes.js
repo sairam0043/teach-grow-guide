@@ -182,12 +182,18 @@ router.post('/register', async (req, res) => {
       if (referringTutor) {
         referredByUserId = referringTutor.userId;
       } else {
-        // Fallback: Check if it's a valid MongoDB ObjectId (for backward compatibility)
-        const mongoose = require('mongoose');
-        if (mongoose.Types.ObjectId.isValid(trimmedRef)) {
-          referredByUserId = trimmedRef;
+        // Next, check if it matches a student's referralCode
+        const referringStudent = await User.findOne({ referralCode: trimmedRef.toUpperCase() });
+        if (referringStudent) {
+          referredByUserId = referringStudent._id;
         } else {
-          return res.status(400).json({ message: 'Invalid referral code' });
+          // Fallback: Check if it's a valid MongoDB ObjectId (for backward compatibility)
+          const mongoose = require('mongoose');
+          if (mongoose.Types.ObjectId.isValid(trimmedRef)) {
+            referredByUserId = trimmedRef;
+          } else {
+            return res.status(400).json({ message: 'Invalid referral code' });
+          }
         }
       }
     }
@@ -351,7 +357,7 @@ router.post('/register', async (req, res) => {
     // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role } });
+    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -372,12 +378,20 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Lazy generate referral code if student and missing
+    if (!user.referralCode && user.role === 'student') {
+      const rawName = (user.student_name || user.full_name || 'STUDENT').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase() || 'STU';
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      user.referralCode = `${rawName}${randomNum}`;
+      await user.save();
+    }
+
     // Note: We now allow tutors to log in even if pending or rejected 
     // so they can access their settings, see warnings, and correct/re-submit credentials!
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role: user.role } });
+    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role: user.role, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -466,7 +480,9 @@ router.post('/google', async (req, res) => {
         student_name: user.student_name,
         student_or_parent: user.student_or_parent,
         role: user.role,
-        avatar: user.avatar
+        avatar: user.avatar,
+        referralCode: user.referralCode,
+        walletBalance: user.walletBalance || 0
       }
     });
 

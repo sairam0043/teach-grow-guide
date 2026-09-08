@@ -5,7 +5,7 @@ declare global {
 }
 
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock } from "lucide-react";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -111,6 +111,8 @@ const TutorProfile = () => {
   const [otherEmails, setOtherEmails] = useState<string[]>(['']);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [availableSlotsForDate, setAvailableSlotsForDate] = useState<any[]>([]);
+  const [studentWalletBalance, setStudentWalletBalance] = useState(0);
+  const [useWalletBalance, setUseWalletBalance] = useState(true);
   const bookingInProgressRef = useRef(false);
 
   const getSubjectRate = () => {
@@ -150,6 +152,19 @@ const TutorProfile = () => {
   const [isSandboxPaying, setIsSandboxPaying] = useState(false);
   const [sandboxPaymentSuccess, setSandboxPaymentSuccess] = useState(false);
   const [sandboxMethod, setSandboxMethod] = useState<"card" | "upi" | "netbanking">("card");
+
+  // Fetch student wallet balance
+  useEffect(() => {
+    if (user?.id) {
+      axios.get(`${API_URL}/dashboard/student/${user.id}`)
+        .then(res => {
+          if (res.data && res.data.walletBalance !== undefined) {
+            setStudentWalletBalance(res.data.walletBalance);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (selectedPlan?.isPack) {
@@ -610,6 +625,7 @@ const TutorProfile = () => {
         payload.planType = selectedPlan.type;
         payload.amountPaid = selectedPlan.price;
         payload.isDirectClass = true; // flag to tell backend this isn't a demo
+        payload.useWallet = useWalletBalance;
 
         if (isPackBooking) {
           payload.packDetails = {
@@ -651,11 +667,22 @@ const TutorProfile = () => {
       const booking = res.data.booking;
 
       if (!isDemoBooking) {
+        if (res.data.fullyPaidByWallet) {
+          toast.success("Enrolled successfully! Fully paid with your student wallet credits. 🎉");
+          setExistingBookings(prev => [...prev.filter(b => b._id !== booking._id), booking]);
+          setStudentWalletBalance(prev => Math.max(0, prev - (selectedPlan.price || 0)));
+          setSelectedSlot(null);
+          setIsProcessingPayment(false);
+          bookingInProgressRef.current = false;
+          navigate("/dashboard/student");
+          return;
+        }
+
         // Trigger Razorpay Order Creation on backend
         toast.info("Initiating payment gateway...");
         const orderRes = await axios.post(`${API_URL}/payments/create-order`, {
           bookingId: booking._id,
-          amount: selectedPlan.price
+          amount: booking.amountPaid
         });
 
         const orderData = orderRes.data;
@@ -671,7 +698,9 @@ const TutorProfile = () => {
             subject: selectedSubject,
             timing: formattedTiming,
             planType: selectedPlan.type,
-            price: selectedPlan.price
+            price: booking.amountPaid,
+            originalPrice: selectedPlan.price,
+            walletDiscount: booking.walletUsed || 0
           });
           setIsProcessingPayment(false);
           bookingInProgressRef.current = false;
@@ -1938,6 +1967,52 @@ const TutorProfile = () => {
                           </div>
                         )}
 
+                        {/* Student Wallet Discount Box */}
+                        {selectedPlan && selectedPlan.price > 0 && studentWalletBalance > 0 && (
+                          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 mt-4 animate-in fade-in">
+                            <div className="flex items-center justify-between">
+                              <label htmlFor="use-wallet" className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+                                <input
+                                  id="use-wallet"
+                                  type="checkbox"
+                                  checked={useWalletBalance}
+                                  onChange={(e) => setUseWalletBalance(e.target.checked)}
+                                  className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                                />
+                                <Wallet className="h-4 w-4 text-amber-500" />
+                                Apply Student Wallet Credits
+                              </label>
+                              <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-xs font-bold">
+                                Available: ₹{studentWalletBalance}
+                              </Badge>
+                            </div>
+
+                            {useWalletBalance && (() => {
+                              const origPrice = selectedPlan.price;
+                              const discount = Math.min(studentWalletBalance, origPrice);
+                              const net = Math.max(0, origPrice - discount);
+                              return (
+                                <div className="text-[11px] space-y-1 pt-1 border-t border-amber-500/20 text-muted-foreground">
+                                  <div className="flex justify-between">
+                                    <span>Plan Price:</span>
+                                    <span className="font-semibold text-foreground">₹{origPrice}</span>
+                                  </div>
+                                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
+                                    <span>Wallet Credit Applied:</span>
+                                    <span>-₹{discount}</span>
+                                  </div>
+                                  <div className="flex justify-between font-bold text-foreground text-xs pt-1 border-t border-amber-500/20">
+                                    <span>Net Payable:</span>
+                                    <span className="text-amber-600 dark:text-amber-400">
+                                      {net === 0 ? "🎉 FREE (₹0)" : `₹${net}`}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+
                         <Button
                           className="w-full mt-4"
                           variant={selectedExisting ? "destructive" : "default"}
@@ -1953,7 +2028,21 @@ const TutorProfile = () => {
                             selectedExisting
                               ? "Cancel Booking"
                               : selectedPlan
-                                ? (selectedPlan.type === 'Free Demo Class' ? "Book Free Demo Session" : `Book Class & Pay ₹${selectedPlan.price}`)
+                                ? (selectedPlan.type === 'Free Demo Class' 
+                                    ? "Book Free Demo Session" 
+                                    : (() => {
+                                        const origPrice = selectedPlan.price;
+                                        const discount = (useWalletBalance && studentWalletBalance > 0) ? Math.min(studentWalletBalance, origPrice) : 0;
+                                        const net = Math.max(0, origPrice - discount);
+                                        if (net === 0) {
+                                          return "🎉 Pay ₹0 with Wallet & Enroll Now";
+                                        }
+                                        if (discount > 0) {
+                                          return `Book Class & Pay ₹${net} (₹${discount} from Wallet)`;
+                                        }
+                                        return `Book Class & Pay ₹${origPrice}`;
+                                      })()
+                                  )
                                 : "Select Pricing & Booking option"
                           )}
                         </Button>
@@ -2033,6 +2122,12 @@ const TutorProfile = () => {
                   <span className="text-slate-400">Plan Option:</span>
                   <span className="font-semibold text-indigo-400">{sandboxOrder.planType}</span>
                 </div>
+                {sandboxOrder.walletDiscount > 0 && (
+                  <div className="flex justify-between text-emerald-400 font-semibold">
+                    <span>Wallet Credit Applied:</span>
+                    <span>-₹{sandboxOrder.walletDiscount}</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t border-slate-800/80 pt-2 text-[10px] text-slate-500">
                   <span>Order Reference:</span>
                   <span className="font-mono">{sandboxOrder.orderId}</span>

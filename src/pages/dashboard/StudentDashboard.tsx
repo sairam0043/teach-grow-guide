@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings } from "lucide-react";
+import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Wallet, Gift, Sparkles, Copy, ArrowUpRight, ArrowDownLeft, Check, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -316,11 +316,12 @@ const StudentDashboard = () => {
           </Button>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-10">
           {[
             { icon: Calendar, label: "Upcoming Classes", value: studentStats?.upcomingClasses || 0, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30", tab: "upcoming" },
             { icon: Clock, label: "Demo Bookings", value: studentStats?.demoBookings ?? studentStats?.completedSessions ?? 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
             { icon: BookOpen, label: "Enrolled Courses", value: studentStats?.enrolledCourses || 0, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30", tab: "upcoming" },
+            { icon: Wallet, label: "Student Wallet", value: `₹${studentStats?.walletBalance || 0}`, color: "text-amber-500", bg: "bg-amber-100 dark:bg-amber-900/30", tab: "wallet" },
             { icon: CreditCard, label: "Total Spent", value: `₹${paymentHistory.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "payments" },
           ].map((stat, idx) => (
             <Card 
@@ -328,19 +329,19 @@ const StudentDashboard = () => {
               onClick={() => setActiveTab(stat.tab)}
               className="border-none shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:bg-secondary/10"
             >
-              <CardContent className="flex items-center gap-5 p-6">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg}`}>
-                  <stat.icon className={`h-7 w-7 ${stat.color}`} />
+              <CardContent className="flex items-center gap-4 p-5">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl shrink-0 ${stat.bg}`}>
+                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
                 </div>
                 <div>
                   {statsLoading ? (
-                    <Skeleton className="h-8 w-16 mb-1" />
+                    <Skeleton className="h-7 w-14 mb-1" />
                   ) : (
-                    <p className="text-3xl font-bold text-foreground tracking-tight">
+                    <p className="text-2xl font-bold text-foreground tracking-tight">
                       {String(stat.value)}
                     </p>
                   )}
-                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                  <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
                 </div>
               </CardContent>
             </Card>
@@ -351,6 +352,15 @@ const StudentDashboard = () => {
           <TabsList className="bg-secondary/50 p-1 rounded-xl shadow-sm border mb-4 w-full overflow-x-auto whitespace-nowrap justify-start h-auto">
             <TabsTrigger value="upcoming" className="rounded-lg px-6 py-2.5 shrink-0">My Classes</TabsTrigger>
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Tracker</TabsTrigger>
+            <TabsTrigger value="wallet" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-amber-500" />
+              Wallet & Referrals
+              {(studentStats?.walletBalance || 0) > 0 && (
+                <span className="bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold text-[11px] px-2 py-0.5 rounded-full border border-amber-500/20">
+                  ₹{studentStats?.walletBalance}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0">Payment Ledger</TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
               Messages
@@ -810,6 +820,304 @@ const StudentDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Student Wallet & Referrals Tab */}
+          <TabsContent value="wallet">
+            {(() => {
+              const studentRefCode = studentStats?.referralCode || user?.referralCode || "";
+              const studentShareLink = `${window.location.origin}/register/student?ref=${studentRefCode}`;
+              const walletBal = studentStats?.walletBalance || 0;
+              const refStats = studentStats?.referralStats || { invitedCount: 0, completedCount: 0, earnings: 0 };
+              const walletHistory = studentStats?.walletHistory || [];
+
+              return (
+                <div className="space-y-6">
+                  {/* Hero Header Card */}
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-600 p-6 md:p-8 text-white shadow-lg">
+                    <div className="absolute -right-10 -bottom-10 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+                    <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="space-y-2 max-w-2xl">
+                        <span className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
+                          <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Student Rewards & Wallet
+                        </span>
+                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Refer Friends, Earn ₹500 Class Credits!</h2>
+                        <p className="text-white/95 text-sm md:text-base leading-relaxed">
+                          Invite friends to learn on Cuvasol. When your friend completes their first regular class, you get <strong>₹500 added directly to your Student Wallet</strong> to use for 100% free bookings or discounts on any class!
+                        </p>
+                      </div>
+                      <div className="shrink-0 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-inner">
+                        <Wallet className="h-14 w-14 text-white drop-shadow-md animate-bounce" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet Balance & Referral Details */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Available Wallet Card */}
+                    <Card className="border-none shadow-md bg-card/75 backdrop-blur-md flex flex-col justify-between">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Wallet className="h-5 w-5 text-amber-500" />
+                            Your Student Wallet
+                          </CardTitle>
+                          <Badge className="bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-none font-semibold text-xs">
+                            Active & Ready to Use
+                          </Badge>
+                        </div>
+                        <CardDescription>
+                          Use your wallet balance at checkout for instant discounts or free classes.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-emerald-500/10 border border-amber-500/20 text-center">
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                            Available Class Credits
+                          </span>
+                          <span className="text-4xl font-extrabold text-foreground tracking-tight">
+                            ₹{walletBal}
+                          </span>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Applied automatically or on-demand when booking 1-on-1, Group, or Monthly pack classes.
+                          </p>
+                        </div>
+
+                        <Button asChild className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold rounded-xl h-11 shadow-sm">
+                          <Link to="/tutors">
+                            <Search className="mr-2 h-4 w-4" /> Book a Class with Wallet Balance
+                          </Link>
+                        </Button>
+                      </CardContent>
+                    </Card>
+
+                    {/* Share Referral Link Card */}
+                    <Card className="border-none shadow-md bg-card/75 backdrop-blur-md">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Gift className="h-5 w-5 text-emerald-500" />
+                          Your Referral Link & Code
+                        </CardTitle>
+                        <CardDescription>
+                          Share with classmates, friends, or parents to earn ₹500 credits.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border">
+                          <span className="text-sm font-semibold text-muted-foreground">Your Referral Code:</span>
+                          <span className="text-sm font-mono font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-lg tracking-wider border border-amber-500/20">
+                            {studentRefCode || "Generating..."}
+                          </span>
+                        </div>
+
+                        <div className="flex gap-2 items-center bg-secondary/30 p-2 rounded-xl border">
+                          <input
+                            type="text"
+                            readOnly
+                            value={studentShareLink}
+                            className="bg-transparent border-none outline-none text-xs flex-1 px-2 font-mono text-muted-foreground select-all"
+                          />
+                          <Button
+                            size="sm"
+                            disabled={!studentRefCode}
+                            onClick={() => {
+                              navigator.clipboard.writeText(studentShareLink);
+                              toast.success("Referral link copied to clipboard!");
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 shrink-0 rounded-lg h-9"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>Copy</span>
+                          </Button>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                          <a
+                            href={studentRefCode ? `https://api.whatsapp.com/send?text=${encodeURIComponent(
+                              `Hey! I'm learning with top tutors on Cuvasol. Register using my invite code: ${studentRefCode} or link: ${studentShareLink} to start your classes!`
+                            )}` : "#"}
+                            onClick={(e) => !studentRefCode && e.preventDefault()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl text-sm transition-all shadow-sm cursor-pointer ${!studentRefCode && 'opacity-50 cursor-not-allowed'}`}
+                          >
+                            <Share2 className="h-4 w-4" />
+                            Share on WhatsApp
+                          </a>
+                          <a
+                            href={studentRefCode ? `mailto:?subject=${encodeURIComponent(
+                              "Join me on Cuvasol Tutor!"
+                            )}&body=${encodeURIComponent(
+                              `Hi there,\n\nI invite you to learn with expert tutors on Cuvasol! Use my referral code: ${studentRefCode} or direct link:\n${studentShareLink}\n\nHappy learning!`
+                            )}` : "#"}
+                            onClick={(e) => !studentRefCode && e.preventDefault()}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer ${!studentRefCode && 'opacity-50 cursor-not-allowed'}`}
+                          >
+                            ✉ Email Invite
+                          </a>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Referral Stats Tracker (3 metric boxes) */}
+                  <Card className="border-none shadow-md bg-card/75 backdrop-blur-md">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-amber-500" />
+                        Referral Rewards Tracker
+                      </CardTitle>
+                      <CardDescription>
+                        Track friends who signed up with your link and completed classes.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
+                          <span className="block text-2xl font-black text-foreground">
+                            {refStats.invitedCount}
+                          </span>
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Friends Invited</span>
+                        </div>
+                        <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
+                          <span className="block text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                            {refStats.completedCount}
+                          </span>
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Successful Referrals</span>
+                        </div>
+                        <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/20 text-center">
+                          <span className="block text-2xl font-black text-amber-600 dark:text-amber-400">
+                            ₹{refStats.earnings}
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block mt-1">Total Credits Earned</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Wallet Activity Ledger */}
+                  <Card className="shadow-md border-border/50">
+                    <CardHeader className="bg-secondary/20 border-b pb-4">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <History className="h-5 w-5 text-indigo-500" />
+                        Wallet Transaction Ledger
+                      </CardTitle>
+                      <CardDescription>
+                        Complete record of your referral credits and class booking debits.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {walletHistory.length === 0 ? (
+                        <div className="py-12 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed">
+                          <Wallet className="mx-auto mb-3 h-12 w-12 opacity-30 text-amber-500" />
+                          <h4 className="text-base font-semibold text-foreground mb-1">No Wallet Transactions Yet</h4>
+                          <p className="text-xs max-w-sm mx-auto">
+                            Share your referral code to earn ₹500 credits as soon as your friends complete their first regular class!
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border">
+                          <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-muted-foreground bg-secondary/50 uppercase border-b">
+                              <tr>
+                                <th className="px-6 py-4 font-medium">Date</th>
+                                <th className="px-6 py-4 font-medium">Type</th>
+                                <th className="px-6 py-4 font-medium">Description</th>
+                                <th className="px-6 py-4 font-medium text-right">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/50">
+                              {walletHistory.map((txn: any, idx: number) => {
+                                const isCredit = txn.type === 'credit';
+                                return (
+                                  <tr key={idx} className="hover:bg-secondary/20 transition-colors">
+                                    <td className="px-6 py-4 text-xs text-muted-foreground whitespace-nowrap">
+                                      {new Date(txn.date).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric"
+                                      })}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <Badge className={`border-none font-semibold text-[11px] ${
+                                        isCredit 
+                                          ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400' 
+                                          : 'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400'
+                                      }`}>
+                                        {isCredit ? (
+                                          <span className="flex items-center gap-1"><ArrowDownLeft className="h-3 w-3" /> Credit</span>
+                                        ) : (
+                                          <span className="flex items-center gap-1"><ArrowUpRight className="h-3 w-3" /> Debit</span>
+                                        )}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs font-medium text-foreground">
+                                      {txn.description}
+                                    </td>
+                                    <td className={`px-6 py-4 text-xs font-bold text-right whitespace-nowrap ${
+                                      isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                                    }`}>
+                                      {isCredit ? `+₹${txn.amount}` : `-₹${txn.amount}`}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Program Rules Card */}
+                  <Card className="border-none shadow-md bg-card/75 backdrop-blur-md overflow-hidden relative">
+                    <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-amber-500" />
+                    <CardHeader className="pb-3 pl-8">
+                      <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                        📋 How the Student Referral & Wallet Program Works
+                      </CardTitle>
+                      <CardDescription>
+                        Learn how to maximize your class savings through referrals.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pl-8 space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 space-y-1.5">
+                          <div className="h-6 w-6 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
+                            1
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">Share Your Code</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Send your referral link or unique code to classmates, friends, or family.
+                          </p>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 space-y-1.5">
+                          <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
+                            2
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">Friend Completes a Class</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            When your friend registers and completes their first regular class, you get <strong className="text-emerald-600 dark:text-emerald-400">₹500 in your wallet</strong>.
+                          </p>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 space-y-1.5">
+                          <div className="h-6 w-6 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
+                            3
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">Book Free Classes</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Use your wallet credits at checkout for instant discounts or 100% free classes across any subject!
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
           </TabsContent>
           <TabsContent value="messages">
             <ChatPanel initialActiveUserId={activeChatUserId} />

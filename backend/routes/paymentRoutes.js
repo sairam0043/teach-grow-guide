@@ -198,6 +198,35 @@ router.post('/verify-payment', async (req, res) => {
     await booking.save();
     console.log(`[Payments] Booking ${booking._id} enrolled successfully. Paid amount: ₹${booking.amountPaid}`);
 
+    // If partial wallet was used, deduct from student wallet balance
+    if (booking.walletUsed && booking.walletUsed > 0 && booking.studentId) {
+      try {
+        const studentUser = await User.findById(booking.studentId);
+        if (studentUser) {
+          if (!studentUser.walletHistory) studentUser.walletHistory = [];
+          const alreadyDebited = studentUser.walletHistory.some(t => 
+            t.type === 'debit' && 
+            t.bookingId && 
+            t.bookingId.toString() === booking._id.toString()
+          );
+          if (!alreadyDebited) {
+            studentUser.walletBalance = Math.max(0, (studentUser.walletBalance || 0) - booking.walletUsed);
+            studentUser.walletHistory.push({
+              type: 'debit',
+              amount: booking.walletUsed,
+              description: `Applied wallet credits towards ${booking.planType} - ${booking.subject}`,
+              bookingId: booking._id,
+              date: new Date()
+            });
+            await studentUser.save();
+            console.log(`[Payments] Deducted ₹${booking.walletUsed} from student ${studentUser.full_name}'s wallet for booking ${booking._id}`);
+          }
+        }
+      } catch (walletErr) {
+        console.error('[Payments] Error deducting wallet balance on payment verification:', walletErr.message);
+      }
+    }
+
     // 3. Notify Tutor & Student via Brevo SMTP
     try {
       const tutor = await Tutor.findById(booking.tutorId);

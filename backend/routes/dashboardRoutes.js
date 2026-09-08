@@ -4,6 +4,7 @@ const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
 const Booking = require('../schemas/bookingSchema');
 const CoursePayment = require('../schemas/coursePaymentSchema');
+const { syncStudentWalletAndReferrals } = require('../utils/referralWalletHelper');
 
 // /api/dashboard/admin
 router.get('/admin', async (req, res) => {
@@ -253,7 +254,7 @@ router.get('/tutor/:tutorId', async (req, res) => {
             b.planType && 
             b.planType !== 'Free Demo Class' && 
             !b.planType.toLowerCase().includes('demo') &&
-            b.status === 'completed'
+            (b.status === 'completed' || (b.sessions && b.sessions.some(s => s.status === 'completed')))
           );
           if (hasRegularClass) {
             completedCount++;
@@ -366,13 +367,20 @@ router.get('/student/:studentId', async (req, res) => {
       studentId,
       status: { $in: ['pending', 'confirmed', 'completed'] }
     });
+
+    // Synchronize referral metrics and wallet balance
+    const walletAndReferralData = await syncStudentWalletAndReferrals(studentId);
     
     res.json({
       enrolledCourses,
       upcomingClasses,
       completedSessions: demoBookings, // for backward compatibility
       demoBookings,
-      savedTutors: 0
+      savedTutors: 0,
+      walletBalance: walletAndReferralData.walletBalance,
+      walletHistory: walletAndReferralData.walletHistory,
+      referralCode: walletAndReferralData.referralCode,
+      referralStats: walletAndReferralData.referralStats
     });
   } catch(err) {
     res.status(500).json({ error: err.message });

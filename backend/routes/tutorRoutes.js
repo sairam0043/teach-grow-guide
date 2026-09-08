@@ -4,6 +4,7 @@ const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
 const nodemailer = require('nodemailer');
 const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
+const { rewardReferrerOnClassCompletion, refundWalletOnBookingCancel } = require('../utils/referralWalletHelper');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -269,7 +270,7 @@ router.get('/', async (req, res) => {
                 b.planType && 
                 b.planType !== 'Free Demo Class' && 
                 !b.planType.toLowerCase().includes('demo') &&
-                b.status === 'completed'
+                (b.status === 'completed' || (b.sessions && b.sessions.some(s => s.status === 'completed')))
               );
               if (hasRegularClass) {
                 completedCount++;
@@ -548,7 +549,7 @@ router.post('/:id/book-verification-demo', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming } = req.body;
+    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -617,7 +618,40 @@ router.post('/:id/book-class', async (req, res) => {
     // Securely calculate price on the backend
     const calculatedPrice = calculatePlanPrice(tutor, subject, planType);
     
-    // Direct booking means they're immediately enrolled, unless it's a group requiring approval
+    // Handle Student Wallet deduction
+    let walletDiscount = 0;
+    let fullyPaidByWallet = false;
+    let studentUser = null;
+
+    if (useWallet && studentId && studentId !== 'anonymous_student') {
+      const mongoose = require('mongoose');
+      if (mongoose.Types.ObjectId.isValid(studentId)) {
+        studentUser = await User.findById(studentId);
+        if (studentUser && studentUser.walletBalance > 0) {
+          walletDiscount = Math.min(studentUser.walletBalance, calculatedPrice);
+          if (walletDiscount >= calculatedPrice && !isGroup) {
+            fullyPaidByWallet = true;
+          }
+        }
+      }
+    }
+
+    const netPayable = Math.max(0, calculatedPrice - walletDiscount);
+
+    if (fullyPaidByWallet && studentUser) {
+      // Deduct full amount from student wallet immediately
+      studentUser.walletBalance = Math.max(0, studentUser.walletBalance - walletDiscount);
+      if (!studentUser.walletHistory) studentUser.walletHistory = [];
+      studentUser.walletHistory.push({
+        type: 'debit',
+        amount: walletDiscount,
+        description: `Applied wallet credits to book ${planType} - ${subject} with ${tutor.name}`,
+        date: new Date()
+      });
+      await studentUser.save();
+    }
+
+    // Direct booking means they're immediately enrolled if 100% wallet paid, or pending_payment if partial/no wallet
     const newBooking = new Booking({
       tutorId: tutor._id,
       tutorName: tutor.name,
@@ -626,9 +660,11 @@ router.post('/:id/book-class', async (req, res) => {
       subject,
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
-      status: isGroup ? 'pending' : 'pending_payment',
+      status: isGroup ? 'pending' : (fullyPaidByWallet ? 'enrolled' : 'pending_payment'),
       planType,
-      amountPaid: calculatedPrice,
+      amountPaid: fullyPaidByWallet ? calculatedPrice : netPayable,
+      originalAmount: calculatedPrice,
+      walletUsed: walletDiscount,
       groupDetails: isGroup ? {
         isGroup: true,
         invitedEmails: otherStudentsEmails.map(email => ({ email, status: 'pending', paidShare: false }))
@@ -710,9 +746,37 @@ router.post('/:id/book-class', async (req, res) => {
       } catch (mailError) {
         console.error('[Booking] Failed to send tutor notification:', mailError.message);
       }
+    } else if (fullyPaidByWallet) {
+      // Notify Tutor & Student of successful 100% wallet enrollment
+      try {
+        const tutorUser = await User.findById(tutor.userId);
+        if (tutorUser && tutorUser.email) {
+          const isGoogleMeet = newBooking.meetingLink && newBooking.meetingLink.includes('meet.google.com');
+          const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: tutorUser.email,
+            subject: 'New Course Enrollment Confirmed (Paid via Student Wallet)',
+            text: `Hello ${tutor.name},\n\nStudent ${studentName} has enrolled in your class for ${subject} at ${timing} (paid via student credits).\n\nYou can join the private video room directly here: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `<h3>New Course Enrollment Confirmed</h3>
+                   <p>Hello <b>${tutor.name}</b>,</p>
+                   <p>Student <b>${studentName}</b> is officially enrolled in your course for <b>${subject}</b> at <b>${timing}</b>.</p>
+                   <p>You can join the private video room directly by clicking the link below:</p>
+                   <p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${meetBtnText}</a></p>
+                   <p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
+          });
+        }
+      } catch (mailError) {
+        console.error('[Booking] Failed to send tutor wallet enrollment notification:', mailError.message);
+      }
     }
 
-    res.status(200).json({ message: 'Class booked successfully', booking: newBooking });
+    res.status(200).json({ 
+      message: fullyPaidByWallet ? 'Class booked and fully paid with wallet balance!' : 'Class booked successfully', 
+      booking: newBooking,
+      fullyPaidByWallet,
+      netPayable
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error booking class', error: error.message });
   }
@@ -769,6 +833,13 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     await booking.save();
     
     console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status} (Cancelled By: ${booking.cancelledBy || 'N/A'})`);
+
+    // Handle wallet refund if booking was cancelled or rejected
+    if (status === 'cancelled' || status === 'rejected') {
+      await refundWalletOnBookingCancel(booking);
+    } else if (status === 'completed') {
+      await rewardReferrerOnClassCompletion(booking);
+    }
 
     const isDemo = !booking.planType || booking.planType === 'Free Demo Class';
 
@@ -973,6 +1044,11 @@ router.put('/booking/:bookingId/session/:sessionIdx/status', async (req, res) =>
     
     booking.sessions[idx].status = status;
     await booking.save();
+
+    if (status === 'completed') {
+      await rewardReferrerOnClassCompletion(booking);
+    }
+
     res.json(booking);
   } catch (err) {
     res.status(500).json({ error: err.message });
