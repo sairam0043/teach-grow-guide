@@ -1,0 +1,546 @@
+<title>Tutor Payments — How It Works</title>
+<style>
+  /* Palette anchored to Cuvasol's own product surface — #0d9488 already appears
+     in the transactional email templates. Neutrals biased green to sit with it. */
+  :root {
+    --paper:      #fbfcfb;
+    --card:       #ffffff;
+    --ink:        #12211f;
+    --ink-soft:   #3b4a47;
+    --muted:      #5d6b68;
+    --rule:       #dce5e3;
+    --rule-soft:  #eaf0ef;
+    --accent:     #0d9488;
+    --accent-deep:#0f766e;
+    --accent-wash:#f0fbf9;
+    --warn:       #b45309;
+    --warn-wash:  #fdf6ec;
+    --stop:       #b91c1c;
+    --shadow:     0 1px 2px rgba(18,33,31,.05), 0 8px 24px -12px rgba(18,33,31,.15);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#0d1614; --card:#14201e; --ink:#e8efed; --ink-soft:#b6c4c1;
+      --muted:#8a9a97; --rule:#263532; --rule-soft:#1c2926;
+      --accent:#2dd4bf; --accent-deep:#5eead4; --accent-wash:#122a27;
+      --warn:#e8a54a; --warn-wash:#2a2116; --stop:#f08a8a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#0d1614; --card:#14201e; --ink:#e8efed; --ink-soft:#b6c4c1;
+    --muted:#8a9a97; --rule:#263532; --rule-soft:#1c2926;
+    --accent:#2dd4bf; --accent-deep:#5eead4; --accent-wash:#122a27;
+    --warn:#e8a54a; --warn-wash:#2a2116; --stop:#f08a8a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px; line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .serif { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif; }
+  .mono  { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+
+  .wrap { max-width: 66rem; margin: 0 auto; padding: 3rem 1.75rem 5rem;
+          display: grid; grid-template-columns: 13rem 1fr; gap: 3rem; align-items: start; }
+
+  /* ---- Contents rail ---------------------------------------------------- */
+  .toc { position: sticky; top: 2rem; }
+  .toc h2 { font-size: .68rem; font-weight: 700; letter-spacing: .12em;
+            text-transform: uppercase; color: var(--muted); margin: 0 0 .85rem; }
+  .toc ol { list-style: none; margin: 0; padding: 0;
+            display: flex; flex-direction: column; gap: .1rem; counter-reset: toc; }
+  .toc a {
+    display: grid; grid-template-columns: 1.5rem 1fr; gap: .3rem;
+    text-decoration: none; color: var(--ink-soft); font-size: .87rem;
+    padding: .32rem .5rem .32rem 0; border-radius: 3px;
+  }
+  .toc a::before {
+    counter-increment: toc; content: counter(toc, decimal-leading-zero);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .7rem; color: var(--accent); padding-top: .14rem;
+  }
+  .toc a:hover { color: var(--accent-deep); }
+  .toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- Masthead --------------------------------------------------------- */
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.4rem; }
+  .kicker { font-size: .7rem; font-weight: 700; letter-spacing: .13em;
+            text-transform: uppercase; color: var(--accent-deep); }
+  h1 { font-weight: 400; font-size: clamp(1.9rem, 4.5vw, 2.6rem); line-height: 1.12;
+       letter-spacing: -.015em; text-wrap: balance; margin: .6rem 0 .55rem; }
+  .standfirst { font-size: 1.05rem; color: var(--ink-soft); margin: 0; max-width: 40rem; text-wrap: pretty; }
+
+  .statusbar {
+    margin-top: 1.75rem; background: var(--warn-wash);
+    border: 1px solid var(--rule); border-left: 4px solid var(--warn);
+    border-radius: 3px; padding: 1.05rem 1.3rem;
+  }
+  .statusbar .label { font-size: .66rem; font-weight: 700; letter-spacing: .12em;
+                      text-transform: uppercase; color: var(--warn); display: block; margin-bottom: .3rem; }
+  .statusbar p { margin: 0; font-size: .95rem; color: var(--ink-soft); }
+
+  /* ---- Sections --------------------------------------------------------- */
+  section { margin-top: 2.9rem; scroll-margin-top: 1.5rem; }
+  h2.sec { font-weight: 400; font-size: 1.42rem; line-height: 1.25; letter-spacing: -.01em;
+           margin: 0 0 .3rem; display: flex; align-items: baseline; gap: .65rem; }
+  h2.sec .num { font-size: .74rem; font-weight: 700; color: var(--accent); letter-spacing: .04em; flex: none; }
+  .lede { color: var(--muted); margin: 0 0 1.3rem; max-width: 44rem; font-size: .95rem; }
+  h3.sub { font-size: .95rem; font-weight: 650; color: var(--ink); margin: 1.6rem 0 .6rem; }
+  p { margin: 0 0 1rem; max-width: 44rem; }
+  p:last-child { margin-bottom: 0; }
+  strong { font-weight: 650; color: var(--ink); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         font-size: .85em; background: var(--rule-soft); padding: .1em .35em; border-radius: 2px; }
+
+  /* ---- Lifecycle -------------------------------------------------------- */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .step { display: grid; grid-template-columns: 2.1rem 1fr; gap: 1rem;
+          padding: .95rem 0; border-bottom: 1px solid var(--rule-soft); }
+  .step:last-child { border-bottom: 0; }
+  .step .n {
+    width: 1.65rem; height: 1.65rem; border-radius: 50%; flex: none;
+    border: 1.5px solid var(--accent); color: var(--accent-deep);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .78rem; font-weight: 700; margin-top: .1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .step.manual .n { border-color: var(--warn); color: var(--warn); border-width: 2px; }
+  .step h4 { margin: 0 0 .2rem; font-size: .97rem; font-weight: 650; color: var(--ink); }
+  .step p { margin: 0; font-size: .91rem; color: var(--muted); max-width: 42rem; }
+  .who { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+         color: var(--accent-deep); margin-left: .55rem; }
+  .step.manual .who { color: var(--warn); }
+
+  /* ---- Tables ----------------------------------------------------------- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 3px; background: var(--card); }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; min-width: 32rem; }
+  thead th { text-align: left; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
+             text-transform: uppercase; color: var(--muted);
+             padding: .78rem 1rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  thead th.c, tbody td.c { text-align: center; }
+  tbody td { padding: .7rem 1rem; border-bottom: 1px solid var(--rule-soft); color: var(--ink-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr.total td { border-top: 1px solid var(--rule); font-weight: 700; color: var(--ink); background: var(--rule-soft); }
+  .yes { color: var(--accent-deep); font-weight: 700; }
+  .no { color: var(--muted); }
+  .cond { color: var(--warn); font-size: .84rem; }
+  .numc { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  td .stat { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+             font-size: .82rem; color: var(--ink); white-space: nowrap; }
+
+  /* ---- Callout ---------------------------------------------------------- */
+  .note { border-left: 3px solid var(--accent); padding: .3rem 0 .3rem 1.15rem;
+          font-size: .96rem; color: var(--ink-soft); margin: 1.25rem 0; max-width: 44rem; }
+  .note .fig { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+               font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+
+  /* ---- Option cards ----------------------------------------------------- */
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .opt { border: 1px solid var(--rule); border-radius: 3px; padding: 1.2rem;
+         background: var(--card); display: flex; flex-direction: column; gap: .75rem; }
+  .opt.pick { border-color: var(--accent); box-shadow: var(--shadow); }
+  .opt-head { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; }
+  .opt h4 { margin: 0; font-size: 1rem; font-weight: 650; color: var(--ink); }
+  .badge { font-size: .58rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+           background: var(--accent); color: var(--paper); padding: .2rem .48rem; border-radius: 2px; white-space: nowrap; }
+  .opt dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .3rem .85rem; font-size: .88rem; }
+  .opt dt { color: var(--muted); }
+  .opt dd { margin: 0; color: var(--ink-soft); }
+  .opt .verdict { font-size: .88rem; color: var(--ink-soft); border-top: 1px solid var(--rule-soft);
+                  padding-top: .75rem; margin: 0; }
+
+  /* ---- FAQ -------------------------------------------------------------- */
+  .faq { display: flex; flex-direction: column; gap: .55rem; }
+  .faq details { border: 1px solid var(--rule); border-radius: 3px; background: var(--card); }
+  .faq summary { cursor: pointer; padding: .8rem 1.1rem; font-weight: 600; font-size: .95rem;
+                 color: var(--ink); list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--accent); font-weight: 700; flex: none; }
+  .faq details[open] summary::after { content: "–"; }
+  .faq summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 3px; }
+  .faq .body { padding: 0 1.1rem 1rem; font-size: .93rem; color: var(--ink-soft); }
+  .faq .body p { margin: 0 0 .7rem; }
+  .faq .body p:last-child { margin-bottom: 0; }
+
+  /* ---- Open questions --------------------------------------------------- */
+  .open { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .6rem; }
+  .open li { border: 1px solid var(--rule); border-left: 3px solid var(--muted); border-radius: 3px;
+             padding: .8rem 1.1rem; background: var(--card); font-size: .94rem; color: var(--ink-soft); }
+  .open b { color: var(--ink); font-weight: 650; display: block; margin-bottom: .15rem; }
+  .owner { font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+           color: var(--accent-deep); }
+
+  .footnote { margin-top: 3rem; padding-top: 1.15rem; border-top: 1px solid var(--rule);
+              font-size: .82rem; color: var(--muted); max-width: 44rem; }
+
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; gap: 2rem; padding: 2.5rem 1.15rem 3.5rem; }
+    .toc { position: static; border: 1px solid var(--rule); border-radius: 3px; padding: 1rem 1.1rem; background: var(--card); }
+    .toc ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .1rem .8rem; }
+    .options { grid-template-columns: 1fr; }
+  }
+
+  /* ---- Print ------------------------------------------------------------ */
+  @page { size: A4; margin: 16mm 15mm; }
+  @media print {
+    :root {
+      --paper:#ffffff; --card:#ffffff; --ink:#12211f; --ink-soft:#33403d; --muted:#5d6b68;
+      --rule:#c9d5d2; --rule-soft:#e4ecea; --accent:#0d7d73; --accent-deep:#0b6159;
+      --accent-wash:#f2faf9; --warn:#9a4a08; --warn-wash:#fdf7f0; --stop:#a81919; --shadow:none;
+    }
+    body { font-size: 10.5pt; line-height: 1.5; }
+    .wrap { display: block; max-width: none; padding: 0; }
+    .toc { display: none; }
+    h1 { font-size: 23pt; }
+    h2.sec { font-size: 13.5pt; }
+    section { margin-top: 18pt; }
+    h2.sec, h3.sub, .step h4 { break-after: avoid; }
+    .statusbar, .opt, .open li, .tablewrap, .step, .faq details { break-inside: avoid; }
+    .faq details { border-color: var(--rule); }
+    .faq summary::after { content: ""; }
+    .faq .body { display: block !important; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+
+<div class="wrap">
+
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#lifecycle">How a tutor gets paid</a></li>
+      <li><a href="#documents">What tutors provide</a></li>
+      <li><a href="#amount">How the amount is worked out</a></li>
+      <li><a href="#statuses">Status reference</a></li>
+      <li><a href="#roles">Who does what</a></li>
+      <li><a href="#options">The two Razorpay options</a></li>
+      <li><a href="#questions">Common questions</a></li>
+      <li><a href="#open">Not yet decided</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="masthead">
+      <div class="kicker">Cuvasol Tutor · Internal reference</div>
+      <h1 class="serif">Tutor payments — how it works</h1>
+      <p class="standfirst">
+        How money reaches a tutor: what we collect from them, how their monthly
+        total is calculated, and who is responsible at each step.
+      </p>
+    </header>
+
+    <div class="statusbar">
+      <span class="label">Status — planned, not yet built</span>
+      <p>
+        This describes the system as designed, not as it works today. Right now
+        tutor payments are calculated in the admin dashboard and transferred
+        manually. <strong>Do not quote timelines or statuses in this document to a
+        tutor yet.</strong> This page will be updated when each part goes live.
+      </p>
+    </div>
+
+    <section id="overview">
+      <h2 class="sec"><span class="num mono">01</span> Overview</h2>
+      <p>
+        Students pay upfront when they book. That money is held by the company, and
+        the tutor is paid their share once a month for the classes they actually
+        delivered.
+      </p>
+      <p>
+        The system calculates each tutor's monthly total automatically and prepares
+        a payment batch. <strong>A person reviews and approves that batch before any
+        money moves.</strong> Nothing is transferred without a human releasing it.
+      </p>
+      <p class="note">
+        The approval step is deliberate. If a calculation is ever wrong, it produces
+        a wrong number on a screen rather than a wrong transfer to every tutor at once.
+      </p>
+    </section>
+
+    <section id="lifecycle">
+      <h2 class="sec"><span class="num mono">02</span> How a tutor gets paid</h2>
+      <p class="lede">End to end, from signup to money in the account. Steps marked in amber need a person.</p>
+      <div class="flow">
+        <div class="step">
+          <span class="n">1</span>
+          <div>
+            <h4>Tutor submits payment details<span class="who">Tutor</span></h4>
+            <p>A one-time form in profile settings: bank account, PAN, and the supporting documents listed in section 3.</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="n">2</span>
+          <div>
+            <h4>Bank account verified automatically<span class="who">System</span></h4>
+            <p>A ₹1 test transfer confirms the account exists and returns the name the bank holds. This catches wrong account numbers before any real payment.</p>
+          </div>
+        </div>
+        <div class="step manual">
+          <span class="n">3</span>
+          <div>
+            <h4>Details approved<span class="who">Operations</span></h4>
+            <p>Someone checks the documents against the submitted details and approves. A tutor cannot be paid until this happens.</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="n">4</span>
+          <div>
+            <h4>Classes are delivered and marked complete<span class="who">Tutor / System</span></h4>
+            <p>Only completed classes count toward payment. Cancelled and no-show classes do not.</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="n">5</span>
+          <div>
+            <h4>Month-end totals calculated<span class="who">System</span></h4>
+            <p>The system sums each tutor's completed classes for the month, applies the commission split, and creates a payment record awaiting approval.</p>
+          </div>
+        </div>
+        <div class="step manual">
+          <span class="n">6</span>
+          <div>
+            <h4>Batch reviewed and released<span class="who">Finance</span></h4>
+            <p>The full batch is reviewed line by line and released. This is the only point at which money actually moves.</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="n">7</span>
+          <div>
+            <h4>Transfers sent and confirmed<span class="who">System</span></h4>
+            <p>Payments go to each tutor's bank account. Status is tracked until the bank confirms, and failures are flagged for follow-up.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="documents">
+      <h2 class="sec"><span class="num mono">03</span> What tutors provide</h2>
+      <p class="lede">The exact list depends on which Razorpay product we use — see section 7. That decision is still open.</p>
+
+      <h3 class="sub">Documents</h3>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Document</th><th class="c">Option A · RazorpayX</th><th class="c">Option B · Route</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>PAN card</td><td class="c yes">Required</td><td class="c yes">Required</td></tr>
+            <tr><td>Bank proof — cancelled cheque, passbook page, or statement page</td><td class="c yes">Required</td><td class="c yes">Required</td></tr>
+            <tr><td>Address proof — Aadhaar, passport, voter ID, or licence</td><td class="c no">—</td><td class="c yes">Required</td></tr>
+            <tr><td>Photo ID</td><td class="c no">—</td><td class="c yes">Required</td></tr>
+            <tr><td>GST certificate</td><td class="c cond">only if registered</td><td class="c cond">only if registered</td></tr>
+            <tr class="total"><td>Typical individual tutor</td><td class="c numc">2 documents</td><td class="c numc">4 documents</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub">Form fields</h3>
+      <p>
+        Thirteen fields in total. Everything else we already hold or can derive —
+        bank name and branch come from the IFSC code, and name, email and phone come
+        from their existing account.
+      </p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Group</th><th>Fields</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Identity</strong></td><td>Legal name as printed on PAN · PAN number · Date of birth · GST registered? → GSTIN if yes</td></tr>
+            <tr><td><strong>Bank</strong></td><td>Account holder name · Account number · Confirm account number · IFSC code · Account type · UPI ID <em>(optional)</em></td></tr>
+            <tr><td><strong>Consent</strong></td><td>Acceptance of the commission rate and payout terms</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">
+        <strong>Account holder name must match the bank's records exactly</strong>,
+        not their display name on Cuvasol. Joint accounts and maiden names are the
+        most common reason a payment fails.
+      </p>
+    </section>
+
+    <section id="amount">
+      <h2 class="sec"><span class="num mono">04</span> How the amount is worked out</h2>
+      <p class="lede">Three rules, applied in order.</p>
+
+      <h3 class="sub">1 · Only delivered classes count</h3>
+      <p>
+        A tutor is paid per class actually completed, not per class booked. For a
+        monthly pack, the amount the student paid is divided across the classes in
+        that pack, and the tutor is paid for the ones delivered. Six of twelve
+        classes delivered means half the pack value.
+      </p>
+
+      <h3 class="sub">2 · The commission split is applied</h3>
+      <p>
+        The company retains a percentage and the tutor receives the rest. The current
+        system uses 90 / 10; moving to 70 / 30 is under discussion but
+        <strong>not yet decided</strong> — see section 9.
+      </p>
+
+      <h3 class="sub">3 · The rate in force at the time is used</h3>
+      <p>
+        If a tutor changes their hourly rate mid-month, classes are paid at whatever
+        rate applied on the day they were taught. Rate changes are never applied
+        retroactively.
+      </p>
+
+      <p class="note">
+        Because the commission is taken from what the student actually paid, discounts
+        reduce both sides proportionally. On the three-day monthly pack — which already
+        gives students <span class="fig">30%</span> off — this compounds noticeably.
+        How to handle that is open; see section 9.
+      </p>
+    </section>
+
+    <section id="statuses">
+      <h2 class="sec"><span class="num mono">05</span> Status reference</h2>
+      <p class="lede">What each status means and who moves it forward. Useful when a tutor asks where their money is.</p>
+
+      <h3 class="sub">Tutor payment details</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Status</th><th>Meaning</th><th>Next step</th></tr></thead>
+          <tbody>
+            <tr><td><span class="stat">Not submitted</span></td><td>Tutor has not filled the form</td><td>Tutor completes it</td></tr>
+            <tr><td><span class="stat">Pending verification</span></td><td>Submitted, ₹1 bank check running</td><td>Automatic, usually minutes</td></tr>
+            <tr><td><span class="stat">Bank check failed</span></td><td>Account number or IFSC is wrong</td><td>Tutor corrects and resubmits</td></tr>
+            <tr><td><span class="stat">Pending approval</span></td><td>Bank check passed, awaiting a person</td><td>Operations reviews</td></tr>
+            <tr><td><span class="stat">Verified</span></td><td>Approved — tutor can be paid</td><td>None</td></tr>
+            <tr><td><span class="stat">Rejected</span></td><td>Details or documents did not check out</td><td>Reason is sent to the tutor</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="sub">A monthly payment</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Status</th><th>Meaning</th><th>Next step</th></tr></thead>
+          <tbody>
+            <tr><td><span class="stat">Pending approval</span></td><td>Amount calculated, awaiting release</td><td>Finance reviews the batch</td></tr>
+            <tr><td><span class="stat">Approved</span></td><td>Released, queued to send</td><td>Automatic</td></tr>
+            <tr><td><span class="stat">Processing</span></td><td>Sent to the bank</td><td>Automatic, usually same day</td></tr>
+            <tr><td><span class="stat">Paid</span></td><td>Bank confirmed. Reference available</td><td>None</td></tr>
+            <tr><td><span class="stat">Failed</span></td><td>Bank rejected the transfer</td><td>Operations investigates and retries</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="roles">
+      <h2 class="sec"><span class="num mono">06</span> Who does what</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Team</th><th>Responsible for</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Tutor</strong></td><td>Submitting accurate bank and tax details; keeping them current; marking classes complete</td></tr>
+            <tr><td><strong>Operations</strong></td><td>Approving tutor payment details; handling failed transfers and rejections; answering tutor queries about status</td></tr>
+            <tr><td><strong>Finance</strong></td><td>Reviewing and releasing the monthly batch; tax treatment; reconciling against bank statements</td></tr>
+            <tr><td><strong>Engineering</strong></td><td>Calculation accuracy; the Razorpay integration; keeping payment data secure</td></tr>
+            <tr><td><strong>Support</strong></td><td>Directing tutors to this document; escalating anything payment-related to Operations</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">
+        Payment details can only be seen by the tutor who owns them and by approved
+        staff. Account numbers are stored encrypted and shown only as the last four
+        digits. <strong>Never ask a tutor to send bank details over chat or email.</strong>
+      </p>
+    </section>
+
+    <section id="options">
+      <h2 class="sec"><span class="num mono">07</span> The two Razorpay options</h2>
+      <p class="lede">They differ in who holds the money between the student paying and the tutor being paid. This choice is not yet made.</p>
+      <div class="options">
+        <div class="opt">
+          <div class="opt-head"><h4>A · RazorpayX</h4></div>
+          <dl>
+            <dt>Money sits with</dt><dd>Us, until we pay out</dd>
+            <dt>Documents</dt><dd>2 per tutor</dd>
+            <dt>Tutor signup</dt><dd>Fast</dd>
+            <dt>Needs</dt><dd>A current account</dd>
+          </dl>
+          <p class="verdict">Simpler to build, easier for tutors to join. But we hold students' money for weeks, and refunds after a payout mean recovering it from the tutor.</p>
+        </div>
+        <div class="opt pick">
+          <div class="opt-head"><h4>B · Razorpay Route</h4><span class="badge">Preferred</span></div>
+          <dl>
+            <dt>Money sits with</dt><dd>Razorpay, held for us</dd>
+            <dt>Documents</dt><dd>4 per tutor</dd>
+            <dt>Tutor signup</dt><dd>Slower — each tutor is verified</dd>
+            <dt>Needs</dt><dd>Marketplace approval</dd>
+          </dl>
+          <p class="verdict">More onboarding friction, but money is ring-fenced and released as classes are delivered. Refunds stay clean.</p>
+        </div>
+      </div>
+      <p class="note">
+        The deciding case is monthly packs. A student pays <span class="fig">₹4,200</span>
+        upfront for twelve classes across a month. Under Option A that whole sum sits
+        in our account for weeks — money we owe but hold, and must return if the tutor
+        stops showing up. Under Option B it sits at Razorpay and releases class by
+        class, matching how we already track them.
+      </p>
+    </section>
+
+    <section id="questions">
+      <h2 class="sec"><span class="num mono">08</span> Common questions</h2>
+      <div class="faq">
+        <details>
+          <summary>When will tutors be paid?</summary>
+          <div class="body"><p>Once a month, for classes completed in the previous month. The exact day is not yet fixed — see section 9.</p></div>
+        </details>
+        <details>
+          <summary>What if a tutor's payment fails?</summary>
+          <div class="body"><p>The payment is marked <em>Failed</em> with a reason from the bank, and Operations follows up. Usually it is an incorrect account number or a closed account. The tutor corrects their details and the payment is retried in the next run — the amount is not lost.</p></div>
+        </details>
+        <details>
+          <summary>What happens if a tutor has not submitted their details?</summary>
+          <div class="body"><p>Their earnings accumulate and are held. Nothing is forfeited. They are paid once their details are submitted and approved, in the next monthly run.</p></div>
+        </details>
+        <details>
+          <summary>What if a class was cancelled or the tutor did not attend?</summary>
+          <div class="body"><p>Only completed classes are paid. Cancelled classes are excluded from the total. For monthly packs the value is spread across the classes in the pack, so an undelivered class simply is not counted.</p></div>
+        </details>
+        <details>
+          <summary>Can a tutor change their bank account?</summary>
+          <div class="body"><p>Yes, through profile settings. Any change re-runs the ₹1 verification and needs approval again before the next payment. The tutor is emailed whenever their details change — this is a security measure, since changing a bank account is a common fraud route.</p></div>
+        </details>
+        <details>
+          <summary>Is tax deducted from a tutor's payment?</summary>
+          <div class="body"><p>Not decided yet, and it needs input from our accountant. This is why PAN is mandatory — without one on file, tax is deducted at a substantially higher rate.</p></div>
+        </details>
+        <details>
+          <summary>Why does a tutor need to give a PAN at all?</summary>
+          <div class="body"><p>It is a legal requirement for making payments of this kind in India, and it is how the tutor's identity is confirmed against their bank account.</p></div>
+        </details>
+      </div>
+    </section>
+
+    <section id="open">
+      <h2 class="sec"><span class="num mono">09</span> Not yet decided</h2>
+      <p class="lede">Open questions. This section shrinks as decisions are made.</p>
+      <ul class="open">
+        <li><b>Which Razorpay option</b><span class="owner">Leadership</span> — depends partly on whether marketplace approval is granted.</li>
+        <li><b>The commission split on discounted packs</b><span class="owner">Leadership</span> — the three-day pack already gives students 30% off. Taking a further 30% brings the tutor's effective rate well below their listed rate. Needs settling before tutors accept any terms.</li>
+        <li><b>Tax handling</b><span class="owner">Finance</span> — whether tax is deducted at source or left to the tutor.</li>
+        <li><b>Minimum payment amount</b><span class="owner">Finance</span> — so very small transfers do not cost more in fees than they are worth.</li>
+        <li><b>Payment day and cutoff</b><span class="owner">Operations</span> — which day of the month payments run, and how late a class can be marked complete and still count.</li>
+      </ul>
+    </section>
+
+    <p class="footnote">
+      Technical detail — data structures, validation rules, API specifics and security
+      handling — is in <strong>TUTOR_PAYMENT_SYSTEM.md</strong> in the codebase.
+      Razorpay's requirements change over time, so specifics should be confirmed with
+      our account manager before they are relied on. Questions about this document go
+      to Operations.
+    </p>
+  </main>
+</div>
