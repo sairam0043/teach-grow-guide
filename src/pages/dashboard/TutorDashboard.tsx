@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck , Landmark} from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
+import TutorPayoutProfileForm from "@/components/payouts/TutorPayoutProfileForm";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -803,6 +804,9 @@ const TutorDashboard = () => {
               <CreditCard className="h-4 w-4 text-emerald-600" />
               Payment Details
             </TabsTrigger>
+            <TabsTrigger value="payouts" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              <Landmark className="h-4 w-4" /> Payouts
+            </TabsTrigger>
             <TabsTrigger value="referrals" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
               <Gift className="h-4 w-4 text-emerald-500" />
               Refer & Earn
@@ -1316,6 +1320,12 @@ const TutorDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="payouts">
+            {tutorProfile?.id
+              ? <TutorPayoutProfileForm tutorId={tutorProfile.id} />
+              : <p className="text-muted-foreground py-8 text-center">Loading your profile…</p>}
           </TabsContent>
 
           <TabsContent value="payment">

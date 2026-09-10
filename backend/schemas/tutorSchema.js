@@ -86,7 +86,67 @@ const tutorSchema = new mongoose.Schema({
     disbursedBy: { type: String },
     notes: { type: String },
     receiptSent: { type: Boolean, default: false }
-  }]
+  }],
+
+  /**
+   * Bank and tax details used by the automated payout ledger.
+   *
+   * Deliberately separate from 'paymentDetails' above, which the HR dashboard
+   * reads and writes today. That one is left exactly as it is; this one adds
+   * what automated transfers need and paymentDetails has no room for: a tax
+   * identity, encrypted storage, and a verification state machine.
+   */
+  payoutProfile: {
+    // Identity as printed on the PAN card, not as displayed on the site.
+    legalName: { type: String, default: '' },
+    pan: { type: String, default: '', uppercase: true, trim: true },
+    dateOfBirth: { type: Date },
+    gstin: { type: String, default: '', uppercase: true, trim: true },
+
+    // Bank. The account number is never stored in the clear; accountLast4
+    // lets screens identify an account without decrypting anything.
+    accountHolderName: { type: String, default: '' },
+    accountNumberEnc: { type: String, default: '', select: false },
+    accountLast4: { type: String, default: '' },
+    ifsc: { type: String, default: '', uppercase: true, trim: true },
+    accountType: { type: String, enum: ['savings', 'current', ''], default: 'savings' },
+    vpa: { type: String, default: '', lowercase: true, trim: true },
+
+    // Uploaded proofs, as Upload document ids.
+    bankProofId: { type: mongoose.Schema.Types.ObjectId },
+    panProofId: { type: mongoose.Schema.Types.ObjectId },
+
+    // Handles from whichever payment provider is chosen. Unused until then.
+    providerContactId: { type: String, default: '' },
+    providerFundAccountId: { type: String, default: '' },
+
+    status: {
+      type: String,
+      enum: ['not_submitted', 'pending_verification', 'verification_failed',
+             'pending_approval', 'verified', 'rejected'],
+      default: 'not_submitted'
+    },
+
+    // Result of the penny-drop check: the name the bank holds for the account.
+    // Compared against accountHolderName by a person, not automatically,
+    // because real-world name matching is fuzzy.
+    verifiedNameAtBank: { type: String, default: '' },
+    verificationAttemptedAt: { type: Date },
+    verificationFailureReason: { type: String, default: '' },
+
+    approvedBy: { type: String, default: '' },
+    approvedAt: { type: Date },
+    rejectionReason: { type: String, default: '' },
+
+    // Consent. The rate is stored with the timestamp so it is provable which
+    // terms were accepted, not merely that some terms were.
+    termsAcceptedAt: { type: Date },
+    termsAcceptedRate: { type: Number },
+    termsVersion: { type: String, default: '' },
+
+    submittedAt: { type: Date },
+    updatedAt: { type: Date }
+  }
 }, { timestamps: true });
  
 tutorSchema.pre('save', function() {

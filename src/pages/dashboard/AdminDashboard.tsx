@@ -2,6 +2,7 @@ import { useEffect, useState, Fragment } from "react";
 import { Link } from "react-router-dom";
 import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import PayoutBatchPanel from "@/components/payouts/PayoutBatchPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -752,6 +753,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payments</TabsTrigger>
             <TabsTrigger value="platform-courses" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Platform Courses</TabsTrigger>
             <TabsTrigger value="payouts" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Tutor Payouts</TabsTrigger>
+            <TabsTrigger value="payout-batch" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payout Batch</TabsTrigger>
             <TabsTrigger value="geo-analytics" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Geo Analytics</TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
               Messages
@@ -1675,6 +1677,10 @@ const AdminDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="payout-batch">
+            <PayoutBatchPanel actorEmail="admin" />
           </TabsContent>
 
           <TabsContent value="payouts">

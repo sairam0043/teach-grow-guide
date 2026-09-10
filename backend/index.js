@@ -10,6 +10,7 @@ const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const payoutRoutes = require('./routes/payoutRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 
 const app = express();
@@ -101,6 +102,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/payouts', payoutRoutes);
 app.use('/api/messages', messageRoutes);
 
 app.get('/api/health', (_req, res) => {
