@@ -35,7 +35,8 @@ const authUrl = oauth2Client.generateAuthUrl({
 console.log('\n================================================================');
 console.log('GOOGLE OAUTH ADMIN REFRESH TOKEN GENERATOR');
 console.log('================================================================');
-console.log('1. Open the following URL in your browser to sign in as cuvasoltpl@gmail.com:');
+const adminEmail = process.env.ADMIN_EMAIL || 'your-admin-email@cuvasol.com';
+console.log(`1. Open the following URL in your browser to sign in as ${adminEmail}:`);
 console.log('\n' + authUrl + '\n');
 console.log('2. After approving permissions, you will be redirected.');
 console.log('   The page might fail to load if your app is not running, but that is OK.');
@@ -69,7 +70,7 @@ rl.question('Please paste the authorization code here: ', async (code) => {
       console.log('\nSUCCESS! Copy the following Refresh Token and add it to backend/.env:\n');
       console.log(`ADMIN_GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}`);
       console.log('\nAnd set the admin email:\n');
-      console.log(`ADMIN_EMAIL=cuvasoltpl@gmail.com`);
+      console.log(`ADMIN_EMAIL=${adminEmail}`);
     }
   } catch (error) {
     console.error('\nError exchanging code for tokens:', error.message);

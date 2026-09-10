@@ -147,7 +147,8 @@ const generateMeetingLinkForBooking = async ({
       const User = require('../schemas/userSchema');
       const tutorUser = await User.findById(tutor.userId);
       
-      const attendees = [{ email: process.env.ADMIN_EMAIL || 'cuvasoltpl@gmail.com' }];
+      const adminEmail = process.env.ADMIN_EMAIL || 'support@cuvasol.com';
+      const attendees = [{ email: adminEmail }];
       if (tutorUser && tutorUser.email) {
         attendees.push({ email: tutorUser.email });
       }

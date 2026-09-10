@@ -7,10 +7,17 @@ const bcrypt = require('bcryptjs');
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/teachgrow';
 
-const email = 'cuvasoltpl@gmail.com';
-const rawPassword = 'saritha@cuvasol';
-const fullName = 'Cuvasol Admin';
+const email = process.env.ADMIN_EMAIL || process.argv[2];
+const rawPassword = process.env.ADMIN_PASSWORD || process.argv[3];
+const fullName = process.env.ADMIN_NAME || 'Cuvasol Admin';
 const role = 'admin';
+
+if (!email || !rawPassword) {
+  console.error('\n❌ Error: Missing admin credentials.');
+  console.error('Please specify ADMIN_EMAIL and ADMIN_PASSWORD in your backend/.env file, or pass them as CLI arguments:');
+  console.error('Usage: node backend/scripts/createAdmin.js <email> <password>\n');
+  process.exit(1);
+}
 
 mongoose.connect(MONGO_URI)
   .then(async () => {

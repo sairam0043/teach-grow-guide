@@ -5,10 +5,17 @@ const bcrypt = require('bcryptjs');
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/teachgrow';
 
-const email = 'hr@cuvasol.com';
-const rawPassword = 'hr@cuvasol123';
-const fullName = 'Cuvasol HR & Finance Manager';
+const email = process.env.HR_EMAIL || process.argv[2];
+const rawPassword = process.env.HR_PASSWORD || process.argv[3];
+const fullName = process.env.HR_NAME || 'Cuvasol HR & Finance Manager';
 const role = 'hr';
+
+if (!email || !rawPassword) {
+  console.error('\n❌ Error: Missing HR account credentials.');
+  console.error('Please specify HR_EMAIL and HR_PASSWORD in your backend/.env file, or pass them as CLI arguments:');
+  console.error('Usage: node backend/scripts/createHRAccount.js <email> <password>\n');
+  process.exit(1);
+}
 
 mongoose.connect(MONGO_URI)
   .then(async () => {

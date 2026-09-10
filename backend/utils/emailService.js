@@ -22,7 +22,7 @@ const getTransporter = () => {
 const sendEmail = async ({ to, subject, html, text }) => {
   const transporter = getTransporter();
   const mailOptions = {
-    from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <sairam44sairam@gmail.com>',
+    from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <support@cuvasol.com>',
     to,
     subject,
     text: text || html.replace(/<[^>]*>?/gm, ''),
