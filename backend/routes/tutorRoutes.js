@@ -3,6 +3,8 @@ const Tutor = require('../schemas/tutorSchema');
 const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
 const nodemailer = require('nodemailer');
+const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
+const { rewardReferrerOnClassCompletion, refundWalletOnBookingCancel } = require('../utils/referralWalletHelper');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -190,21 +192,105 @@ router.get('/', async (req, res) => {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.featured) filter.featured = req.query.featured === 'true';
 
+    // Cache public approved tutor listings
+    if (req.query.status === 'approved') {
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    }
+
     const tutors = await Tutor.find(filter).populate('userId', 'email phone avatar');
-    // Transform _id to id for frontend compatibility
-    const formattedTutors = tutors.map(t => {
+
+    // Optimization: Bulk fetch all referral data in only 2 queries to avoid N+1 DB load
+    const referredMap = new Map();
+    const bookingsMap = new Map();
+    
+    if (req.query.status !== 'approved') {
+      const tutorUserIds = tutors.map(t => t.userId?._id || t.userId).filter(Boolean);
+      const referredStudents = await User.find({ 
+        referredBy: { $in: tutorUserIds }, 
+        role: 'student' 
+      });
+      
+      referredStudents.forEach(s => {
+        if (s.referredBy) {
+          const refStr = s.referredBy.toString();
+          if (!referredMap.has(refStr)) {
+            referredMap.set(refStr, []);
+          }
+          referredMap.get(refStr).push(s);
+        }
+      });
+
+      const referredStudentIds = referredStudents.map(s => s._id);
+      const bookings = await Booking.find({ studentId: { $in: referredStudentIds } });
+
+      bookings.forEach(b => {
+        if (b.studentId) {
+          const sidStr = b.studentId.toString();
+          if (!bookingsMap.has(sidStr)) {
+            bookingsMap.set(sidStr, []);
+          }
+          bookingsMap.get(sidStr).push(b);
+        }
+      });
+    }
+
+    // Transform _id to id for frontend compatibility and calculate referral metrics
+    const formattedTutors = await Promise.all(tutors.map(async t => {
       const obj = t.toObject();
       obj.id = obj._id.toString();
+
+      // Lazy generate referralCode on-the-fly if missing
+      if (!t.referralCode) {
+        const cleanName = (t.name || 'TUTOR').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        t.referralCode = `${cleanName}${randomNum}`;
+        await t.save();
+        obj.referralCode = t.referralCode;
+      }
       if (obj.userId) {
         obj.email = obj.userId.email;
         obj.phone = obj.userId.phone;
         obj.avatar = obj.userId.avatar;
+
+        // Skip expensive referral DB queries for public tutor listings to avoid N+1 DB load
+        if (req.query.status === 'approved') {
+          obj.referralsInvited = 0;
+          obj.referralsCompleted = 0;
+          obj.referralsEarnings = 0;
+        } else {
+          const tutorUserIdStr = obj.userId._id ? obj.userId._id.toString() : obj.userId.toString();
+          const tutorReferredStudents = referredMap.get(tutorUserIdStr) || [];
+          const invitedCount = tutorReferredStudents.length;
+          let completedCount = 0;
+
+          if (invitedCount > 0) {
+            for (const student of tutorReferredStudents) {
+              const studentBookings = bookingsMap.get(student._id.toString()) || [];
+              const hasRegularClass = studentBookings.some(b => 
+                b.planType && 
+                b.planType !== 'Free Demo Class' && 
+                !b.planType.toLowerCase().includes('demo') &&
+                (b.status === 'completed' || (b.sessions && b.sessions.some(s => s.status === 'completed')))
+              );
+              if (hasRegularClass) {
+                completedCount++;
+              }
+            }
+          }
+          obj.referralsInvited = invitedCount;
+          obj.referralsCompleted = completedCount;
+          obj.referralsEarnings = Math.min(completedCount * 500, 5000);
+        }
+      } else {
+        obj.referralsInvited = 0;
+        obj.referralsCompleted = 0;
+        obj.referralsEarnings = 0;
       }
       if (obj.demoSlots) {
         obj.demoSlots = obj.demoSlots.map(s => ({...s, id: s._id.toString()}));
       }
       return obj;
-    });
+    }));
     res.json(formattedTutors);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching tutors', error: error.message });
@@ -217,6 +303,11 @@ router.get('/:id', async (req, res) => {
     const tutor = await Tutor.findById(req.params.id).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
+    // Cache public approved tutor profile page responses
+    if (tutor.status === 'approved') {
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    }
+
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
     if (obj.userId) {
@@ -292,6 +383,7 @@ router.post('/:id/book', async (req, res) => {
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
 
+
     // Validate slot timing is at least 3 hours in the future
     const bookingDate = parseTimingStringToDate(timing);
     if (bookingDate) {
@@ -338,7 +430,14 @@ router.post('/:id/book', async (req, res) => {
       studentName: studentName || "Anonymous",
       status: 'pending'
     });
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-demo-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId,
+      subject,
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-demo-${newBooking._id}`
+    });
     await newBooking.save();
     console.log(`[Booking] Demo session saved for student: ${studentName} with status: pending`);
     
@@ -408,7 +507,14 @@ router.post('/:id/book-verification-demo', async (req, res) => {
       studentName: 'Admin Verification',
       status: 'pending'
     });
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-verification-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId: 'admin',
+      subject: 'Verification Demo Class',
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-verification-${newBooking._id}`
+    });
     await newBooking.save();
 
     // Send email notification to tutor
@@ -443,7 +549,7 @@ router.post('/:id/book-verification-demo', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming } = req.body;
+    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -451,6 +557,7 @@ router.post('/:id/book-class', async (req, res) => {
 
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
 
     const isPack = planType.includes('Pack');
 
@@ -511,7 +618,40 @@ router.post('/:id/book-class', async (req, res) => {
     // Securely calculate price on the backend
     const calculatedPrice = calculatePlanPrice(tutor, subject, planType);
     
-    // Direct booking means they're immediately enrolled, unless it's a group requiring approval
+    // Handle Student Wallet deduction
+    let walletDiscount = 0;
+    let fullyPaidByWallet = false;
+    let studentUser = null;
+
+    if (useWallet && studentId && studentId !== 'anonymous_student') {
+      const mongoose = require('mongoose');
+      if (mongoose.Types.ObjectId.isValid(studentId)) {
+        studentUser = await User.findById(studentId);
+        if (studentUser && studentUser.walletBalance > 0) {
+          walletDiscount = Math.min(studentUser.walletBalance, calculatedPrice);
+          if (walletDiscount >= calculatedPrice && !isGroup) {
+            fullyPaidByWallet = true;
+          }
+        }
+      }
+    }
+
+    const netPayable = Math.max(0, calculatedPrice - walletDiscount);
+
+    if (fullyPaidByWallet && studentUser) {
+      // Deduct full amount from student wallet immediately
+      studentUser.walletBalance = Math.max(0, studentUser.walletBalance - walletDiscount);
+      if (!studentUser.walletHistory) studentUser.walletHistory = [];
+      studentUser.walletHistory.push({
+        type: 'debit',
+        amount: walletDiscount,
+        description: `Applied wallet credits to book ${planType} - ${subject} with ${tutor.name}`,
+        date: new Date()
+      });
+      await studentUser.save();
+    }
+
+    // Direct booking means they're immediately enrolled if 100% wallet paid, or pending_payment if partial/no wallet
     const newBooking = new Booking({
       tutorId: tutor._id,
       tutorName: tutor.name,
@@ -520,9 +660,11 @@ router.post('/:id/book-class', async (req, res) => {
       subject,
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
-      status: isGroup ? 'pending' : 'pending_payment',
+      status: isGroup ? 'pending' : (fullyPaidByWallet ? 'enrolled' : 'pending_payment'),
       planType,
-      amountPaid: calculatedPrice,
+      amountPaid: fullyPaidByWallet ? calculatedPrice : netPayable,
+      originalAmount: calculatedPrice,
+      walletUsed: walletDiscount,
       groupDetails: isGroup ? {
         isGroup: true,
         invitedEmails: otherStudentsEmails.map(email => ({ email, status: 'pending', paidShare: false }))
@@ -531,17 +673,37 @@ router.post('/:id/book-class', async (req, res) => {
       sessions: isPack && sessions ? sessions : undefined
     });
 
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId,
+      subject,
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-class-${newBooking._id}`
+    });
     
-    // Set individual session Jitsi meeting links
+    // Set individual session Google Meet/Jitsi meeting links
     if (isPack && newBooking.sessions && newBooking.sessions.length > 0) {
-      newBooking.sessions = newBooking.sessions.map((session, idx) => ({
-        date: session.date,
-        time: session.time,
-        status: session.status || 'scheduled',
-        utcDate: session.utcDate ? new Date(session.utcDate) : undefined,
-        meetingLink: `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}-session-${idx + 1}`
-      }));
+      const updatedSessions = [];
+      for (let idx = 0; idx < newBooking.sessions.length; idx++) {
+        const session = newBooking.sessions[idx];
+        const sessMeetLink = await generateMeetingLinkForBooking({
+          tutor,
+          studentId,
+          subject: `${subject} (Session ${idx + 1})`,
+          timing: `${session.date} at ${session.time}`,
+          utcTiming: session.utcDate,
+          fallbackJitsiPrefix: `cuvasol-tutor-class-${newBooking._id}-session-${idx + 1}`
+        });
+        updatedSessions.push({
+          date: session.date,
+          time: session.time,
+          status: session.status || 'scheduled',
+          utcDate: session.utcDate ? new Date(session.utcDate) : undefined,
+          meetingLink: sessMeetLink
+        });
+      }
+      newBooking.sessions = updatedSessions;
     }
 
     await newBooking.save();
@@ -577,16 +739,44 @@ router.post('/:id/book-class', async (req, res) => {
             to: tutorUser.email,
             subject: 'New Group Class Booking',
             text: `Hello ${tutor.name},\n\nA new group class has been initiated by ${studentName} for ${subject} at ${timing}.\n\nPlan: ${planType}\n\nYou can join the private video room once all members enroll: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
-            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
+            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${newBooking.meetingLink && newBooking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Jitsi Video Room'}</a></p><p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
           });
           console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
         }
       } catch (mailError) {
         console.error('[Booking] Failed to send tutor notification:', mailError.message);
       }
+    } else if (fullyPaidByWallet) {
+      // Notify Tutor & Student of successful 100% wallet enrollment
+      try {
+        const tutorUser = await User.findById(tutor.userId);
+        if (tutorUser && tutorUser.email) {
+          const isGoogleMeet = newBooking.meetingLink && newBooking.meetingLink.includes('meet.google.com');
+          const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: tutorUser.email,
+            subject: 'New Course Enrollment Confirmed (Paid via Student Wallet)',
+            text: `Hello ${tutor.name},\n\nStudent ${studentName} has enrolled in your class for ${subject} at ${timing} (paid via student credits).\n\nYou can join the private video room directly here: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `<h3>New Course Enrollment Confirmed</h3>
+                   <p>Hello <b>${tutor.name}</b>,</p>
+                   <p>Student <b>${studentName}</b> is officially enrolled in your course for <b>${subject}</b> at <b>${timing}</b>.</p>
+                   <p>You can join the private video room directly by clicking the link below:</p>
+                   <p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${meetBtnText}</a></p>
+                   <p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
+          });
+        }
+      } catch (mailError) {
+        console.error('[Booking] Failed to send tutor wallet enrollment notification:', mailError.message);
+      }
     }
 
-    res.status(200).json({ message: 'Class booked successfully', booking: newBooking });
+    res.status(200).json({ 
+      message: fullyPaidByWallet ? 'Class booked and fully paid with wallet balance!' : 'Class booked successfully', 
+      booking: newBooking,
+      fullyPaidByWallet,
+      netPayable
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error booking class', error: error.message });
   }
@@ -616,7 +806,7 @@ router.get('/:id/bookings/student/:studentId', async (req, res) => {
 // Update booking status
 router.put('/booking/:bookingId/status', async (req, res) => {
   try {
-    const { status, cancellationReason } = req.body;
+    const { status, cancellationReason, cancelledBy } = req.body;
     if (!['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'].includes(status)) {
        return res.status(400).json({ message: 'Invalid status' });
     }
@@ -625,12 +815,31 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     
     const oldStatus = booking.status;
     booking.status = status;
-    if (cancellationReason) {
+    if (cancellationReason !== undefined) {
       booking.cancellationReason = cancellationReason;
+    }
+    if (status === 'cancelled' || status === 'rejected') {
+      booking.cancelledAt = new Date();
+      if (cancelledBy) {
+        booking.cancelledBy = cancelledBy;
+      } else if (status === 'rejected') {
+        booking.cancelledBy = 'Tutor';
+      } else if (booking.studentId === 'admin') {
+        booking.cancelledBy = 'Admin';
+      } else {
+        booking.cancelledBy = 'Student';
+      }
     }
     await booking.save();
     
-    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status}`);
+    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status} (Cancelled By: ${booking.cancelledBy || 'N/A'})`);
+
+    // Handle wallet refund if booking was cancelled or rejected
+    if (status === 'cancelled' || status === 'rejected') {
+      await refundWalletOnBookingCancel(booking);
+    } else if (status === 'completed') {
+      await rewardReferrerOnClassCompletion(booking);
+    }
 
     const isDemo = !booking.planType || booking.planType === 'Free Demo Class';
 
@@ -675,7 +884,7 @@ router.put('/booking/:bookingId/status', async (req, res) => {
                 <div style="text-align: center; margin: 25px 0;">
                   <a href="${booking.meetingLink}" 
                      style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                    Join Video Room (Jitsi)
+                    ${booking.meetingLink && booking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Video Room (Jitsi)'}
                   </a>
                 </div>
 
@@ -801,7 +1010,15 @@ router.put('/booking/:bookingId/pay', async (req, res) => {
     booking.planType = planType;
     booking.amountPaid = amountPaid;
     if (!booking.meetingLink) {
-      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+      const tutor = await Tutor.findById(booking.tutorId);
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: booking.timing,
+        utcTiming: booking.utcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
     }
     await booking.save();
     res.json({ message: 'Payment successful, enrolled in course!', booking });
@@ -827,6 +1044,11 @@ router.put('/booking/:bookingId/session/:sessionIdx/status', async (req, res) =>
     
     booking.sessions[idx].status = status;
     await booking.save();
+
+    if (status === 'completed') {
+      await rewardReferrerOnClassCompletion(booking);
+    }
+
     res.json(booking);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -864,11 +1086,22 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
 
     if (anyDeclined) {
       booking.status = 'cancelled';
+      booking.cancelledBy = 'Student';
+      booking.cancellationReason = `Declined by group participant: ${email}`;
+      booking.cancelledAt = new Date();
     } else if (allApproved) {
       booking.status = 'enrolled';
     }
     if (booking.status === 'enrolled' && !booking.meetingLink) {
-      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+      const tutor = await Tutor.findById(booking.tutorId);
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: booking.timing,
+        utcTiming: booking.utcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
     }
     await booking.save();
 
@@ -1078,6 +1311,59 @@ router.put('/:id/profile', async (req, res) => {
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Error updating tutor profile', error: error.message });
+  }
+});
+
+// Tutor can update their payment / bank account details
+router.put('/:id/payment-details', async (req, res) => {
+  try {
+    const { accountHolderName, bankName, accountNumber, ifscCode, accountType, upiId, isConfirmed } = req.body;
+
+    if (!accountHolderName || !accountHolderName.trim()) {
+      return res.status(400).json({ message: 'Account Holder Name is required' });
+    }
+    if (!bankName || !bankName.trim()) {
+      return res.status(400).json({ message: 'Bank Name is required' });
+    }
+    if (!accountNumber || !accountNumber.trim()) {
+      return res.status(400).json({ message: 'Bank Account Number is required' });
+    }
+    if (!ifscCode || !ifscCode.trim()) {
+      return res.status(400).json({ message: 'IFSC Code is required' });
+    }
+    if (!isConfirmed) {
+      return res.status(400).json({ message: 'Please confirm that the bank details provided are accurate and belong to you' });
+    }
+
+    const tutor = await Tutor.findById(req.params.id);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    tutor.paymentDetails = {
+      accountHolderName: accountHolderName.trim(),
+      bankName: bankName.trim(),
+      accountNumber: accountNumber.trim(),
+      ifscCode: ifscCode.trim().toUpperCase(),
+      accountType: accountType || 'Savings Account',
+      upiId: (upiId || '').trim(),
+      isConfirmed: Boolean(isConfirmed),
+      updatedAt: new Date()
+    };
+
+    await tutor.save();
+    await tutor.populate('userId', 'email phone avatar');
+
+    const obj = tutor.toObject();
+    obj.id = obj._id.toString();
+    if (obj.userId) {
+      obj.email = obj.userId.email;
+      obj.phone = obj.userId.phone;
+      obj.avatar = obj.userId.avatar;
+    }
+
+    res.json({ message: 'Payment account details saved successfully!', tutor: obj });
+  } catch (error) {
+    console.error('[Tutor Payment Details] Error saving payment details:', error);
+    res.status(500).json({ message: 'Error saving payment details', error: error.message });
   }
 });
 

@@ -63,6 +63,11 @@ router.get('/chat/:userId1/:userId2', async (req, res) => {
 router.get('/inbox/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
+    const mongoose = require('mongoose');
+
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.json([]);
+    }
 
     // Find all messages involving the user
     const messages = await Message.find({
@@ -75,7 +80,7 @@ router.get('/inbox/:userId', async (req, res) => {
     // 1. Gather all other participant IDs to do bulk lookup
     const otherUserIds = new Set();
     for (const msg of messages) {
-      if (!msg.sender || !msg.receiver) continue;
+      if (!msg?.sender?._id || !msg?.receiver?._id) continue;
       const otherId = msg.sender._id.toString() === userId ? msg.receiver._id.toString() : msg.sender._id.toString();
       otherUserIds.add(otherId);
     }
@@ -83,24 +88,29 @@ router.get('/inbox/:userId', async (req, res) => {
     // 2. Bulk fetch all matching tutors to map their tutor profile IDs in one query
     const tutorsList = await Tutor.find({ userId: { $in: Array.from(otherUserIds) } });
     const tutorMap = new Map();
-    tutorsList.forEach(t => tutorMap.set(t.userId.toString(), t._id.toString()));
+    tutorsList.forEach(t => {
+      if (t && t.userId) {
+        tutorMap.set(t.userId.toString(), t._id.toString());
+      }
+    });
 
     // 3. Group conversations and calculate unread counts in-memory
     const conversationsMap = new Map();
 
     for (const msg of messages) {
-      if (!msg.sender || !msg.receiver) continue;
+      if (!msg?.sender?._id || !msg?.receiver?._id) continue;
       
       const otherParticipant = msg.sender._id.toString() === userId ? msg.receiver : msg.sender;
+      if (!otherParticipant?._id) continue;
       const otherId = otherParticipant._id.toString();
 
       if (!conversationsMap.has(otherId)) {
         // Calculate unread count in-memory (no database hits!)
         const unreadCount = messages.filter(m => 
-          m.receiver && 
+          m?.receiver?._id && 
           m.receiver._id.toString() === userId && 
           !m.read && 
-          m.sender && 
+          m?.sender?._id && 
           m.sender._id.toString() === otherId
         ).length;
 
@@ -109,16 +119,16 @@ router.get('/inbox/:userId', async (req, res) => {
         conversationsMap.set(otherId, {
           otherUser: {
             id: otherParticipant._id,
-            full_name: otherParticipant.full_name,
-            email: otherParticipant.email,
-            role: otherParticipant.role,
-            avatar: otherParticipant.avatar,
+            full_name: otherParticipant.full_name || 'User',
+            email: otherParticipant.email || '',
+            role: otherParticipant.role || 'student',
+            avatar: otherParticipant.avatar || '',
             tutorProfileId
           },
           lastMessage: {
-            text: msg.text,
+            text: msg.text || '',
             createdAt: msg.createdAt,
-            senderId: msg.sender._id
+            senderId: msg?.sender?._id || null
           },
           unreadCount
         });
@@ -128,6 +138,7 @@ router.get('/inbox/:userId', async (req, res) => {
     const conversations = Array.from(conversationsMap.values());
     res.json(conversations);
   } catch (error) {
+    console.error('Error fetching inbox conversations:', error);
     res.status(500).json({ message: 'Error fetching inbox conversations', error: error.message });
   }
 });

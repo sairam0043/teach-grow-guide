@@ -60,10 +60,41 @@ const tutorSchema = new mongoose.Schema({
     company: { type: String, required: true },
     duration: { type: String, required: true },
     description: { type: String }
+  }],
+  referralCode: { type: String, unique: true, sparse: true },
+  googleTokens: {
+    accessToken: { type: String },
+    refreshToken: { type: String },
+    expiryDate: { type: Number }
+  },
+  paymentDetails: {
+    accountHolderName: { type: String, default: "" },
+    bankName: { type: String, default: "" },
+    accountNumber: { type: String, default: "" },
+    ifscCode: { type: String, default: "" },
+    accountType: { type: String, enum: ['Savings Account', 'Current Account', ''], default: 'Savings Account' },
+    upiId: { type: String, default: "" },
+    isConfirmed: { type: Boolean, default: false },
+    updatedAt: { type: Date }
+  },
+  payoutHistory: [{
+    amount: { type: Number, required: true },
+    periodMonth: { type: String },
+    paymentMode: { type: String, default: 'Bank Transfer (NEFT/IMPS)' },
+    transactionReference: { type: String },
+    disbursedAt: { type: Date, default: Date.now },
+    disbursedBy: { type: String },
+    notes: { type: String },
+    receiptSent: { type: Boolean, default: false }
   }]
 }, { timestamps: true });
  
 tutorSchema.pre('save', function() {
+  if (!this.referralCode) {
+    const cleanName = (this.name || 'TUTOR').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    this.referralCode = `${cleanName}${randomNum}`;
+  }
   if (this.isNew) {
     if (!this.pricingHistory || this.pricingHistory.length === 0) {
       this.pricingHistory = [];

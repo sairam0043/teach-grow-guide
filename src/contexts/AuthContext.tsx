@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/redux/store";
 import { loginUser, registerUser, logout, googleLogin } from "@/redux/slices/authSlice";
 
-type AppRole = "admin" | "student" | "tutor";
+type AppRole = "admin" | "hr" | "student" | "tutor";
 
 interface AppUser {
   id: string;
@@ -11,6 +11,8 @@ interface AppUser {
   full_name?: string;
   phone?: string;
   student_class?: string;
+  student_name?: string;
+  student_or_parent?: string;
   role?: AppRole;
   user_metadata: Record<string, any>;
 }
@@ -46,6 +48,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       full_name: authUser.full_name,
       phone: authUser.phone,
       student_class: authUser.student_class,
+      student_name: authUser.student_name,
+      student_or_parent: authUser.student_or_parent,
       role: authUser.role,
       user_metadata: { full_name: authUser.full_name, ...authUser }
     };

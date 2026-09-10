@@ -6,6 +6,7 @@ const Booking = require('../schemas/bookingSchema');
 const Tutor = require('../schemas/tutorSchema');
 const User = require('../schemas/userSchema');
 const CoursePayment = require('../schemas/coursePaymentSchema');
+const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
 
 const router = express.Router();
 
@@ -197,11 +198,48 @@ router.post('/verify-payment', async (req, res) => {
 
     // 2. Generate Classroom Link if not already created
     if (!booking.meetingLink) {
-      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+      const tutor = await Tutor.findById(booking.tutorId);
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: booking.timing,
+        utcTiming: booking.utcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
     }
     
     await booking.save();
     console.log(`[Payments] Booking ${booking._id} enrolled successfully. Paid amount: ₹${booking.amountPaid}`);
+
+    // If partial wallet was used, deduct from student wallet balance
+    if (booking.walletUsed && booking.walletUsed > 0 && booking.studentId) {
+      try {
+        const studentUser = await User.findById(booking.studentId);
+        if (studentUser) {
+          if (!studentUser.walletHistory) studentUser.walletHistory = [];
+          const alreadyDebited = studentUser.walletHistory.some(t => 
+            t.type === 'debit' && 
+            t.bookingId && 
+            t.bookingId.toString() === booking._id.toString()
+          );
+          if (!alreadyDebited) {
+            studentUser.walletBalance = Math.max(0, (studentUser.walletBalance || 0) - booking.walletUsed);
+            studentUser.walletHistory.push({
+              type: 'debit',
+              amount: booking.walletUsed,
+              description: `Applied wallet credits towards ${booking.planType} - ${booking.subject}`,
+              bookingId: booking._id,
+              date: new Date()
+            });
+            await studentUser.save();
+            console.log(`[Payments] Deducted ₹${booking.walletUsed} from student ${studentUser.full_name}'s wallet for booking ${booking._id}`);
+          }
+        }
+      } catch (walletErr) {
+        console.error('[Payments] Error deducting wallet balance on payment verification:', walletErr.message);
+      }
+    }
 
     // 3. Notify Tutor & Student via Brevo SMTP
     try {
@@ -210,6 +248,8 @@ router.post('/verify-payment', async (req, res) => {
         const tutorUser = await User.findById(tutor.userId);
         if (tutorUser && tutorUser.email) {
           console.log(`[Payments] Attempting to send confirmation email to tutor: ${tutorUser.email}`);
+          const isGoogleMeet = booking.meetingLink && booking.meetingLink.includes('meet.google.com');
+          const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
           await transporter.sendMail({
             from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
             to: tutorUser.email,
@@ -220,7 +260,7 @@ router.post('/verify-payment', async (req, res) => {
                    <p>Payment of <b>₹${booking.amountPaid}</b> has been successfully processed.</p>
                    <p>Student <b>${booking.studentName}</b> is officially enrolled in your course for <b>${booking.subject}</b> at <b>${booking.timing}</b>.</p>
                    <p>You can join the private video room directly by clicking the link below:</p>
-                   <p><a href="${booking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p>
+                   <p><a href="${booking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${meetBtnText}</a></p>
                    <p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
           });
           console.log(`[Payments] Tutor enrollment alert sent to: ${tutorUser.email}`);

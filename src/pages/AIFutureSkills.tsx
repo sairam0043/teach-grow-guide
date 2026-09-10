@@ -95,7 +95,7 @@ const AIFutureSkills = () => {
 
     setLoading(true);
     try {
-      const studentName = String(user.full_name || "Student");
+      const studentName = String(user.student_name || user.user_metadata?.student_name || user.full_name || "Student");
       const studentEmail = user.email;
 
       // 1. Create order on backend

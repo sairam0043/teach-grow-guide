@@ -35,7 +35,9 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     if (document.hidden && !showLoading) return; // skip if browser tab is backgrounded/inactive
     if (showLoading) setLoadingInbox(true);
     try {
-      const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+      const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+        headers: { 'x-skip-network-alert': 'true' }
+      });
       setConversations(res.data);
       
       // If we have an initial active user, auto-select it from conversations
@@ -79,7 +81,9 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     if (document.hidden && silent) return; // skip if browser tab is backgrounded/inactive
     if (!silent) setLoadingMessages(true);
     try {
-      const res = await axios.get(`${API_URL}/messages/chat/${user.id}/${contactId}`);
+      const res = await axios.get(`${API_URL}/messages/chat/${user.id}/${contactId}`, {
+        headers: { 'x-skip-network-alert': 'true' }
+      });
       setMessages(res.data);
       
       // Reset unread count locally for this contact

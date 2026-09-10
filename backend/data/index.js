@@ -1,4 +1,4 @@
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 const tutors = [
   {
@@ -16,8 +16,8 @@ const tutors = [
     "subjects": ["Advanced Math", "Physics", "Calculus"],
     "hourlyRate": 800,
     "demoSlots": [
-      { "id": uuidv4(), "date": "15 Mar", "time": "10:00 AM", "available": true },
-      { "id": uuidv4(), "date": "16 Mar", "time": "4:00 PM", "available": true }
+      { "id": crypto.randomUUID(), "date": "15 Mar", "time": "10:00 AM", "available": true },
+      { "id": crypto.randomUUID(), "date": "16 Mar", "time": "4:00 PM", "available": true }
     ]
   }
 ];

@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { Link, Navigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Search, BookOpen, Calendar, CreditCard, Star, Users, Award, ArrowRight } from "lucide-react";
+import { Search, BookOpen, Calendar, CreditCard, ArrowRight } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import type { Tutor } from "@/data/mockTutors";
 import { useAuth } from "@/contexts/AuthContext";
 import API_URL from "@/config/api";
+import ChooseOptionSection from "@/components/home/ChooseOptionSection";
 
 const steps = [
   { icon: Search, title: "Find Your Tutor", description: "Browse expert tutors by subject, category, or location." },
@@ -28,25 +29,9 @@ const Index = () => {
     queryFn: async () => {
       const res = await axios.get(`${API_URL}/tutors?status=approved&featured=true`);
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000 // 5 minutes client-side cache
   });
-
-  const { data: platformStats, isLoading: isStatsLoading } = useQuery({
-    queryKey: ['platform', 'stats'],
-    queryFn: async () => {
-      const res = await axios.get(`${API_URL}/dashboard/admin`);
-      return res.data;
-    }
-  });
-
-  const hasAverageRating = platformStats?.averageRating && parseFloat(platformStats.averageRating) > 0;
-
-  const stats = [
-    { icon: Users, value: platformStats !== undefined ? `${platformStats?.totalStudents || 0}` : "120+", label: "Active Students" },
-    { icon: Award, value: platformStats !== undefined ? `${platformStats?.activeTutors || 0}` : "45+", label: "Expert Tutors" },
-    { icon: BookOpen, value: platformStats !== undefined ? `${platformStats?.totalBookings || 0}` : "350+", label: "Classes Booked" },
-    ...(hasAverageRating ? [{ icon: Star, value: platformStats.averageRating, label: "Average Rating" }] : []),
-  ];
 
   const schemaMarkup = {
     "@context": "https://schema.org",
@@ -195,32 +180,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="border-b bg-card py-12">
-        <div className="container">
-          <div className={`grid gap-6 ${hasAverageRating ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
-            {stats.map((stat, idx) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="text-center"
-              >
-                <stat.icon className="mx-auto mb-2 h-6 w-6 text-primary" />
-                {isStatsLoading ? (
-                  <Skeleton className="mx-auto h-8 w-16 mb-1" />
-                ) : (
-                  <div className="text-2xl font-bold text-foreground">{stat.value}{stat.label === "Average Rating" && ""}</div>
-                )}
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* How it works */}
       <section className="py-20">
         <div className="container">
@@ -254,6 +213,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Choose Option Section */}
+      <ChooseOptionSection />
 
       {/* Featured tutors */}
       <section className="bg-secondary/50 py-20">

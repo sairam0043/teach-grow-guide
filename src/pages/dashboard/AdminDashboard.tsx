@@ -1,5 +1,6 @@
 import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -18,10 +19,53 @@ import { resolveAssetUrl } from "@/lib/assetUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { format, parse } from "date-fns";
-import { getTimeZoneAbbreviation } from "@/utils/timezone";
+import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
+import { getMeetingHref } from "@/utils/meeting";
+
+const CLASS_TAUGHT_OPTIONS = [
+  "Class 1 - 5 (Primary)",
+  "Class 6 - 8 (Middle School)",
+  "Class 9 - 10 (High School)",
+  "Class 11 - 12 (Senior Secondary)",
+  "College / University",
+  "Competitive Exams"
+];
+
+const BOARD_TAUGHT_OPTIONS = [
+  "CBSE",
+  "ICSE / ISC",
+  "State Board",
+  "IB (International Baccalaureate)",
+  "IGCSE / Cambridge",
+  "Other"
+];
+
+const ALL_SUBJECTS = [
+  "Mathematics", 
+  "Physics", 
+  "Chemistry", 
+  "Biology", 
+  "Coding / Computer Science", 
+  "English", 
+  "History", 
+  "Geography", 
+  "Economics & Finance", 
+  "Foreign Languages", 
+  "Malayalam",
+  "Music (Vocal/Instruments)", 
+  "Dance", 
+  "Fine Arts & Drawing", 
+  "Chess", 
+  "Yoga & Meditation", 
+  "Public Speaking & Debate", 
+  "Creative Writing", 
+  "Photography & Video", 
+  "Other"
+];
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -42,10 +86,30 @@ const AdminDashboard = () => {
   const [loadingCoursePayments, setLoadingCoursePayments] = useState(false);
   const [selectedTutorForDetail, setSelectedTutorForDetail] = useState<any | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedStudentForDetail, setSelectedStudentForDetail] = useState<any | null>(null);
+  const [isStudentDetailDialogOpen, setIsStudentDetailDialogOpen] = useState(false);
   const [selectedAssessmentPayment, setSelectedAssessmentPayment] = useState<any | null>(null);
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
   const [isSavingScores, setIsSavingScores] = useState(false);
+
+  // Edit Profile States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editTimezone, setEditTimezone] = useState("Asia/Kolkata");
+  const [editCategory, setEditCategory] = useState("Academic");
+  const [editCity, setEditCity] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editGoogleMapsUrl, setEditGoogleMapsUrl] = useState("");
+  const [editMode, setEditMode] = useState("Online");
+  const [editQualification, setEditQualification] = useState("");
+  const [editExperience, setEditExperience] = useState<number | string>(0);
+  const [editBio, setEditBio] = useState("");
+  const [editSubjectRates, setEditSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
+  const [editClassesTaught, setEditClassesTaught] = useState<string[]>([]);
+  const [editBoardsTaught, setEditBoardsTaught] = useState<string[]>([]);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Rejection Dialog States
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
@@ -78,6 +142,27 @@ const AdminDashboard = () => {
   const [verificationDemoTiming, setVerificationDemoTiming] = useState("");
   const [isBookingDemo, setIsBookingDemo] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
+  const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
+  const [bookingToComplete, setBookingToComplete] = useState<{ id: string; tutorName: string } | null>(null);
+
+  const handleSendReferralEmails = async () => {
+    if (!window.confirm("Send Referral Program introduction emails to ALL registered tutors?")) {
+      return;
+    }
+
+    try {
+      setIsSendingReferralEmails(true);
+      toast.loading("Sending referral program emails to all tutors...");
+      const res = await axios.post(`${API_URL}/dashboard/admin/send-referral-emails`, {});
+      toast.dismiss();
+      toast.success(`Referral email process completed! Sent: ${res.data.successCount}, Failed: ${res.data.failCount}`);
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.response?.data?.error || "Failed to send referral emails");
+    } finally {
+      setIsSendingReferralEmails(false);
+    }
+  };
 
   const handleSendProfileEmails = async () => {
     if (!window.confirm("Send Board, Class & Profile completion reminder emails to all members with incomplete profiles?")) {
@@ -97,9 +182,138 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDownloadTutorsCSV = () => {
+    if (tutors.length === 0) {
+      toast.error("No tutor data available to download");
+      return;
+    }
+
+    const headers = ["Name", "Phone Number", "Referral Code"];
+    const rows = tutors.map(t => {
+      const name = t.name || t.userId?.full_name || "";
+      const phone = t.phone || t.userId?.phone || "";
+      const code = t.referralCode || "";
+
+      const escapedName = `"${name.replace(/"/g, '""')}"`;
+      const escapedPhone = `"\t${phone.replace(/"/g, '""')}"`;
+      const escapedCode = `"${code.replace(/"/g, '""')}"`;
+
+      return [escapedName, escapedPhone, escapedCode].join(",");
+    });
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `tutors_referral_codes_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Tutors CSV downloaded successfully!");
+  };
+
+  const handleViewStudentDetail = (student: any) => {
+    setSelectedStudentForDetail(student);
+    setIsStudentDetailDialogOpen(true);
+  };
+
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
+    setIsEditingProfile(false);
+    setEditName(tutor.name || "");
+    setEditPhone(tutor.phone || "");
+    setEditTimezone(tutor.timezone || "Asia/Kolkata");
+    setEditCategory(tutor.category || "Academic");
+    setEditCity(tutor.city || "");
+    setEditAddress(tutor.address || "");
+    setEditGoogleMapsUrl(tutor.googleMapsUrl || "");
+    setEditMode(tutor.mode || "Online");
+    setEditQualification(tutor.qualification || "");
+    setEditExperience(tutor.experience ?? 0);
+    setEditBio(tutor.bio || "");
+    
+    const legacyRates = tutor.subjectRates && tutor.subjectRates.length > 0
+      ? tutor.subjectRates
+      : (tutor.subjects || []).map((sub: string) => ({ subject: sub, rate: tutor.hourlyRate || 300 }));
+    setEditSubjectRates(legacyRates);
+    
+    setEditClassesTaught(tutor.classesTaught || []);
+    setEditBoardsTaught(tutor.boardsTaught || []);
+    
     setIsDetailDialogOpen(true);
+  };
+
+  const handleSaveTutorProfile = async () => {
+    if (!selectedTutorForDetail) return;
+    
+    if (!editName.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+    
+    try {
+      setIsSavingProfile(true);
+      
+      const userId = selectedTutorForDetail.userId?._id || selectedTutorForDetail.userId;
+      if (!userId) {
+        toast.error("User ID associated with tutor not found.");
+        setIsSavingProfile(false);
+        return;
+      }
+      
+      // Update User collection
+      await axios.put(`${API_URL}/auth/profile/${userId}`, {
+        full_name: editName.trim(),
+        phone: editPhone.trim(),
+        timezone: editTimezone
+      });
+      
+      // Update Tutor collection
+      const payload = {
+        bio: editBio,
+        qualification: editQualification,
+        experience: Number(editExperience),
+        address: editAddress,
+        googleMapsUrl: editGoogleMapsUrl,
+        mode: editMode,
+        category: editCategory,
+        subjectRates: editSubjectRates,
+        classesTaught: editClassesTaught,
+        boardsTaught: editBoardsTaught,
+        timezone: editTimezone,
+        city: editCity
+      };
+      
+      const res = await axios.put(`${API_URL}/tutors/${selectedTutorForDetail.id}/profile`, payload);
+      
+      toast.success("Tutor profile updated successfully!");
+      
+      // Update local state in the list
+      setTutors(prev => prev.map(t => t.id === selectedTutorForDetail.id ? { 
+        ...t, 
+        ...res.data, 
+        name: editName.trim(), 
+        phone: editPhone.trim(), 
+        email: selectedTutorForDetail.email 
+      } : t));
+      
+      // Update selected tutor detail in modal
+      setSelectedTutorForDetail({ 
+        ...selectedTutorForDetail, 
+        ...res.data, 
+        name: editName.trim(), 
+        phone: editPhone.trim() 
+      });
+      
+      setIsEditingProfile(false);
+    } catch (error: any) {
+      console.error("Error saving tutor profile:", error);
+      toast.error(error.response?.data?.message || "Failed to update tutor profile");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handleViewBookingDetail = (booking: any) => {
@@ -225,7 +439,9 @@ const AdminDashboard = () => {
     const fetchUnreadCount = async () => {
       if (document.hidden) return;
       try {
-        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+          headers: { 'x-skip-network-alert': 'true' }
+        });
         const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
         setUnreadMessagesCount(total);
       } catch (err) {
@@ -234,7 +450,7 @@ const AdminDashboard = () => {
     };
 
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 12000);
+    const interval = setInterval(fetchUnreadCount, 25000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -371,9 +587,26 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleUpdateBookingStatus = async (bookingId: string, status: string) => {
+  const handleDeleteStudent = async (studentId: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete student "${name}" and their associated booking/payment history? This action cannot be undone.`)) {
+      return;
+    }
     try {
-      await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { status });
+      await axios.delete(`${API_URL}/dashboard/admin/students/${studentId}`);
+      toast.success(`Student "${name}" deleted successfully.`);
+      fetchTutors();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete student account");
+    }
+  };
+
+  const handleUpdateBookingStatus = async (bookingId: string, status: string, cancellationReason?: string) => {
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { 
+        status,
+        cancellationReason: cancellationReason || (status === 'cancelled' ? 'Cancelled by Admin' : undefined),
+        cancelledBy: status === 'cancelled' || status === 'rejected' ? 'Admin' : undefined
+      });
       toast.success(`Booking status updated to ${status} successfully.`);
       fetchTutors();
     } catch (err: any) {
@@ -415,6 +648,16 @@ const AdminDashboard = () => {
           </div>
           <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
             <Button 
+              asChild
+              className="h-10 gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+            >
+              <Link to="/dashboard/hr">
+                <Landmark className="h-4 w-4" />
+                HR Payouts Portal
+                <ArrowUpRight className="h-3.5 w-3.5 opacity-80" />
+              </Link>
+            </Button>
+            <Button 
               onClick={handleSendProfileEmails} 
               disabled={isSendingProfileEmails} 
               variant="default" 
@@ -422,6 +665,28 @@ const AdminDashboard = () => {
             >
               <Mail className={`h-4 w-4 ${isSendingProfileEmails ? 'animate-bounce' : ''}`} />
               Send Board & Class Reminder Emails
+            </Button>
+            <Button 
+              onClick={handleSendReferralEmails} 
+              disabled={isSendingReferralEmails} 
+              variant="default" 
+              className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+            >
+              <Sparkles className={`h-4 w-4 ${isSendingReferralEmails ? 'animate-bounce' : ''}`} />
+              Send Referral Program Emails
+            </Button>
+            <Button 
+              onClick={handleDownloadTutorsCSV} 
+              disabled={loading || tutors.length === 0}
+              variant="outline" 
+              className="h-10 gap-2 border-indigo-200/60 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-900/40 dark:hover:bg-indigo-950/20 transition-all duration-300 rounded-lg shadow-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <Activity className="h-4 w-4 animate-spin text-indigo-500" />
+              ) : (
+                <FileText className="h-4 w-4 text-indigo-500" />
+              )}
+              {loading ? "Loading Tutors..." : "Download Tutors CSV"}
             </Button>
             <Button 
               onClick={fetchTutors} 
@@ -435,10 +700,11 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5 mb-10">
           {[
             { icon: Clock, label: "Pending Approvals", value: adminStats?.pendingApprovals || pendingTutors.length, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-900/20" },
             { icon: Users, label: "Active Tutors", value: adminStats?.activeTutors || approvedTutors.length, color: "text-sky-500", bg: "bg-sky-50 dark:bg-sky-950/20 border border-sky-200/40 dark:border-sky-900/20" },
+            { icon: GraduationCap, label: "Total Students", value: adminStats?.totalStudents !== undefined ? adminStats.totalStudents : students.length, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200/40 dark:border-indigo-900/20" },
             { icon: BookOpen, label: "Total Bookings", value: adminStats?.totalBookings || bookings.length, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/20 border border-violet-200/40 dark:border-violet-900/20" },
             { icon: DollarSign, label: "Total Revenue", value: `₹${totalPlatformRevenue}`, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/40 dark:border-emerald-900/20" },
           ].map((stat) => (
@@ -734,6 +1000,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Category</TableHead>
                           <TableHead className="font-bold h-12">City</TableHead>
                           <TableHead className="font-bold h-12">Referral Source</TableHead>
+                          <TableHead className="font-bold h-12">Referrals (Completed/Invited)</TableHead>
                           <TableHead className="font-bold h-12">Subjects/Boards/Classes</TableHead>
                           <TableHead className="font-bold h-12">Status</TableHead>
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
@@ -777,6 +1044,18 @@ const AdminDashboard = () => {
                               {tutor.pincode && <span className="text-xs text-muted-foreground block font-normal">{tutor.pincode}</span>}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={tutor.hearAboutUs || "–"}>{tutor.hearAboutUs || "–"}</TableCell>
+                            <TableCell className="text-sm text-foreground">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                  {tutor.referralsCompleted ?? 0} <span className="text-[10px] text-muted-foreground font-normal">/ {tutor.referralsInvited ?? 0}</span>
+                                </span>
+                                {(tutor.referralsEarnings ?? 0) > 0 && (
+                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-500 font-semibold">
+                                    ₹{tutor.referralsEarnings} earned
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
                              <TableCell className="max-w-[180px] text-sm">
                                <div className="font-semibold text-foreground truncate" title={tutor.subjects?.join(", ")}>{tutor.subjects?.join(", ") || "–"}</div>
                                {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
@@ -942,18 +1221,38 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Email</TableHead>
                             <TableHead className="font-medium h-12">Contact</TableHead>
                             <TableHead className="font-medium h-12">Class / Grade</TableHead>
+                            <TableHead className="font-medium h-12">Source</TableHead>
                             <TableHead className="font-medium h-12 text-right">Joined</TableHead>
+                            <TableHead className="font-medium h-12 text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {filteredStudents.map((student) => (
                             <TableRow key={student._id || student.id} className="hover:bg-secondary/10 transition-colors">
                               <TableCell className="font-mono text-xs text-muted-foreground">{String(student._id || student.id).slice(-8)}</TableCell>
-                              <TableCell className="font-semibold text-foreground">{student.full_name || "–"}</TableCell>
+                              <TableCell 
+                                className="font-semibold text-foreground cursor-pointer hover:underline hover:text-primary transition-all" 
+                                onClick={() => handleViewStudentDetail(student)} 
+                                title="Click to view student details"
+                              >
+                                {student.full_name || "–"}
+                              </TableCell>
                               <TableCell>{student.email || "–"}</TableCell>
                               <TableCell>{student.phone || "–"}</TableCell>
                               <TableCell><Badge variant="outline" className="font-normal bg-secondary/20">{student.student_class || student.studentClass || "–"}</Badge></TableCell>
+                              <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
                               <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-right">
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
+                                  onClick={() => handleDeleteStudent(student._id || student.id, student.full_name || "Student")}
+                                  title="Delete student account"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1012,14 +1311,24 @@ const AdminDashboard = () => {
                               {demo.timing}
                             </TableCell>
                             <TableCell className="text-center">
-                              <Badge variant="outline" className={`px-2.5 py-1 border-none font-bold text-xs ${
-                                demo.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                demo.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                demo.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                                'bg-red-100 text-red-700'
-                              }`}>
-                                {demo.status.toUpperCase()}
-                              </Badge>
+                              <div>
+                                <Badge variant="outline" className={`px-2.5 py-1 border-none font-bold text-xs ${
+                                  demo.status === 'confirmed' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' :
+                                  demo.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' :
+                                  demo.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                                  demo.status === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' :
+                                  'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                                }`}>
+                                  {demo.status === 'cancelled' ? `CANCELLED${demo.cancelledBy ? ` (${demo.cancelledBy.toUpperCase()})` : ''}` :
+                                   demo.status === 'rejected' ? `DECLINED (TUTOR)` :
+                                   demo.status.toUpperCase()}
+                                </Badge>
+                                {demo.cancellationReason && (
+                                  <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px] truncate mx-auto italic" title={`Reason: ${demo.cancellationReason}`}>
+                                    "{demo.cancellationReason}"
+                                  </p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center">
                               {['confirmed', 'pending'].includes(demo.status) ? (
@@ -1029,7 +1338,7 @@ const AdminDashboard = () => {
                                   asChild
                                 >
                                   <a
-                                    href={demo.meetingLink || `https://meet.jit.si/cuvasol-tutor-verification-${demo._id}`}
+                                    href={getMeetingHref(demo.meetingLink, demo._id, "Admin Moderator", "", "Verification Demo Class")}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
@@ -1046,7 +1355,7 @@ const AdminDashboard = () => {
                                   <Button
                                     size="sm"
                                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg"
-                                    onClick={() => handleUpdateBookingStatus(demo._id, 'completed')}
+                                    onClick={() => setBookingToComplete({ id: demo._id, tutorName: demo.tutorName || "Unknown Tutor" })}
                                   >
                                     Mark Completed
                                   </Button>
@@ -1130,14 +1439,28 @@ const AdminDashboard = () => {
                             <TableCell>{booking.studentName || "Anonymous"}</TableCell>
                             <TableCell className="text-sm">{booking.timing}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={`border-none ${
-                                booking.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700' :
-                                booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                'bg-secondary text-secondary-foreground'
-                              }`}>
-                                {booking.status.toUpperCase()}
-                              </Badge>
+                              <div className="space-y-1">
+                                <Badge variant="outline" className={`border-none font-semibold ${
+                                  booking.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300' :
+                                  booking.status === 'confirmed' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' :
+                                  booking.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' :
+                                  booking.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                                  booking.status === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' :
+                                  'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                                }`}>
+                                  {booking.status === 'cancelled' ? `Cancelled (${booking.cancelledBy || 'Student'})` :
+                                   booking.status === 'rejected' ? `Declined (${booking.cancelledBy || 'Tutor'})` :
+                                   booking.status.toUpperCase()}
+                                </Badge>
+                                {booking.cancellationReason && (
+                                  <p 
+                                    className="text-[11px] text-muted-foreground truncate max-w-[220px] italic flex items-center gap-1 cursor-help"
+                                    title={`Reason: ${booking.cancellationReason}`}
+                                  >
+                                    <span className="font-medium text-foreground/70">Reason:</span> "{booking.cancellationReason}"
+                                  </p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
@@ -1357,10 +1680,20 @@ const AdminDashboard = () => {
           <TabsContent value="payouts">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
-                  <CreditCard className="h-5 w-5 text-emerald-500" /> Tutor Payouts & Ledger Audit
-                </CardTitle>
-                <CardDescription>Track tutor hourly rate changes, completed sessions, and calculated payouts (gross vs net payouts minus 10% platform commission).</CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                      <CreditCard className="h-5 w-5 text-emerald-500" /> Tutor Payouts & Ledger Audit
+                    </CardTitle>
+                    <CardDescription>Track tutor hourly rate changes, completed sessions, and calculated payouts (gross vs net payouts minus 10% platform commission).</CardDescription>
+                  </div>
+                  <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 gap-2 shrink-0 rounded-lg shadow-sm">
+                    <Link to="/dashboard/hr">
+                      <Landmark className="h-4 w-4" /> Open Dedicated HR Payouts Portal
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 {loadingPayouts ? (
@@ -1820,6 +2153,280 @@ const AdminDashboard = () => {
           </DialogHeader>
 
           {selectedTutorForDetail && (
+            isEditingProfile ? (
+              <div className="space-y-6 py-4">
+                {/* Profile fields: Name, Phone, Timezone */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Full Name</label>
+                    <Input 
+                      value={editName} 
+                      onChange={(e) => setEditName(e.target.value)} 
+                      placeholder="Tutor's Full Name"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</label>
+                    <Input 
+                      value={editPhone} 
+                      onChange={(e) => setEditPhone(e.target.value)} 
+                      placeholder="Phone number"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Timezone</label>
+                    <Select value={editTimezone} onValueChange={setEditTimezone}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Timezone" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {COMMON_TIMEZONES.map((tz) => (
+                          <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Category</label>
+                    <Select value={editCategory} onValueChange={(val) => {
+                      setEditCategory(val);
+                    }}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Academic">Academic</SelectItem>
+                        <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">City</label>
+                    <Input 
+                      value={editCity} 
+                      onChange={(e) => setEditCity(e.target.value)} 
+                      placeholder="City"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Address (Offline Classroom)</label>
+                    <Input 
+                      value={editAddress} 
+                      onChange={(e) => setEditAddress(e.target.value)} 
+                      placeholder="Full Address"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Google Maps URL</label>
+                    <Input 
+                      value={editGoogleMapsUrl} 
+                      onChange={(e) => setEditGoogleMapsUrl(e.target.value)} 
+                      placeholder="https://maps.google.com/..."
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Mode</label>
+                    <Select value={editMode} onValueChange={setEditMode}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Online">Online</SelectItem>
+                        <SelectItem value="Offline">Offline</SelectItem>
+                        <SelectItem value="Both">Online & Offline</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Highest Qualification</label>
+                    <Input 
+                      value={editQualification} 
+                      onChange={(e) => setEditQualification(e.target.value)} 
+                      placeholder="Degree, e.g. B.Tech CS"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Experience (Years)</label>
+                    <Input 
+                      type="number"
+                      value={editExperience} 
+                      onChange={(e) => setEditExperience(e.target.value)} 
+                      placeholder="Years"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Professional Bio</label>
+                  <Textarea 
+                    value={editBio} 
+                    onChange={(e) => setEditBio(e.target.value)} 
+                    placeholder="Tell students about your qualifications and teaching methodology..."
+                    rows={4}
+                    className="bg-background text-sm leading-relaxed"
+                  />
+                </div>
+
+                {/* Classes Taught */}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Classes / Grade Levels Taught</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {CLASS_TAUGHT_OPTIONS.map((c) => {
+                      const isChecked = editClassesTaught.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setEditClassesTaught(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                            isChecked
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-background text-foreground border-border hover:bg-secondary/40"
+                          }`}
+                        >
+                          <span className="truncate">{c}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Boards Taught */}
+                {(editCategory === "Academic") && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Educational Boards Taught</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {BOARD_TAUGHT_OPTIONS.map((b) => {
+                        const isChecked = editBoardsTaught.includes(b);
+                        return (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() => setEditBoardsTaught(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b])}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                              isChecked
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                : "bg-background text-foreground border-border hover:bg-secondary/40"
+                            }`}
+                          >
+                            <span className="truncate">{b}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Subjects & Rates */}
+                <div className="space-y-2 border-t pt-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Subjects & Hourly Rates</label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      className="text-xs h-8 border-primary/20 text-primary hover:bg-primary/5 font-semibold"
+                      onClick={() => setEditSubjectRates(prev => [...prev, { subject: "", rate: 300 }])}
+                    >
+                      + Add Subject
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2 mt-2">
+                    {editSubjectRates.map((sr, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <Select 
+                          value={sr.subject} 
+                          onValueChange={(val) => {
+                            setEditSubjectRates(prev => prev.map((item, i) => i === idx ? { ...item, subject: val } : item));
+                          }}
+                        >
+                          <SelectTrigger className="flex-1 bg-background text-sm">
+                            <SelectValue placeholder="Select Subject" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {ALL_SUBJECTS.map((sub) => (
+                              <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <div className="flex items-center border rounded-lg bg-background px-3 w-32">
+                          <span className="text-muted-foreground text-sm font-semibold">₹</span>
+                          <Input 
+                            type="number"
+                            value={sr.rate}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setEditSubjectRates(prev => prev.map((item, i) => i === idx ? { ...item, rate: val } : item));
+                            }}
+                            className="border-0 shadow-none focus-visible:ring-0 text-right h-9 text-sm font-bold p-1 pr-0"
+                            placeholder="Rate"
+                          />
+                          <span className="text-muted-foreground text-xs font-normal ml-1">/hr</span>
+                        </div>
+
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-muted-foreground hover:text-destructive h-9 w-9"
+                          onClick={() => setEditSubjectRates(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    {editSubjectRates.length === 0 && (
+                      <div className="p-4 rounded-xl border border-dashed text-center text-xs text-muted-foreground italic">
+                        No subjects added. Tutors must teach at least one subject.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Edit Actions Footer */}
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-border/40">
+                  <Button 
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setIsEditingProfile(false)}
+                    disabled={isSavingProfile}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="button"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    onClick={handleSaveTutorProfile}
+                    disabled={isSavingProfile}
+                  >
+                    {isSavingProfile ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-6 py-4">
               {/* Header profile info */}
               <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center p-4 rounded-xl bg-secondary/10 border border-border/40">
@@ -2208,12 +2815,135 @@ const AdminDashboard = () => {
                    <CheckCircle className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.isVerified ? "fill-blue-500 text-white" : ""}`} />
                    {selectedTutorForDetail.isVerified ? "Remove Verified" : "Give Verified"}
                  </Button>
+                 <Button 
+                   variant="outline"
+                   className="border-primary/20 text-primary hover:bg-primary/5 font-bold"
+                   onClick={() => setIsEditingProfile(true)}
+                 >
+                   Edit Profile
+                 </Button>
                  <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
                    Close
                  </Button>
               </div>
             </div>
+            )
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Details Modal */}
+      <Dialog open={isStudentDetailDialogOpen} onOpenChange={setIsStudentDetailDialogOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <GraduationCap className="h-6 w-6 text-indigo-500" /> Student Profile
+            </DialogTitle>
+            <DialogDescription>
+              View detailed registration information for this student account.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStudentForDetail && (
+            <div className="space-y-6 py-4">
+              {/* Header profile section with Avatar */}
+              <div className="flex items-center gap-4 pb-4 border-b">
+                <div className="h-16 w-16 rounded-full border shadow-sm overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                  {selectedStudentForDetail.avatar ? (
+                    <img 
+                      src={resolveAssetUrl(selectedStudentForDetail.avatar)} 
+                      alt={selectedStudentForDetail.full_name} 
+                      className="h-full w-full object-cover" 
+                      onError={(e: any) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentForDetail.full_name || "S")}&background=random&size=200`;
+                      }}
+                    />
+                  ) : (
+                    <span className="font-bold text-2xl text-indigo-500 uppercase">
+                      {(selectedStudentForDetail.full_name || "S").charAt(0)}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-foreground leading-tight">
+                    {selectedStudentForDetail.full_name}
+                  </h3>
+                  <Badge variant="outline" className="mt-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200">
+                    {selectedStudentForDetail.student_or_parent || "Student"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* General details grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
+                  <span className="text-sm font-semibold text-foreground break-all">{selectedStudentForDetail.email || "–"}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
+                  <span className="text-sm font-semibold text-foreground">{selectedStudentForDetail.phone || "–"}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Class / Grade</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    <Badge variant="outline" className="bg-secondary/20">{selectedStudentForDetail.student_class || selectedStudentForDetail.studentClass || "–"}</Badge>
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Time Zone</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {selectedStudentForDetail.timezone ? `${getTimeZoneAbbreviation(selectedStudentForDetail.timezone)} (${selectedStudentForDetail.timezone})` : 'IST (Asia/Kolkata)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Conditional section if Parent was registered */}
+              {selectedStudentForDetail.student_or_parent === "Parent" && selectedStudentForDetail.student_name && (
+                <div className="space-y-1 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
+                  <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Child (Student) Name</span>
+                  <span className="text-sm font-bold text-foreground">{selectedStudentForDetail.student_name}</span>
+                </div>
+              )}
+
+              {/* Referral Source */}
+              <div className="space-y-1 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> How they heard about us
+                </span>
+                <span className="text-sm font-bold text-foreground">
+                  {selectedStudentForDetail.heard_about_us || selectedStudentForDetail.heardAboutUs || "Not specified / Existing User"}
+                </span>
+              </div>
+
+              {/* Dates / Metadata */}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">
+                <div>
+                  <span>Joined Date:</span>
+                  <span className="block font-medium text-foreground mt-0.5">
+                    {selectedStudentForDetail.createdAt ? new Date(selectedStudentForDetail.createdAt).toLocaleString() : "Not available"}
+                  </span>
+                </div>
+                <div>
+                  <span>User ID:</span>
+                  <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all">
+                    {selectedStudentForDetail._id || selectedStudentForDetail.id || "–"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsStudentDetailDialogOpen(false)}
+              className="rounded-lg h-10 px-4 hover:bg-secondary/20 hover:text-foreground"
+            >
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2495,6 +3225,45 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
+              {/* Cancellation & Rejection Audit Banner */}
+              {(selectedBookingForDetail.status === 'cancelled' || selectedBookingForDetail.status === 'rejected') && (
+                <div className="p-4 rounded-xl bg-red-50/80 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 space-y-3 shadow-sm">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300 flex items-center justify-center font-bold shrink-0">
+                        <XCircle className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-red-950 dark:text-red-100">
+                          {selectedBookingForDetail.status === 'rejected' ? 'Demo Request Declined' : 'Class Booking Cancelled'}
+                        </h4>
+                        <p className="text-xs text-red-700 dark:text-red-300/90">
+                          Cancelled / Declined By: <span className="font-bold underline text-red-950 dark:text-red-100">
+                            {selectedBookingForDetail.cancelledBy === 'Tutor' ? `Tutor (${selectedBookingForDetail.tutorName})` :
+                             selectedBookingForDetail.cancelledBy === 'Admin' ? 'Admin / Platform Manager' :
+                             `Student (${selectedBookingForDetail.studentName || 'Student'})`}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    {selectedBookingForDetail.cancelledAt && (
+                      <span className="text-[11px] font-mono text-red-700 dark:text-red-300 bg-white/80 dark:bg-red-900/40 px-2.5 py-1 rounded-md border border-red-200 dark:border-red-800/40 font-medium">
+                        {new Date(selectedBookingForDetail.cancelledAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="bg-white/90 dark:bg-card/80 p-3 rounded-lg border border-red-100 dark:border-red-900/40">
+                    <span className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400 tracking-wider block mb-1">
+                      Reason for Cancellation / Rejection
+                    </span>
+                    <p className="text-sm font-semibold text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedBookingForDetail.cancellationReason || "No specific reason provided."}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Participant Profiles: Tutor and Student Side-by-Side */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Tutor Card */}
@@ -2564,6 +3333,9 @@ const AdminDashboard = () => {
                     <div className="space-y-1 text-xs text-muted-foreground">
                       <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.studentEmail || "N/A"}</p>
                       <p><strong>Phone:</strong> {selectedBookingForDetail.studentPhone || "N/A"}</p>
+                      <p><strong>Class:</strong> {selectedBookingForDetail.studentClass || "N/A"}</p>
+                      <p><strong>Parent Name:</strong> {selectedBookingForDetail.parentName || "N/A"}</p>
+                      <p className="truncate"><strong>Subject:</strong> {selectedBookingForDetail.subject || "N/A"}</p>
                     </div>
                   </div>
                   {selectedBookingForDetail.studentId ? (
@@ -2626,11 +3398,11 @@ const AdminDashboard = () => {
                                 asChild
                               >
                                 <a 
-                                  href={`${sessMeetLink}#config.prejoinPageEnabled=false&userInfo.displayName="Admin%20Moderator"`}
+                                  href={getMeetingHref(sessMeetLink, '', "Admin Moderator", '')}
                                   target="_blank" 
                                   rel="noopener noreferrer"
                                 >
-                                  <Video className="h-3.5 w-3.5 mr-1" /> Join Jitsi Room
+                                  <Video className="h-3.5 w-3.5 mr-1" /> {sessMeetLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Jitsi Room'}
                                 </a>
                               </Button>
                             )}
@@ -2640,12 +3412,16 @@ const AdminDashboard = () => {
                     })}
                   </div>
                 ) : (
-                  /* Standard / Demo class Jitsi Meet links */
+                  /* Standard / Demo class Meet links */
                   <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex items-start gap-3">
                       <span className="text-2xl mt-0.5">🎥</span>
                       <div>
-                        <p className="text-xs font-bold text-foreground">Jitsi Meet Classroom Room</p>
+                        <p className="text-xs font-bold text-foreground">
+                          {selectedBookingForDetail.meetingLink?.includes('meet.google.com') 
+                            ? 'Google Meet Classroom' 
+                            : 'Jitsi Meet Classroom'}
+                        </p>
                         <p className="text-[10px] text-muted-foreground mt-1 max-w-sm">
                           This is a dynamic secure video conference room. You can join the room as a moderator helper to support the live session.
                         </p>
@@ -2659,7 +3435,7 @@ const AdminDashboard = () => {
                         asChild
                       >
                         <a 
-                          href={`${selectedBookingForDetail.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${selectedBookingForDetail._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="Admin%20Moderator"`}
+                          href={getMeetingHref(selectedBookingForDetail.meetingLink, selectedBookingForDetail._id, "Admin Moderator", '', selectedBookingForDetail.subject)}
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
@@ -2671,7 +3447,7 @@ const AdminDashboard = () => {
                         variant="outline"
                         className="h-9 px-3 text-xs"
                         onClick={() => {
-                          const link = selectedBookingForDetail.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${selectedBookingForDetail._id}`;
+                          const link = getMeetingHref(selectedBookingForDetail.meetingLink, selectedBookingForDetail._id, "Admin Moderator", '', selectedBookingForDetail.subject);
                           navigator.clipboard.writeText(link);
                           toast.success("Meeting link copied to clipboard!");
                         }}
@@ -2692,6 +3468,39 @@ const AdminDashboard = () => {
             </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+      {/* Complete Booking Confirmation Modal */}
+      <Dialog open={bookingToComplete !== null} onOpenChange={(open) => !open && setBookingToComplete(null)}>
+        <DialogContent className="sm:max-w-[450px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-blue-600">
+              <CheckCircle className="h-5 w-5" /> Confirm Demo Completion
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              Are you sure you want to mark the verification demo for <strong>{bookingToComplete?.tutorName}</strong> as completed? This action will update their status and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
+            <Button
+              variant="ghost"
+              onClick={() => setBookingToComplete(null)}
+              className="rounded-lg h-10 px-4 hover:bg-secondary/20 font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (bookingToComplete) {
+                  await handleUpdateBookingStatus(bookingToComplete.id, 'completed');
+                  setBookingToComplete(null);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-10 px-4 shadow-md font-semibold"
+            >
+              Mark Completed
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </PageLayout>

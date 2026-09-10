@@ -1,8 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { Search, SlidersHorizontal, Map as MapIcon, Grid as GridIcon } from "lucide-react";
+import { Search, SlidersHorizontal, Map as MapIcon, Grid as GridIcon, Scale } from "lucide-react";
 import TutorMapView from "@/components/tutors/TutorMapView";
+import TutorComparisonModal from "@/components/tutors/TutorComparisonModal";
+import TutorCompareFloatingBar from "@/components/tutors/TutorCompareFloatingBar";
+import { toast } from "sonner";
 import { Helmet } from "react-helmet-async";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -108,7 +111,40 @@ const BrowseTutors = () => {
   const [time, setTime] = useState(() => sessionStorage.getItem("tutor_time") || "all");
   const [showFilters, setShowFilters] = useState(() => sessionStorage.getItem("tutor_show_filters") === "true");
   const [showMap, setShowMap] = useState(() => sessionStorage.getItem("tutor_show_map") === "true");
-  const [sortBy, setSortBy] = useState<string>(() => sessionStorage.getItem("tutor_sort_by") || "default");
+  const [sortBy, setSortBy] = useState<string>(() => sessionStorage.getItem("tutor_sort_by") || "price-asc");
+
+  const [selectedCompareTutors, setSelectedCompareTutors] = useState<Tutor[]>([]);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+
+  const handleToggleCompare = (tutor: Tutor) => {
+    const isAlreadySelected = selectedCompareTutors.some((t) => t.id === tutor.id);
+    if (isAlreadySelected) {
+      setSelectedCompareTutors((prev) => prev.filter((t) => t.id !== tutor.id));
+      toast.info(`Removed ${tutor.name} from comparison`);
+    } else {
+      if (selectedCompareTutors.length >= 3) {
+        toast.warning("You can compare up to 3 tutors at a time.");
+        return;
+      }
+      setSelectedCompareTutors((prev) => [...prev, tutor]);
+      toast.success(`Added ${tutor.name} to comparison (${selectedCompareTutors.length + 1}/3)`);
+    }
+  };
+
+  const handleRemoveCompareTutor = (tutorId: string) => {
+    setSelectedCompareTutors((prev) => {
+      const updated = prev.filter((t) => t.id !== tutorId);
+      if (updated.length < 2 && isCompareModalOpen) {
+        setIsCompareModalOpen(false);
+      }
+      return updated;
+    });
+  };
+
+  const handleClearAllCompare = () => {
+    setSelectedCompareTutors([]);
+    setIsCompareModalOpen(false);
+  };
 
   useEffect(() => {
     if (categoryParam?.toLowerCase() === "academic") {
@@ -149,7 +185,8 @@ const BrowseTutors = () => {
     queryFn: async () => {
       const res = await axios.get(`${API_URL}/tutors?status=approved`);
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000 // 5 minutes client-side cache
   });
 
   const selectedCategory = normalize(category);
@@ -263,11 +300,11 @@ const BrowseTutors = () => {
     setCity("all");
     setDay("all");
     setTime("all");
-    setSortBy("default");
+    setSortBy("price-asc");
     setSearchParams({});
   };
 
-  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "default";
+  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "price-asc";
 
   return (
     <PageLayout>
@@ -413,9 +450,9 @@ const BrowseTutors = () => {
                         <SelectValue placeholder="Sort By" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="default">Sort: Default</SelectItem>
                         <SelectItem value="price-asc">Price: Low to High</SelectItem>
                         <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                        <SelectItem value="default">Name: A to Z</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -532,15 +569,27 @@ const BrowseTutors = () => {
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Sort: Default</SelectItem>
                 <SelectItem value="price-asc">Price: Low to High</SelectItem>
                 <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                <SelectItem value="default">Name: A to Z</SelectItem>
               </SelectContent>
             </Select>
 
             {hasFilters && (
               <Button variant="ghost" onClick={clearFilters} className="text-sm">
                 Clear filters
+              </Button>
+            )}
+
+            {selectedCompareTutors.length > 0 && (
+              <Button
+                variant="default"
+                onClick={() => setIsCompareModalOpen(true)}
+                disabled={selectedCompareTutors.length < 2}
+                className="gap-1.5 text-sm font-semibold rounded-lg shadow-sm bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                <Scale className="h-4 w-4" />
+                Compare Tutors ({selectedCompareTutors.length}/3)
               </Button>
             )}
 
@@ -596,7 +645,12 @@ const BrowseTutors = () => {
               ) : filtered.length > 0 ? (
                 <div className={`grid gap-6 sm:grid-cols-2 ${showMap ? "lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto pr-2 custom-scrollbar lg:grid-cols-2" : "lg:grid-cols-3"}`}>
                   {filtered.map((tutor) => (
-                    <TutorCard key={tutor.id} tutor={tutor} />
+                    <TutorCard
+                      key={tutor.id}
+                      tutor={tutor}
+                      isCompared={selectedCompareTutors.some((ct) => ct.id === tutor.id)}
+                      onToggleCompare={handleToggleCompare}
+                    />
                   ))}
                 </div>
               ) : (
@@ -616,6 +670,23 @@ const BrowseTutors = () => {
           </div>
         </div>
       </section>
+
+      {/* Floating Compare Bar */}
+      <TutorCompareFloatingBar
+        selectedTutors={selectedCompareTutors}
+        onRemoveTutor={handleRemoveCompareTutor}
+        onClearAll={handleClearAllCompare}
+        onOpenCompareModal={() => setIsCompareModalOpen(true)}
+      />
+
+      {/* Comparison Matrix Modal */}
+      <TutorComparisonModal
+        isOpen={isCompareModalOpen}
+        onClose={() => setIsCompareModalOpen(false)}
+        tutors={selectedCompareTutors}
+        onRemoveTutor={handleRemoveCompareTutor}
+        onClearAll={handleClearAllCompare}
+      />
     </PageLayout>
   );
 };

@@ -13,6 +13,16 @@ import { GoogleLogin } from "@react-oauth/google";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { detectUserTimeZone } from "@/utils/timezone";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import axios from "axios";
+import API_URL from "@/config/api";
 
 const CLASS_OPTIONS = [
   "Class 1",
@@ -31,6 +41,15 @@ const CLASS_OPTIONS = [
   "Other"
 ];
 
+const HEARD_ABOUT_US_OPTIONS = [
+  "Google Search",
+  "Social Media (Instagram, Facebook, LinkedIn)",
+  "Friend / Family Referral",
+  "Advertisement / Flyer",
+  "School / College",
+  "Other"
+];
+
 const capitalizeName = (str: string): string => {
   return str
     .split(' ')
@@ -39,16 +58,39 @@ const capitalizeName = (str: string): string => {
 };
 
 const RegisterStudent = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { signUp, googleSignIn, user, role } = useAuth();
+
+  const [referralCode, setReferralCode] = useState("");
+  const [isReferralFromLink, setIsReferralFromLink] = useState(false);
+
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+    const params = new URLSearchParams(location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      sessionStorage.setItem("student_referral_code", ref.toUpperCase());
+      setReferralCode(ref.toUpperCase());
+      setIsReferralFromLink(true);
+    } else {
+      const savedRef = sessionStorage.getItem("student_referral_code");
+      if (savedRef) {
+        setReferralCode(savedRef);
+        setIsReferralFromLink(true);
+      }
+    }
+  }, [location.search]);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [studentOrParent, setStudentOrParent] = useState("Student");
+  const [studentName, setStudentName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [customClass, setCustomClass] = useState("");
+  const [heardAboutUs, setHeardAboutUs] = useState("");
+  const [customHeardAboutUs, setCustomHeardAboutUs] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -56,9 +98,21 @@ const RegisterStudent = () => {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showFormMobile, setShowFormMobile] = useState(false);
-  const { signUp, googleSignIn, user, role } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+
+  // OTP Verification States
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+
+  useEffect(() => {
+    let timer: any;
+    if (resendCountdown > 0) {
+      timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
 
   useEffect(() => {
     if (user) {
@@ -75,12 +129,32 @@ const RegisterStudent = () => {
   const queryParams = new URLSearchParams(location.search);
   const redirectUrl = queryParams.get("redirect");
 
+  const handleSendOtp = async () => {
+    setSendingOtp(true);
+    try {
+      const response = await axios.post(`${API_URL}/auth/send-signup-otp`, { email });
+      toast.success(response.data.message || "Verification OTP sent to your email.");
+      setShowOtpModal(true);
+      setResendCountdown(60);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to send verification OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const finalClass = studentClass === "Other" ? customClass.trim() : studentClass;
     if (!finalClass) {
       toast.error("Please select or specify your class / grade.");
+      return;
+    }
+
+    const finalHeardAboutUs = heardAboutUs === "Other" ? customHeardAboutUs.trim() : heardAboutUs;
+    if (!finalHeardAboutUs) {
+      toast.error("Please specify where you heard about us.");
       return;
     }
 
@@ -94,24 +168,48 @@ const RegisterStudent = () => {
       return;
     }
 
-    setLoading(true);
+    if (studentOrParent === "Parent" && !studentName.trim()) {
+      toast.error("Please enter the student's full name.");
+      return;
+    }
+
+    // Trigger OTP instead of direct sign up
+    await handleSendOtp();
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp || otp.trim().length !== 6) {
+      toast.error("Please enter a valid 6-digit OTP.");
+      return;
+    }
+
+    setRegistering(true);
+    const finalClass = studentClass === "Other" ? customClass.trim() : studentClass;
+    const finalHeardAboutUs = heardAboutUs === "Other" ? customHeardAboutUs.trim() : heardAboutUs;
+
     const { error } = await signUp(email, password, {
       full_name: name,
       phone,
       student_class: finalClass,
       student_or_parent: studentOrParent,
+      student_name: studentOrParent === "Parent" ? studentName.trim() : "",
+      heard_about_us: finalHeardAboutUs,
       role: "student",
       timezone: detectUserTimeZone(),
+      referredBy: referralCode.trim(),
+      otp: otp.trim()
     });
+
     if (error) {
       toast.error(error.message);
-      setLoading(false);
+      setRegistering(false);
       return;
     }
 
-    // Create student record after auth — wait for session
-    toast.success("Account created! Please check your email to confirm, then log in.");
-    setLoading(false);
+    toast.success("Account created successfully!");
+    setRegistering(false);
+    setShowOtpModal(false);
     navigate(redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login");
   };
   return (
@@ -273,7 +371,16 @@ const RegisterStudent = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="studentOrParent">Are you a Student or Parent?</Label>
-                  <Select value={studentOrParent} onValueChange={setStudentOrParent} required>
+                  <Select
+                    value={studentOrParent}
+                    onValueChange={(val) => {
+                      setStudentOrParent(val);
+                      if (val === "Student") {
+                        setStudentName("");
+                      }
+                    }}
+                    required
+                  >
                     <SelectTrigger id="studentOrParent">
                       <SelectValue placeholder="Select Option" />
                     </SelectTrigger>
@@ -283,6 +390,18 @@ const RegisterStudent = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                {studentOrParent === "Parent" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <Label htmlFor="studentName">Student's Full Name</Label>
+                    <Input
+                      id="studentName"
+                      required
+                      maxLength={100}
+                      value={studentName}
+                      onChange={(e) => setStudentName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="studentClass">Class / Grade</Label>
                   <Select value={studentClass} onValueChange={setStudentClass} required>
@@ -310,6 +429,49 @@ const RegisterStudent = () => {
                     />
                   </div>
                 )}
+                <div className="space-y-2">
+                  <Label htmlFor="heardAboutUs">Where did you hear about us?</Label>
+                  <Select value={heardAboutUs} onValueChange={setHeardAboutUs} required>
+                    <SelectTrigger id="heardAboutUs">
+                      <SelectValue placeholder="Select Option" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[260px]">
+                      {HEARD_ABOUT_US_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {heardAboutUs === "Other" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <Label htmlFor="customHeardAboutUs">Specify Where You Heard About Us</Label>
+                    <Input
+                      id="customHeardAboutUs"
+                      required
+                      placeholder="e.g. Local Event, Online Forum, Blog Post"
+                      value={customHeardAboutUs}
+                      onChange={(e) => setCustomHeardAboutUs(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+                  <Input 
+                    id="referralCode" 
+                    placeholder="e.g. TUTOR1234" 
+                    value={referralCode} 
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())} 
+                    readOnly={isReferralFromLink}
+                    className={isReferralFromLink ? "bg-muted text-muted-foreground select-none cursor-not-allowed font-semibold tracking-wider" : "font-semibold tracking-wider"}
+                  />
+                  {isReferralFromLink && (
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                      ✓ Referral code applied automatically from link.
+                    </p>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
@@ -368,8 +530,8 @@ const RegisterStudent = () => {
                     and Privacy Policy. <span className="text-destructive">*</span>
                   </Label>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creating Account..." : "Sign Up"}
+                <Button type="submit" className="w-full" disabled={sendingOtp}>
+                  {sendingOtp ? "Sending OTP..." : "Sign Up"}
                 </Button>
               </form>
 
@@ -385,6 +547,62 @@ const RegisterStudent = () => {
 
         </div>
       </div>
+
+      {/* OTP Verification Modal */}
+      <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-foreground">
+              Confirm Email Address
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-2">
+              We've sent a 6-digit verification code to <span className="font-semibold text-foreground">{email}</span>. Please enter it below to complete your registration.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleOtpSubmit} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="signup-otp" className="text-sm font-semibold">
+                Verification OTP Code
+              </Label>
+              <Input
+                id="signup-otp"
+                type="text"
+                maxLength={6}
+                placeholder="123456"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                className="text-center font-bold tracking-widest text-lg h-11"
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+              <span>OTP is valid for 15 minutes.</span>
+              {resendCountdown > 0 ? (
+                <span>Resend in {resendCountdown}s</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  className="text-primary font-semibold hover:underline bg-transparent border-none cursor-pointer"
+                >
+                  Resend OTP
+                </button>
+              )}
+            </div>
+
+            <DialogFooter className="mt-4 pt-2 gap-2 sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setShowOtpModal(false)} disabled={registering}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={registering} className="font-semibold bg-primary text-primary-foreground">
+                {registering ? "Verifying..." : "Confirm & Register"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };

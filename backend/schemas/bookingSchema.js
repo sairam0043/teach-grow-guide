@@ -11,9 +11,13 @@ const bookingSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'pending_payment', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'], default: 'confirmed' },
   planType: { type: String },
   amountPaid: { type: Number },
+  originalAmount: { type: Number },
+  walletUsed: { type: Number, default: 0 },
   isRated: { type: Boolean, default: false },
   meetingLink: { type: String },
   cancellationReason: { type: String },
+  cancelledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' },
+  cancelledAt: { type: Date },
   groupDetails: {
     isGroup: { type: Boolean, default: false },
     invitedEmails: [{
