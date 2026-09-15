@@ -1,6 +1,6 @@
 import { useEffect, useState, Fragment } from "react";
 import { Link } from "react-router-dom";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -144,6 +144,122 @@ const AdminDashboard = () => {
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
   const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
   const [bookingToComplete, setBookingToComplete] = useState<{ id: string; tutorName: string } | null>(null);
+
+  // Referrals Leaderboard State
+  const [referralsLeaderboard, setReferralsLeaderboard] = useState<any[]>([]);
+  const [referralsStats, setReferralsStats] = useState<any>(null);
+  const [loadingReferrals, setLoadingReferrals] = useState(false);
+  const [referralSearch, setReferralSearch] = useState("");
+  const [referralRoleFilter, setReferralRoleFilter] = useState<"all" | "tutor" | "student">("all");
+  const [referralSortBy, setReferralSortBy] = useState<"successful" | "invited" | "earnings">("successful");
+  const [referralOnlyActive, setReferralOnlyActive] = useState(false);
+  const [selectedReferrerForDetail, setSelectedReferrerForDetail] = useState<any | null>(null);
+  const [isReferrerDetailDialogOpen, setIsReferrerDetailDialogOpen] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const fetchReferralsLeaderboard = async () => {
+    try {
+      setLoadingReferrals(true);
+      const res = await axios.get(`${API_URL}/dashboard/admin/referrals-leaderboard`);
+      setReferralsLeaderboard(res.data.leaderboard || []);
+      setReferralsStats(res.data.stats || null);
+    } catch (err) {
+      console.error("Failed to load referrals leaderboard:", err);
+    } finally {
+      setLoadingReferrals(false);
+    }
+  };
+
+  const handleCopyReferralCode = (code: string) => {
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    toast.success(`Referral code "${code}" copied!`);
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
+  const filteredAndSortedReferrals = referralsLeaderboard
+    .filter((r) => {
+      if (referralRoleFilter !== "all" && r.role !== referralRoleFilter) {
+        return false;
+      }
+      if (referralOnlyActive && (r.invitedCount || 0) === 0) {
+        return false;
+      }
+      if (referralSearch.trim() !== "") {
+        const query = referralSearch.toLowerCase().trim();
+        const matchesName = (r.name || "").toLowerCase().includes(query);
+        const matchesEmail = (r.email || "").toLowerCase().includes(query);
+        const matchesPhone = (r.phone || "").toLowerCase().includes(query);
+        const matchesCode = (r.referralCode || "").toLowerCase().includes(query);
+        const matchesCity = (r.city || "").toLowerCase().includes(query);
+        return matchesName || matchesEmail || matchesPhone || matchesCode || matchesCity;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (referralSortBy === "successful") {
+        if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+        if (b.invitedCount !== a.invitedCount) return b.invitedCount - a.invitedCount;
+        return (b.totalEarnings || 0) - (a.totalEarnings || 0);
+      } else if (referralSortBy === "invited") {
+        if (b.invitedCount !== a.invitedCount) return b.invitedCount - a.invitedCount;
+        if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+        return (b.totalEarnings || 0) - (a.totalEarnings || 0);
+      } else if (referralSortBy === "earnings") {
+        if ((b.totalEarnings || 0) !== (a.totalEarnings || 0)) return (b.totalEarnings || 0) - (a.totalEarnings || 0);
+        if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+        return b.invitedCount - a.invitedCount;
+      }
+      return 0;
+    });
+
+  const handleDownloadReferralsCSV = () => {
+    if (filteredAndSortedReferrals.length === 0) {
+      toast.error("No referral leaderboard data available to export");
+      return;
+    }
+
+    const headers = [
+      "Rank",
+      "Name",
+      "Role",
+      "Email",
+      "Phone",
+      "Referral Code",
+      "Total Invites (Sign-ups)",
+      "Successful Referrals (Completed Regular Class)",
+      "Conversion Rate (%)",
+      "Total Rewards Earned (INR)"
+    ];
+
+    const rows = filteredAndSortedReferrals.map((r, index) => {
+      const rank = index + 1;
+      const name = `"${(r.name || "").replace(/"/g, '""')}"`;
+      const role = r.role ? r.role.toUpperCase() : "STUDENT";
+      const email = `"${(r.email || "").replace(/"/g, '""')}"`;
+      const phone = `"\t${(r.phone || "").replace(/"/g, '""')}"`;
+      const code = `"${(r.referralCode || "").replace(/"/g, '""')}"`;
+      const invited = r.invitedCount ?? 0;
+      const completed = r.completedCount ?? 0;
+      const conversion = `${r.conversionRate ?? 0}%`;
+      const earnings = r.totalEarnings ?? 0;
+
+      return [rank, name, role, email, phone, code, invited, completed, conversion, earnings].join(",");
+    });
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `referrals_leaderboard_${referralRoleFilter}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Referrals leaderboard exported successfully!");
+  };
 
   const handleSendReferralEmails = async () => {
     if (!window.confirm("Send Referral Program introduction emails to ALL registered tutors?")) {
@@ -417,9 +533,10 @@ const AdminDashboard = () => {
       setBookings(bookingsRes.data);
       dispatch(fetchAdminStats());
       
-      // Fetch payouts and course payments in the background
+      // Fetch payouts, course payments, and referrals leaderboard in the background
       fetchPayouts();
       fetchCoursePayments();
+      fetchReferralsLeaderboard();
     } catch (err) {
       toast.error("Failed to load dashboard data");
     } finally {
@@ -430,6 +547,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchTutors();
     dispatch(fetchAdminStats());
+    fetchReferralsLeaderboard();
   }, [dispatch]);
 
   // Poll for unread support messages
@@ -752,6 +870,15 @@ const AdminDashboard = () => {
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payments</TabsTrigger>
             <TabsTrigger value="platform-courses" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Platform Courses</TabsTrigger>
             <TabsTrigger value="payouts" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Tutor Payouts</TabsTrigger>
+            <TabsTrigger value="referrals" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              <Trophy className="h-4 w-4 text-amber-500" />
+              Referrals Leaderboard
+              {referralsStats?.totalCompleted > 0 && (
+                <Badge className="ml-1 rounded-full px-2 py-0.5 text-[10px] bg-emerald-500 text-white font-extrabold border-none">
+                  {referralsStats.totalCompleted}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="geo-analytics" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Geo Analytics</TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
               Messages
@@ -2082,6 +2209,453 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
+          {/* Referrals Leaderboard Tab */}
+          <TabsContent value="referrals" className="space-y-8">
+            {/* Top KPI Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1: Successful Referrals */}
+              <Card className="shadow-md border border-border/50 bg-card/70 backdrop-blur-md relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-emerald-500/20 transition-all" />
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Successful Referrals</span>
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <Trophy className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                      {loadingReferrals ? <Skeleton className="h-9 w-20" /> : referralsStats?.totalCompleted ?? 0}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-bold px-1.5 py-0.5">
+                        <CheckCircle className="h-3 w-3 mr-1" /> +₹500 / completion
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 2: Total Invites */}
+              <Card className="shadow-md border border-border/50 bg-card/70 backdrop-blur-md relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-blue-500/20 transition-all" />
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Invites / Sign-ups</span>
+                    <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      <Users className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                      {loadingReferrals ? <Skeleton className="h-9 w-20" /> : referralsStats?.totalInvited ?? 0}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">
+                      Across {referralsStats?.activeReferrersCount ?? 0} active referrers
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 3: Conversion Rate */}
+              <Card className="shadow-md border border-border/50 bg-card/70 backdrop-blur-md relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-indigo-500/20 transition-all" />
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Conversion Rate</span>
+                    <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                      <TrendingUp className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                      {loadingReferrals ? <Skeleton className="h-9 w-20" /> : `${referralsStats?.platformConversionRate ?? 0}%`}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">
+                      Tutors: {referralsStats?.tutorStats?.conversionRate ?? 0}% | Students: {referralsStats?.studentStats?.conversionRate ?? 0}%
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 4: Total Rewards Distributed */}
+              <Card className="shadow-md border border-border/50 bg-card/70 backdrop-blur-md relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-amber-500/20 transition-all" />
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Referral Rewards</span>
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      <DollarSign className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                      {loadingReferrals ? <Skeleton className="h-9 w-20" /> : `₹${(referralsStats?.totalRewardsDistributed ?? 0).toLocaleString()}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">
+                      Tutors: ₹{(referralsStats?.tutorStats?.totalEarnings ?? 0).toLocaleString()} | Students: ₹{(referralsStats?.studentStats?.totalEarnings ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Main Leaderboard Card */}
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-b pb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                      <Trophy className="h-5 w-5 text-amber-500" /> Referrals Performance Leaderboard
+                    </CardTitle>
+                    <CardDescription className="mt-0.5">
+                      Ranked list of all referrers from most successful referrals to least.
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchReferralsLeaderboard}
+                      disabled={loadingReferrals}
+                      className="rounded-lg h-9 font-semibold text-xs gap-1.5"
+                    >
+                      <Activity className={`h-4 w-4 ${loadingReferrals ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadReferralsCSV}
+                      disabled={loadingReferrals || filteredAndSortedReferrals.length === 0}
+                      className="rounded-lg h-9 font-semibold text-xs gap-1.5"
+                    >
+                      <Download className="h-4 w-4 text-emerald-500" />
+                      Export CSV
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleSendReferralEmails}
+                      disabled={isSendingReferralEmails}
+                      className="rounded-lg h-9 font-semibold text-xs gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-sm"
+                    >
+                      <Sparkles className={`h-4 w-4 ${isSendingReferralEmails ? 'animate-bounce' : ''}`} />
+                      Send Referral Emails
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Segmented View Switcher (All / Tutors List / Students List) */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-border/40 mt-4">
+                  <div className="flex items-center gap-1.5 bg-secondary/60 p-1.5 rounded-xl border border-border/60 max-w-fit flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setReferralRoleFilter("all")}
+                      className={`rounded-lg h-8 px-3.5 text-xs font-semibold transition-all cursor-pointer ${
+                        referralRoleFilter === "all"
+                          ? "bg-primary text-primary-foreground shadow-sm font-bold"
+                          : "text-foreground/75 hover:text-foreground hover:bg-card/90"
+                      }`}
+                    >
+                      All Referrers ({referralsLeaderboard.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReferralRoleFilter("tutor")}
+                      className={`rounded-lg h-8 px-3.5 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        referralRoleFilter === "tutor"
+                          ? "bg-primary text-primary-foreground shadow-sm font-bold"
+                          : "text-foreground/75 hover:text-foreground hover:bg-card/90"
+                      }`}
+                    >
+                      <Award className={`h-3.5 w-3.5 ${referralRoleFilter === "tutor" ? "text-primary-foreground" : "text-primary"}`} />
+                      Tutors List ({referralsLeaderboard.filter(r => r.role === 'tutor').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReferralRoleFilter("student")}
+                      className={`rounded-lg h-8 px-3.5 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        referralRoleFilter === "student"
+                          ? "bg-purple-600 text-white shadow-sm font-bold"
+                          : "text-foreground/75 hover:text-foreground hover:bg-card/90"
+                      }`}
+                    >
+                      <GraduationCap className={`h-3.5 w-3.5 ${referralRoleFilter === "student" ? "text-white" : "text-purple-500"}`} />
+                      Students List ({referralsLeaderboard.filter(r => r.role === 'student').length})
+                    </button>
+                  </div>
+
+                  {/* Right side controls: Search & Sort selector */}
+                  <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                    <div className="relative min-w-[220px] w-full sm:w-auto">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search name, code, phone..."
+                        value={referralSearch}
+                        onChange={(e) => setReferralSearch(e.target.value)}
+                        className="pl-9 h-9 text-xs rounded-lg bg-background text-foreground border-border/80"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Select value={referralSortBy} onValueChange={(val: any) => setReferralSortBy(val)}>
+                        <SelectTrigger className="h-9 text-xs w-[180px] rounded-lg bg-background text-foreground border-border/80 font-medium">
+                          <SelectValue placeholder="Sort By" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="successful">Most Successful (Class Done)</SelectItem>
+                          <SelectItem value="invited">Most Total Invites</SelectItem>
+                          <SelectItem value="earnings">Highest Total Earnings</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setReferralOnlyActive(!referralOnlyActive)}
+                      className={`h-9 px-3 text-xs font-semibold rounded-lg shrink-0 border transition-all flex items-center cursor-pointer ${
+                        referralOnlyActive
+                          ? "border-primary/50 text-primary bg-primary/10 hover:bg-primary/20"
+                          : "border-border/80 text-foreground/80 bg-background hover:bg-card hover:text-foreground"
+                      }`}
+                      title="Toggle between showing everyone or only referrers with at least 1 invite"
+                    >
+                      <UserCheck className={`h-3.5 w-3.5 mr-1 ${referralOnlyActive ? "text-primary" : "text-muted-foreground"}`} />
+                      {referralOnlyActive ? "Active (>0 Invites)" : "All Members"}
+                    </button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-6">
+                {loadingReferrals ? (
+                  <div className="space-y-3 py-4">
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                  </div>
+                ) : filteredAndSortedReferrals.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-2">
+                    <Trophy className="mx-auto mb-4 h-16 w-16 opacity-30 text-amber-500" />
+                    <h3 className="text-lg font-semibold text-foreground mb-1">No Referrals Found</h3>
+                    <p className="text-sm max-w-md mx-auto">
+                      {referralSearch
+                        ? `No results matched "${referralSearch}". Try a different search term or clear the filter.`
+                        : referralOnlyActive
+                        ? "No referrers currently have active invite sign-ups."
+                        : "No referrers registered in this category."}
+                    </p>
+                    {referralSearch && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setReferralSearch("")}
+                        className="mt-4 rounded-lg text-xs"
+                      >
+                        Clear Search Filter
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border shadow-sm overflow-x-auto bg-card">
+                    <Table>
+                      <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold border-b border-border/40">
+                        <TableRow>
+                          <TableHead className="font-bold h-12 w-16 text-center">Rank</TableHead>
+                          <TableHead className="font-bold h-12 min-w-[220px]">Referrer Profile</TableHead>
+                          <TableHead className="font-bold h-12">Role</TableHead>
+                          <TableHead className="font-bold h-12">Referral Code</TableHead>
+                          <TableHead className="font-bold h-12 text-center">Total Invites</TableHead>
+                          <TableHead className="font-bold h-12">Successful Referrals</TableHead>
+                          <TableHead className="font-bold h-12">Conversion</TableHead>
+                          <TableHead className="font-bold h-12 text-right">Total Rewards</TableHead>
+                          <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredAndSortedReferrals.map((referrer, index) => {
+                          const rank = index + 1;
+                          const hasCompletions = (referrer.completedCount || 0) > 0;
+                          const hasInvites = (referrer.invitedCount || 0) > 0;
+
+                          return (
+                            <TableRow
+                              key={`${referrer.role}-${referrer.id}`}
+                              className={`hover:bg-secondary/15 transition-colors border-b border-border/40 ${
+                                rank === 1 && hasCompletions ? "bg-amber-500/5" : ""
+                              }`}
+                            >
+                              {/* Rank Badge */}
+                              <TableCell className="text-center font-bold py-3">
+                                {rank === 1 && hasCompletions ? (
+                                  <Badge className="bg-amber-500 hover:bg-amber-600 text-white font-black px-2 py-0.5 text-xs shadow-md shadow-amber-500/20">
+                                    🏆 #1
+                                  </Badge>
+                                ) : rank === 2 && hasCompletions ? (
+                                  <Badge className="bg-slate-400 hover:bg-slate-500 text-white font-black px-2 py-0.5 text-xs shadow-md">
+                                    🥈 #2
+                                  </Badge>
+                                ) : rank === 3 && hasCompletions ? (
+                                  <Badge className="bg-amber-700 hover:bg-amber-800 text-white font-black px-2 py-0.5 text-xs shadow-md">
+                                    🥉 #3
+                                  </Badge>
+                                ) : (
+                                  <span className="font-mono text-xs text-muted-foreground font-semibold">
+                                    #{rank}
+                                  </span>
+                                )}
+                              </TableCell>
+
+                              {/* Referrer Profile */}
+                              <TableCell className="py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-10 w-10 rounded-full border border-primary/10 shadow-sm overflow-hidden shrink-0 bg-muted flex items-center justify-center">
+                                    {referrer.avatar ? (
+                                      <img
+                                        src={resolveAssetUrl(referrer.avatar)}
+                                        alt={referrer.name}
+                                        className="h-full w-full object-cover"
+                                        onError={(e: any) => {
+                                          e.target.onerror = null;
+                                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(referrer.name || "U")}&background=random`;
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="font-bold text-sm text-primary uppercase">
+                                        {(referrer.name || "U").charAt(0)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-semibold text-foreground leading-tight text-sm truncate capitalize">
+                                      {referrer.name || "–"}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                      {referrer.email || referrer.phone || "No contact info"}
+                                    </span>
+                                    {referrer.city && referrer.city !== "Remote" && (
+                                      <span className="text-[10px] text-muted-foreground/80 flex items-center gap-0.5 mt-0.5">
+                                        <MapPin className="h-2.5 w-2.5" /> {referrer.city}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+
+                              {/* Role */}
+                              <TableCell>
+                                {referrer.role === "tutor" ? (
+                                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
+                                    Tutor
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 text-xs font-semibold">
+                                    Student
+                                  </Badge>
+                                )}
+                              </TableCell>
+
+                              {/* Referral Code with One-Click Copy */}
+                              <TableCell>
+                                {referrer.referralCode ? (
+                                  <button
+                                    onClick={() => handleCopyReferralCode(referrer.referralCode)}
+                                    className="group flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/50 hover:bg-secondary border border-border/50 text-xs font-mono font-bold tracking-wider text-foreground transition-all"
+                                    title="Click to copy referral code"
+                                  >
+                                    <span>{referrer.referralCode}</span>
+                                    {copiedCode === referrer.referralCode ? (
+                                      <Check className="h-3 w-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="h-3 w-3 text-muted-foreground group-hover:text-foreground opacity-60 group-hover:opacity-100 transition-opacity" />
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">–</span>
+                                )}
+                              </TableCell>
+
+                              {/* Total Invites */}
+                              <TableCell className="text-center font-bold text-foreground text-sm">
+                                <span className={hasInvites ? "text-foreground font-extrabold" : "text-muted-foreground font-normal"}>
+                                  {referrer.invitedCount ?? 0}
+                                </span>
+                              </TableCell>
+
+                              {/* Successful Referrals (Class Completed) */}
+                              <TableCell>
+                                <div className="flex flex-col items-start gap-1">
+                                  <Badge
+                                    className={`text-xs font-bold px-2.5 py-0.5 flex items-center gap-1 border ${
+                                      hasCompletions
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                        : "bg-secondary/40 text-muted-foreground border-transparent font-normal"
+                                    }`}
+                                  >
+                                    {hasCompletions && <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+                                    {referrer.completedCount ?? 0} Successful
+                                  </Badge>
+                                  {referrer.pendingCount > 0 && (
+                                    <span className="text-[10px] text-muted-foreground font-medium pl-0.5">
+                                      {referrer.pendingCount} in progress / registered
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+
+                              {/* Conversion Rate */}
+                              <TableCell>
+                                <div className="space-y-1 w-24">
+                                  <div className="flex justify-between items-center text-xs">
+                                    <span className="font-bold text-foreground">{referrer.conversionRate ?? 0}%</span>
+                                  </div>
+                                  <div className="w-full bg-secondary/80 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                      style={{ width: `${Math.min(referrer.conversionRate ?? 0, 100)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </TableCell>
+
+                              {/* Total Rewards */}
+                              <TableCell className="text-right">
+                                <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
+                                  ₹{(referrer.totalEarnings ?? 0).toLocaleString()}
+                                </span>
+                              </TableCell>
+
+                              {/* Actions */}
+                              <TableCell className="text-right px-6">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedReferrerForDetail(referrer);
+                                    setIsReferrerDetailDialogOpen(true);
+                                  }}
+                                  className="h-8 text-xs font-semibold rounded-lg hover:bg-primary/10 hover:text-primary transition-colors gap-1.5"
+                                  title="View list of all students referred by this user"
+                                >
+                                  <Eye className="h-3.5 w-3.5 text-primary" />
+                                  View ({referrer.invitedCount ?? 0})
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="messages">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-0">
               <ChatPanel initialActiveUserId={activeChatUserId} />
@@ -2089,6 +2663,149 @@ const AdminDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Referrer Details & Referred Students Modal */}
+      <Dialog open={isReferrerDetailDialogOpen} onOpenChange={setIsReferrerDetailDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
+              <Trophy className="h-5 w-5 text-amber-500" /> Referred Students Breakdown
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+              Complete history of students referred by this member and their class completion progress.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedReferrerForDetail && (
+            <div className="space-y-6 pt-2">
+              {/* Referrer Header Banner */}
+              <div className="p-4 rounded-xl bg-secondary/40 border border-border/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full border shadow-sm overflow-hidden shrink-0 bg-muted flex items-center justify-center font-bold text-lg text-primary uppercase">
+                    {selectedReferrerForDetail.avatar ? (
+                      <img
+                        src={resolveAssetUrl(selectedReferrerForDetail.avatar)}
+                        alt={selectedReferrerForDetail.name}
+                        className="h-full w-full object-cover"
+                        onError={(e: any) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedReferrerForDetail.name || "U")}&background=random`;
+                        }}
+                      />
+                    ) : (
+                      (selectedReferrerForDetail.name || "U").charAt(0)
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-foreground text-base capitalize">{selectedReferrerForDetail.name}</h4>
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                        {selectedReferrerForDetail.role}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {selectedReferrerForDetail.email} {selectedReferrerForDetail.phone ? `• ${selectedReferrerForDetail.phone}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">Referral Code</span>
+                    <span className="font-mono font-bold text-sm text-foreground">{selectedReferrerForDetail.referralCode || "–"}</span>
+                  </div>
+                  <div className="text-right pl-3 border-l border-border/50">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">Total Earned</span>
+                    <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400">
+                      ₹{(selectedReferrerForDetail.totalEarnings || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Referred Students Table */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-primary" />
+                    Referred Students ({selectedReferrerForDetail.referredStudents?.length || 0})
+                  </h5>
+                  <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-bold">
+                    {selectedReferrerForDetail.completedCount || 0} Qualified (Completed Class)
+                  </Badge>
+                </div>
+
+                {(!selectedReferrerForDetail.referredStudents || selectedReferrerForDetail.referredStudents.length === 0) ? (
+                  <div className="py-12 text-center text-muted-foreground bg-secondary/10 rounded-xl border border-dashed">
+                    <Users className="mx-auto mb-2 h-10 w-10 opacity-30 text-muted-foreground" />
+                    <p className="text-sm font-semibold">No students have signed up with this referral code yet.</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border shadow-sm overflow-hidden bg-card">
+                    <Table>
+                      <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold">
+                        <TableRow>
+                          <TableHead className="font-bold h-10">Student</TableHead>
+                          <TableHead className="font-bold h-10">Class / Grade</TableHead>
+                          <TableHead className="font-bold h-10">Signed Up</TableHead>
+                          <TableHead className="font-bold h-10">Status</TableHead>
+                          <TableHead className="font-bold h-10 text-right">Completed Classes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedReferrerForDetail.referredStudents.map((st: any) => (
+                          <TableRow key={st.id} className="hover:bg-secondary/10 text-xs">
+                            <TableCell className="py-2.5">
+                              <div className="font-semibold text-foreground capitalize">{st.name}</div>
+                              <div className="text-[11px] text-muted-foreground">{st.email || st.phone || "–"}</div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="bg-secondary/20 text-[10px] font-medium">
+                                {st.studentClass || "–"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {st.registeredAt ? new Date(st.registeredAt).toLocaleDateString() : "–"}
+                            </TableCell>
+                            <TableCell>
+                              {st.status === "completed" ? (
+                                <Badge className="bg-emerald-500 text-white font-bold text-[10px] gap-1 px-2 py-0.5">
+                                  <CheckCircle className="h-3 w-3" /> Class Done (₹500 Rewarded)
+                                </Badge>
+                              ) : st.status === "enrolled" ? (
+                                <Badge className="bg-blue-500 text-white font-bold text-[10px] gap-1 px-2 py-0.5">
+                                  <Clock className="h-3 w-3" /> Enrolled / Active
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal">
+                                  Registered (No Class Yet)
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-foreground">
+                              {st.completedClassesCount ?? 0}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4 border-t mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsReferrerDetailDialogOpen(false)}
+              className="rounded-lg h-9 px-4 text-xs font-semibold"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Rejection Reason Modal */}
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>

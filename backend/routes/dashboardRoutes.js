@@ -980,5 +980,276 @@ router.post('/admin/send-referral-emails', async (req, res) => {
   }
 });
 
+// GET /api/dashboard/admin/referrals-leaderboard
+router.get('/admin/referrals-leaderboard', async (req, res) => {
+  try {
+    // 1. Fetch all registered students who were referred by someone
+    const referredStudents = await User.find({ 
+      referredBy: { $ne: null }, 
+      role: 'student' 
+    }).select('full_name student_name email phone student_class createdAt referredBy heard_about_us');
+
+    // 2. Fetch all tutors with their user accounts
+    const tutors = await Tutor.find().populate('userId', 'email phone full_name avatar');
+
+    // 3. Fetch all students who might be referrers
+    const allStudents = await User.find({ role: 'student' }).select('full_name student_name email phone student_class referralCode walletBalance walletHistory createdAt avatar');
+
+    // 4. Batch fetch all bookings for referred students
+    const referredStudentIds = referredStudents.map(s => s._id.toString());
+    const bookings = await Booking.find({ 
+      studentId: { $in: referredStudentIds } 
+    }).select('studentId planType status sessions createdAt subject');
+
+    // Map bookings by studentId
+    const bookingsByStudentId = new Map();
+    for (const b of bookings) {
+      if (!b.studentId) continue;
+      const sId = b.studentId.toString();
+      if (!bookingsByStudentId.has(sId)) {
+        bookingsByStudentId.set(sId, []);
+      }
+      bookingsByStudentId.get(sId).push(b);
+    }
+
+    // Build enhanced referred students list with completion status
+    const studentStatusMap = new Map(); // studentId -> status object
+    const referredStudentsByReferrer = new Map(); // referrerId -> array of student summaries
+
+    for (const student of referredStudents) {
+      const sId = student._id.toString();
+      const sBookings = bookingsByStudentId.get(sId) || [];
+
+      // Check if student completed any regular (paid / non-demo) class
+      const completedRegularBookings = sBookings.filter(b => {
+        if (!b.planType || b.planType === 'Free Demo Class' || b.planType.toLowerCase().includes('demo')) {
+          return false;
+        }
+        return b.status === 'completed' || (b.sessions && b.sessions.some(sess => sess.status === 'completed'));
+      });
+
+      const isCompleted = completedRegularBookings.length > 0;
+      const isEnrolled = sBookings.some(b => ['confirmed', 'enrolled', 'pending_payment'].includes(b.status));
+      const status = isCompleted ? 'completed' : isEnrolled ? 'enrolled' : 'registered';
+
+      const studentSummary = {
+        id: sId,
+        name: student.student_name || student.full_name || 'Student',
+        email: student.email || '',
+        phone: student.phone || '',
+        studentClass: student.student_class || '–',
+        registeredAt: student.createdAt,
+        status, // 'completed' | 'enrolled' | 'registered'
+        completedClassesCount: completedRegularBookings.length,
+        totalBookingsCount: sBookings.length
+      };
+
+      studentStatusMap.set(sId, studentSummary);
+
+      const refKey = student.referredBy ? student.referredBy.toString() : '';
+      if (refKey) {
+        if (!referredStudentsByReferrer.has(refKey)) {
+          referredStudentsByReferrer.set(refKey, []);
+        }
+        referredStudentsByReferrer.get(refKey).push(studentSummary);
+      }
+    }
+
+    // Map tutor ID / tutor userId to tutor entity
+    const tutorByUserId = new Map();
+    const tutorByTutorId = new Map();
+    for (const t of tutors) {
+      if (t.userId?._id) {
+        tutorByUserId.set(t.userId._id.toString(), t);
+      } else if (t.userId) {
+        tutorByUserId.set(t.userId.toString(), t);
+      }
+      tutorByTutorId.set(t._id.toString(), t);
+    }
+
+    const leaderboard = [];
+    const processedUserIds = new Set();
+
+    // 5. Process all Tutors
+    for (const tutor of tutors) {
+      const tutorUserId = tutor.userId?._id ? tutor.userId._id.toString() : (tutor.userId ? tutor.userId.toString() : null);
+      const tutorId = tutor._id.toString();
+
+      // Collect referred students for this tutor (check both user ID and tutor ID)
+      const studentsFromUserId = tutorUserId ? (referredStudentsByReferrer.get(tutorUserId) || []) : [];
+      const studentsFromTutorId = referredStudentsByReferrer.get(tutorId) || [];
+      
+      // Combine unique students
+      const combinedStudentsMap = new Map();
+      [...studentsFromUserId, ...studentsFromTutorId].forEach(s => combinedStudentsMap.set(s.id, s));
+      const myReferredStudents = Array.from(combinedStudentsMap.values());
+
+      if (tutorUserId) processedUserIds.add(tutorUserId);
+      processedUserIds.add(tutorId);
+
+      const invitedCount = myReferredStudents.length;
+      const completedCount = myReferredStudents.filter(s => s.status === 'completed').length;
+      const pendingCount = invitedCount - completedCount;
+      const conversionRate = invitedCount > 0 ? Math.round((completedCount / invitedCount) * 100) : 0;
+      const totalEarnings = completedCount * 500;
+
+      // Lazy generate referral code if missing
+      let refCode = tutor.referralCode;
+      if (!refCode) {
+        const cleanName = (tutor.name || 'TUTOR').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        refCode = `${cleanName}${randomNum}`;
+        tutor.referralCode = refCode;
+        tutor.save().catch(e => console.error("Lazy tutor refCode save err:", e));
+      }
+
+      leaderboard.push({
+        id: tutorId,
+        userId: tutorUserId || tutorId,
+        name: tutor.name || tutor.userId?.full_name || 'Tutor',
+        email: tutor.userId?.email || '',
+        phone: tutor.userId?.phone || tutor.phone || '',
+        avatar: tutor.photo || tutor.avatar || tutor.userId?.avatar || '',
+        role: 'tutor',
+        city: tutor.city || 'Remote',
+        category: tutor.category || 'General',
+        referralCode: refCode,
+        invitedCount,
+        completedCount,
+        pendingCount,
+        conversionRate,
+        totalEarnings,
+        referredStudents: myReferredStudents.sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime()),
+        createdAt: tutor.createdAt
+      });
+    }
+
+    // 6. Process all Students
+    for (const student of allStudents) {
+      const studentUserId = student._id.toString();
+      if (processedUserIds.has(studentUserId)) continue;
+      processedUserIds.add(studentUserId);
+
+      const myReferredStudents = referredStudentsByReferrer.get(studentUserId) || [];
+      const invitedCount = myReferredStudents.length;
+      const completedCount = myReferredStudents.filter(s => s.status === 'completed').length;
+      const pendingCount = invitedCount - completedCount;
+      const conversionRate = invitedCount > 0 ? Math.round((completedCount / invitedCount) * 100) : 0;
+      
+      // Calculate earnings directly from completed referrals or wallet
+      const totalEarnings = completedCount * 500;
+
+      leaderboard.push({
+        id: studentUserId,
+        userId: studentUserId,
+        name: student.student_name || student.full_name || 'Student',
+        email: student.email || '',
+        phone: student.phone || '',
+        avatar: student.avatar || '',
+        role: 'student',
+        studentClass: student.student_class || '–',
+        referralCode: student.referralCode || '',
+        walletBalance: student.walletBalance || 0,
+        invitedCount,
+        completedCount,
+        pendingCount,
+        conversionRate,
+        totalEarnings,
+        referredStudents: myReferredStudents.sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime()),
+        createdAt: student.createdAt
+      });
+    }
+
+    // 7. Sort leaderboard descending: most successful completed referrals first, then invited, then earnings
+    leaderboard.sort((a, b) => {
+      if (b.completedCount !== a.completedCount) {
+        return b.completedCount - a.completedCount;
+      }
+      if (b.invitedCount !== a.invitedCount) {
+        return b.invitedCount - a.invitedCount;
+      }
+      if (b.totalEarnings !== a.totalEarnings) {
+        return b.totalEarnings - a.totalEarnings;
+      }
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    // 8. Compute Platform Summary Statistics
+    let totalInvited = 0;
+    let totalCompleted = 0;
+    let totalRewardsDistributed = 0;
+
+    let tutorInvited = 0;
+    let tutorCompleted = 0;
+    let tutorEarnings = 0;
+    let tutorActiveReferrers = 0;
+
+    let studentInvited = 0;
+    let studentCompleted = 0;
+    let studentEarnings = 0;
+    let studentActiveReferrers = 0;
+
+    for (const item of leaderboard) {
+      totalInvited += item.invitedCount;
+      totalCompleted += item.completedCount;
+      totalRewardsDistributed += item.totalEarnings;
+
+      if (item.role === 'tutor') {
+        tutorInvited += item.invitedCount;
+        tutorCompleted += item.completedCount;
+        tutorEarnings += item.totalEarnings;
+        if (item.invitedCount > 0) tutorActiveReferrers++;
+      } else if (item.role === 'student') {
+        studentInvited += item.invitedCount;
+        studentCompleted += item.completedCount;
+        studentEarnings += item.totalEarnings;
+        if (item.invitedCount > 0) studentActiveReferrers++;
+      }
+    }
+
+    const platformConversionRate = totalInvited > 0 ? Math.round((totalCompleted / totalInvited) * 100) : 0;
+    const tutorConversionRate = tutorInvited > 0 ? Math.round((tutorCompleted / tutorInvited) * 100) : 0;
+    const studentConversionRate = studentInvited > 0 ? Math.round((studentCompleted / studentInvited) * 100) : 0;
+
+    const topReferrer = leaderboard.length > 0 && leaderboard[0].completedCount > 0 ? {
+      name: leaderboard[0].name,
+      role: leaderboard[0].role,
+      referralCode: leaderboard[0].referralCode,
+      completedCount: leaderboard[0].completedCount,
+      totalEarnings: leaderboard[0].totalEarnings
+    } : null;
+
+    res.json({
+      stats: {
+        totalInvited,
+        totalCompleted,
+        platformConversionRate,
+        totalRewardsDistributed,
+        activeReferrersCount: tutorActiveReferrers + studentActiveReferrers,
+        topReferrer,
+        tutorStats: {
+          totalInvited: tutorInvited,
+          totalCompleted: tutorCompleted,
+          conversionRate: tutorConversionRate,
+          totalEarnings: tutorEarnings,
+          activeReferrers: tutorActiveReferrers
+        },
+        studentStats: {
+          totalInvited: studentInvited,
+          totalCompleted: studentCompleted,
+          conversionRate: studentConversionRate,
+          totalEarnings: studentEarnings,
+          activeReferrers: studentActiveReferrers
+        }
+      },
+      leaderboard
+    });
+  } catch (err) {
+    console.error('[Referrals Leaderboard] Error generating leaderboard:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+
 
