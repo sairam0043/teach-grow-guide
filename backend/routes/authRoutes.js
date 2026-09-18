@@ -175,24 +175,27 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     let referredByUserId = undefined;
+    let marketingRefCode = undefined;
+
     if (referredBy && referredBy.trim() !== "") {
-      const trimmedRef = referredBy.trim();
+      const trimmedRef = referredBy.trim().toUpperCase();
       // First, try to find a tutor by their referralCode (case-insensitive)
-      const referringTutor = await Tutor.findOne({ referralCode: trimmedRef.toUpperCase() });
+      const referringTutor = await Tutor.findOne({ referralCode: trimmedRef });
       if (referringTutor) {
         referredByUserId = referringTutor.userId;
       } else {
-        // Next, check if it matches a student's referralCode
-        const referringStudent = await User.findOne({ referralCode: trimmedRef.toUpperCase() });
+        // Next, check if it matches an internal student's referralCode
+        const referringStudent = await User.findOne({ referralCode: trimmedRef });
         if (referringStudent) {
           referredByUserId = referringStudent._id;
         } else {
-          // Fallback: Check if it's a valid MongoDB ObjectId (for backward compatibility)
+          // Fallback 1: Check if it's a valid MongoDB ObjectId (for backward compatibility)
           const mongoose = require('mongoose');
           if (mongoose.Types.ObjectId.isValid(trimmedRef)) {
             referredByUserId = trimmedRef;
           } else {
-            return res.status(400).json({ message: 'Invalid referral code' });
+            // Fallback 2: External affiliate marketing referral code (e.g. SARAH-CLEAN-26)
+            marketingRefCode = trimmedRef;
           }
         }
       }
@@ -209,9 +212,25 @@ router.post('/register', async (req, res) => {
       heard_about_us: heard_about_us || heardAboutUs,
       role, 
       timezone: timezone || 'Asia/Kolkata',
-      referredBy: referredByUserId
+      referredBy: referredByUserId,
+      marketingRefCode: marketingRefCode
     });
     await user.save();
+
+    // Trigger webhook notification to Marketing Portal asynchronously
+    if (marketingRefCode) {
+      try {
+        const { notifyMarketingStudentSignup } = require('../utils/marketingWebhookHelper');
+        notifyMarketingStudentSignup({
+          refCode: marketingRefCode,
+          studentName: user.full_name || user.student_name,
+          studentEmail: user.email,
+          studentPhone: user.phone
+        }).catch(err => console.warn('[Marketing Webhook Dispatch Error]:', err.message));
+      } catch (hookErr) {
+        console.warn('[Marketing Webhook Error]:', hookErr.message);
+      }
+    }
 
     if (role === 'tutor') {
       let parsedSubjects = [];
