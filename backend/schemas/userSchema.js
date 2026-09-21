@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 
 const walletTransactionSchema = new mongoose.Schema({
   type: { type: String, enum: ['credit', 'debit'], required: true },
@@ -26,6 +26,7 @@ const userSchema = new mongoose.Schema({
   resetOtpExpiry: { type: Date },
   referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   referralCode: { type: String, unique: true, sparse: true },
+  marketingRefCode: { type: String, trim: true },
   walletBalance: { type: Number, default: 0 },
   walletHistory: [walletTransactionSchema]
 }, { timestamps: true });
@@ -41,4 +42,3 @@ userSchema.pre('save', function() {
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;
-

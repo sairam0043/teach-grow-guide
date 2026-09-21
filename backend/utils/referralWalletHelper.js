@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
 
@@ -139,8 +139,29 @@ const rewardReferrerOnClassCompletion = async (booking) => {
     if (!mongoose.Types.ObjectId.isValid(booking.studentId)) return;
 
     const student = await User.findById(booking.studentId);
-    if (student && student.referredBy) {
-      await syncStudentWalletAndReferrals(student.referredBy);
+    if (student) {
+      // 1. Reward internal student / tutor if referredBy is set
+      if (student.referredBy) {
+        await syncStudentWalletAndReferrals(student.referredBy);
+      }
+
+      // 2. Reward affiliate marketer if marketingRefCode is attached
+      if (student.marketingRefCode) {
+        try {
+          const { notifyMarketingClassCompleted } = require('./marketingWebhookHelper');
+          await notifyMarketingClassCompleted({
+            refCode: student.marketingRefCode,
+            studentEmail: student.email,
+            studentName: student.full_name || student.student_name,
+            bookingId: booking._id,
+            subject: booking.subject,
+            planType: booking.planType,
+            commissionAmount: 500
+          });
+        } catch (mErr) {
+          console.warn('[Marketing Webhook] Failed to dispatch class completion:', mErr.message);
+        }
+      }
     }
   } catch (err) {
     console.error('[Referral Reward] Error triggering referral reward:', err.message);

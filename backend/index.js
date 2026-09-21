@@ -12,6 +12,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const payoutRoutes = require('./routes/payoutRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const chatbotRoutes = require('./routes/chatbotRoutes');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -57,41 +58,78 @@ if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
 }
 
-const connectDB = async () => {
+// Connection event listeners for auto-recovery
+mongoose.connection.on('disconnected', () => {
+  console.warn('[MongoDB] Connection dropped, resetting cache.');
+  cached.conn = null;
+  cached.promise = null;
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('[MongoDB] Runtime connection error:', err.message);
+  if (mongoose.connection.readyState === 0) {
+    cached.conn = null;
+    cached.promise = null;
+  }
+});
+
+const connectDB = async (retries = 2) => {
   if (cached.conn && mongoose.connection.readyState === 1) {
     return cached.conn;
   }
 
-  if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 8000,
-    };
-    cached.promise = mongoose.connect(MONGO_URI, opts).then((mongooseInstance) => {
-      return mongooseInstance;
-    });
-  }
+  const opts = {
+    bufferCommands: false,
+    maxPoolSize: 10,
+    minPoolSize: 1,
+    serverSelectionTimeoutMS: 15000, // 15s buffer for replica discovery & TLS handshake
+    connectTimeoutMS: 15000,
+    socketTimeoutMS: 45000,
+    family: 4,                      // Force IPv4 to prevent IPv6 DNS/TLS handshake errors
+    heartbeatFrequencyMS: 10000,
+    retryWrites: true,
+    retryReads: true
+  };
 
-  try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    throw e;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (!cached.promise) {
+        cached.promise = mongoose.connect(MONGO_URI, opts).then((mongooseInstance) => {
+          return mongooseInstance;
+        });
+      }
+      cached.conn = await cached.promise;
+      return cached.conn;
+    } catch (e) {
+      console.error(`[MongoDB] Connection attempt ${attempt} failed: ${e.message}`);
+      cached.conn = null;
+      cached.promise = null;
+      if (attempt < retries) {
+        // Wait 300ms before retrying transient TLS/handshake failures
+        await new Promise(r => setTimeout(r, 300));
+      } else {
+        throw e;
+      }
+    }
   }
-
-  return cached.conn;
 };
 
 // Middleware to ensure DB connection is established for serverless environments (Vercel)
 if (process.env.VERCEL) {
   app.use(async (req, res, next) => {
+    // Skip database check for lightweight static/health routes
+    if (req.path === '/api/health' || req.path === '/') {
+      return next();
+    }
     try {
       await connectDB();
       next();
     } catch (err) {
-      console.error('Database connection failed in serverless handler:', err);
-      res.status(500).json({ error: 'Database connection failed', details: err.message });
+      console.error('[Vercel] Database connection failed in serverless handler:', err);
+      res.status(500).json({
+        error: 'Database connection temporarily unavailable',
+        details: err.message
+      });
     }
   });
 }
@@ -104,6 +142,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'cuvasol-backend' });

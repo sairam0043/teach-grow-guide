@@ -17,6 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { useSearchParams } from "react-router-dom";
 import TutorCard from "@/components/tutors/TutorCard";
 import type { Tutor } from "@/data/mockTutors";
+import { CLASS_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import API_URL from "@/config/api";
 
 const normalize = (value?: string | null) => (value || "").trim().toLowerCase();
@@ -97,12 +98,17 @@ const getSubjectCategory = (subject: string, tutorCategory: string): string => {
 const BrowseTutors = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryParam = searchParams.get("category");
+  const classParam = searchParams.get("class") || searchParams.get("classes") || searchParams.get("grade");
 
   const [search, setSearch] = useState(() => sessionStorage.getItem("tutor_search") || "");
   const [category, setCategory] = useState<string>(() => {
     if (categoryParam?.toLowerCase() === "academic") return "Academic";
     if (categoryParam?.toLowerCase() === "extracurricular") return "Extracurricular";
     return sessionStorage.getItem("tutor_category") || "all";
+  });
+  const [selectedClass, setSelectedClass] = useState<string>(() => {
+    if (classParam) return classParam;
+    return sessionStorage.getItem("tutor_class") || "all";
   });
   const [subject, setSubject] = useState<string>(() => sessionStorage.getItem("tutor_subject") || "all");
   const [mode, setMode] = useState<string>(() => sessionStorage.getItem("tutor_mode") || "all");
@@ -157,8 +163,17 @@ const BrowseTutors = () => {
   }, [categoryParam]);
 
   useEffect(() => {
+    if (classParam) {
+      setSelectedClass(classParam);
+    } else if (!classParam) {
+      setSelectedClass(sessionStorage.getItem("tutor_class") || "all");
+    }
+  }, [classParam]);
+
+  useEffect(() => {
     sessionStorage.setItem("tutor_search", search);
     sessionStorage.setItem("tutor_category", category);
+    sessionStorage.setItem("tutor_class", selectedClass);
     sessionStorage.setItem("tutor_subject", subject);
     sessionStorage.setItem("tutor_mode", mode);
     sessionStorage.setItem("tutor_city", city);
@@ -167,7 +182,7 @@ const BrowseTutors = () => {
     sessionStorage.setItem("tutor_sort_by", sortBy);
     sessionStorage.setItem("tutor_show_filters", String(showFilters));
     sessionStorage.setItem("tutor_show_map", String(showMap));
-  }, [search, category, subject, mode, city, day, time, sortBy, showFilters, showMap]);
+  }, [search, category, selectedClass, subject, mode, city, day, time, sortBy, showFilters, showMap]);
 
   const handleCategoryChange = (val: string) => {
     setCategory(val);
@@ -176,6 +191,19 @@ const BrowseTutors = () => {
       newParams.delete("category");
     } else {
       newParams.set("category", val);
+    }
+    setSearchParams(newParams);
+  };
+
+  const handleClassChange = (val: string) => {
+    setSelectedClass(val);
+    const newParams = new URLSearchParams(searchParams);
+    if (val === "all") {
+      newParams.delete("class");
+      newParams.delete("classes");
+      newParams.delete("grade");
+    } else {
+      newParams.set("class", val);
     }
     setSearchParams(newParams);
   };
@@ -222,6 +250,19 @@ const BrowseTutors = () => {
     return Array.from(cityMap.values()).sort((a, b) => a.localeCompare(b));
   }, [tutors]);
 
+  const allClasses = useMemo(() => {
+    const classSet = new Set<string>();
+    CLASS_TAUGHT_OPTIONS.forEach((c) => classSet.add(c));
+    tutors.forEach((tutor) => {
+      (tutor.classesTaught || []).forEach((c) => {
+        if (c && typeof c === "string" && c.trim()) {
+          classSet.add(c.trim());
+        }
+      });
+    });
+    return Array.from(classSet);
+  }, [tutors]);
+
   useEffect(() => {
     if (subject !== "all" && !allSubjects.some((s) => standardizeSubject(s) === standardizeSubject(subject))) {
       setSubject("all");
@@ -236,6 +277,8 @@ const BrowseTutors = () => {
           return (
             normalize(t.name).includes(q) ||
             t.subjects?.some((s) => normalize(s).includes(q)) ||
+            t.classesTaught?.some((c) => normalize(c).includes(q)) ||
+            t.boardsTaught?.some((b) => normalize(b).includes(q)) ||
             normalize(t.city).includes(q)
           );
         }
@@ -245,6 +288,26 @@ const BrowseTutors = () => {
         if (selectedCategory === "all") return true;
         if (normalize(t.category) === selectedCategory) return true;
         return (t.subjects || []).some(s => getSubjectCategory(s, t.category) === selectedCategory);
+      })
+      .filter((t) => {
+        if (selectedClass === "all") return true;
+        const tutorClasses = t.classesTaught || [];
+        if (!tutorClasses.length) return false;
+
+        const target = normalize(selectedClass);
+        return tutorClasses.some((c) => {
+          const normC = normalize(c);
+          if (normC === target) return true;
+          if (normC.includes(target) || target.includes(normC)) return true;
+
+          // Match numbers, e.g. "Class 10" in "Class 9 - 10"
+          const targetNumbers = target.match(/\d+/g);
+          const cNumbers = normC.match(/\d+/g);
+          if (targetNumbers && cNumbers && targetNumbers.length > 0 && cNumbers.length > 0) {
+            return targetNumbers.some((num) => cNumbers.includes(num));
+          }
+          return false;
+        });
       })
       .filter((t) => {
         if (selectedSubject === "all") return true;
@@ -290,11 +353,12 @@ const BrowseTutors = () => {
       }
       return (a.name || "").localeCompare(b.name || "");
     });
-  }, [search, selectedCategory, selectedSubject, selectedMode, selectedCity, day, time, sortBy, tutors]);
+  }, [search, selectedCategory, selectedClass, selectedSubject, selectedMode, selectedCity, day, time, sortBy, tutors]);
 
   const clearFilters = () => {
     setSearch("");
     setCategory("all");
+    setSelectedClass("all");
     setSubject("all");
     setMode("all");
     setCity("all");
@@ -304,7 +368,7 @@ const BrowseTutors = () => {
     setSearchParams({});
   };
 
-  const hasFilters = search || category !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "price-asc";
+  const hasFilters = search || category !== "all" || selectedClass !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "price-asc";
 
   return (
     <PageLayout>
@@ -368,6 +432,21 @@ const BrowseTutors = () => {
                         <SelectItem value="all">Select Subject</SelectItem>
                         {allSubjects.map((s) => (
                           <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Class / Grade</label>
+                    <Select value={selectedClass} onValueChange={handleClassChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Class / Grade" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">All Classes</SelectItem>
+                        {allClasses.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -501,6 +580,18 @@ const BrowseTutors = () => {
                 <SelectItem value="all">Select Subject</SelectItem>
                 {allSubjects.map((s) => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedClass} onValueChange={handleClassChange}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Class / Grade" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[260px]">
+                <SelectItem value="all">All Classes</SelectItem>
+                {allClasses.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
