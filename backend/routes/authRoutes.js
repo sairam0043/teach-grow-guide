@@ -737,7 +737,6 @@ router.get('/google-calendar/url', async (req, res) => {
     const oauth2Client = getOAuth2Client();
     
     const scopes = [
-      'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/calendar.events'
     ];
     
