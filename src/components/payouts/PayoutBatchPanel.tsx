@@ -95,14 +95,28 @@ const PayoutBatchPanel = ({ actorEmail = "staff" }: { actorEmail?: string }) => 
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<"generate" | "approve" | null>(null);
   const [generated, setGenerated] = useState(false);
+  const [isPreview, setIsPreview] = useState(false);
 
   const loadBatch = useCallback(async (p: string) => {
     setLoading(true);
     try {
       const res = await axios.get(`${API_URL}/payouts/staff/batch/${p}`);
-      setRows(res.data.batch || []);
-      setTotals(res.data.totals || null);
-      setGenerated((res.data.batch || []).length > 0);
+      const saved = res.data.batch || [];
+
+      if (saved.length > 0) {
+        setRows(saved);
+        setTotals(res.data.totals || null);
+        setGenerated(true);
+        setIsPreview(false);
+      } else {
+        // Nothing generated yet for this month. Fall back to the live
+        // calculation so the month's activity is visible straight away.
+        const pv = await axios.get(`${API_URL}/payouts/staff/preview/${p}`);
+        setRows((pv.data.rows || []).map((r: any, i: number) => ({ ...r, _id: r.tutorId || String(i) })));
+        setTotals(pv.data.totals || null);
+        setGenerated(false);
+        setIsPreview((pv.data.rows || []).length > 0);
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Could not load the batch.");
       setRows([]); setTotals(null); setGenerated(false);
@@ -120,6 +134,7 @@ const PayoutBatchPanel = ({ actorEmail = "staff" }: { actorEmail?: string }) => 
       setRows((res.data.rows || []).map((r: any, i: number) => ({ ...r, _id: r.tutorId || String(i) })));
       setTotals(res.data.totals);
       setGenerated(false);
+      setIsPreview(true);
       toast.success(`Previewed ${res.data.count} tutor(s). Nothing was saved.`);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Preview failed.");
@@ -135,6 +150,7 @@ const PayoutBatchPanel = ({ actorEmail = "staff" }: { actorEmail?: string }) => 
       setRows(res.data.batch || []);
       setTotals(res.data.totals);
       setGenerated(true);
+      setIsPreview(false);
       const { created, refreshed, skipped } = res.data;
       toast.success(
         `${created} created, ${refreshed} updated` +
@@ -222,6 +238,17 @@ const PayoutBatchPanel = ({ actorEmail = "staff" }: { actorEmail?: string }) => 
             <Stat label="Payable to tutors" value={rupees(totals.net)} accent />
             <Stat label="Held back — unconfirmed" value={rupees(totals.unconfirmed)} warn={totals.unconfirmed > 0} />
           </div>
+        )}
+
+        {isPreview && (
+          <p className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
+            <Info className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>
+              These are <strong>calculated figures, not saved</strong>. No batch has been generated
+              for {periodLabel(period)} yet. Click <strong>Generate batch</strong> to record them
+              before they can be approved.
+            </span>
+          </p>
         )}
 
         {totals && totals.unconfirmed > 0 && (
