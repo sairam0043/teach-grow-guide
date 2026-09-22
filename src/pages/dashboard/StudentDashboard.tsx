@@ -23,6 +23,7 @@ import ChatPanel from "@/components/chat/ChatPanel";
 import { toast } from "@/components/ui/sonner";
 import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
+import { RescheduleDialog, DeclineRescheduleDialog } from "@/components/booking/RescheduleDialog";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -159,6 +160,12 @@ const StudentDashboard = () => {
   const [customCancelReason, setCustomCancelReason] = useState<string>("");
   const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
 
+  // Reschedule states
+  const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
+  const [decliningBooking, setDecliningBooking] = useState<any | null>(null);
+  const [isDeclineDialogOpen, setIsDeclineDialogOpen] = useState(false);
+
   const CANCELLATION_REASONS = [
     "Schedule Conflict / Time clash",
     "Found another tutor",
@@ -196,6 +203,19 @@ const StudentDashboard = () => {
       toast.error(err.response?.data?.message || "Failed to cancel booking");
     } finally {
       setIsSubmittingCancellation(false);
+    }
+  };
+
+  const handleApproveReschedule = async (bookingId: string) => {
+    try {
+      const res = await axios.post(`${API_URL}/tutors/booking/${bookingId}/reschedule-confirm`, {
+        action: 'approve',
+        confirmedBy: 'Student'
+      });
+      toast.success("Reschedule request accepted! Class timing updated.");
+      setBookings(prev => prev.map(b => b._id === bookingId ? res.data.booking : b));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to accept reschedule request");
     }
   };
 
@@ -596,38 +616,95 @@ const StudentDashboard = () => {
                               )}
                             </div>
                           )}
+
+                          {cls.rescheduleRequest && cls.rescheduleRequest.status === 'pending' && (
+                            cls.rescheduleRequest.requestedBy === 'Tutor' ? (
+                              <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600" /> Tutor Requested Reschedule
+                                  </span>
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
+                                    ACTION REQUIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-amber-950 dark:text-amber-100">
+                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{cls.rescheduleRequest.requestedTiming}</span>
+                                </p>
+                                {cls.rescheduleRequest.reason && (
+                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{cls.rescheduleRequest.reason}"</p>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(cls._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept New Time
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
+                                    setDecliningBooking(cls);
+                                    setIsDeclineDialogOpen(true);
+                                  }}>
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mb-4 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                                  Reschedule requested to <strong>{cls.rescheduleRequest.requestedTiming}</strong>
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-semibold">
+                                  Awaiting Tutor Approval
+                                </Badge>
+                              </div>
+                            )
+                          )}
                           
-                          <div className="mt-auto pt-4 border-t flex justify-between items-center">
+                          <div className="mt-auto pt-4 border-t flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                                <Clock className="h-4 w-4"/> {formatBookingTime(cls, studentTimezone)}
                                {(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
                                  <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
                                )}
                              </span>
-                             <div className="flex gap-2">
+                             <div className="flex flex-wrap gap-2">
                                {!cls.isRated && (
                                  <Button size="sm" variant="secondary" className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100" onClick={() => {
                                    setRatingBookingId(cls._id);
                                    setRatingTutorId(cls.tutorId);
                                    setIsRatingDialogOpen(true);
-                                  }}>
-                                    <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
-                                  </Button>
-                                )}
+                                 }}>
+                                   <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
+                                 </Button>
+                               )}
                                {!(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
-                                <Button
-                                  size="sm"
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
-                                  asChild
-                                >
-                                  <a
-                                     href={getMeetingHref(cls.meetingLink, cls._id, profileName, user?.email || '')}
-                                     target="_blank"
-                                    rel="noopener noreferrer"
+                                <>
+                                  {(!cls.rescheduleRequest || cls.rescheduleRequest.status !== 'pending') && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      className="text-primary border-primary/30 hover:bg-primary/5 font-semibold text-xs" 
+                                      onClick={() => {
+                                        setReschedulingBooking(cls);
+                                        setIsRescheduleDialogOpen(true);
+                                      }}
+                                    >
+                                      <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
+                                    asChild
                                   >
-                                    <Video className="h-4 w-4" /> Join Class
-                                  </a>
-                                </Button>
+                                    <a
+                                       href={getMeetingHref(cls.meetingLink, cls._id, profileName, user?.email || '')}
+                                       target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <Video className="h-4 w-4" /> Join Class
+                                    </a>
+                                  </Button>
+                                </>
                                )}
                                <Button variant="outline" size="sm" asChild>
                                  <Link to={`/tutors/${cls.tutorId}`}>View Tutor</Link>
@@ -704,6 +781,47 @@ const StudentDashboard = () => {
                                )}
                              </div>
                            )}
+                          {booking.rescheduleRequest && booking.rescheduleRequest.status === 'pending' && (
+                            booking.rescheduleRequest.requestedBy === 'Tutor' ? (
+                              <div className="w-full mt-3 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600" /> Tutor Requested Reschedule
+                                  </span>
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
+                                    ACTION REQUIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-amber-950 dark:text-amber-100">
+                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{booking.rescheduleRequest.requestedTiming}</span>
+                                </p>
+                                {booking.rescheduleRequest.reason && (
+                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{booking.rescheduleRequest.reason}"</p>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(booking._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept New Time
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
+                                    setDecliningBooking(booking);
+                                    setIsDeclineDialogOpen(true);
+                                  }}>
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full mt-3 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                                  Reschedule requested to <strong>{booking.rescheduleRequest.requestedTiming}</strong>
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-semibold">
+                                  Awaiting Tutor Approval
+                                </Badge>
+                              </div>
+                            )
+                          )}
                         </div>
                         <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
                           <div className="flex items-center gap-2">
@@ -714,11 +832,11 @@ const StudentDashboard = () => {
                                booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                                'bg-red-100 text-red-700'
                              }`}>
-                               {booking.status.toUpperCase()}
-                             </Badge>
+                              {booking.status.toUpperCase()}
+                            </Badge>
                           </div>
                           
-                          <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                          <div className="flex flex-wrap gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {(booking.status === 'confirmed' || booking.status === 'pending') && (
                                <>
                                  {booking.status === 'confirmed' && !(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
@@ -737,10 +855,25 @@ const StudentDashboard = () => {
                                    </Button>
                                  )}
                                  {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
-                                   <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
-                                      setCancellingBookingId(booking._id);
-                                      setIsCancelDialogOpen(true);
-                                    }}>Cancel Demo</Button>
+                                   <>
+                                     {(!booking.rescheduleRequest || booking.rescheduleRequest.status !== 'pending') && (
+                                       <Button 
+                                         size="sm" 
+                                         variant="outline" 
+                                         className="w-full sm:w-auto text-primary border-primary/30 hover:bg-primary/5 font-semibold text-xs" 
+                                         onClick={() => {
+                                           setReschedulingBooking(booking);
+                                           setIsRescheduleDialogOpen(true);
+                                         }}
+                                       >
+                                         <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                       </Button>
+                                     )}
+                                     <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
+                                        setCancellingBookingId(booking._id);
+                                        setIsCancelDialogOpen(true);
+                                      }}>Cancel Demo</Button>
+                                   </>
                                  )}
                                </>
                             )}
@@ -1280,6 +1413,29 @@ const StudentDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule Dialog */}
+      <RescheduleDialog
+        isOpen={isRescheduleDialogOpen}
+        onOpenChange={setIsRescheduleDialogOpen}
+        booking={reschedulingBooking}
+        userRole="Student"
+        userTimezone={studentTimezone}
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+        }}
+      />
+
+      {/* Decline Reschedule Dialog */}
+      <DeclineRescheduleDialog
+        isOpen={isDeclineDialogOpen}
+        onOpenChange={setIsDeclineDialogOpen}
+        booking={decliningBooking}
+        userRole="Student"
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+        }}
+      />
     </PageLayout>
   );
 };

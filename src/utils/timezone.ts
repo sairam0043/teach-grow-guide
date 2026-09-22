@@ -297,3 +297,125 @@ export function formatSessionDateTime(utcDateStr: string | Date, userTimeZone: s
   
   return { date: dateStr, time: timeStr };
 }
+
+/**
+ * Normalizes legacy tutor availableTimings array into standard availability objects
+ */
+export function normalizeLegacyAvailability(
+  availableTimings: string[],
+  targetDate: Date,
+  timeZone: string = 'Asia/Kolkata'
+): { day: string; startTime: string; endTime: string }[] {
+  if (!availableTimings || availableTimings.length === 0) return [];
+
+  const tutorWeekday = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    timeZone
+  }).format(targetDate);
+
+  return availableTimings.map((timeStr: string) => {
+    let hour = 0;
+    let minute = 0;
+    const clean = timeStr.trim();
+    if (clean.toLowerCase().includes('am') || clean.toLowerCase().includes('pm')) {
+      const match = clean.match(/(\d+):?(\d+)?\s*(am|pm)/i);
+      if (match) {
+        let h = parseInt(match[1], 10);
+        const m = match[2] ? parseInt(match[2], 10) : 0;
+        const period = match[3].toLowerCase();
+        if (period === 'pm' && h < 12) h += 12;
+        if (period === 'am' && h === 12) h = 0;
+        hour = h;
+        minute = m;
+      }
+    } else if (clean.includes(':')) {
+      const [h, m] = clean.split(':').map(Number);
+      hour = h || 0;
+      minute = m || 0;
+    }
+
+    const startHrStr = hour.toString().padStart(2, '0');
+    const startMinStr = minute.toString().padStart(2, '0');
+    
+    // Add 30 mins for end time
+    let endHr = hour;
+    let endMin = minute + 30;
+    if (endMin >= 60) {
+      endHr += 1;
+      endMin -= 60;
+    }
+    const endHrStr = endHr.toString().padStart(2, '0');
+    const endMinStr = endMin.toString().padStart(2, '0');
+
+    return {
+      day: tutorWeekday,
+      startTime: `${startHrStr}:${startMinStr}`,
+      endTime: `${endHrStr}:${endMinStr}`
+    };
+  });
+}
+
+/**
+ * Returns the next upcoming available calendar dates for a tutor (at least 3 hours in future).
+ */
+export function getTutorUpcomingAvailableDates(
+  tutor: any,
+  studentTimeZone: string,
+  startDate: Date = new Date(),
+  maxDaysToScan: number = 21,
+  limit: number = 5
+): { dateStr: string; displayDate: string; weekday: string; slotsCount: number }[] {
+  if (!tutor) return [];
+
+  const hasDynamic = tutor.availability && tutor.availability.length > 0;
+  const hasLegacy = tutor.availableTimings && tutor.availableTimings.length > 0;
+  if (!hasDynamic && !hasLegacy) return [];
+
+  const tutorTz = tutor.timezone || 'Asia/Kolkata';
+  const results: { dateStr: string; displayDate: string; weekday: string; slotsCount: number }[] = [];
+  const minTime = Date.now() + 3 * 60 * 60 * 1000;
+
+  for (let i = 0; i < maxDaysToScan; i++) {
+    const d = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+    
+    // Calculate slots
+    let slots: ConvertedSlot[] = [];
+    if (hasDynamic) {
+      slots = convertTutorSlotsToStudentTime(tutor.availability, tutorTz, d, studentTimeZone);
+    } else if (hasLegacy) {
+      const legacyAvail = normalizeLegacyAvailability(tutor.availableTimings, d, tutorTz);
+      slots = convertTutorSlotsToStudentTime(legacyAvail, tutorTz, d, studentTimeZone);
+    }
+
+    const validSlots = slots.filter(s => s.utcTimeMs >= minTime);
+    if (validSlots.length > 0) {
+      const y = d.getFullYear();
+      const m = (d.getMonth() + 1).toString().padStart(2, '0');
+      const day = d.getDate().toString().padStart(2, '0');
+      const dateStr = `${y}-${m}-${day}`;
+
+      const displayDate = new Intl.DateTimeFormat('en-US', {
+        timeZone: studentTimeZone,
+        month: 'short',
+        day: 'numeric'
+      }).format(d);
+
+      const weekday = new Intl.DateTimeFormat('en-US', {
+        timeZone: studentTimeZone,
+        weekday: 'short'
+      }).format(d);
+
+      results.push({
+        dateStr,
+        displayDate: `${weekday}, ${displayDate}`,
+        weekday,
+        slotsCount: validSlots.length
+      });
+
+      if (results.length >= limit) break;
+    }
+  }
+
+  return results;
+}
+

@@ -25,6 +25,7 @@ import ChatPanel from "@/components/chat/ChatPanel";
 import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
+import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
 
 const CLASS_TAUGHT_OPTIONS = [
   "Class 1 - 5 (Primary)",
@@ -141,6 +142,8 @@ const AdminDashboard = () => {
   const [isBookingDetailDialogOpen, setIsBookingDetailDialogOpen] = useState(false);
   const [verificationDemoTiming, setVerificationDemoTiming] = useState("");
   const [isBookingDemo, setIsBookingDemo] = useState(false);
+  const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
   const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
   const [bookingToComplete, setBookingToComplete] = useState<{ id: string; tutorName: string } | null>(null);
@@ -1490,6 +1493,19 @@ const AdminDashboard = () => {
                                 {['pending', 'confirmed'].includes(demo.status) && (
                                   <Button
                                     size="sm"
+                                    variant="outline"
+                                    className="text-primary border-primary/30 hover:bg-primary/5 font-bold h-9 px-3 rounded-lg text-xs"
+                                    onClick={() => {
+                                      setReschedulingBooking(demo);
+                                      setIsRescheduleDialogOpen(true);
+                                    }}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                  </Button>
+                                )}
+                                {['pending', 'confirmed'].includes(demo.status) && (
+                                  <Button
+                                    size="sm"
                                     variant="ghost"
                                     className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold h-9 px-3 rounded-lg"
                                     onClick={() => {
@@ -1591,14 +1607,29 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 font-semibold text-xs rounded-lg"
-                                onClick={() => handleViewBookingDetail(booking)}
-                              >
-                                View Details
-                              </Button>
+                              <div className="flex justify-end gap-1.5">
+                                {['pending', 'confirmed', 'enrolled'].includes(booking.status) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 font-semibold text-xs rounded-lg text-primary border-primary/30 hover:bg-primary/5"
+                                    onClick={() => {
+                                      setReschedulingBooking(booking);
+                                      setIsRescheduleDialogOpen(true);
+                                    }}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 font-semibold text-xs rounded-lg"
+                                  onClick={() => handleViewBookingDetail(booking)}
+                                >
+                                  View Details
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -3929,10 +3960,27 @@ const AdminDashboard = () => {
               {/* Timing and Financials Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-card border">
-                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Date & Timing</span>
-                  <span className="text-sm font-semibold text-foreground mt-1 flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
-                  </span>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Date & Timing</span>
+                      <span className="text-sm font-semibold text-foreground mt-1 flex items-center gap-1.5">
+                        <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
+                      </span>
+                    </div>
+                    {['pending', 'confirmed', 'enrolled'].includes(selectedBookingForDetail.status) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/5 gap-1"
+                        onClick={() => {
+                          setReschedulingBooking(selectedBookingForDetail);
+                          setIsRescheduleDialogOpen(true);
+                        }}
+                      >
+                        <Clock className="h-3 w-3" /> Reschedule
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="p-4 rounded-xl bg-card border">
                   <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Amount Paid (Gross)</span>
@@ -3941,6 +3989,38 @@ const AdminDashboard = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Reschedule Request Audit Banner */}
+              {selectedBookingForDetail.rescheduleRequest && selectedBookingForDetail.rescheduleRequest.status && (
+                <div className={`p-4 rounded-xl border space-y-2 shadow-sm ${
+                  selectedBookingForDetail.rescheduleRequest.status === 'pending'
+                    ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50'
+                    : selectedBookingForDetail.rescheduleRequest.status === 'approved'
+                    ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50'
+                    : 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50'
+                }`}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-primary" />
+                      Reschedule Record ({selectedBookingForDetail.rescheduleRequest.requestedBy || 'User'})
+                    </span>
+                    <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                      {selectedBookingForDetail.rescheduleRequest.status}
+                    </Badge>
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p><strong>Proposed/Rescheduled Timing:</strong> {selectedBookingForDetail.rescheduleRequest.requestedTiming}</p>
+                    {selectedBookingForDetail.rescheduleRequest.reason && (
+                      <p className="text-muted-foreground italic">"{selectedBookingForDetail.rescheduleRequest.reason}"</p>
+                    )}
+                    {selectedBookingForDetail.rescheduledAt && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Rescheduled At: {new Date(selectedBookingForDetail.rescheduledAt).toLocaleString()} by {selectedBookingForDetail.rescheduledBy || 'Admin'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Cancellation & Rejection Audit Banner */}
               {(selectedBookingForDetail.status === 'cancelled' || selectedBookingForDetail.status === 'rejected') && (
@@ -4220,6 +4300,20 @@ const AdminDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule Dialog */}
+      <RescheduleDialog
+        isOpen={isRescheduleDialogOpen}
+        onOpenChange={setIsRescheduleDialogOpen}
+        booking={reschedulingBooking}
+        userRole="Admin"
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+          if (selectedBookingForDetail && selectedBookingForDetail._id === updatedBooking._id) {
+            setSelectedBookingForDetail(updatedBooking);
+          }
+        }}
+      />
     </PageLayout>
   );
 };

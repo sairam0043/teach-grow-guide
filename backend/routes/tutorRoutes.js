@@ -104,7 +104,7 @@ const getBookingSessionTimestamps = (booking) => {
   return [];
 };
 
-const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSessions, isPack, requestedUtcTiming) => {
+const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSessions, isPack, requestedUtcTiming, excludeBookingId = null) => {
   const requestedTimestamps = [];
   if (isPack && requestedSessions && requestedSessions.length > 0) {
     for (const s of requestedSessions) {
@@ -130,10 +130,15 @@ const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSes
     return null;
   }
 
-  const activeBookings = await Booking.find({
+  const query = {
     tutorId,
     status: { $in: ['pending', 'pending_payment', 'confirmed', 'enrolled'] }
-  });
+  };
+  if (excludeBookingId) {
+    query._id = { $ne: excludeBookingId };
+  }
+
+  const activeBookings = await Booking.find(query);
 
   for (const booking of activeBookings) {
     const existingTimestamps = getBookingSessionTimestamps(booking);
@@ -152,6 +157,85 @@ const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSes
   return null;
 };
 
+// Helper to validate whether a requested date/time falls within tutor's availability
+const validateTutorAvailability = (tutor, timingStr, utcTiming) => {
+  if (!tutor) return { valid: true };
+
+  let dateObj = null;
+  if (utcTiming) {
+    dateObj = new Date(utcTiming);
+  } else if (timingStr) {
+    dateObj = parseTimingStringToDate(timingStr);
+  }
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    return { valid: false, message: 'Invalid timing date or format' };
+  }
+
+  const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
+  const tutorTz = tutor.timezone || 'Asia/Kolkata';
+
+  if (hasDynamicAvailability) {
+    // Determine weekday in tutor's timezone
+    const tutorWeekday = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      timeZone: tutorTz
+    }).format(dateObj);
+
+    // Format local hour and minute in tutor timezone
+    const tutorTimeFormatter = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+      timeZone: tutorTz
+    });
+    const parts = tutorTimeFormatter.formatToParts(dateObj);
+    let hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    if (hour === 24) hour = 0;
+    const min = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    const sessionTimeMinutes = hour * 60 + min;
+
+    // Filter tutor's availability matching this weekday
+    const dayAvailabilities = tutor.availability.filter(a => a.day === tutorWeekday);
+    if (dayAvailabilities.length === 0) {
+      const availableDays = [...new Set(tutor.availability.map(a => a.day))].join(', ');
+      return {
+        valid: false,
+        message: `Tutor is not available on ${tutorWeekday}. Available working days: ${availableDays}.`
+      };
+    }
+
+    const fitsInWindow = dayAvailabilities.some(avail => {
+      if (!avail.startTime || !avail.endTime) return false;
+      const [sh, sm] = avail.startTime.split(':').map(Number);
+      const [eh, em] = avail.endTime.split(':').map(Number);
+      const startMin = sh * 60 + sm;
+      const endMin = eh * 60 + em;
+      return sessionTimeMinutes >= startMin && sessionTimeMinutes < endMin;
+    });
+
+    if (!fitsInWindow) {
+      const windows = dayAvailabilities.map(a => `${a.startTime} - ${a.endTime}`).join(', ');
+      return {
+        valid: false,
+        message: `Requested time (${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')} ${tutorTz}) is outside tutor's working hours on ${tutorWeekday} (${windows}).`
+      };
+    }
+
+    return { valid: true };
+  } else if (tutor.availableTimings && tutor.availableTimings.length > 0) {
+    const timePart = timingStr.includes(' at ') ? timingStr.split(' at ')[1] : timingStr;
+    const matches = tutor.availableTimings.some(t => t.trim().toLowerCase() === timePart.trim().toLowerCase());
+    if (!matches) {
+      return {
+        valid: false,
+        message: `Requested slot (${timePart}) is not in tutor's available timings (${tutor.availableTimings.join(', ')}).`
+      };
+    }
+    return { valid: true };
+  }
+
+  return { valid: true };
+};
 
 // Helper to securely calculate backend prices for a booking plan
 const calculatePlanPrice = (tutor, subject, planType) => {
@@ -393,13 +477,10 @@ router.post('/:id/book', async (req, res) => {
       }
     }
 
-    // Validate the timing actually exists in tutor's timings
-    // The frontend sends format "Date at Time", so we extract the time part
-    const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
-    
-    const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
-    if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
-      return res.status(400).json({ message: 'This slot is not available or does not exist.' });
+    // Validate tutor availability (working days and hours)
+    const availabilityCheck = validateTutorAvailability(tutor, timing, utcTiming);
+    if (!availabilityCheck.valid) {
+      return res.status(400).json({ message: availabilityCheck.message });
     }
 
     // Check for tutor schedule conflicts
@@ -572,10 +653,9 @@ router.post('/:id/book-class', async (req, res) => {
     }
 
     if (!isPack) {
-      const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
-      const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
-      if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
-        return res.status(400).json({ message: 'This slot is not available or does not exist.' });
+      const availabilityCheck = validateTutorAvailability(tutor, timing, utcTiming);
+      if (!availabilityCheck.valid) {
+        return res.status(400).json({ message: availabilityCheck.message });
       }
 
       const bookingDate = parseTimingStringToDate(timing);
@@ -988,6 +1068,408 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     }
 
     res.json(booking);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Request to reschedule a booking (initiated by Student or Tutor)
+router.post('/booking/:bookingId/reschedule-request', async (req, res) => {
+  try {
+    const { requestedTiming, requestedUtcTiming, reason, requestedBy } = req.body;
+    if (!requestedTiming) {
+      return res.status(400).json({ message: 'Requested new timing is required' });
+    }
+
+    const booking = await Booking.findById(req.params.bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    if (['cancelled', 'rejected', 'completed'].includes(booking.status)) {
+      return res.status(400).json({ message: `Cannot reschedule a ${booking.status} booking` });
+    }
+
+    const initiatorRole = requestedBy === 'Tutor' ? 'Tutor' : 'Student';
+
+    // Validate slot timing is at least 3 hours in the future
+    const bookingDate = parseTimingStringToDate(requestedTiming);
+    if (bookingDate) {
+      const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      if (bookingDate < minTime) {
+        return res.status(400).json({ message: 'You can only reschedule to slots at least 3 hours in the future.' });
+      }
+    }
+
+    // Fetch tutor and validate dynamic availability
+    const tutor = await Tutor.findById(booking.tutorId);
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor not found for this booking' });
+    }
+
+    const availabilityCheck = validateTutorAvailability(tutor, requestedTiming, requestedUtcTiming);
+    if (!availabilityCheck.valid) {
+      return res.status(400).json({ message: availabilityCheck.message });
+    }
+
+    // Check for tutor schedule conflicts excluding current booking
+    const conflict = await checkTutorScheduleConflict(booking.tutorId, requestedTiming, null, false, requestedUtcTiming, booking._id);
+    if (conflict) {
+      return res.status(400).json({ message: `The tutor already has another scheduled or pending session at ${requestedTiming}.` });
+    }
+
+    booking.rescheduleRequest = {
+      requestedTiming,
+      requestedUtcTiming: requestedUtcTiming ? new Date(requestedUtcTiming) : undefined,
+      requestedBy: initiatorRole,
+      reason: reason || '',
+      requestedAt: new Date(),
+      status: 'pending',
+      declinedReason: ''
+    };
+
+    await booking.save();
+    console.log(`[Reschedule] Request saved for Booking ID ${booking._id} by ${initiatorRole} to ${requestedTiming}`);
+
+    // Send email notification to the opposite party
+    try {
+      const tutor = await Tutor.findById(booking.tutorId);
+      const tutorUser = tutor?.userId ? await User.findById(tutor.userId) : null;
+      const studentUser = /^[0-9a-fA-F]{24}$/.test(booking.studentId) ? await User.findById(booking.studentId) : null;
+      const frontendUrl = getFrontendUrl(req);
+
+      if (initiatorRole === 'Student') {
+        // Notify Tutor
+        if (tutorUser && tutorUser.email) {
+          transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: tutorUser.email,
+            subject: `Action Required: Reschedule Requested by ${booking.studentName}`,
+            text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} has requested to reschedule their ${booking.subject} class from "${booking.timing}" to "${requestedTiming}".\n\nReason: ${reason || 'No reason specified.'}\n\nPlease log in to your dashboard to Accept or Decline this request:\n${frontendUrl}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #2563eb; text-align: center;">Class Reschedule Requested</h2>
+                <p>Hello <strong>${tutor.name}</strong>,</p>
+                <p>Student <strong>${booking.studentName}</strong> has requested to reschedule their <strong>${booking.subject}</strong> session.</p>
+                <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; border: 1px solid #bfdbfe; margin: 20px 0;">
+                  <p style="margin: 0 0 8px 0;"><strong>Original Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${booking.timing}</span></p>
+                  <p style="margin: 0 0 8px 0;"><strong>Requested New Timing:</strong> <span style="color: #2563eb; font-weight: bold;">${requestedTiming}</span></p>
+                  <p style="margin: 0;"><strong>Reason:</strong> ${reason || 'No reason provided.'}</p>
+                </div>
+                <p>Please log in to your <a href="${frontendUrl}/dashboard/tutor" style="color: #2563eb; font-weight: bold;">Tutor Dashboard</a> to Accept or Decline this request.</p>
+                <p>Best regards,<br/>Cuvasol Tutor Team</p>
+              </div>
+            `
+          }).catch(err => console.error('[Reschedule Email] Error sending to tutor:', err.message));
+        }
+      } else {
+        // Notify Student
+        let studentEmail = studentUser?.email;
+        if (!studentEmail && booking.studentId === 'admin') {
+          studentEmail = process.env.ADMIN_EMAIL || 'admin@cuvasoltutor.com';
+        }
+        if (studentEmail) {
+          transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: studentEmail,
+            subject: `Action Required: Reschedule Requested by Tutor ${booking.tutorName}`,
+            text: `Hello ${booking.studentName},\n\nTutor ${booking.tutorName} has requested to reschedule your ${booking.subject} class from "${booking.timing}" to "${requestedTiming}".\n\nReason: ${reason || 'No reason specified.'}\n\nPlease log in to your dashboard to Accept or Decline this request:\n${frontendUrl}/dashboard/student\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #2563eb; text-align: center;">Class Reschedule Requested by Tutor</h2>
+                <p>Hello <strong>${booking.studentName}</strong>,</p>
+                <p>Tutor <strong>${booking.tutorName}</strong> has requested to reschedule your <strong>${booking.subject}</strong> session.</p>
+                <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; border: 1px solid #bfdbfe; margin: 20px 0;">
+                  <p style="margin: 0 0 8px 0;"><strong>Original Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${booking.timing}</span></p>
+                  <p style="margin: 0 0 8px 0;"><strong>Requested New Timing:</strong> <span style="color: #2563eb; font-weight: bold;">${requestedTiming}</span></p>
+                  <p style="margin: 0;"><strong>Reason:</strong> ${reason || 'No reason provided.'}</p>
+                </div>
+                <p>Please log in to your <a href="${frontendUrl}/dashboard/student" style="color: #2563eb; font-weight: bold;">Student Dashboard</a> to Accept or Decline this request.</p>
+                <p>Best regards,<br/>Cuvasol Tutor Team</p>
+              </div>
+            `
+          }).catch(err => console.error('[Reschedule Email] Error sending to student:', err.message));
+        }
+      }
+    } catch (mailErr) {
+      console.error('[Reschedule Email] Error processing notification:', mailErr.message);
+    }
+
+    res.json({ message: 'Reschedule request submitted successfully', booking });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Confirm or Decline a Reschedule Request
+router.post('/booking/:bookingId/reschedule-confirm', async (req, res) => {
+  try {
+    const { action, declinedReason, confirmedBy } = req.body;
+    if (!['approve', 'decline'].includes(action)) {
+      return res.status(400).json({ message: 'Action must be either "approve" or "decline"' });
+    }
+
+    const booking = await Booking.findById(req.params.bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    if (!booking.rescheduleRequest || booking.rescheduleRequest.status !== 'pending') {
+      return res.status(400).json({ message: 'No pending reschedule request found for this booking' });
+    }
+
+    const originalTiming = booking.timing;
+    const requestedTiming = booking.rescheduleRequest.requestedTiming;
+    const requestedUtcTiming = booking.rescheduleRequest.requestedUtcTiming;
+    const requestedByRole = booking.rescheduleRequest.requestedBy;
+
+    const frontendUrl = getFrontendUrl(req);
+    const tutor = await Tutor.findById(booking.tutorId);
+    const tutorUser = tutor?.userId ? await User.findById(tutor.userId) : null;
+    const studentUser = /^[0-9a-fA-F]{24}$/.test(booking.studentId) ? await User.findById(booking.studentId) : null;
+    let studentEmail = studentUser?.email;
+    if (!studentEmail && booking.studentId === 'admin') {
+      studentEmail = process.env.ADMIN_EMAIL || 'admin@cuvasoltutor.com';
+    }
+
+    if (action === 'approve') {
+      // Re-verify schedule conflict
+      const conflict = await checkTutorScheduleConflict(booking.tutorId, requestedTiming, null, false, requestedUtcTiming, booking._id);
+      if (conflict) {
+        return res.status(400).json({ message: `Schedule conflict detected at ${requestedTiming}. Cannot approve.` });
+      }
+
+      booking.timing = requestedTiming;
+      if (requestedUtcTiming) {
+        booking.utcTiming = requestedUtcTiming;
+      }
+      booking.rescheduledAt = new Date();
+      booking.rescheduledBy = requestedByRole;
+      booking.rescheduleRequest.status = 'approved';
+      if (booking.status === 'pending') {
+        booking.status = 'confirmed';
+      }
+
+      await booking.save();
+      console.log(`[Reschedule] Booking ID ${booking._id} approved to ${requestedTiming}`);
+
+      // Send confirmation emails
+      try {
+        if (requestedByRole === 'Student') {
+          // Send approval confirmation to Student
+          if (studentEmail) {
+            transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+              to: studentEmail,
+              subject: `Reschedule Confirmed: ${booking.subject} with ${booking.tutorName}`,
+              text: `Hello ${booking.studentName},\n\nGreat news! Tutor ${booking.tutorName} has APPROVED your reschedule request for ${booking.subject}.\n\nNew Class Timing: ${booking.timing}\nOriginal Timing: ${originalTiming}\nMeeting Room Link: ${booking.meetingLink || 'Available on your dashboard'}\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #059669; text-align: center;">Reschedule Request Approved!</h2>
+                  <p>Hello <strong>${booking.studentName}</strong>,</p>
+                  <p>Great news! Tutor <strong>${booking.tutorName}</strong> has approved your reschedule request for <strong>${booking.subject}</strong>.</p>
+                  <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
+                    <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #059669; font-weight: bold; font-size: 16px;">${booking.timing}</span></p>
+                    <p style="margin: 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${originalTiming}</span></p>
+                  </div>
+                  <p>You can join your class at the new time directly from your <a href="${frontendUrl}/dashboard/student" style="color: #059669; font-weight: bold;">Student Dashboard</a>.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
+                </div>
+              `
+            }).catch(err => console.error('[Reschedule Email] Error notifying student:', err.message));
+          }
+        } else {
+          // Send approval confirmation to Tutor
+          if (tutorUser && tutorUser.email) {
+            transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+              to: tutorUser.email,
+              subject: `Reschedule Confirmed: ${booking.subject} with ${booking.studentName}`,
+              text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} has APPROVED your reschedule request for ${booking.subject}.\n\nNew Class Timing: ${booking.timing}\nOriginal Timing: ${originalTiming}\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #059669; text-align: center;">Reschedule Request Approved!</h2>
+                  <p>Hello <strong>${tutor.name}</strong>,</p>
+                  <p>Student <strong>${booking.studentName}</strong> has accepted your reschedule request for <strong>${booking.subject}</strong>.</p>
+                  <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
+                    <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #059669; font-weight: bold; font-size: 16px;">${booking.timing}</span></p>
+                    <p style="margin: 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${originalTiming}</span></p>
+                  </div>
+                  <p>You can view your updated calendar on your <a href="${frontendUrl}/dashboard/tutor" style="color: #059669; font-weight: bold;">Tutor Dashboard</a>.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
+                </div>
+              `
+            }).catch(err => console.error('[Reschedule Email] Error notifying tutor:', err.message));
+          }
+        }
+      } catch (mailErr) {
+        console.error('[Reschedule Email] Error:', mailErr.message);
+      }
+
+      return res.json({ message: 'Reschedule request approved successfully', booking });
+    } else {
+      // Decline action
+      booking.rescheduleRequest.status = 'declined';
+      booking.rescheduleRequest.declinedReason = declinedReason || 'No reason provided';
+      await booking.save();
+      console.log(`[Reschedule] Booking ID ${booking._id} reschedule declined`);
+
+      // Send decline notification emails
+      try {
+        if (requestedByRole === 'Student') {
+          if (studentEmail) {
+            transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+              to: studentEmail,
+              subject: `Reschedule Request Declined: ${booking.subject}`,
+              text: `Hello ${booking.studentName},\n\nTutor ${booking.tutorName} was unable to accept your reschedule request for ${requestedTiming}.\n${declinedReason ? `Reason: ${declinedReason}\n` : ''}\nYour class remains scheduled for the original timing: ${booking.timing}.\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #dc2626; text-align: center;">Reschedule Request Declined</h2>
+                  <p>Hello <strong>${booking.studentName}</strong>,</p>
+                  <p>Tutor <strong>${booking.tutorName}</strong> was unable to accept your reschedule request for <strong>${requestedTiming}</strong>.</p>
+                  ${declinedReason ? `<p><strong>Reason:</strong> ${declinedReason}</p>` : ''}
+                  <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca; margin: 20px 0;">
+                    <p style="margin: 0;"><strong>Active Class Timing:</strong> <span style="color: #dc2626; font-weight: bold;">${booking.timing}</span> (Unchanged)</p>
+                  </div>
+                  <p>Your session remains active at the original time. Please visit your <a href="${frontendUrl}/dashboard/student">Student Dashboard</a> to manage or join.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
+                </div>
+              `
+            }).catch(err => console.error('[Reschedule Email] Error:', err.message));
+          }
+        } else {
+          if (tutorUser && tutorUser.email) {
+            transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+              to: tutorUser.email,
+              subject: `Reschedule Request Declined by Student: ${booking.subject}`,
+              text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} was unable to accept your reschedule request for ${requestedTiming}.\n${declinedReason ? `Reason: ${declinedReason}\n` : ''}\nThe class remains scheduled for the original timing: ${booking.timing}.\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #dc2626; text-align: center;">Reschedule Request Declined</h2>
+                  <p>Hello <strong>${tutor.name}</strong>,</p>
+                  <p>Student <strong>${booking.studentName}</strong> was unable to accept your reschedule request for <strong>${requestedTiming}</strong>.</p>
+                  ${declinedReason ? `<p><strong>Reason:</strong> ${declinedReason}</p>` : ''}
+                  <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca; margin: 20px 0;">
+                    <p style="margin: 0;"><strong>Active Class Timing:</strong> <span style="color: #dc2626; font-weight: bold;">${booking.timing}</span> (Unchanged)</p>
+                  </div>
+                  <p>The session remains active at the original time. Please visit your <a href="${frontendUrl}/dashboard/tutor">Tutor Dashboard</a>.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
+                </div>
+              `
+            }).catch(err => console.error('[Reschedule Email] Error:', err.message));
+          }
+        }
+      } catch (mailErr) {
+        console.error('[Reschedule Email] Error:', mailErr.message);
+      }
+
+      return res.json({ message: 'Reschedule request declined', booking });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin direct reschedule endpoint
+router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
+  try {
+    const { requestedTiming, requestedUtcTiming, reason } = req.body;
+    if (!requestedTiming) {
+      return res.status(400).json({ message: 'Requested timing is required' });
+    }
+
+    const booking = await Booking.findById(req.params.bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    const tutor = await Tutor.findById(booking.tutorId);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found for this booking' });
+
+    // Validate tutor availability (unless explicit admin override requested)
+    if (!req.body.overrideAvailability) {
+      const availabilityCheck = validateTutorAvailability(tutor, requestedTiming, requestedUtcTiming);
+      if (!availabilityCheck.valid) {
+        return res.status(400).json({ message: availabilityCheck.message });
+      }
+    }
+
+    // Check for tutor schedule conflicts (unless explicit conflict override requested)
+    const conflict = await checkTutorScheduleConflict(booking.tutorId, requestedTiming, null, false, requestedUtcTiming, booking._id);
+    if (conflict && !req.body.overrideConflict) {
+      return res.status(400).json({ message: `The tutor already has another scheduled session at ${requestedTiming}.` });
+    }
+
+    const oldTiming = booking.timing;
+    booking.timing = requestedTiming;
+    if (requestedUtcTiming) {
+      booking.utcTiming = new Date(requestedUtcTiming);
+    }
+    booking.rescheduledAt = new Date();
+    booking.rescheduledBy = 'Admin';
+    if (booking.rescheduleRequest) {
+      booking.rescheduleRequest.status = 'approved';
+      booking.rescheduleRequest.requestedTiming = requestedTiming;
+      booking.rescheduleRequest.requestedUtcTiming = requestedUtcTiming ? new Date(requestedUtcTiming) : undefined;
+    }
+
+    await booking.save();
+    console.log(`[Admin Reschedule] Booking ID ${booking._id} rescheduled by Admin to ${requestedTiming}`);
+
+    // Notify tutor and student
+    try {
+      const frontendUrl = getFrontendUrl(req);
+      const tutor = await Tutor.findById(booking.tutorId);
+      const tutorUser = tutor?.userId ? await User.findById(tutor.userId) : null;
+      const studentUser = /^[0-9a-fA-F]{24}$/.test(booking.studentId) ? await User.findById(booking.studentId) : null;
+      let studentEmail = studentUser?.email;
+
+      if (tutorUser && tutorUser.email) {
+        transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: tutorUser.email,
+          subject: `Class Rescheduled by Administrator: ${booking.subject}`,
+          text: `Hello ${tutor.name},\n\nOur administrator has rescheduled the ${booking.subject} class with ${booking.studentName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
+              <p>Hello <strong>${tutor.name}</strong>,</p>
+              <p>Our platform administrator has rescheduled your <strong>${booking.subject}</strong> session with <strong>${booking.studentName}</strong>.</p>
+              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+              </div>
+              <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to view your updated schedule.</p>
+              <p>Best regards,<br/>Cuvasol Tutor Team</p>
+            </div>
+          `
+        }).catch(err => console.error('[Admin Reschedule Email] Tutor error:', err.message));
+      }
+
+      if (studentEmail) {
+        transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: studentEmail,
+          subject: `Class Rescheduled by Administrator: ${booking.subject}`,
+          text: `Hello ${booking.studentName},\n\nOur administrator has rescheduled your ${booking.subject} class with tutor ${booking.tutorName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
+              <p>Hello <strong>${booking.studentName}</strong>,</p>
+              <p>Our platform administrator has rescheduled your <strong>${booking.subject}</strong> session with tutor <strong>${booking.tutorName}</strong>.</p>
+              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+              </div>
+              <p>Please visit your <a href="${frontendUrl}/dashboard/student" style="color: #7c3aed; font-weight: bold;">Student Dashboard</a> to join at the new time.</p>
+              <p>Best regards,<br/>Cuvasol Tutor Team</p>
+            </div>
+          `
+        }).catch(err => console.error('[Admin Reschedule Email] Student error:', err.message));
+      }
+    } catch (mailErr) {
+      console.error('[Admin Reschedule Email] Error:', mailErr.message);
+    }
+
+    res.json({ message: 'Class rescheduled successfully by administrator', booking });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1447,6 +1929,7 @@ router.delete('/:id/admin', async (req, res) => {
 router.checkTutorScheduleConflict = checkTutorScheduleConflict;
 router.getBookingSessionTimestamps = getBookingSessionTimestamps;
 router.parseSessionToDate = parseSessionToDate;
+router.validateTutorAvailability = validateTutorAvailability;
 
 module.exports = router;
 
