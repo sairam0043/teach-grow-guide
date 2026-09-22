@@ -880,22 +880,25 @@ const TutorProfile = () => {
       return;
     }
 
-    const tutorUserId = tutor.userId?._id || tutor.userId?.id || tutor.userId;
+    const tutorUserId = tutor?.userId?._id || (typeof tutor?.userId === 'string' ? tutor.userId : null) || tutor?.userId?.id || tutor?.userId;
     if (!tutorUserId) {
       toast.error("Tutor user ID not found.");
       return;
     }
 
+    const targetDashboard = role === "admin" ? "/dashboard/admin" : "/dashboard/student";
+    const tabKey = role === "admin" ? "admin_dashboard_tab" : "student_dashboard_tab";
+
     // Save session storage redirects for deep-linking
-    sessionStorage.setItem("student_dashboard_tab", "messages");
+    sessionStorage.setItem(tabKey, "messages");
     sessionStorage.setItem("active_chat_user_id", tutorUserId);
 
     toast.success(`Opening chat with ${tutor.name}...`);
 
-    // Redirect to student dashboard messages tab
+    // Redirect to relevant dashboard messages tab
     setTimeout(() => {
-      navigate("/dashboard/student");
-    }, 800);
+      navigate(targetDashboard);
+    }, 400);
   };
 
   const isBookButtonDisabled = (() => {

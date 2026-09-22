@@ -59,6 +59,39 @@ router.get('/chat/:userId1/:userId2', async (req, res) => {
   }
 });
 
+// GET /api/messages/user/:userId - Get user profile preview for chat initial state
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const mongoose = require('mongoose');
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    const user = await User.findById(userId).select('full_name email role avatar');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let tutorProfileId = null;
+    if (user.role === 'tutor') {
+      const tutor = await Tutor.findOne({ userId: user._id }).select('_id');
+      if (tutor) tutorProfileId = tutor._id.toString();
+    }
+
+    res.json({
+      id: user._id.toString(),
+      full_name: user.full_name || 'User',
+      email: user.email || '',
+      role: user.role || 'student',
+      avatar: user.avatar || '',
+      tutorProfileId
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching user profile', error: error.message });
+  }
+});
+
 // GET /api/messages/inbox/:userId - Get user inbox conversations list
 router.get('/inbox/:userId', async (req, res) => {
   try {

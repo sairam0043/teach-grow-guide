@@ -364,6 +364,26 @@ const AdminDashboard = () => {
     setIsDetailDialogOpen(true);
   };
 
+  const handleMessageTutor = (tutor: any) => {
+    if (!tutor) return;
+    const tutorUserId = tutor?.userId?._id 
+      ? tutor.userId._id.toString() 
+      : (typeof tutor?.userId === "string" 
+          ? tutor.userId 
+          : (tutor?.userId?.id || (tutor?.userId ? tutor.userId.toString() : null)));
+
+    if (!tutorUserId) {
+      toast.error(`User account not found for tutor ${tutor.name || ""}.`);
+      return;
+    }
+
+    sessionStorage.setItem("active_chat_user_id", tutorUserId);
+    setActiveChatUserId(tutorUserId);
+    setActiveTab("messages");
+    setIsDetailDialogOpen(false);
+    toast.success(`Opening conversation with tutor ${tutor.name || "Tutor"}`);
+  };
+
   const handleSaveTutorProfile = async () => {
     if (!selectedTutorForDetail) return;
     
@@ -1034,6 +1054,18 @@ const AdminDashboard = () => {
                               <div className="flex justify-end gap-2.5">
                                 <Button 
                                   size="sm" 
+                                  variant="outline" 
+                                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg h-9 px-3 transition-all duration-200 font-semibold text-xs gap-1" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMessageTutor(tutor);
+                                  }}
+                                  title={`Send a direct message to ${tutor.name || 'tutor'}`}
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" /> Message
+                                </Button>
+                                <Button 
+                                  size="sm" 
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow-emerald-500/20 transition-all duration-300 hover:-translate-y-0.5 rounded-lg h-9 px-3" 
                                   onClick={() => handleApproval(tutor.id, "approved")}
                                 >
@@ -1237,6 +1269,18 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2.5">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg h-9 px-3 transition-all duration-200 font-semibold text-xs gap-1" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMessageTutor(tutor);
+                                  }}
+                                  title={`Send a direct message to ${tutor.name || 'tutor'}`}
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" /> Message
+                                </Button>
                                 <Button 
                                   size="sm" 
                                   variant={tutor.isVerified ? "outline" : "default"} 
@@ -1924,14 +1968,25 @@ const AdminDashboard = () => {
                                   <TableCell className="text-right font-medium text-emerald-600">₹{tutorPayout.totalCommission}</TableCell>
                                   <TableCell className="text-right font-bold text-indigo-500">₹{tutorPayout.totalPayout}</TableCell>
                                   <TableCell className="text-right px-6">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setExpandedTutorId(isExpanded ? null : tutorPayout.tutorId)}
-                                      className="font-semibold h-8"
-                                    >
-                                      {isExpanded ? "Hide Logs" : "Audit Details"}
-                                    </Button>
+                                    <div className="flex justify-end items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleMessageTutor({ userId: tutorPayout.userId, name: tutorPayout.tutorName })}
+                                        className="font-semibold h-8 text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 gap-1"
+                                        title={`Message tutor ${tutorPayout.tutorName}`}
+                                      >
+                                        <MessageSquare className="h-3.5 w-3.5" /> Message
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setExpandedTutorId(isExpanded ? null : tutorPayout.tutorId)}
+                                        className="font-semibold h-8"
+                                      >
+                                        {isExpanded ? "Hide Logs" : "Audit Details"}
+                                      </Button>
+                                    </div>
                                   </TableCell>
                                 </TableRow>
 
@@ -2740,7 +2795,23 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {selectedReferrerForDetail.userId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 font-semibold text-xs gap-1.5 h-8"
+                      onClick={() => {
+                        sessionStorage.setItem("active_chat_user_id", selectedReferrerForDetail.userId);
+                        setActiveChatUserId(selectedReferrerForDetail.userId);
+                        setActiveTab("messages");
+                        setIsReferrerDetailDialogOpen(false);
+                        toast.success(`Opening chat thread with ${selectedReferrerForDetail.name}`);
+                      }}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> Message {selectedReferrerForDetail.role === "tutor" ? "Tutor" : "Student"}
+                    </Button>
+                  )}
                   <div className="text-right">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase block">Referral Code</span>
                     <span className="font-mono font-bold text-sm text-foreground">{selectedReferrerForDetail.referralCode || "–"}</span>
@@ -3217,6 +3288,14 @@ const AdminDashboard = () => {
                     <span className="text-muted-foreground">({selectedTutorForDetail.reviewCount ?? 0} reviews)</span>
                   </div>
                 </div>
+
+                <Button
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm hover:shadow-indigo-500/20 shrink-0 self-start sm:self-center"
+                  onClick={() => handleMessageTutor(selectedTutorForDetail)}
+                >
+                  <MessageSquare className="h-4 w-4" /> Message Tutor
+                </Button>
               </div>
 
                {/* Contact Information */}
@@ -3562,6 +3641,12 @@ const AdminDashboard = () => {
                  >
                    <CheckCircle className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.isVerified ? "fill-blue-500 text-white" : ""}`} />
                    {selectedTutorForDetail.isVerified ? "Remove Verified" : "Give Verified"}
+                 </Button>
+                 <Button 
+                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm hover:shadow-indigo-500/20"
+                   onClick={() => handleMessageTutor(selectedTutorForDetail)}
+                 >
+                   <MessageSquare className="h-4 w-4" /> Message Tutor
                  </Button>
                  <Button 
                    variant="outline"

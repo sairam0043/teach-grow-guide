@@ -612,6 +612,7 @@ const calculateTutorPayoutsReport = async () => {
 
     payoutsReport.push({
       tutorId: tutor._id,
+      userId: tutor.userId?._id || tutor.userId || null,
       tutorName: tutor.name,
       email: tutor.userId?.email || 'No email',
       phone: tutor.userId?.phone || 'No phone',

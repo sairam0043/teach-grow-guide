@@ -48,23 +48,41 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
         } else {
           // If not in inbox yet, fetch user details to initialize temporary active chat
           try {
-            const userRes = await axios.get(`${API_URL}/tutors/user/${initialActiveUserId}`);
+            const userRes = await axios.get(`${API_URL}/messages/user/${initialActiveUserId}`);
             if (userRes.data) {
               setActiveChat({
                 otherUser: {
-                  id: initialActiveUserId,
-                  full_name: userRes.data.name,
+                  id: userRes.data.id || initialActiveUserId,
+                  full_name: userRes.data.full_name || "User",
                   email: userRes.data.email || "",
-                  role: "tutor",
-                  avatar: userRes.data.photo || "",
-                  tutorProfileId: userRes.data.id
+                  role: userRes.data.role || "tutor",
+                  avatar: userRes.data.avatar || "",
+                  tutorProfileId: userRes.data.tutorProfileId || null
                 },
                 lastMessage: { text: "No messages yet", createdAt: new Date() },
                 unreadCount: 0
               });
             }
           } catch (e) {
-            console.error("Error setting initial active chat details", e);
+            try {
+              const tutorRes = await axios.get(`${API_URL}/tutors/user/${initialActiveUserId}`);
+              if (tutorRes.data) {
+                setActiveChat({
+                  otherUser: {
+                    id: initialActiveUserId,
+                    full_name: tutorRes.data.name,
+                    email: tutorRes.data.email || "",
+                    role: "tutor",
+                    avatar: tutorRes.data.photo || tutorRes.data.avatar || "",
+                    tutorProfileId: tutorRes.data.id
+                  },
+                  lastMessage: { text: "No messages yet", createdAt: new Date() },
+                  unreadCount: 0
+                });
+              }
+            } catch (err2) {
+              console.error("Error setting initial active chat details", err2);
+            }
           }
         }
       }
