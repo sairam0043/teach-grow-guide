@@ -11,10 +11,20 @@ import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
 
 interface ChatPanelProps {
-  initialActiveUserId?: string; // Optional deep link to open a specific chat
+  initialActiveUserId?: string; // Optional deep link by user ID
+  initialActiveUser?: {
+    id: string;
+    full_name?: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    avatar?: string;
+    photo?: string;
+    tutorProfileId?: string | null;
+  } | null;
 }
 
-const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
+const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) => {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(true);
@@ -28,72 +38,13 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const activeChatRef = useRef<any | null>(null);
 
-  // 1. Fetch Inbox Conversations
-  const fetchInbox = async (showLoading = false) => {
-    if (!user?.id) return;
-    if (document.hidden && !showLoading) return; // skip if browser tab is backgrounded/inactive
-    if (showLoading) setLoadingInbox(true);
-    try {
-      const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
-        headers: { 'x-skip-network-alert': 'true' }
-      });
-      setConversations(res.data);
-      
-      // If we have an initial active user, auto-select it from conversations
-      if (initialActiveUserId && showLoading) {
-        const found = res.data.find((c: any) => c.otherUser.id === initialActiveUserId);
-        if (found) {
-          setActiveChat(found);
-        } else {
-          // If not in inbox yet, fetch user details to initialize temporary active chat
-          try {
-            const userRes = await axios.get(`${API_URL}/messages/user/${initialActiveUserId}`);
-            if (userRes.data) {
-              setActiveChat({
-                otherUser: {
-                  id: userRes.data.id || initialActiveUserId,
-                  full_name: userRes.data.full_name || "User",
-                  email: userRes.data.email || "",
-                  role: userRes.data.role || "tutor",
-                  avatar: userRes.data.avatar || "",
-                  tutorProfileId: userRes.data.tutorProfileId || null
-                },
-                lastMessage: { text: "No messages yet", createdAt: new Date() },
-                unreadCount: 0
-              });
-            }
-          } catch (e) {
-            try {
-              const tutorRes = await axios.get(`${API_URL}/tutors/user/${initialActiveUserId}`);
-              if (tutorRes.data) {
-                setActiveChat({
-                  otherUser: {
-                    id: initialActiveUserId,
-                    full_name: tutorRes.data.name,
-                    email: tutorRes.data.email || "",
-                    role: "tutor",
-                    avatar: tutorRes.data.photo || tutorRes.data.avatar || "",
-                    tutorProfileId: tutorRes.data.id
-                  },
-                  lastMessage: { text: "No messages yet", createdAt: new Date() },
-                  unreadCount: 0
-                });
-              }
-            } catch (err2) {
-              console.error("Error setting initial active chat details", err2);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load inbox", err);
-    } finally {
-      if (showLoading) setLoadingInbox(false);
-    }
-  };
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
 
-  // 2. Fetch Messages with Active Contact
+  // 1. Fetch Messages with Active Contact
   const fetchMessages = async (contactId: string, silent = false) => {
     if (!user?.id || !contactId) return;
     if (document.hidden && silent) return; // skip if browser tab is backgrounded/inactive
@@ -115,6 +66,124 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     }
   };
 
+  // 2. Fetch Inbox Conversations
+  const fetchInbox = async (showLoading = false) => {
+    if (!user?.id) return;
+    if (document.hidden && !showLoading) return; // skip if browser tab is backgrounded/inactive
+    if (showLoading) setLoadingInbox(true);
+    try {
+      const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+        headers: { 'x-skip-network-alert': 'true' }
+      });
+      const incomingConversations: any[] = res.data || [];
+      
+      setConversations(prev => {
+        const merged = [...incomingConversations];
+        // Preserve currently selected contact if they don't have existing messages yet
+        const currentActive = activeChatRef.current;
+        if (currentActive?.otherUser?.id && !merged.some(c => c.otherUser.id === currentActive.otherUser.id)) {
+          merged.unshift(currentActive);
+        }
+        return merged;
+      });
+    } catch (err) {
+      console.error("Failed to load inbox", err);
+    } finally {
+      if (showLoading) setLoadingInbox(false);
+    }
+  };
+
+  // 3. Handle incoming initial active user / ID prop changes
+  useEffect(() => {
+    const targetUserId = initialActiveUser?.id || initialActiveUserId;
+    if (!targetUserId) return;
+
+    // Case A: Full user object provided directly
+    if (initialActiveUser?.id) {
+      const newChat = {
+        otherUser: {
+          id: initialActiveUser.id,
+          full_name: initialActiveUser.full_name || initialActiveUser.name || "User",
+          email: initialActiveUser.email || "",
+          role: initialActiveUser.role || "tutor",
+          avatar: initialActiveUser.avatar || initialActiveUser.photo || "",
+          tutorProfileId: initialActiveUser.tutorProfileId || null
+        },
+        lastMessage: { text: "No messages yet", createdAt: new Date() },
+        unreadCount: 0
+      };
+
+      setActiveChat(newChat);
+      setConversations(prev => {
+        const exists = prev.find(c => c.otherUser.id === targetUserId);
+        if (exists) return prev;
+        return [newChat, ...prev];
+      });
+      fetchMessages(targetUserId);
+      return;
+    }
+
+    // Case B: Only user ID provided
+    const initializeChatById = async () => {
+      // Check local conversations first
+      const found = conversations.find(c => c.otherUser.id === targetUserId);
+      if (found) {
+        setActiveChat(found);
+        fetchMessages(targetUserId);
+        return;
+      }
+
+      // Fetch user preview from backend
+      try {
+        let contactData: any = null;
+        try {
+          const userRes = await axios.get(`${API_URL}/messages/user/${targetUserId}`);
+          if (userRes.data) contactData = userRes.data;
+        } catch (e) {
+          try {
+            const tutorRes = await axios.get(`${API_URL}/tutors/user/${targetUserId}`);
+            if (tutorRes.data) {
+              contactData = {
+                id: targetUserId,
+                full_name: tutorRes.data.name,
+                email: tutorRes.data.email || "",
+                role: "tutor",
+                avatar: tutorRes.data.photo || tutorRes.data.avatar || "",
+                tutorProfileId: tutorRes.data.id
+              };
+            }
+          } catch (err2) {
+            console.error("Error setting initial active chat details", err2);
+          }
+        }
+
+        const newChat = {
+          otherUser: {
+            id: contactData?.id || targetUserId,
+            full_name: contactData?.full_name || contactData?.name || "User",
+            email: contactData?.email || "",
+            role: contactData?.role || "tutor",
+            avatar: contactData?.avatar || contactData?.photo || "",
+            tutorProfileId: contactData?.tutorProfileId || null
+          },
+          lastMessage: { text: "No messages yet", createdAt: new Date() },
+          unreadCount: 0
+        };
+
+        setActiveChat(newChat);
+        setConversations(prev => {
+          if (prev.some(c => c.otherUser.id === targetUserId)) return prev;
+          return [newChat, ...prev];
+        });
+        fetchMessages(targetUserId);
+      } catch (err) {
+        console.error("Failed to initialize active chat by ID:", err);
+      }
+    };
+
+    initializeChatById();
+  }, [initialActiveUserId, initialActiveUser?.id]);
+
   // Scroll to bottom of message list container only (prevents parent page scroll)
   const scrollToBottom = () => {
     if (containerRef.current) {
@@ -132,9 +201,9 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     }, 10000);
 
     return () => clearInterval(inboxInterval);
-  }, [user?.id, initialActiveUserId]);
+  }, [user?.id]);
 
-  // Handle active conversation changes
+  // Handle active conversation changes & polling
   useEffect(() => {
     if (activeChat?.otherUser?.id) {
       fetchMessages(activeChat.otherUser.id);
@@ -158,7 +227,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     scrollToBottom();
   }, [messages]);
 
-  // 3. Send Message
+  // 4. Send Message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !user?.id || !activeChat?.otherUser?.id) return;
@@ -176,8 +245,21 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
       
       // Add message locally to speed up rendering
       setMessages(prev => [...prev, res.data]);
+
+      // Update active chat last message preview
+      setActiveChat((prev: any) => prev ? {
+        ...prev,
+        lastMessage: { text: textToSend, createdAt: new Date(), senderId: user.id }
+      } : prev);
+
+      // Update in conversations list
+      setConversations(prev => prev.map(c => 
+        c.otherUser.id === activeChat.otherUser.id
+          ? { ...c, lastMessage: { text: textToSend, createdAt: new Date(), senderId: user.id } }
+          : c
+      ));
       
-      // Silent refresh of inbox list to update timestamps/previews
+      // Silent refresh of inbox list to sync timestamps/previews
       fetchInbox(false);
     } catch (err: any) {
       toast.error("Failed to send message.");

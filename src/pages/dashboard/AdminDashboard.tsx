@@ -137,6 +137,19 @@ const AdminDashboard = () => {
     return undefined;
   });
 
+  const [activeChatUser, setActiveChatUser] = useState<any | null>(() => {
+    const saved = sessionStorage.getItem("active_chat_user");
+    if (saved) {
+      try {
+        sessionStorage.removeItem("active_chat_user");
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<any | null>(null);
   const [isBookingDetailDialogOpen, setIsBookingDetailDialogOpen] = useState(false);
@@ -377,8 +390,19 @@ const AdminDashboard = () => {
       return;
     }
 
+    const chatUserData = {
+      id: tutorUserId,
+      full_name: tutor.name || tutor.userId?.full_name || "Tutor",
+      email: tutor.email || tutor.userId?.email || "",
+      role: "tutor",
+      avatar: tutor.photo || tutor.avatar || tutor.userId?.avatar || "",
+      tutorProfileId: tutor.id || tutor._id?.toString() || null
+    };
+
     sessionStorage.setItem("active_chat_user_id", tutorUserId);
+    sessionStorage.setItem("active_chat_user", JSON.stringify(chatUserData));
     setActiveChatUserId(tutorUserId);
+    setActiveChatUser(chatUserData);
     setActiveTab("messages");
     setIsDetailDialogOpen(false);
     toast.success(`Opening conversation with tutor ${tutor.name || "Tutor"}`);
@@ -2744,7 +2768,7 @@ const AdminDashboard = () => {
 
           <TabsContent value="messages">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-0">
-              <ChatPanel initialActiveUserId={activeChatUserId} />
+              <ChatPanel initialActiveUserId={activeChatUserId} initialActiveUser={activeChatUser} />
             </Card>
           </TabsContent>
         </Tabs>
@@ -4180,8 +4204,18 @@ const AdminDashboard = () => {
                         variant="outline" 
                         className="flex-1 gap-1.5 h-9 font-semibold text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50/50"
                         onClick={() => {
+                          const tutorData = {
+                            id: selectedBookingForDetail.tutorUserId,
+                            full_name: selectedBookingForDetail.tutorName || "Tutor",
+                            email: selectedBookingForDetail.tutorEmail || "",
+                            role: "tutor",
+                            avatar: selectedBookingForDetail.tutorPhoto || "",
+                            tutorProfileId: selectedBookingForDetail.tutorId
+                          };
                           sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.tutorUserId);
+                          sessionStorage.setItem("active_chat_user", JSON.stringify(tutorData));
                           setActiveChatUserId(selectedBookingForDetail.tutorUserId);
+                          setActiveChatUser(tutorData);
                           setActiveTab("messages");
                           setIsBookingDetailDialogOpen(false);
                           toast.success(`Opening chat thread with tutor ${selectedBookingForDetail.tutorName}`);
@@ -4226,8 +4260,17 @@ const AdminDashboard = () => {
                       variant="outline" 
                       className="w-full gap-1.5 h-9 font-semibold text-xs border-sky-200 text-sky-600 hover:bg-sky-50/50"
                       onClick={() => {
+                        const studentData = {
+                          id: selectedBookingForDetail.studentId,
+                          full_name: selectedBookingForDetail.studentName || "Student",
+                          email: selectedBookingForDetail.studentEmail || "",
+                          role: "student",
+                          avatar: ""
+                        };
                         sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.studentId);
+                        sessionStorage.setItem("active_chat_user", JSON.stringify(studentData));
                         setActiveChatUserId(selectedBookingForDetail.studentId);
+                        setActiveChatUser(studentData);
                         setActiveTab("messages");
                         setIsBookingDetailDialogOpen(false);
                         toast.success(`Opening chat thread with student ${selectedBookingForDetail.studentName}`);
