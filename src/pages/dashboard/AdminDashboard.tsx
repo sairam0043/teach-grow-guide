@@ -867,22 +867,26 @@ const AdminDashboard = () => {
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5 mb-10">
           {[
-            { icon: Clock, label: "Pending Approvals", value: adminStats?.pendingApprovals || pendingTutors.length, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-900/20" },
-            { icon: Users, label: "Active Tutors", value: adminStats?.activeTutors || approvedTutors.length, color: "text-sky-500", bg: "bg-sky-50 dark:bg-sky-950/20 border border-sky-200/40 dark:border-sky-900/20" },
-            { icon: GraduationCap, label: "Total Students", value: adminStats?.totalStudents !== undefined ? adminStats.totalStudents : students.length, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200/40 dark:border-indigo-900/20" },
-            { icon: BookOpen, label: "Total Bookings", value: adminStats?.totalBookings || bookings.length, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/20 border border-violet-200/40 dark:border-violet-900/20" },
-            { icon: DollarSign, label: "Total Revenue", value: `₹${totalPlatformRevenue}`, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/40 dark:border-emerald-900/20" },
+            { icon: Clock, label: "Pending Approvals", value: adminStats?.pendingApprovals || pendingTutors.length, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-900/20", tab: "approvals" },
+            { icon: Users, label: "Active Tutors", value: adminStats?.activeTutors || approvedTutors.length, color: "text-sky-500", bg: "bg-sky-50 dark:bg-sky-950/20 border border-sky-200/40 dark:border-sky-900/20", tab: "tutors" },
+            { icon: GraduationCap, label: "Total Students", value: adminStats?.totalStudents !== undefined ? adminStats.totalStudents : students.length, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200/40 dark:border-indigo-900/20", tab: "students" },
+            { icon: BookOpen, label: "Total Bookings", value: adminStats?.totalBookings || bookings.length, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/20 border border-violet-200/40 dark:border-violet-900/20", tab: "bookings" },
+            { icon: DollarSign, label: "Total Revenue", value: `₹${totalPlatformRevenue}`, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/40 dark:border-emerald-900/20", tab: "payments" },
           ].map((stat) => (
-            <Card key={stat.label} className="border border-border/50 shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-300 bg-card/60 backdrop-blur-md">
+            <Card
+              key={stat.label}
+              onClick={() => setActiveTab(stat.tab)}
+              className="border border-border/50 shadow-md hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] transition-all duration-300 bg-card/60 backdrop-blur-md cursor-pointer hover:border-primary/40 hover:bg-card/90 group"
+            >
               <CardContent className="flex items-center gap-5 p-6">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg}`}>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg} group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
                   <stat.icon className={`h-7 w-7 ${stat.color}`} />
                 </div>
                 <div>
                   {statsLoading ? (
                     <Skeleton className="h-8 w-16 mb-1" />
                   ) : (
-                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight group-hover:text-primary transition-colors">
                       {String(stat.value)}
                     </p>
                   )}
