@@ -5,7 +5,7 @@ import API_URL from "@/config/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, User, MessageSquare, ExternalLink, ShieldAlert, ArrowLeft } from "lucide-react";
+import { Send, User, MessageSquare, ExternalLink, ShieldAlert, ArrowLeft, Shield, CheckCheck } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
@@ -44,16 +44,30 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
     activeChatRef.current = activeChat;
   }, [activeChat]);
 
+  const getEffectiveUserId = () => {
+    if (user?.id) return String(user.id);
+    if ((user as any)?._id) return String((user as any)._id);
+    try {
+      const stored = localStorage.getItem('user_info');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return String(parsed.id || parsed._id || parsed.userId || "");
+      }
+    } catch (e) {}
+    return "";
+  };
+
   // 1. Fetch Messages with Active Contact
   const fetchMessages = async (contactId: string, silent = false) => {
-    if (!user?.id || !contactId) return;
+    const currentId = getEffectiveUserId();
+    if (!currentId || !contactId) return;
     if (document.hidden && silent) return; // skip if browser tab is backgrounded/inactive
     if (!silent) setLoadingMessages(true);
     try {
-      const res = await axios.get(`${API_URL}/messages/chat/${user.id}/${contactId}`, {
+      const res = await axios.get(`${API_URL}/messages/chat/${currentId}/${contactId}`, {
         headers: { 'x-skip-network-alert': 'true' }
       });
-      setMessages(res.data);
+      setMessages(res.data || []);
       
       // Reset unread count locally for this contact
       setConversations(prev =>
@@ -68,11 +82,12 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
 
   // 2. Fetch Inbox Conversations
   const fetchInbox = async (showLoading = false) => {
-    if (!user?.id) return;
+    const currentId = getEffectiveUserId();
+    if (!currentId) return;
     if (document.hidden && !showLoading) return; // skip if browser tab is backgrounded/inactive
     if (showLoading) setLoadingInbox(true);
     try {
-      const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+      const res = await axios.get(`${API_URL}/messages/inbox/${currentId}`, {
         headers: { 'x-skip-network-alert': 'true' }
       });
       const incomingConversations: any[] = res.data || [];
@@ -86,6 +101,15 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
         }
         return merged;
       });
+
+      // Auto-select conversation if none is active
+      if (!activeChatRef.current && incomingConversations.length > 0) {
+        const unreadThread = incomingConversations.find(c => (c.unreadCount || 0) > 0);
+        const threadToSelect = unreadThread || incomingConversations[0];
+        if (threadToSelect) {
+          setActiveChat(threadToSelect);
+        }
+      }
     } catch (err) {
       console.error("Failed to load inbox", err);
     } finally {
@@ -230,7 +254,8 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
   // 4. Send Message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !user?.id || !activeChat?.otherUser?.id) return;
+    const currentId = getEffectiveUserId();
+    if (!inputText.trim() || !currentId || !activeChat?.otherUser?.id) return;
     
     const textToSend = inputText.trim();
     setInputText("");
@@ -238,7 +263,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
     
     try {
       const res = await axios.post(`${API_URL}/messages`, {
-        senderId: user.id,
+        senderId: currentId,
         receiverId: activeChat.otherUser.id,
         text: textToSend
       });
@@ -249,7 +274,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
       // Update active chat last message preview
       setActiveChat((prev: any) => prev ? {
         ...prev,
-        lastMessage: { text: textToSend, createdAt: new Date(), senderId: user.id }
+        lastMessage: { text: textToSend, createdAt: new Date(), senderId: currentId }
       } : prev);
 
       // Update in conversations list
@@ -296,17 +321,18 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
             <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
               <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-2" />
               <p className="text-sm font-semibold text-foreground/80">No chats yet</p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-[180px]">
+              <p className="text-xs text-muted-foreground mt-1 max-w-[200px] leading-relaxed">
                 {user?.role === "student" 
                   ? "Select a tutor from listings and click 'Message Tutor' to start chatting!"
-                  : "Student chat inquiries will appear here once they contact you."
+                  : "Direct inquiries from students and official messages from Cuvasol Admin Support will appear here."
                 }
               </p>
             </div>
           ) : (
             conversations.map((chat) => {
               const isActive = activeChat?.otherUser?.id === chat.otherUser.id;
-              const hasUnread = chat.unreadCount > 0;
+              const hasUnread = (chat.unreadCount || 0) > 0;
+              const isAdmin = chat.otherUser.role === "admin";
               const isTutor = chat.otherUser.role === "tutor";
               
               return (
@@ -318,8 +344,12 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                   }`}
                 >
                   {/* User Avatar */}
-                  <div className="h-10 w-10 rounded-full bg-slate-200 shadow-sm border border-slate-300/30 overflow-hidden shrink-0 flex items-center justify-center relative">
-                    {chat.otherUser.avatar ? (
+                  <div className={`h-10 w-10 rounded-full shadow-sm border overflow-hidden shrink-0 flex items-center justify-center relative ${
+                    isAdmin ? "bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-800" : "bg-slate-200 border-slate-300/30 text-slate-500"
+                  }`}>
+                    {isAdmin ? (
+                      <Shield className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    ) : chat.otherUser.avatar ? (
                       <img 
                         src={chat.otherUser.avatar.startsWith("http") ? chat.otherUser.avatar : `${API_URL}/uploads/${chat.otherUser.avatar}`}
                         alt={chat.otherUser.full_name} 
@@ -330,31 +360,40 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                         }}
                       />
                     ) : (
-                      <span className="font-bold text-sm text-slate-500 uppercase">
-                        {chat.otherUser.full_name.charAt(0)}
+                      <span className="font-bold text-sm uppercase">
+                        {chat.otherUser.full_name?.charAt(0) || "U"}
                       </span>
                     )}
                     {/* Role indicator dot */}
                     <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border border-card ${
-                      isTutor ? "bg-indigo-500" : "bg-sky-500"
+                      isAdmin ? "bg-indigo-600" : isTutor ? "bg-indigo-500" : "bg-sky-500"
                     }`} />
                   </div>
 
                   {/* Message Info preview */}
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline mb-0.5">
-                      <h4 className={`text-sm font-semibold truncate ${hasUnread ? "text-foreground" : "text-foreground/90"}`}>
-                        {chat.otherUser.full_name}
-                      </h4>
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {format(new Date(chat.lastMessage.createdAt), "h:mm a")}
-                      </span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <h4 className={`text-sm font-semibold truncate ${hasUnread ? "text-foreground font-bold" : "text-foreground/90"}`}>
+                          {chat.otherUser.full_name}
+                        </h4>
+                        {isAdmin && (
+                          <Badge variant="secondary" className="text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-extrabold px-1.5 py-0">
+                            Admin
+                          </Badge>
+                        )}
+                      </div>
+                      {chat.lastMessage?.createdAt && (
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-1">
+                          {format(new Date(chat.lastMessage.createdAt), "h:mm a")}
+                        </span>
+                      )}
                     </div>
                     <div className="flex justify-between items-center">
                       <p className={`text-xs truncate max-w-[150px] ${
                         hasUnread ? "font-bold text-foreground" : "text-muted-foreground"
                       }`}>
-                        {chat.lastMessage.text}
+                        {chat.lastMessage?.text || "No message content"}
                       </p>
                       {hasUnread && (
                         <span className="h-5 w-5 bg-rose-500 text-white font-extrabold text-[10px] flex items-center justify-center rounded-full shrink-0 animate-pulse">
@@ -388,8 +427,14 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                 </Button>
 
                 {/* Avatar */}
-                <div className="h-10 w-10 rounded-full bg-slate-200 border overflow-hidden shrink-0 flex items-center justify-center">
-                  {activeChat.otherUser.avatar ? (
+                <div className={`h-10 w-10 rounded-full border overflow-hidden shrink-0 flex items-center justify-center ${
+                  activeChat.otherUser.role === "admin" 
+                    ? "bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-800" 
+                    : "bg-slate-200 border-slate-300"
+                }`}>
+                  {activeChat.otherUser.role === "admin" ? (
+                    <Shield className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  ) : activeChat.otherUser.avatar ? (
                     <img 
                       src={activeChat.otherUser.avatar.startsWith("http") ? activeChat.otherUser.avatar : `${API_URL}/uploads/${activeChat.otherUser.avatar}`}
                       alt={activeChat.otherUser.full_name} 
@@ -401,20 +446,28 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                     />
                   ) : (
                     <span className="font-bold text-sm text-slate-500 uppercase">
-                      {activeChat.otherUser.full_name.charAt(0)}
+                      {activeChat.otherUser.full_name?.charAt(0) || "U"}
                     </span>
                   )}
                 </div>
 
                 {/* Active contact Details */}
                 <div>
-                  <h4 className="font-bold text-sm text-foreground leading-tight">{activeChat.otherUser.full_name}</h4>
+                  <h4 className="font-bold text-sm text-foreground leading-tight flex items-center gap-1.5">
+                    {activeChat.otherUser.full_name}
+                  </h4>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <Badge variant="outline" className={`text-[9px] uppercase px-1.5 py-0 border-none font-extrabold tracking-wider ${
-                      activeChat.otherUser.role === "tutor" ? "bg-indigo-100 text-indigo-700" : "bg-sky-100 text-sky-700"
-                    }`}>
-                      {activeChat.otherUser.role}
-                    </Badge>
+                    {activeChat.otherUser.role === "admin" ? (
+                      <Badge variant="outline" className="text-[9px] uppercase px-2 py-0.5 border-indigo-200 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-extrabold tracking-wider flex items-center gap-1">
+                        <Shield className="h-3 w-3 text-indigo-600" /> Platform Admin Support
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className={`text-[9px] uppercase px-1.5 py-0 border-none font-extrabold tracking-wider ${
+                        activeChat.otherUser.role === "tutor" ? "bg-indigo-100 text-indigo-700" : "bg-sky-100 text-sky-700"
+                      }`}>
+                        {activeChat.otherUser.role}
+                      </Badge>
+                    )}
                     <span className="text-[10px] text-muted-foreground">• online</span>
                   </div>
                 </div>
@@ -455,8 +508,11 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                   };
 
                   return messages.map((msg, idx) => {
-                    const isOwn = msg.sender._id.toString() === user?.id;
-                    const currentDate = new Date(msg.createdAt);
+                    const currentId = getEffectiveUserId();
+                    const senderIdStr = msg.sender?._id ? msg.sender._id.toString() : (typeof msg.sender === "string" ? msg.sender : msg.sender?.id || "");
+                    const isOwn = senderIdStr === currentId;
+                    const isAdminMsg = !isOwn && msg.sender?.role === "admin";
+                    const currentDate = new Date(msg.createdAt || Date.now());
                     
                     // Determine if date separator is required
                     let showDateSeparator = false;
@@ -464,7 +520,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                       showDateSeparator = true;
                     } else {
                       const prevMsg = messages[idx - 1];
-                      const prevDate = new Date(prevMsg.createdAt);
+                      const prevDate = new Date(prevMsg.createdAt || Date.now());
                       if (currentDate.toDateString() !== prevDate.toDateString()) {
                         showDateSeparator = true;
                       }
@@ -482,16 +538,24 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                         <div 
                           className={`flex flex-col max-w-[75%] ${isOwn ? "ml-auto items-end" : "items-start"}`}
                         >
+                          {isAdminMsg && (
+                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mb-1 flex items-center gap-1 px-1">
+                              <Shield className="h-3 w-3" /> Cuvasol Support Team
+                            </span>
+                          )}
+
                           {/* Message body */}
                           <div className={`p-3 rounded-2xl shadow-sm text-sm ${
                             isOwn 
                               ? "bg-primary text-primary-foreground rounded-br-none" 
+                              : isAdminMsg
+                              ? "bg-indigo-50 border border-indigo-200 text-indigo-950 dark:bg-indigo-950/40 dark:border-indigo-800/60 dark:text-indigo-100 rounded-bl-none font-medium"
                               : "bg-card border text-foreground rounded-bl-none"
                           }`}>
                             {msg.text}
                           </div>
                           {/* Timestamp */}
-                          <span className="text-[9px] text-muted-foreground mt-1 px-1">
+                          <span className="text-[9px] text-muted-foreground mt-1 px-1 flex items-center gap-1">
                             {format(currentDate, "h:mm a")}
                           </span>
                         </div>
@@ -516,7 +580,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                 type="submit" 
                 size="icon" 
                 disabled={isSending || !inputText.trim()}
-                className="rounded-xl h-10 w-10 shadow-md transition-transform active:scale-95"
+                className="rounded-xl h-10 w-10 shadow-md transition-transform active:scale-95 bg-indigo-600 hover:bg-indigo-700 text-white"
               >
                 <Send className="h-4 w-4" />
               </Button>
@@ -529,7 +593,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
             </div>
             <h3 className="text-xl font-bold text-foreground">Cuvasol Live Messaging</h3>
             <p className="text-sm max-w-sm mt-1 leading-relaxed">
-              Connect directly with students and tutors. Select a conversation thread from the sidebar list to retrieve chat messages.
+              Connect directly with students and platform administrators. Select a conversation thread from the sidebar list to retrieve chat messages.
             </p>
           </div>
         )}

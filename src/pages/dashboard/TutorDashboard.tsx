@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, MessageSquare } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -141,6 +141,29 @@ const TutorDashboard = () => {
     }
     return "demos";
   });
+
+  const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
+    const saved = sessionStorage.getItem("active_chat_user_id");
+    if (saved) {
+      sessionStorage.removeItem("active_chat_user_id");
+      return saved;
+    }
+    return undefined;
+  });
+
+  const [activeChatUser, setActiveChatUser] = useState<any | null>(() => {
+    const saved = sessionStorage.getItem("active_chat_user");
+    if (saved) {
+      try {
+        sessionStorage.removeItem("active_chat_user");
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -309,12 +332,23 @@ const TutorDashboard = () => {
   };
 
   useEffect(() => {
-    if (!user?.id) return;
+    const effectiveUserId = user?.id || (user as any)?._id || (() => {
+      try {
+        const stored = localStorage.getItem('user_info');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.id || parsed._id || parsed.userId || null;
+        }
+      } catch (e) {}
+      return null;
+    })();
+
+    if (!effectiveUserId) return;
 
     const fetchUnreadCount = async () => {
       if (document.hidden) return; // skip polling when browser tab is inactive/backgrounded
       try {
-        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+        const res = await axios.get(`${API_URL}/messages/inbox/${effectiveUserId}`, {
           headers: { 'x-skip-network-alert': 'true' }
         });
         const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
@@ -781,6 +815,34 @@ const TutorDashboard = () => {
           </Alert>
         )}
 
+        {unreadMessagesCount > 0 && (
+          <Alert className="mb-8 border-indigo-500/40 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 text-foreground shadow-md rounded-2xl p-5 border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <AlertTitle className="font-bold text-base flex items-center gap-2 text-indigo-950 dark:text-indigo-200">
+                  New Message from Platform Admin & Support
+                  <span className="bg-rose-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full animate-bounce">
+                    {unreadMessagesCount} unread
+                  </span>
+                </AlertTitle>
+                <AlertDescription className="text-xs text-muted-foreground mt-0.5">
+                  You have incoming messages from Cuvasol administrators regarding your application, demo sessions, or account support.
+                </AlertDescription>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setActiveTab("messages")}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm hover:shadow-indigo-500/20 shrink-0 gap-1.5 self-end sm:self-center"
+            >
+              <MessageSquare className="h-4 w-4" /> Open Messages
+            </Button>
+          </Alert>
+        )}
+
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
           {[
             { icon: Clock, label: "Demo Requests", value: tutorStats?.demoRequests || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
@@ -827,7 +889,15 @@ const TutorDashboard = () => {
               <Gift className="h-4 w-4 text-emerald-500" />
               Refer & Earn
             </TabsTrigger>
-            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+            <TabsTrigger 
+              value="messages" 
+              className={`rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 transition-all ${
+                unreadMessagesCount > 0 
+                  ? "bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800" 
+                  : ""
+              }`}
+            >
+              <MessageSquare className="h-4 w-4 text-indigo-600" />
               Messages
               {unreadMessagesCount > 0 && (
                 <span className="h-5 w-5 bg-rose-500 text-white font-extrabold text-[10px] flex items-center justify-center rounded-full shrink-0 animate-pulse">
@@ -1619,7 +1689,7 @@ const TutorDashboard = () => {
           </TabsContent>
 
           <TabsContent value="messages">
-            <ChatPanel />
+            <ChatPanel initialActiveUserId={activeChatUserId} initialActiveUser={activeChatUser} />
           </TabsContent>
 
           <TabsContent value="profile">
