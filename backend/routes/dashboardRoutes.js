@@ -180,7 +180,7 @@ router.get('/admin/bookings', async (req, res) => {
 // /api/dashboard/admin/students
 router.get('/admin/students', async (req, res) => {
   try {
-    const students = await User.find({ role: 'student' });
+    const students = await User.find({ role: 'student' }).sort({ createdAt: -1 });
     res.json(students);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -641,13 +641,14 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone, timezone, student_class, studentClass, student_name, studentName } = req.body;
+    const { full_name, phone, timezone, student_class, studentClass, student_name, studentName, avatar, photo } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (full_name) user.full_name = full_name;
     if (phone !== undefined) user.phone = phone;
     if (timezone !== undefined) user.timezone = timezone;
+    if (avatar !== undefined || photo !== undefined) user.avatar = avatar || photo;
     if (student_class !== undefined || studentClass !== undefined) {
       user.student_class = student_class || studentClass;
     }
@@ -661,6 +662,7 @@ router.put('/profile/:id', async (req, res) => {
     if (user.role === 'tutor') {
       const updateData = { name: full_name };
       if (timezone !== undefined) updateData.timezone = timezone;
+      if (avatar !== undefined || photo !== undefined) updateData.photo = avatar || photo;
       await Tutor.findOneAndUpdate({ userId: user._id }, updateData);
     }
 

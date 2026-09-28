@@ -1776,7 +1776,13 @@ router.put('/:id/profile', async (req, res) => {
     }
 
     if (category !== undefined) currentTutor.category = category;
-    if (photo !== undefined) currentTutor.photo = photo;
+    if (photo !== undefined) {
+      currentTutor.photo = photo;
+      if (currentTutor.userId) {
+        const User = require('../schemas/userSchema');
+        await User.findByIdAndUpdate(currentTutor.userId, { avatar: photo });
+      }
+    }
     if (verificationDocument !== undefined) currentTutor.verificationDocument = verificationDocument;
     if (timezone !== undefined) currentTutor.timezone = timezone;
 

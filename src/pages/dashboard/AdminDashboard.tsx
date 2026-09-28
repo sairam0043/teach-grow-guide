@@ -1,6 +1,6 @@
-import { useEffect, useState, Fragment } from "react";
+import { useEffect, useState, useRef, Fragment } from "react";
 import { Link } from "react-router-dom";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -96,6 +96,10 @@ const AdminDashboard = () => {
 
   // Edit Profile States
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editPhoto, setEditPhoto] = useState("");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const directPhotoInputRef = useRef<HTMLInputElement>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editTimezone, setEditTimezone] = useState("Asia/Kolkata");
@@ -354,6 +358,7 @@ const AdminDashboard = () => {
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
     setIsEditingProfile(false);
+    setEditPhoto(tutor.photo || tutor.avatar || tutor.userId?.avatar || "");
     setEditName(tutor.name || "");
     setEditPhone(tutor.phone || "");
     setEditTimezone(tutor.timezone || "Asia/Kolkata");
@@ -375,6 +380,67 @@ const AdminDashboard = () => {
     setEditBoardsTaught(tutor.boardsTaught || []);
     
     setIsDetailDialogOpen(true);
+  };
+
+  const handleUploadTutorPhoto = async (e: React.ChangeEvent<HTMLInputElement>, isDirectSave: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Photo file size must be less than 5MB");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("photo", file);
+
+    try {
+      setIsUploadingPhoto(true);
+      toast.loading("Uploading tutor profile picture...");
+      const uploadRes = await axios.post(`${API_URL}/upload/photo`, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      toast.dismiss();
+      const newPhotoUrl = uploadRes.data.url;
+      setEditPhoto(newPhotoUrl);
+
+      if (isDirectSave && selectedTutorForDetail) {
+        // Immediately save to backend when changed from view mode
+        await axios.put(`${API_URL}/tutors/${selectedTutorForDetail.id}/profile`, {
+          photo: newPhotoUrl
+        });
+        const userId = selectedTutorForDetail.userId?._id || selectedTutorForDetail.userId;
+        if (userId) {
+          await axios.put(`${API_URL}/auth/profile/${userId}`, {
+            avatar: newPhotoUrl,
+            photo: newPhotoUrl
+          });
+        }
+
+        setTutors(prev => prev.map(t => t.id === selectedTutorForDetail.id ? { 
+          ...t, 
+          photo: newPhotoUrl, 
+          avatar: newPhotoUrl,
+          userId: t.userId ? (typeof t.userId === 'object' ? { ...t.userId, avatar: newPhotoUrl } : t.userId) : t.userId
+        } : t));
+        setSelectedTutorForDetail(prev => prev ? { 
+          ...prev, 
+          photo: newPhotoUrl, 
+          avatar: newPhotoUrl,
+          userId: prev.userId ? (typeof prev.userId === 'object' ? { ...prev.userId, avatar: newPhotoUrl } : prev.userId) : prev.userId
+        } : null);
+        toast.success("Tutor profile picture updated successfully!");
+      } else {
+        toast.success("Profile photo uploaded! Click 'Save Changes' to apply.");
+      }
+    } catch (err: any) {
+      toast.dismiss();
+      console.error("Photo upload failed:", err);
+      toast.error(err.response?.data?.message || "Failed to upload profile picture");
+    } finally {
+      setIsUploadingPhoto(false);
+      if (e.target) e.target.value = "";
+    }
   };
 
   const handleMessageTutor = (tutor: any) => {
@@ -430,11 +496,13 @@ const AdminDashboard = () => {
       await axios.put(`${API_URL}/auth/profile/${userId}`, {
         full_name: editName.trim(),
         phone: editPhone.trim(),
-        timezone: editTimezone
+        timezone: editTimezone,
+        avatar: editPhoto
       });
       
       // Update Tutor collection
       const payload = {
+        photo: editPhoto,
         bio: editBio,
         qualification: editQualification,
         experience: Number(editExperience),
@@ -459,6 +527,8 @@ const AdminDashboard = () => {
         ...res.data, 
         name: editName.trim(), 
         phone: editPhone.trim(), 
+        photo: editPhoto,
+        avatar: editPhoto,
         email: selectedTutorForDetail.email 
       } : t));
       
@@ -467,7 +537,9 @@ const AdminDashboard = () => {
         ...selectedTutorForDetail, 
         ...res.data, 
         name: editName.trim(), 
-        phone: editPhone.trim() 
+        phone: editPhone.trim(),
+        photo: editPhoto,
+        avatar: editPhoto
       });
       
       setIsEditingProfile(false);
@@ -1379,9 +1451,17 @@ const AdminDashboard = () => {
                   />
                 </div>
                 {(() => {
-                  const filteredStudents = students.filter(student =>
-                    (student.full_name || "").toLowerCase().includes(studentSearch.toLowerCase())
-                  );
+                  const filteredStudents = [...students]
+                    .sort((a, b) => {
+                      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                      return timeB - timeA;
+                    })
+                    .filter(student =>
+                      (student.full_name || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+                      (student.email || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+                      (student.phone || "").toLowerCase().includes(studentSearch.toLowerCase())
+                    );
 
                   if (loading) {
                     return (
@@ -3002,6 +3082,71 @@ const AdminDashboard = () => {
           {selectedTutorForDetail && (
             isEditingProfile ? (
               <div className="space-y-6 py-4">
+                {/* Profile Photo Uploader */}
+                <div className="p-4 rounded-xl border bg-secondary/10 border-border/50 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="relative group shrink-0">
+                    <div className="h-20 w-20 rounded-full border-2 border-primary/30 shadow-md overflow-hidden bg-muted flex items-center justify-center">
+                      {editPhoto ? (
+                        <img 
+                          src={resolveAssetUrl(editPhoto)} 
+                          alt="Tutor Avatar" 
+                          className="h-full w-full object-cover" 
+                          onError={(e: any) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || "T")}&background=random&size=200`;
+                          }}
+                        />
+                      ) : (
+                        <span className="font-bold text-3xl text-primary uppercase">
+                          {(editName || "T").charAt(0)}
+                        </span>
+                      )}
+                    </div>
+                    {isUploadingPhoto && (
+                      <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center text-white">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 flex-1 text-center sm:text-left">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Profile Picture</label>
+                    <p className="text-xs text-muted-foreground">Upload a professional photo for this tutor (JPG, PNG, WebP up to 5MB).</p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 justify-center sm:justify-start">
+                      <input 
+                        type="file" 
+                        ref={photoInputRef} 
+                        onChange={(e) => handleUploadTutorPhoto(e, false)} 
+                        accept="image/jpeg,image/png,image/webp,image/gif" 
+                        className="hidden" 
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs font-semibold gap-1.5 bg-background shadow-sm hover:bg-primary hover:text-primary-foreground transition-all"
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={isUploadingPhoto}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {editPhoto ? "Change Photo" : "Upload Photo"}
+                      </Button>
+                      {editPhoto && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setEditPhoto("")}
+                          disabled={isUploadingPhoto}
+                        >
+                          Remove Photo
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Profile fields: Name, Phone, Timezone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -3277,22 +3422,46 @@ const AdminDashboard = () => {
             <div className="space-y-6 py-4">
               {/* Header profile info */}
               <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center p-4 rounded-xl bg-secondary/10 border border-border/40">
-                <div className="h-20 w-20 rounded-full border-2 border-primary/20 shadow-md overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                  {selectedTutorForDetail.photo || selectedTutorForDetail.avatar ? (
-                    <img 
-                      src={resolveAssetUrl(selectedTutorForDetail.photo || selectedTutorForDetail.avatar)} 
-                      alt={selectedTutorForDetail.name} 
-                      className="h-full w-full object-cover" 
-                      onError={(e: any) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedTutorForDetail.name || "T")}&background=random&size=200`;
-                      }}
-                    />
-                  ) : (
-                    <span className="font-bold text-3xl text-primary uppercase">
-                      {(selectedTutorForDetail.name || "T").charAt(0)}
-                    </span>
-                  )}
+                <div className="relative group shrink-0">
+                  <div className="h-20 w-20 rounded-full border-2 border-primary/20 shadow-md overflow-hidden bg-muted flex items-center justify-center">
+                    {selectedTutorForDetail.photo || selectedTutorForDetail.avatar ? (
+                      <img 
+                        src={resolveAssetUrl(selectedTutorForDetail.photo || selectedTutorForDetail.avatar)} 
+                        alt={selectedTutorForDetail.name} 
+                        className="h-full w-full object-cover" 
+                        onError={(e: any) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedTutorForDetail.name || "T")}&background=random&size=200`;
+                        }}
+                      />
+                    ) : (
+                      <span className="font-bold text-3xl text-primary uppercase">
+                        {(selectedTutorForDetail.name || "T").charAt(0)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 1-Click Change Photo Button */}
+                  <input 
+                    type="file" 
+                    ref={directPhotoInputRef} 
+                    onChange={(e) => handleUploadTutorPhoto(e, true)} 
+                    accept="image/jpeg,image/png,image/webp,image/gif" 
+                    className="hidden" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => directPhotoInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground hover:bg-primary/90 p-1.5 rounded-full shadow-md border-2 border-background transition-transform hover:scale-110"
+                    title="Change tutor profile picture"
+                  >
+                    {isUploadingPhoto ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                 </div>
                 <div className="flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
