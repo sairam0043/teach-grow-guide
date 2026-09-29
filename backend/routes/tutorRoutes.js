@@ -19,6 +19,8 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 15000,
 });
 
+const { requireAuth, STAFF_ROLES } = require('../middleware/auth');
+
 const router = express.Router();
 
 const getFrontendUrl = (req) => {
@@ -1510,7 +1512,7 @@ router.put('/booking/:bookingId/pay', async (req, res) => {
 });
 
 // Update individual session status within a monthly pack booking
-router.put('/booking/:bookingId/session/:sessionIdx/status', async (req, res) => {
+router.put('/booking/:bookingId/session/:sessionIdx/status', requireAuth, async (req, res) => {
   try {
     const { status } = req.body;
     if (!['scheduled', 'completed', 'cancelled'].includes(status)) {
@@ -1518,6 +1520,16 @@ router.put('/booking/:bookingId/session/:sessionIdx/status', async (req, res) =>
     }
     const booking = await Booking.findById(req.params.bookingId);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // Only this booking's own tutor, or staff, may change a session status.
+    // Marking a class complete makes it payable and credits the referral
+    // wallet, so anyone able to call this could move money.
+    if (!STAFF_ROLES.includes(req.user.role)) {
+      const owner = await Tutor.findById(booking.tutorId).select('userId').lean();
+      if (!owner || String(owner.userId) !== String(req.user.userId)) {
+        return res.status(403).json({ message: 'You can only update your own classes.' });
+      }
+    }
     
     const idx = parseInt(req.params.sessionIdx, 10);
     if (isNaN(idx) || !booking.sessions || idx < 0 || idx >= booking.sessions.length) {

@@ -1,4 +1,6 @@
 const express = require('express');
+const { requireAuth, requireStaff } = require('../middleware/auth');
+
 const router = express.Router();
 const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
@@ -648,8 +650,8 @@ const handleGetPayouts = async (req, res) => {
   }
 };
 
-router.get('/admin/payouts', handleGetPayouts);
-router.get('/hr/payouts', handleGetPayouts);
+router.get('/admin/payouts', requireAuth, requireStaff, handleGetPayouts);
+router.get('/hr/payouts', requireAuth, requireStaff, handleGetPayouts);
 
 // POST /api/dashboard/admin/payouts/record & POST /api/dashboard/hr/payouts/record
 const handleRecordPayout = async (req, res) => {
@@ -715,8 +717,8 @@ const handleRecordPayout = async (req, res) => {
   }
 };
 
-router.post('/admin/payouts/record', handleRecordPayout);
-router.post('/hr/payouts/record', handleRecordPayout);
+router.post('/admin/payouts/record', requireAuth, requireStaff, handleRecordPayout);
+router.post('/hr/payouts/record', requireAuth, requireStaff, handleRecordPayout);
 
 // POST /api/dashboard/admin/send-bank-reminder & POST /api/dashboard/hr/send-bank-reminder
 const handleSendBankReminder = async (req, res) => {
@@ -776,8 +778,8 @@ const handleSendBankReminder = async (req, res) => {
   }
 };
 
-router.post('/admin/send-bank-reminder', handleSendBankReminder);
-router.post('/hr/send-bank-reminder', handleSendBankReminder);
+router.post('/admin/send-bank-reminder', requireAuth, requireStaff, handleSendBankReminder);
+router.post('/hr/send-bank-reminder', requireAuth, requireStaff, handleSendBankReminder);
 
 // GET /api/dashboard/admin/course-payments
 router.get('/admin/course-payments', async (req, res) => {

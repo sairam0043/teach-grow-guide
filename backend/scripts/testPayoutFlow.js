@@ -13,6 +13,7 @@
  * that matter, and then removes everything it created unless --keep is passed.
  */
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const BASE = process.env.TEST_BASE_URL || 'http://localhost:5000/api';
@@ -34,6 +35,11 @@ const TEST = {
   acceptTerms: true,
 };
 
+// The payout endpoints now require a signed-in caller. Tokens are minted
+// locally with the same secret authRoutes uses at login, so the script
+// exercises the real guards without needing a password.
+const AUTH_TOKENS = { staff: null, tutor: null };
+
 let passed = 0, failed = 0;
 
 function lastMonth() {
@@ -48,9 +54,14 @@ function check(label, condition, detail = '') {
 }
 
 async function call(method, path, body) {
+  // tutor-scoped paths go as the tutor; everything else as staff.
+  const token = path.startsWith('/payouts/tutor/') ? AUTH_TOKENS.tutor : AUTH_TOKENS.staff;
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (body) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   let json = null;
@@ -72,6 +83,19 @@ async function call(method, path, body) {
   const Tutors = mongoose.connection.collection('tutors');
   const Payouts = mongoose.connection.collection('payouts');
 
+  // Mint a staff token before the first call: every payout endpoint now
+  // requires one. Signed with the same secret authRoutes uses at login.
+  const SECRET = process.env.JWT_SECRET || 'teachgrow_jwt_secret_key';
+  const staffUser = await mongoose.connection.collection('users')
+    .findOne({ role: { $in: ['admin', 'hr'] } });
+  if (!staffUser) {
+    console.error('No admin or hr account exists to authenticate as.');
+    process.exit(1);
+  }
+  AUTH_TOKENS.staff = jwt.sign(
+    { userId: String(staffUser._id), role: staffUser.role }, SECRET, { expiresIn: '1h' });
+  console.log(`Authenticating as ${staffUser.role} (${staffUser.email})`);
+
   // Prefer a tutor who actually has activity in this period, so the numbers
   // are real; otherwise fall back to any approved tutor.
   const preview = await call('GET', `/payouts/staff/preview/${PERIOD}`);
@@ -88,12 +112,19 @@ async function call(method, path, body) {
   console.log(`Existing payoutProfile: ${hadProfile ? 'yes - will be restored afterwards' : 'none'}\n`);
   const originalProfile = tutor.payoutProfile ?? null;
 
+  AUTH_TOKENS.tutor = jwt.sign(
+    { userId: String(tutor.userId), role: 'tutor' }, SECRET, { expiresIn: '1h' });
+
   // -- 1. validation -------------------------------------------------------
   console.log('1. Rejects bad input');
   const bad = await call('POST', `/payouts/tutor/${tutorId}/profile`, {
     legalName: 'A', pan: 'NOPE', accountHolderName: 'X',
     accountNumber: '123', confirmAccountNumber: '999',
     ifsc: 'HDFC1001234', accountType: 'savings',
+    // Pass the replace confirmation so this reaches validation even when a
+    // verified profile already exists -- otherwise the 409 guard fires first
+    // and we never test the field rules.
+    confirmReplace: true,
   });
   check('returns 400', bad.status === 400, `got ${bad.status}`);
   check('explains every problem', (bad.body?.errors || []).length >= 5,

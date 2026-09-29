@@ -1,11 +1,10 @@
 /**
  * Tutor payout endpoints.
  *
- * SECURITY NOTE - these routes are UNPROTECTED, in common with every other
- * route in this backend (no jwt.verify exists anywhere; ProtectedRoute is a
- * client-side gate only). They read and write bank details and approve money.
- * Every handler below is annotated with the role it assumes. See
- * PAYOUTS_AUTH_TODO.md for what must be locked down before real traffic.
+ * Every route here is guarded. Tutor-facing routes require the signed-in user
+ * to own the tutor record they name -- role alone is not enough, since every
+ * tutor shares the role 'tutor' and a role-only check would let any of them
+ * rewrite another's bank details. Staff routes require admin or hr.
  */
 const express = require('express');
 const mongoose = require('mongoose');
@@ -21,6 +20,12 @@ const {
   PLATFORM_COMMISSION_RATE,
   MINIMUM_PAYOUT_AMOUNT,
 } = require('../config/payments');
+
+const {
+  requireAuth,
+  requireStaff,
+  requireTutorSelfOrStaff,
+} = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -98,7 +103,7 @@ function totalsOf(rows) {
  * ------------------------------------------------------------------------ */
 
 // GET /api/payouts/tutor/:tutorId/profile      [assumes: the tutor, or staff]
-router.get('/tutor/:tutorId/profile', async (req, res) => {
+router.get('/tutor/:tutorId/profile', requireAuth, requireTutorSelfOrStaff(), async (req, res) => {
   try {
     const { tutorId } = req.params;
     if (!isId(tutorId)) return res.status(400).json({ message: 'Invalid tutor id' });
@@ -111,7 +116,7 @@ router.get('/tutor/:tutorId/profile', async (req, res) => {
 });
 
 // POST /api/payouts/tutor/:tutorId/profile     [assumes: the tutor themself]
-router.post('/tutor/:tutorId/profile', async (req, res) => {
+router.post('/tutor/:tutorId/profile', requireAuth, requireTutorSelfOrStaff(), async (req, res) => {
   try {
     const { tutorId } = req.params;
     if (!isId(tutorId)) return res.status(400).json({ message: 'Invalid tutor id' });
@@ -180,7 +185,7 @@ router.post('/tutor/:tutorId/profile', async (req, res) => {
 });
 
 // GET /api/payouts/tutor/:tutorId/history                [assumes: the tutor]
-router.get('/tutor/:tutorId/history', async (req, res) => {
+router.get('/tutor/:tutorId/history', requireAuth, requireTutorSelfOrStaff(), async (req, res) => {
   try {
     const { tutorId } = req.params;
     if (!isId(tutorId)) return res.status(400).json({ message: 'Invalid tutor id' });
@@ -201,7 +206,7 @@ router.get('/tutor/:tutorId/history', async (req, res) => {
 // POST /api/payouts/staff/profile/:tutorId/verification-result   [staff]
 // Records the outcome of a penny-drop check. The provider call is not wired
 // yet, so the result is supplied by the caller.
-router.post('/staff/profile/:tutorId/verification-result', async (req, res) => {
+router.post('/staff/profile/:tutorId/verification-result', requireAuth, requireStaff, async (req, res) => {
   try {
     const { tutorId } = req.params;
     if (!isId(tutorId)) return res.status(400).json({ message: 'Invalid tutor id' });
@@ -233,7 +238,7 @@ router.post('/staff/profile/:tutorId/verification-result', async (req, res) => {
 });
 
 // POST /api/payouts/staff/profile/:tutorId/decision              [staff]
-router.post('/staff/profile/:tutorId/decision', async (req, res) => {
+router.post('/staff/profile/:tutorId/decision', requireAuth, requireStaff, async (req, res) => {
   try {
     const { tutorId } = req.params;
     const { approve, reason, decidedBy } = req.body;
@@ -246,7 +251,7 @@ router.post('/staff/profile/:tutorId/decision', async (req, res) => {
 
     if (approve) {
       tutor.payoutProfile.status = PROFILE_STATUS.VERIFIED;
-      tutor.payoutProfile.approvedBy = clean(decidedBy) || 'staff';
+      tutor.payoutProfile.approvedBy = String(req.user?.userId || 'staff');
       tutor.payoutProfile.approvedAt = new Date();
       tutor.payoutProfile.rejectionReason = '';
     } else {
@@ -265,7 +270,7 @@ router.post('/staff/profile/:tutorId/decision', async (req, res) => {
 
 // GET /api/payouts/staff/preview/:period                         [staff]
 // Calculates without writing anything. Safe to call repeatedly.
-router.get('/staff/preview/:period', async (req, res) => {
+router.get('/staff/preview/:period', requireAuth, requireStaff, async (req, res) => {
   try {
     assertPeriod(req.params.period);
     const rows = await calculatePayoutsForPeriod(req.params.period);
@@ -285,7 +290,7 @@ router.get('/staff/preview/:period', async (req, res) => {
 // Creates the ledger rows for a month. Idempotent: re-running refreshes rows
 // still awaiting approval and leaves anything approved, paid or cancelled
 // untouched.
-router.post('/staff/generate/:period', async (req, res) => {
+router.post('/staff/generate/:period', requireAuth, requireStaff, async (req, res) => {
   try {
     const { period } = req.params;
     assertPeriod(period);
@@ -353,7 +358,7 @@ router.post('/staff/generate/:period', async (req, res) => {
 });
 
 // GET /api/payouts/staff/batch/:period                           [staff]
-router.get('/staff/batch/:period', async (req, res) => {
+router.get('/staff/batch/:period', requireAuth, requireStaff, async (req, res) => {
   try {
     assertPeriod(req.params.period);
     const batch = await Payout.find({ period: req.params.period }).sort({ netAmount: -1 }).lean();
@@ -371,11 +376,13 @@ router.get('/staff/batch/:period', async (req, res) => {
 // POST /api/payouts/staff/batch/:period/approve                  [staff]
 // The point at which a person releases the month. Only moves rows actually
 // awaiting approval; held and settled rows are left alone.
-router.post('/staff/batch/:period/approve', async (req, res) => {
+router.post('/staff/batch/:period/approve', requireAuth, requireStaff, async (req, res) => {
   try {
     const { period } = req.params;
     assertPeriod(period);
-    const approvedBy = clean(req.body.approvedBy) || 'staff';
+    // Taken from the token, not the request body: who approved a payment is
+    // not something the caller gets to assert.
+    const approvedBy = req.user?.email || req.user?.userId || 'staff';
 
     const result = await Payout.updateMany(
       { period, status: PAYOUT_STATUS.PENDING_APPROVAL },
@@ -396,7 +403,7 @@ router.post('/staff/batch/:period/approve', async (req, res) => {
 });
 
 // POST /api/payouts/staff/payout/:id/status                      [staff]
-router.post('/staff/payout/:id/status', async (req, res) => {
+router.post('/staff/payout/:id/status', requireAuth, requireStaff, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reason } = req.body;
