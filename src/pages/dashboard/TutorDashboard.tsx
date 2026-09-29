@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck , Landmark} from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, Landmark, MessageSquare } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import TutorPayoutProfileForm from "@/components/payouts/TutorPayoutProfileForm";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,6 +28,7 @@ import { resolveAssetUrl } from "@/lib/assetUrl";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
+import { RescheduleDialog, DeclineRescheduleDialog } from "@/components/booking/RescheduleDialog";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -141,6 +142,29 @@ const TutorDashboard = () => {
     }
     return "demos";
   });
+
+  const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
+    const saved = sessionStorage.getItem("active_chat_user_id");
+    if (saved) {
+      sessionStorage.removeItem("active_chat_user_id");
+      return saved;
+    }
+    return undefined;
+  });
+
+  const [activeChatUser, setActiveChatUser] = useState<any | null>(() => {
+    const saved = sessionStorage.getItem("active_chat_user");
+    if (saved) {
+      try {
+        sessionStorage.removeItem("active_chat_user");
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -289,13 +313,43 @@ const TutorDashboard = () => {
     }
   };
 
+  // Reschedule states
+  const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
+  const [decliningBooking, setDecliningBooking] = useState<any | null>(null);
+  const [isDeclineDialogOpen, setIsDeclineDialogOpen] = useState(false);
+
+  const handleApproveReschedule = async (bookingId: string) => {
+    try {
+      const res = await axios.post(`${API_URL}/tutors/booking/${bookingId}/reschedule-confirm`, {
+        action: 'approve',
+        confirmedBy: 'Tutor'
+      });
+      toast.success("Reschedule request accepted! Calendar updated.");
+      setBookings(prev => prev.map(b => b._id === bookingId ? res.data.booking : b));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to accept reschedule request");
+    }
+  };
+
   useEffect(() => {
-    if (!user?.id) return;
+    const effectiveUserId = user?.id || (user as any)?._id || (() => {
+      try {
+        const stored = localStorage.getItem('user_info');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.id || parsed._id || parsed.userId || null;
+        }
+      } catch (e) {}
+      return null;
+    })();
+
+    if (!effectiveUserId) return;
 
     const fetchUnreadCount = async () => {
       if (document.hidden) return; // skip polling when browser tab is inactive/backgrounded
       try {
-        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+        const res = await axios.get(`${API_URL}/messages/inbox/${effectiveUserId}`, {
           headers: { 'x-skip-network-alert': 'true' }
         });
         const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
@@ -762,6 +816,34 @@ const TutorDashboard = () => {
           </Alert>
         )}
 
+        {unreadMessagesCount > 0 && (
+          <Alert className="mb-8 border-indigo-500/40 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 text-foreground shadow-md rounded-2xl p-5 border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <AlertTitle className="font-bold text-base flex items-center gap-2 text-indigo-950 dark:text-indigo-200">
+                  New Message from Platform Admin & Support
+                  <span className="bg-rose-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full animate-bounce">
+                    {unreadMessagesCount} unread
+                  </span>
+                </AlertTitle>
+                <AlertDescription className="text-xs text-muted-foreground mt-0.5">
+                  You have incoming messages from Cuvasol administrators regarding your application, demo sessions, or account support.
+                </AlertDescription>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setActiveTab("messages")}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm hover:shadow-indigo-500/20 shrink-0 gap-1.5 self-end sm:self-center"
+            >
+              <MessageSquare className="h-4 w-4" /> Open Messages
+            </Button>
+          </Alert>
+        )}
+
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
           {[
             { icon: Clock, label: "Demo Requests", value: tutorStats?.demoRequests || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
@@ -811,7 +893,15 @@ const TutorDashboard = () => {
               <Gift className="h-4 w-4 text-emerald-500" />
               Refer & Earn
             </TabsTrigger>
-            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+            <TabsTrigger 
+              value="messages" 
+              className={`rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 transition-all ${
+                unreadMessagesCount > 0 
+                  ? "bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800" 
+                  : ""
+              }`}
+            >
+              <MessageSquare className="h-4 w-4 text-indigo-600" />
               Messages
               {unreadMessagesCount > 0 && (
                 <span className="h-5 w-5 bg-rose-500 text-white font-extrabold text-[10px] flex items-center justify-center rounded-full shrink-0 animate-pulse">
@@ -864,6 +954,47 @@ const TutorDashboard = () => {
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
                           </p>
+                          {booking.rescheduleRequest && booking.rescheduleRequest.status === 'pending' && (
+                            booking.rescheduleRequest.requestedBy === 'Student' ? (
+                              <div className="w-full mt-3 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600" /> Reschedule Requested by Student
+                                  </span>
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
+                                    ACTION REQUIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-amber-950 dark:text-amber-100">
+                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{booking.rescheduleRequest.requestedTiming}</span>
+                                </p>
+                                {booking.rescheduleRequest.reason && (
+                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{booking.rescheduleRequest.reason}"</p>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(booking._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept Reschedule
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
+                                    setDecliningBooking(booking);
+                                    setIsDeclineDialogOpen(true);
+                                  }}>
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full mt-3 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                                  Reschedule requested to <strong>{booking.rescheduleRequest.requestedTiming}</strong>
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-semibold">
+                                  Awaiting Student Approval
+                                </Badge>
+                              </div>
+                            )
+                          )}
                         </div>
                         <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
                           <div className="flex items-center gap-2">
@@ -877,7 +1008,7 @@ const TutorDashboard = () => {
                             </Badge>
                           </div>
 
-                          <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                          <div className="flex flex-wrap gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {booking.status === 'pending' && (
                               <>
                                 {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) ? (
@@ -943,6 +1074,19 @@ const TutorDashboard = () => {
                                     }}
                                   >
                                     <Check className="mr-1 h-4 w-4" /> Mark Completed
+                                  </Button>
+                                )}
+                                {(!booking.rescheduleRequest || booking.rescheduleRequest.status !== 'pending') && !(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full sm:w-auto text-primary border-primary/30 hover:bg-primary/5 font-semibold text-xs"
+                                    onClick={() => {
+                                      setReschedulingBooking(booking);
+                                      setIsRescheduleDialogOpen(true);
+                                    }}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
                                   </Button>
                                 )}
                                 <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
@@ -1115,6 +1259,49 @@ const TutorDashboard = () => {
                             </div>
                             <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
                           </div>
+
+                          {cls.rescheduleRequest && cls.rescheduleRequest.status === 'pending' && (
+                            cls.rescheduleRequest.requestedBy === 'Student' ? (
+                              <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600" /> Reschedule Requested by Student
+                                  </span>
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
+                                    ACTION REQUIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-amber-950 dark:text-amber-100">
+                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{cls.rescheduleRequest.requestedTiming}</span>
+                                </p>
+                                {cls.rescheduleRequest.reason && (
+                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{cls.rescheduleRequest.reason}"</p>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(cls._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept Reschedule
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
+                                    setDecliningBooking(cls);
+                                    setIsDeclineDialogOpen(true);
+                                  }}>
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mb-4 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                                  Reschedule requested to <strong>{cls.rescheduleRequest.requestedTiming}</strong>
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-semibold">
+                                  Awaiting Student Approval
+                                </Badge>
+                              </div>
+                            )
+                          )}
+
                           <div className="mt-auto pt-4 border-t flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
                             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                               <Clock className="h-4 w-4" /> {formatBookingTime(cls, tutorTimezone)}
@@ -1122,21 +1309,36 @@ const TutorDashboard = () => {
                                 <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
                               )}
                             </span>
-                            {!(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
-                              <Button
-                                size="sm"
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse w-full sm:w-auto"
-                                asChild
-                              >
-                                <a
-                                  href={getMeetingHref(cls.meetingLink, cls._id, name, user?.email || '')}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                            <div className="flex flex-wrap gap-2">
+                              {(!cls.rescheduleRequest || cls.rescheduleRequest.status !== 'pending') && !(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full sm:w-auto text-primary border-primary/30 hover:bg-primary/5 font-semibold text-xs"
+                                  onClick={() => {
+                                    setReschedulingBooking(cls);
+                                    setIsRescheduleDialogOpen(true);
+                                  }}
                                 >
-                                  <Video className="h-4 w-4" /> Join Classroom
-                                </a>
-                              </Button>
-                            )}
+                                  <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                </Button>
+                              )}
+                              {!(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
+                                <Button
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse w-full sm:w-auto"
+                                  asChild
+                                >
+                                  <a
+                                    href={getMeetingHref(cls.meetingLink, cls._id, name, user?.email || '')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Video className="h-4 w-4" /> Join Classroom
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -1497,7 +1699,7 @@ const TutorDashboard = () => {
           </TabsContent>
 
           <TabsContent value="messages">
-            <ChatPanel />
+            <ChatPanel initialActiveUserId={activeChatUserId} initialActiveUser={activeChatUser} />
           </TabsContent>
 
           <TabsContent value="profile">
@@ -2485,6 +2687,29 @@ const TutorDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule Dialog */}
+      <RescheduleDialog
+        isOpen={isRescheduleDialogOpen}
+        onOpenChange={setIsRescheduleDialogOpen}
+        booking={reschedulingBooking}
+        userRole="Tutor"
+        userTimezone={tutorTimezone}
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+        }}
+      />
+
+      {/* Decline Reschedule Dialog */}
+      <DeclineRescheduleDialog
+        isOpen={isDeclineDialogOpen}
+        onOpenChange={setIsDeclineDialogOpen}
+        booking={decliningBooking}
+        userRole="Tutor"
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+        }}
+      />
     </PageLayout>
   );
 };

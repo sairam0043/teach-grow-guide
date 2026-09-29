@@ -42,8 +42,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   let formattedUser: AppUser | null = null;
   if (authUser) {
+    const userId = authUser.id || (authUser as any)._id || (authUser as any).userId;
     formattedUser = {
-      id: authUser.id,
+      id: userId ? String(userId) : "",
       email: authUser.email,
       full_name: authUser.full_name,
       phone: authUser.phone,

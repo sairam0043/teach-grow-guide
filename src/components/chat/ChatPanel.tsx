@@ -5,16 +5,26 @@ import API_URL from "@/config/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, User, MessageSquare, ExternalLink, ShieldAlert, ArrowLeft } from "lucide-react";
+import { Send, User, MessageSquare, ExternalLink, ShieldAlert, ArrowLeft, Shield, CheckCheck } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
 
 interface ChatPanelProps {
-  initialActiveUserId?: string; // Optional deep link to open a specific chat
+  initialActiveUserId?: string; // Optional deep link by user ID
+  initialActiveUser?: {
+    id: string;
+    full_name?: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    avatar?: string;
+    photo?: string;
+    tutorProfileId?: string | null;
+  } | null;
 }
 
-const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
+const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) => {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(true);
@@ -28,63 +38,36 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const activeChatRef = useRef<any | null>(null);
 
-  // 1. Fetch Inbox Conversations
-  const fetchInbox = async (showLoading = false) => {
-    if (!user?.id) return;
-    if (document.hidden && !showLoading) return; // skip if browser tab is backgrounded/inactive
-    if (showLoading) setLoadingInbox(true);
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
+  const getEffectiveUserId = () => {
+    if (user?.id) return String(user.id);
+    if ((user as any)?._id) return String((user as any)._id);
     try {
-      const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
-        headers: { 'x-skip-network-alert': 'true' }
-      });
-      setConversations(res.data);
-      
-      // If we have an initial active user, auto-select it from conversations
-      if (initialActiveUserId && showLoading) {
-        const found = res.data.find((c: any) => c.otherUser.id === initialActiveUserId);
-        if (found) {
-          setActiveChat(found);
-        } else {
-          // If not in inbox yet, fetch user details to initialize temporary active chat
-          try {
-            const userRes = await axios.get(`${API_URL}/tutors/user/${initialActiveUserId}`);
-            if (userRes.data) {
-              setActiveChat({
-                otherUser: {
-                  id: initialActiveUserId,
-                  full_name: userRes.data.name,
-                  email: userRes.data.email || "",
-                  role: "tutor",
-                  avatar: userRes.data.photo || "",
-                  tutorProfileId: userRes.data.id
-                },
-                lastMessage: { text: "No messages yet", createdAt: new Date() },
-                unreadCount: 0
-              });
-            }
-          } catch (e) {
-            console.error("Error setting initial active chat details", e);
-          }
-        }
+      const stored = localStorage.getItem('user_info');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return String(parsed.id || parsed._id || parsed.userId || "");
       }
-    } catch (err) {
-      console.error("Failed to load inbox", err);
-    } finally {
-      if (showLoading) setLoadingInbox(false);
-    }
+    } catch (e) {}
+    return "";
   };
 
-  // 2. Fetch Messages with Active Contact
+  // 1. Fetch Messages with Active Contact
   const fetchMessages = async (contactId: string, silent = false) => {
-    if (!user?.id || !contactId) return;
+    const currentId = getEffectiveUserId();
+    if (!currentId || !contactId) return;
     if (document.hidden && silent) return; // skip if browser tab is backgrounded/inactive
     if (!silent) setLoadingMessages(true);
     try {
-      const res = await axios.get(`${API_URL}/messages/chat/${user.id}/${contactId}`, {
+      const res = await axios.get(`${API_URL}/messages/chat/${currentId}/${contactId}`, {
         headers: { 'x-skip-network-alert': 'true' }
       });
-      setMessages(res.data);
+      setMessages(res.data || []);
       
       // Reset unread count locally for this contact
       setConversations(prev =>
@@ -96,6 +79,134 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
       if (!silent) setLoadingMessages(false);
     }
   };
+
+  // 2. Fetch Inbox Conversations
+  const fetchInbox = async (showLoading = false) => {
+    const currentId = getEffectiveUserId();
+    if (!currentId) return;
+    if (document.hidden && !showLoading) return; // skip if browser tab is backgrounded/inactive
+    if (showLoading) setLoadingInbox(true);
+    try {
+      const res = await axios.get(`${API_URL}/messages/inbox/${currentId}`, {
+        headers: { 'x-skip-network-alert': 'true' }
+      });
+      const incomingConversations: any[] = res.data || [];
+      
+      setConversations(prev => {
+        const merged = [...incomingConversations];
+        // Preserve currently selected contact if they don't have existing messages yet
+        const currentActive = activeChatRef.current;
+        if (currentActive?.otherUser?.id && !merged.some(c => c.otherUser.id === currentActive.otherUser.id)) {
+          merged.unshift(currentActive);
+        }
+        return merged;
+      });
+
+      // Auto-select conversation if none is active
+      if (!activeChatRef.current && incomingConversations.length > 0) {
+        const unreadThread = incomingConversations.find(c => (c.unreadCount || 0) > 0);
+        const threadToSelect = unreadThread || incomingConversations[0];
+        if (threadToSelect) {
+          setActiveChat(threadToSelect);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load inbox", err);
+    } finally {
+      if (showLoading) setLoadingInbox(false);
+    }
+  };
+
+  // 3. Handle incoming initial active user / ID prop changes
+  useEffect(() => {
+    const targetUserId = initialActiveUser?.id || initialActiveUserId;
+    if (!targetUserId) return;
+
+    // Case A: Full user object provided directly
+    if (initialActiveUser?.id) {
+      const newChat = {
+        otherUser: {
+          id: initialActiveUser.id,
+          full_name: initialActiveUser.full_name || initialActiveUser.name || "User",
+          email: initialActiveUser.email || "",
+          role: initialActiveUser.role || "tutor",
+          avatar: initialActiveUser.avatar || initialActiveUser.photo || "",
+          tutorProfileId: initialActiveUser.tutorProfileId || null
+        },
+        lastMessage: { text: "No messages yet", createdAt: new Date() },
+        unreadCount: 0
+      };
+
+      setActiveChat(newChat);
+      setConversations(prev => {
+        const exists = prev.find(c => c.otherUser.id === targetUserId);
+        if (exists) return prev;
+        return [newChat, ...prev];
+      });
+      fetchMessages(targetUserId);
+      return;
+    }
+
+    // Case B: Only user ID provided
+    const initializeChatById = async () => {
+      // Check local conversations first
+      const found = conversations.find(c => c.otherUser.id === targetUserId);
+      if (found) {
+        setActiveChat(found);
+        fetchMessages(targetUserId);
+        return;
+      }
+
+      // Fetch user preview from backend
+      try {
+        let contactData: any = null;
+        try {
+          const userRes = await axios.get(`${API_URL}/messages/user/${targetUserId}`);
+          if (userRes.data) contactData = userRes.data;
+        } catch (e) {
+          try {
+            const tutorRes = await axios.get(`${API_URL}/tutors/user/${targetUserId}`);
+            if (tutorRes.data) {
+              contactData = {
+                id: targetUserId,
+                full_name: tutorRes.data.name,
+                email: tutorRes.data.email || "",
+                role: "tutor",
+                avatar: tutorRes.data.photo || tutorRes.data.avatar || "",
+                tutorProfileId: tutorRes.data.id
+              };
+            }
+          } catch (err2) {
+            console.error("Error setting initial active chat details", err2);
+          }
+        }
+
+        const newChat = {
+          otherUser: {
+            id: contactData?.id || targetUserId,
+            full_name: contactData?.full_name || contactData?.name || "User",
+            email: contactData?.email || "",
+            role: contactData?.role || "tutor",
+            avatar: contactData?.avatar || contactData?.photo || "",
+            tutorProfileId: contactData?.tutorProfileId || null
+          },
+          lastMessage: { text: "No messages yet", createdAt: new Date() },
+          unreadCount: 0
+        };
+
+        setActiveChat(newChat);
+        setConversations(prev => {
+          if (prev.some(c => c.otherUser.id === targetUserId)) return prev;
+          return [newChat, ...prev];
+        });
+        fetchMessages(targetUserId);
+      } catch (err) {
+        console.error("Failed to initialize active chat by ID:", err);
+      }
+    };
+
+    initializeChatById();
+  }, [initialActiveUserId, initialActiveUser?.id]);
 
   // Scroll to bottom of message list container only (prevents parent page scroll)
   const scrollToBottom = () => {
@@ -114,9 +225,9 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     }, 10000);
 
     return () => clearInterval(inboxInterval);
-  }, [user?.id, initialActiveUserId]);
+  }, [user?.id]);
 
-  // Handle active conversation changes
+  // Handle active conversation changes & polling
   useEffect(() => {
     if (activeChat?.otherUser?.id) {
       fetchMessages(activeChat.otherUser.id);
@@ -140,10 +251,11 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     scrollToBottom();
   }, [messages]);
 
-  // 3. Send Message
+  // 4. Send Message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !user?.id || !activeChat?.otherUser?.id) return;
+    const currentId = getEffectiveUserId();
+    if (!inputText.trim() || !currentId || !activeChat?.otherUser?.id) return;
     
     const textToSend = inputText.trim();
     setInputText("");
@@ -151,15 +263,28 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
     
     try {
       const res = await axios.post(`${API_URL}/messages`, {
-        senderId: user.id,
+        senderId: currentId,
         receiverId: activeChat.otherUser.id,
         text: textToSend
       });
       
       // Add message locally to speed up rendering
       setMessages(prev => [...prev, res.data]);
+
+      // Update active chat last message preview
+      setActiveChat((prev: any) => prev ? {
+        ...prev,
+        lastMessage: { text: textToSend, createdAt: new Date(), senderId: currentId }
+      } : prev);
+
+      // Update in conversations list
+      setConversations(prev => prev.map(c => 
+        c.otherUser.id === activeChat.otherUser.id
+          ? { ...c, lastMessage: { text: textToSend, createdAt: new Date(), senderId: user.id } }
+          : c
+      ));
       
-      // Silent refresh of inbox list to update timestamps/previews
+      // Silent refresh of inbox list to sync timestamps/previews
       fetchInbox(false);
     } catch (err: any) {
       toast.error("Failed to send message.");
@@ -196,17 +321,18 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
             <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
               <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-2" />
               <p className="text-sm font-semibold text-foreground/80">No chats yet</p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-[180px]">
+              <p className="text-xs text-muted-foreground mt-1 max-w-[200px] leading-relaxed">
                 {user?.role === "student" 
                   ? "Select a tutor from listings and click 'Message Tutor' to start chatting!"
-                  : "Student chat inquiries will appear here once they contact you."
+                  : "Direct inquiries from students and official messages from Cuvasol Admin Support will appear here."
                 }
               </p>
             </div>
           ) : (
             conversations.map((chat) => {
               const isActive = activeChat?.otherUser?.id === chat.otherUser.id;
-              const hasUnread = chat.unreadCount > 0;
+              const hasUnread = (chat.unreadCount || 0) > 0;
+              const isAdmin = chat.otherUser.role === "admin";
               const isTutor = chat.otherUser.role === "tutor";
               
               return (
@@ -218,8 +344,12 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                   }`}
                 >
                   {/* User Avatar */}
-                  <div className="h-10 w-10 rounded-full bg-slate-200 shadow-sm border border-slate-300/30 overflow-hidden shrink-0 flex items-center justify-center relative">
-                    {chat.otherUser.avatar ? (
+                  <div className={`h-10 w-10 rounded-full shadow-sm border overflow-hidden shrink-0 flex items-center justify-center relative ${
+                    isAdmin ? "bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-800" : "bg-slate-200 border-slate-300/30 text-slate-500"
+                  }`}>
+                    {isAdmin ? (
+                      <Shield className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    ) : chat.otherUser.avatar ? (
                       <img 
                         src={chat.otherUser.avatar.startsWith("http") ? chat.otherUser.avatar : `${API_URL}/uploads/${chat.otherUser.avatar}`}
                         alt={chat.otherUser.full_name} 
@@ -230,31 +360,40 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                         }}
                       />
                     ) : (
-                      <span className="font-bold text-sm text-slate-500 uppercase">
-                        {chat.otherUser.full_name.charAt(0)}
+                      <span className="font-bold text-sm uppercase">
+                        {chat.otherUser.full_name?.charAt(0) || "U"}
                       </span>
                     )}
                     {/* Role indicator dot */}
                     <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border border-card ${
-                      isTutor ? "bg-indigo-500" : "bg-sky-500"
+                      isAdmin ? "bg-indigo-600" : isTutor ? "bg-indigo-500" : "bg-sky-500"
                     }`} />
                   </div>
 
                   {/* Message Info preview */}
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline mb-0.5">
-                      <h4 className={`text-sm font-semibold truncate ${hasUnread ? "text-foreground" : "text-foreground/90"}`}>
-                        {chat.otherUser.full_name}
-                      </h4>
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {format(new Date(chat.lastMessage.createdAt), "h:mm a")}
-                      </span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <h4 className={`text-sm font-semibold truncate ${hasUnread ? "text-foreground font-bold" : "text-foreground/90"}`}>
+                          {chat.otherUser.full_name}
+                        </h4>
+                        {isAdmin && (
+                          <Badge variant="secondary" className="text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-extrabold px-1.5 py-0">
+                            Admin
+                          </Badge>
+                        )}
+                      </div>
+                      {chat.lastMessage?.createdAt && (
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-1">
+                          {format(new Date(chat.lastMessage.createdAt), "h:mm a")}
+                        </span>
+                      )}
                     </div>
                     <div className="flex justify-between items-center">
                       <p className={`text-xs truncate max-w-[150px] ${
                         hasUnread ? "font-bold text-foreground" : "text-muted-foreground"
                       }`}>
-                        {chat.lastMessage.text}
+                        {chat.lastMessage?.text || "No message content"}
                       </p>
                       {hasUnread && (
                         <span className="h-5 w-5 bg-rose-500 text-white font-extrabold text-[10px] flex items-center justify-center rounded-full shrink-0 animate-pulse">
@@ -288,8 +427,14 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                 </Button>
 
                 {/* Avatar */}
-                <div className="h-10 w-10 rounded-full bg-slate-200 border overflow-hidden shrink-0 flex items-center justify-center">
-                  {activeChat.otherUser.avatar ? (
+                <div className={`h-10 w-10 rounded-full border overflow-hidden shrink-0 flex items-center justify-center ${
+                  activeChat.otherUser.role === "admin" 
+                    ? "bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-950 dark:border-indigo-800" 
+                    : "bg-slate-200 border-slate-300"
+                }`}>
+                  {activeChat.otherUser.role === "admin" ? (
+                    <Shield className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  ) : activeChat.otherUser.avatar ? (
                     <img 
                       src={activeChat.otherUser.avatar.startsWith("http") ? activeChat.otherUser.avatar : `${API_URL}/uploads/${activeChat.otherUser.avatar}`}
                       alt={activeChat.otherUser.full_name} 
@@ -301,20 +446,28 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                     />
                   ) : (
                     <span className="font-bold text-sm text-slate-500 uppercase">
-                      {activeChat.otherUser.full_name.charAt(0)}
+                      {activeChat.otherUser.full_name?.charAt(0) || "U"}
                     </span>
                   )}
                 </div>
 
                 {/* Active contact Details */}
                 <div>
-                  <h4 className="font-bold text-sm text-foreground leading-tight">{activeChat.otherUser.full_name}</h4>
+                  <h4 className="font-bold text-sm text-foreground leading-tight flex items-center gap-1.5">
+                    {activeChat.otherUser.full_name}
+                  </h4>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <Badge variant="outline" className={`text-[9px] uppercase px-1.5 py-0 border-none font-extrabold tracking-wider ${
-                      activeChat.otherUser.role === "tutor" ? "bg-indigo-100 text-indigo-700" : "bg-sky-100 text-sky-700"
-                    }`}>
-                      {activeChat.otherUser.role}
-                    </Badge>
+                    {activeChat.otherUser.role === "admin" ? (
+                      <Badge variant="outline" className="text-[9px] uppercase px-2 py-0.5 border-indigo-200 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-extrabold tracking-wider flex items-center gap-1">
+                        <Shield className="h-3 w-3 text-indigo-600" /> Platform Admin Support
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className={`text-[9px] uppercase px-1.5 py-0 border-none font-extrabold tracking-wider ${
+                        activeChat.otherUser.role === "tutor" ? "bg-indigo-100 text-indigo-700" : "bg-sky-100 text-sky-700"
+                      }`}>
+                        {activeChat.otherUser.role}
+                      </Badge>
+                    )}
                     <span className="text-[10px] text-muted-foreground">• online</span>
                   </div>
                 </div>
@@ -355,8 +508,11 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                   };
 
                   return messages.map((msg, idx) => {
-                    const isOwn = msg.sender._id.toString() === user?.id;
-                    const currentDate = new Date(msg.createdAt);
+                    const currentId = getEffectiveUserId();
+                    const senderIdStr = msg.sender?._id ? msg.sender._id.toString() : (typeof msg.sender === "string" ? msg.sender : msg.sender?.id || "");
+                    const isOwn = senderIdStr === currentId;
+                    const isAdminMsg = !isOwn && msg.sender?.role === "admin";
+                    const currentDate = new Date(msg.createdAt || Date.now());
                     
                     // Determine if date separator is required
                     let showDateSeparator = false;
@@ -364,7 +520,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                       showDateSeparator = true;
                     } else {
                       const prevMsg = messages[idx - 1];
-                      const prevDate = new Date(prevMsg.createdAt);
+                      const prevDate = new Date(prevMsg.createdAt || Date.now());
                       if (currentDate.toDateString() !== prevDate.toDateString()) {
                         showDateSeparator = true;
                       }
@@ -382,16 +538,24 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                         <div 
                           className={`flex flex-col max-w-[75%] ${isOwn ? "ml-auto items-end" : "items-start"}`}
                         >
+                          {isAdminMsg && (
+                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mb-1 flex items-center gap-1 px-1">
+                              <Shield className="h-3 w-3" /> Cuvasol Support Team
+                            </span>
+                          )}
+
                           {/* Message body */}
                           <div className={`p-3 rounded-2xl shadow-sm text-sm ${
                             isOwn 
                               ? "bg-primary text-primary-foreground rounded-br-none" 
+                              : isAdminMsg
+                              ? "bg-indigo-50 border border-indigo-200 text-indigo-950 dark:bg-indigo-950/40 dark:border-indigo-800/60 dark:text-indigo-100 rounded-bl-none font-medium"
                               : "bg-card border text-foreground rounded-bl-none"
                           }`}>
                             {msg.text}
                           </div>
                           {/* Timestamp */}
-                          <span className="text-[9px] text-muted-foreground mt-1 px-1">
+                          <span className="text-[9px] text-muted-foreground mt-1 px-1 flex items-center gap-1">
                             {format(currentDate, "h:mm a")}
                           </span>
                         </div>
@@ -416,7 +580,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
                 type="submit" 
                 size="icon" 
                 disabled={isSending || !inputText.trim()}
-                className="rounded-xl h-10 w-10 shadow-md transition-transform active:scale-95"
+                className="rounded-xl h-10 w-10 shadow-md transition-transform active:scale-95 bg-indigo-600 hover:bg-indigo-700 text-white"
               >
                 <Send className="h-4 w-4" />
               </Button>
@@ -429,7 +593,7 @@ const ChatPanel = ({ initialActiveUserId }: ChatPanelProps) => {
             </div>
             <h3 className="text-xl font-bold text-foreground">Cuvasol Live Messaging</h3>
             <p className="text-sm max-w-sm mt-1 leading-relaxed">
-              Connect directly with students and tutors. Select a conversation thread from the sidebar list to retrieve chat messages.
+              Connect directly with students and platform administrators. Select a conversation thread from the sidebar list to retrieve chat messages.
             </p>
           </div>
         )}

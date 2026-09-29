@@ -41,7 +41,18 @@ const bookingSchema = new mongoose.Schema({
     utcDate: { type: Date },
     meetingLink: { type: String },
     status: { type: String, enum: ['scheduled', 'completed', 'cancelled'], default: 'scheduled' }
-  }]
+  }],
+  rescheduleRequest: {
+    requestedTiming: { type: String },
+    requestedUtcTiming: { type: Date },
+    requestedBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' },
+    reason: { type: String },
+    requestedAt: { type: Date },
+    status: { type: String, enum: ['pending', 'approved', 'declined', ''], default: '' },
+    declinedReason: { type: String }
+  },
+  rescheduledAt: { type: Date },
+  rescheduledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' }
 }, { timestamps: true });
 
 const Booking = mongoose.model('Booking', bookingSchema);

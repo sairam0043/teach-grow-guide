@@ -1,6 +1,6 @@
-import { useEffect, useState, Fragment } from "react";
+import { useEffect, useState, useRef, Fragment } from "react";
 import { Link } from "react-router-dom";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import PayoutBatchPanel from "@/components/payouts/PayoutBatchPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +26,7 @@ import ChatPanel from "@/components/chat/ChatPanel";
 import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
+import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
 
 const CLASS_TAUGHT_OPTIONS = [
   "Class 1 - 5 (Primary)",
@@ -96,6 +97,10 @@ const AdminDashboard = () => {
 
   // Edit Profile States
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editPhoto, setEditPhoto] = useState("");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const directPhotoInputRef = useRef<HTMLInputElement>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editTimezone, setEditTimezone] = useState("Asia/Kolkata");
@@ -137,11 +142,26 @@ const AdminDashboard = () => {
     return undefined;
   });
 
+  const [activeChatUser, setActiveChatUser] = useState<any | null>(() => {
+    const saved = sessionStorage.getItem("active_chat_user");
+    if (saved) {
+      try {
+        sessionStorage.removeItem("active_chat_user");
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<any | null>(null);
   const [isBookingDetailDialogOpen, setIsBookingDetailDialogOpen] = useState(false);
   const [verificationDemoTiming, setVerificationDemoTiming] = useState("");
   const [isBookingDemo, setIsBookingDemo] = useState(false);
+  const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
   const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
   const [bookingToComplete, setBookingToComplete] = useState<{ id: string; tutorName: string } | null>(null);
@@ -339,6 +359,7 @@ const AdminDashboard = () => {
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
     setIsEditingProfile(false);
+    setEditPhoto(tutor.photo || tutor.avatar || tutor.userId?.avatar || "");
     setEditName(tutor.name || "");
     setEditPhone(tutor.phone || "");
     setEditTimezone(tutor.timezone || "Asia/Kolkata");
@@ -360,6 +381,98 @@ const AdminDashboard = () => {
     setEditBoardsTaught(tutor.boardsTaught || []);
     
     setIsDetailDialogOpen(true);
+  };
+
+  const handleUploadTutorPhoto = async (e: React.ChangeEvent<HTMLInputElement>, isDirectSave: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Photo file size must be less than 5MB");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("photo", file);
+
+    try {
+      setIsUploadingPhoto(true);
+      toast.loading("Uploading tutor profile picture...");
+      const uploadRes = await axios.post(`${API_URL}/upload/photo`, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      toast.dismiss();
+      const newPhotoUrl = uploadRes.data.url;
+      setEditPhoto(newPhotoUrl);
+
+      if (isDirectSave && selectedTutorForDetail) {
+        // Immediately save to backend when changed from view mode
+        await axios.put(`${API_URL}/tutors/${selectedTutorForDetail.id}/profile`, {
+          photo: newPhotoUrl
+        });
+        const userId = selectedTutorForDetail.userId?._id || selectedTutorForDetail.userId;
+        if (userId) {
+          await axios.put(`${API_URL}/auth/profile/${userId}`, {
+            avatar: newPhotoUrl,
+            photo: newPhotoUrl
+          });
+        }
+
+        setTutors(prev => prev.map(t => t.id === selectedTutorForDetail.id ? { 
+          ...t, 
+          photo: newPhotoUrl, 
+          avatar: newPhotoUrl,
+          userId: t.userId ? (typeof t.userId === 'object' ? { ...t.userId, avatar: newPhotoUrl } : t.userId) : t.userId
+        } : t));
+        setSelectedTutorForDetail(prev => prev ? { 
+          ...prev, 
+          photo: newPhotoUrl, 
+          avatar: newPhotoUrl,
+          userId: prev.userId ? (typeof prev.userId === 'object' ? { ...prev.userId, avatar: newPhotoUrl } : prev.userId) : prev.userId
+        } : null);
+        toast.success("Tutor profile picture updated successfully!");
+      } else {
+        toast.success("Profile photo uploaded! Click 'Save Changes' to apply.");
+      }
+    } catch (err: any) {
+      toast.dismiss();
+      console.error("Photo upload failed:", err);
+      toast.error(err.response?.data?.message || "Failed to upload profile picture");
+    } finally {
+      setIsUploadingPhoto(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleMessageTutor = (tutor: any) => {
+    if (!tutor) return;
+    const tutorUserId = tutor?.userId?._id 
+      ? tutor.userId._id.toString() 
+      : (typeof tutor?.userId === "string" 
+          ? tutor.userId 
+          : (tutor?.userId?.id || (tutor?.userId ? tutor.userId.toString() : null)));
+
+    if (!tutorUserId) {
+      toast.error(`User account not found for tutor ${tutor.name || ""}.`);
+      return;
+    }
+
+    const chatUserData = {
+      id: tutorUserId,
+      full_name: tutor.name || tutor.userId?.full_name || "Tutor",
+      email: tutor.email || tutor.userId?.email || "",
+      role: "tutor",
+      avatar: tutor.photo || tutor.avatar || tutor.userId?.avatar || "",
+      tutorProfileId: tutor.id || tutor._id?.toString() || null
+    };
+
+    sessionStorage.setItem("active_chat_user_id", tutorUserId);
+    sessionStorage.setItem("active_chat_user", JSON.stringify(chatUserData));
+    setActiveChatUserId(tutorUserId);
+    setActiveChatUser(chatUserData);
+    setActiveTab("messages");
+    setIsDetailDialogOpen(false);
+    toast.success(`Opening conversation with tutor ${tutor.name || "Tutor"}`);
   };
 
   const handleSaveTutorProfile = async () => {
@@ -384,11 +497,13 @@ const AdminDashboard = () => {
       await axios.put(`${API_URL}/auth/profile/${userId}`, {
         full_name: editName.trim(),
         phone: editPhone.trim(),
-        timezone: editTimezone
+        timezone: editTimezone,
+        avatar: editPhoto
       });
       
       // Update Tutor collection
       const payload = {
+        photo: editPhoto,
         bio: editBio,
         qualification: editQualification,
         experience: Number(editExperience),
@@ -413,6 +528,8 @@ const AdminDashboard = () => {
         ...res.data, 
         name: editName.trim(), 
         phone: editPhone.trim(), 
+        photo: editPhoto,
+        avatar: editPhoto,
         email: selectedTutorForDetail.email 
       } : t));
       
@@ -421,7 +538,9 @@ const AdminDashboard = () => {
         ...selectedTutorForDetail, 
         ...res.data, 
         name: editName.trim(), 
-        phone: editPhone.trim() 
+        phone: editPhone.trim(),
+        photo: editPhoto,
+        avatar: editPhoto
       });
       
       setIsEditingProfile(false);
@@ -821,22 +940,26 @@ const AdminDashboard = () => {
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5 mb-10">
           {[
-            { icon: Clock, label: "Pending Approvals", value: adminStats?.pendingApprovals || pendingTutors.length, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-900/20" },
-            { icon: Users, label: "Active Tutors", value: adminStats?.activeTutors || approvedTutors.length, color: "text-sky-500", bg: "bg-sky-50 dark:bg-sky-950/20 border border-sky-200/40 dark:border-sky-900/20" },
-            { icon: GraduationCap, label: "Total Students", value: adminStats?.totalStudents !== undefined ? adminStats.totalStudents : students.length, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200/40 dark:border-indigo-900/20" },
-            { icon: BookOpen, label: "Total Bookings", value: adminStats?.totalBookings || bookings.length, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/20 border border-violet-200/40 dark:border-violet-900/20" },
-            { icon: DollarSign, label: "Total Revenue", value: `₹${totalPlatformRevenue}`, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/40 dark:border-emerald-900/20" },
+            { icon: Clock, label: "Pending Approvals", value: adminStats?.pendingApprovals || pendingTutors.length, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-900/20", tab: "approvals" },
+            { icon: Users, label: "Active Tutors", value: adminStats?.activeTutors || approvedTutors.length, color: "text-sky-500", bg: "bg-sky-50 dark:bg-sky-950/20 border border-sky-200/40 dark:border-sky-900/20", tab: "tutors" },
+            { icon: GraduationCap, label: "Total Students", value: adminStats?.totalStudents !== undefined ? adminStats.totalStudents : students.length, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200/40 dark:border-indigo-900/20", tab: "students" },
+            { icon: BookOpen, label: "Total Bookings", value: adminStats?.totalBookings || bookings.length, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/20 border border-violet-200/40 dark:border-violet-900/20", tab: "bookings" },
+            { icon: DollarSign, label: "Total Revenue", value: `₹${totalPlatformRevenue}`, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/40 dark:border-emerald-900/20", tab: "payments" },
           ].map((stat) => (
-            <Card key={stat.label} className="border border-border/50 shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-300 bg-card/60 backdrop-blur-md">
+            <Card
+              key={stat.label}
+              onClick={() => setActiveTab(stat.tab)}
+              className="border border-border/50 shadow-md hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] transition-all duration-300 bg-card/60 backdrop-blur-md cursor-pointer hover:border-primary/40 hover:bg-card/90 group"
+            >
               <CardContent className="flex items-center gap-5 p-6">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg}`}>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg} group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
                   <stat.icon className={`h-7 w-7 ${stat.color}`} />
                 </div>
                 <div>
                   {statsLoading ? (
                     <Skeleton className="h-8 w-16 mb-1" />
                   ) : (
-                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight group-hover:text-primary transition-colors">
                       {String(stat.value)}
                     </p>
                   )}
@@ -1031,6 +1154,18 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2.5">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg h-9 px-3 transition-all duration-200 font-semibold text-xs gap-1" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMessageTutor(tutor);
+                                  }}
+                                  title={`Send a direct message to ${tutor.name || 'tutor'}`}
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" /> Message
+                                </Button>
                                 <Button 
                                   size="sm" 
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow-emerald-500/20 transition-all duration-300 hover:-translate-y-0.5 rounded-lg h-9 px-3" 
@@ -1238,6 +1373,18 @@ const AdminDashboard = () => {
                               <div className="flex justify-end gap-2.5">
                                 <Button 
                                   size="sm" 
+                                  variant="outline" 
+                                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg h-9 px-3 transition-all duration-200 font-semibold text-xs gap-1" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMessageTutor(tutor);
+                                  }}
+                                  title={`Send a direct message to ${tutor.name || 'tutor'}`}
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" /> Message
+                                </Button>
+                                <Button 
+                                  size="sm" 
                                   variant={tutor.isVerified ? "outline" : "default"} 
                                   className={`rounded-lg h-9 px-3 transition-all duration-300 hover:-translate-y-0.5 ${
                                     tutor.isVerified 
@@ -1306,9 +1453,17 @@ const AdminDashboard = () => {
                   />
                 </div>
                 {(() => {
-                  const filteredStudents = students.filter(student =>
-                    (student.full_name || "").toLowerCase().includes(studentSearch.toLowerCase())
-                  );
+                  const filteredStudents = [...students]
+                    .sort((a, b) => {
+                      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                      return timeB - timeA;
+                    })
+                    .filter(student =>
+                      (student.full_name || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+                      (student.email || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
+                      (student.phone || "").toLowerCase().includes(studentSearch.toLowerCase())
+                    );
 
                   if (loading) {
                     return (
@@ -1492,6 +1647,19 @@ const AdminDashboard = () => {
                                 {['pending', 'confirmed'].includes(demo.status) && (
                                   <Button
                                     size="sm"
+                                    variant="outline"
+                                    className="text-primary border-primary/30 hover:bg-primary/5 font-bold h-9 px-3 rounded-lg text-xs"
+                                    onClick={() => {
+                                      setReschedulingBooking(demo);
+                                      setIsRescheduleDialogOpen(true);
+                                    }}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                  </Button>
+                                )}
+                                {['pending', 'confirmed'].includes(demo.status) && (
+                                  <Button
+                                    size="sm"
                                     variant="ghost"
                                     className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold h-9 px-3 rounded-lg"
                                     onClick={() => {
@@ -1593,14 +1761,29 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 font-semibold text-xs rounded-lg"
-                                onClick={() => handleViewBookingDetail(booking)}
-                              >
-                                View Details
-                              </Button>
+                              <div className="flex justify-end gap-1.5">
+                                {['pending', 'confirmed', 'enrolled'].includes(booking.status) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 font-semibold text-xs rounded-lg text-primary border-primary/30 hover:bg-primary/5"
+                                    onClick={() => {
+                                      setReschedulingBooking(booking);
+                                      setIsRescheduleDialogOpen(true);
+                                    }}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 font-semibold text-xs rounded-lg"
+                                  onClick={() => handleViewBookingDetail(booking)}
+                                >
+                                  View Details
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1899,14 +2082,25 @@ const AdminDashboard = () => {
                                   <TableCell className="text-right font-medium text-emerald-600">₹{tutorPayout.totalCommission}</TableCell>
                                   <TableCell className="text-right font-bold text-indigo-500">₹{tutorPayout.totalPayout}</TableCell>
                                   <TableCell className="text-right px-6">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setExpandedTutorId(isExpanded ? null : tutorPayout.tutorId)}
-                                      className="font-semibold h-8"
-                                    >
-                                      {isExpanded ? "Hide Logs" : "Audit Details"}
-                                    </Button>
+                                    <div className="flex justify-end items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleMessageTutor({ userId: tutorPayout.userId, name: tutorPayout.tutorName })}
+                                        className="font-semibold h-8 text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 gap-1"
+                                        title={`Message tutor ${tutorPayout.tutorName}`}
+                                      >
+                                        <MessageSquare className="h-3.5 w-3.5" /> Message
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setExpandedTutorId(isExpanded ? null : tutorPayout.tutorId)}
+                                        className="font-semibold h-8"
+                                      >
+                                        {isExpanded ? "Hide Logs" : "Audit Details"}
+                                      </Button>
+                                    </div>
                                   </TableCell>
                                 </TableRow>
 
@@ -2664,7 +2858,7 @@ const AdminDashboard = () => {
 
           <TabsContent value="messages">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-0">
-              <ChatPanel initialActiveUserId={activeChatUserId} />
+              <ChatPanel initialActiveUserId={activeChatUserId} initialActiveUser={activeChatUser} />
             </Card>
           </TabsContent>
         </Tabs>
@@ -2715,7 +2909,23 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {selectedReferrerForDetail.userId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 font-semibold text-xs gap-1.5 h-8"
+                      onClick={() => {
+                        sessionStorage.setItem("active_chat_user_id", selectedReferrerForDetail.userId);
+                        setActiveChatUserId(selectedReferrerForDetail.userId);
+                        setActiveTab("messages");
+                        setIsReferrerDetailDialogOpen(false);
+                        toast.success(`Opening chat thread with ${selectedReferrerForDetail.name}`);
+                      }}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> Message {selectedReferrerForDetail.role === "tutor" ? "Tutor" : "Student"}
+                    </Button>
+                  )}
                   <div className="text-right">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase block">Referral Code</span>
                     <span className="font-mono font-bold text-sm text-foreground">{selectedReferrerForDetail.referralCode || "–"}</span>
@@ -2878,6 +3088,71 @@ const AdminDashboard = () => {
           {selectedTutorForDetail && (
             isEditingProfile ? (
               <div className="space-y-6 py-4">
+                {/* Profile Photo Uploader */}
+                <div className="p-4 rounded-xl border bg-secondary/10 border-border/50 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="relative group shrink-0">
+                    <div className="h-20 w-20 rounded-full border-2 border-primary/30 shadow-md overflow-hidden bg-muted flex items-center justify-center">
+                      {editPhoto ? (
+                        <img 
+                          src={resolveAssetUrl(editPhoto)} 
+                          alt="Tutor Avatar" 
+                          className="h-full w-full object-cover" 
+                          onError={(e: any) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || "T")}&background=random&size=200`;
+                          }}
+                        />
+                      ) : (
+                        <span className="font-bold text-3xl text-primary uppercase">
+                          {(editName || "T").charAt(0)}
+                        </span>
+                      )}
+                    </div>
+                    {isUploadingPhoto && (
+                      <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center text-white">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 flex-1 text-center sm:text-left">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Profile Picture</label>
+                    <p className="text-xs text-muted-foreground">Upload a professional photo for this tutor (JPG, PNG, WebP up to 5MB).</p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 justify-center sm:justify-start">
+                      <input 
+                        type="file" 
+                        ref={photoInputRef} 
+                        onChange={(e) => handleUploadTutorPhoto(e, false)} 
+                        accept="image/jpeg,image/png,image/webp,image/gif" 
+                        className="hidden" 
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs font-semibold gap-1.5 bg-background shadow-sm hover:bg-primary hover:text-primary-foreground transition-all"
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={isUploadingPhoto}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {editPhoto ? "Change Photo" : "Upload Photo"}
+                      </Button>
+                      {editPhoto && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setEditPhoto("")}
+                          disabled={isUploadingPhoto}
+                        >
+                          Remove Photo
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Profile fields: Name, Phone, Timezone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -3153,22 +3428,46 @@ const AdminDashboard = () => {
             <div className="space-y-6 py-4">
               {/* Header profile info */}
               <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center p-4 rounded-xl bg-secondary/10 border border-border/40">
-                <div className="h-20 w-20 rounded-full border-2 border-primary/20 shadow-md overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                  {selectedTutorForDetail.photo || selectedTutorForDetail.avatar ? (
-                    <img 
-                      src={resolveAssetUrl(selectedTutorForDetail.photo || selectedTutorForDetail.avatar)} 
-                      alt={selectedTutorForDetail.name} 
-                      className="h-full w-full object-cover" 
-                      onError={(e: any) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedTutorForDetail.name || "T")}&background=random&size=200`;
-                      }}
-                    />
-                  ) : (
-                    <span className="font-bold text-3xl text-primary uppercase">
-                      {(selectedTutorForDetail.name || "T").charAt(0)}
-                    </span>
-                  )}
+                <div className="relative group shrink-0">
+                  <div className="h-20 w-20 rounded-full border-2 border-primary/20 shadow-md overflow-hidden bg-muted flex items-center justify-center">
+                    {selectedTutorForDetail.photo || selectedTutorForDetail.avatar ? (
+                      <img 
+                        src={resolveAssetUrl(selectedTutorForDetail.photo || selectedTutorForDetail.avatar)} 
+                        alt={selectedTutorForDetail.name} 
+                        className="h-full w-full object-cover" 
+                        onError={(e: any) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedTutorForDetail.name || "T")}&background=random&size=200`;
+                        }}
+                      />
+                    ) : (
+                      <span className="font-bold text-3xl text-primary uppercase">
+                        {(selectedTutorForDetail.name || "T").charAt(0)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 1-Click Change Photo Button */}
+                  <input 
+                    type="file" 
+                    ref={directPhotoInputRef} 
+                    onChange={(e) => handleUploadTutorPhoto(e, true)} 
+                    accept="image/jpeg,image/png,image/webp,image/gif" 
+                    className="hidden" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => directPhotoInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground hover:bg-primary/90 p-1.5 rounded-full shadow-md border-2 border-background transition-transform hover:scale-110"
+                    title="Change tutor profile picture"
+                  >
+                    {isUploadingPhoto ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                 </div>
                 <div className="flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -3192,6 +3491,14 @@ const AdminDashboard = () => {
                     <span className="text-muted-foreground">({selectedTutorForDetail.reviewCount ?? 0} reviews)</span>
                   </div>
                 </div>
+
+                <Button
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm hover:shadow-indigo-500/20 shrink-0 self-start sm:self-center"
+                  onClick={() => handleMessageTutor(selectedTutorForDetail)}
+                >
+                  <MessageSquare className="h-4 w-4" /> Message Tutor
+                </Button>
               </div>
 
                {/* Contact Information */}
@@ -3537,6 +3844,12 @@ const AdminDashboard = () => {
                  >
                    <CheckCircle className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.isVerified ? "fill-blue-500 text-white" : ""}`} />
                    {selectedTutorForDetail.isVerified ? "Remove Verified" : "Give Verified"}
+                 </Button>
+                 <Button 
+                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm hover:shadow-indigo-500/20"
+                   onClick={() => handleMessageTutor(selectedTutorForDetail)}
+                 >
+                   <MessageSquare className="h-4 w-4" /> Message Tutor
                  </Button>
                  <Button 
                    variant="outline"
@@ -3935,10 +4248,27 @@ const AdminDashboard = () => {
               {/* Timing and Financials Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-card border">
-                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Date & Timing</span>
-                  <span className="text-sm font-semibold text-foreground mt-1 flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
-                  </span>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Date & Timing</span>
+                      <span className="text-sm font-semibold text-foreground mt-1 flex items-center gap-1.5">
+                        <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
+                      </span>
+                    </div>
+                    {['pending', 'confirmed', 'enrolled'].includes(selectedBookingForDetail.status) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/5 gap-1"
+                        onClick={() => {
+                          setReschedulingBooking(selectedBookingForDetail);
+                          setIsRescheduleDialogOpen(true);
+                        }}
+                      >
+                        <Clock className="h-3 w-3" /> Reschedule
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="p-4 rounded-xl bg-card border">
                   <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Amount Paid (Gross)</span>
@@ -3947,6 +4277,38 @@ const AdminDashboard = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Reschedule Request Audit Banner */}
+              {selectedBookingForDetail.rescheduleRequest && selectedBookingForDetail.rescheduleRequest.status && (
+                <div className={`p-4 rounded-xl border space-y-2 shadow-sm ${
+                  selectedBookingForDetail.rescheduleRequest.status === 'pending'
+                    ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50'
+                    : selectedBookingForDetail.rescheduleRequest.status === 'approved'
+                    ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50'
+                    : 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50'
+                }`}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-primary" />
+                      Reschedule Record ({selectedBookingForDetail.rescheduleRequest.requestedBy || 'User'})
+                    </span>
+                    <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                      {selectedBookingForDetail.rescheduleRequest.status}
+                    </Badge>
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p><strong>Proposed/Rescheduled Timing:</strong> {selectedBookingForDetail.rescheduleRequest.requestedTiming}</p>
+                    {selectedBookingForDetail.rescheduleRequest.reason && (
+                      <p className="text-muted-foreground italic">"{selectedBookingForDetail.rescheduleRequest.reason}"</p>
+                    )}
+                    {selectedBookingForDetail.rescheduledAt && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Rescheduled At: {new Date(selectedBookingForDetail.rescheduledAt).toLocaleString()} by {selectedBookingForDetail.rescheduledBy || 'Admin'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Cancellation & Rejection Audit Banner */}
               {(selectedBookingForDetail.status === 'cancelled' || selectedBookingForDetail.status === 'rejected') && (
@@ -4021,8 +4383,18 @@ const AdminDashboard = () => {
                         variant="outline" 
                         className="flex-1 gap-1.5 h-9 font-semibold text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50/50"
                         onClick={() => {
+                          const tutorData = {
+                            id: selectedBookingForDetail.tutorUserId,
+                            full_name: selectedBookingForDetail.tutorName || "Tutor",
+                            email: selectedBookingForDetail.tutorEmail || "",
+                            role: "tutor",
+                            avatar: selectedBookingForDetail.tutorPhoto || "",
+                            tutorProfileId: selectedBookingForDetail.tutorId
+                          };
                           sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.tutorUserId);
+                          sessionStorage.setItem("active_chat_user", JSON.stringify(tutorData));
                           setActiveChatUserId(selectedBookingForDetail.tutorUserId);
+                          setActiveChatUser(tutorData);
                           setActiveTab("messages");
                           setIsBookingDetailDialogOpen(false);
                           toast.success(`Opening chat thread with tutor ${selectedBookingForDetail.tutorName}`);
@@ -4067,8 +4439,17 @@ const AdminDashboard = () => {
                       variant="outline" 
                       className="w-full gap-1.5 h-9 font-semibold text-xs border-sky-200 text-sky-600 hover:bg-sky-50/50"
                       onClick={() => {
+                        const studentData = {
+                          id: selectedBookingForDetail.studentId,
+                          full_name: selectedBookingForDetail.studentName || "Student",
+                          email: selectedBookingForDetail.studentEmail || "",
+                          role: "student",
+                          avatar: ""
+                        };
                         sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.studentId);
+                        sessionStorage.setItem("active_chat_user", JSON.stringify(studentData));
                         setActiveChatUserId(selectedBookingForDetail.studentId);
+                        setActiveChatUser(studentData);
                         setActiveTab("messages");
                         setIsBookingDetailDialogOpen(false);
                         toast.success(`Opening chat thread with student ${selectedBookingForDetail.studentName}`);
@@ -4226,6 +4607,20 @@ const AdminDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule Dialog */}
+      <RescheduleDialog
+        isOpen={isRescheduleDialogOpen}
+        onOpenChange={setIsRescheduleDialogOpen}
+        booking={reschedulingBooking}
+        userRole="Admin"
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+          if (selectedBookingForDetail && selectedBookingForDetail._id === updatedBooking._id) {
+            setSelectedBookingForDetail(updatedBooking);
+          }
+        }}
+      />
     </PageLayout>
   );
 };
