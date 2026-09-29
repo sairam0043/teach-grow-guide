@@ -8,6 +8,8 @@ const User = require('../schemas/userSchema');
 const CoursePayment = require('../schemas/coursePaymentSchema');
 const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
 
+const { splitBookingPayment } = require('../utils/routeService');
+
 const router = express.Router();
 
 const getFrontendUrl = (req) => {
@@ -211,6 +213,21 @@ router.post('/verify-payment', async (req, res) => {
     
     await booking.save();
     console.log(`[Payments] Booking ${booking._id} enrolled successfully. Paid amount: ₹${booking.amountPaid}`);
+
+    // Razorpay Route: hand the tutor their share now, held until each class
+    // is delivered. Returns null when Route is off or the tutor is not
+    // onboarded, in which case nothing changes and payout stays manual.
+    try {
+      const split = await splitBookingPayment(booking, razorpay_payment_id);
+      if (split && !split.alreadySplit) {
+        console.log(`[Route] Booking ${booking._id}: ${split.held} transfer(s) held` +
+          ` totalling Rs${split.totalHeld}` + (split.failed ? `, ${split.failed} failed` : ''));
+      }
+    } catch (routeError) {
+      // A failed split must never undo a successful enrolment: the student
+      // has paid and the class is booked. Surfaced on the payout screen.
+      console.error('[Route] Split failed for booking', String(booking._id), '-', routeError.message);
+    }
 
     // If partial wallet was used, deduct from student wallet balance
     if (booking.walletUsed && booking.walletUsed > 0 && booking.studentId) {

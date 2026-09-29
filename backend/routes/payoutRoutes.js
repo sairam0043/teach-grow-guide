@@ -27,6 +27,9 @@ const {
   requireTutorSelfOrStaff,
 } = require('../middleware/auth');
 
+const Booking = require('../schemas/bookingSchema');
+const { releaseTransfersForPayout, onboardTutorToRoute } = require('../utils/routeService');
+
 const router = express.Router();
 
 const isId = (v) => mongoose.Types.ObjectId.isValid(v);
@@ -44,6 +47,15 @@ function publicProfile(tutor) {
     accountHolderName: p.accountHolderName || '',
     accountLast4: p.accountLast4 || '',
     accountMasked: p.accountLast4 ? DOT.repeat(6) + p.accountLast4 : '',
+    documents: {
+      pan: Boolean(p.panProofId),
+      bank: Boolean(p.bankProofId),
+      address: Boolean(p.addressProofId),
+      photoId: Boolean(p.photoIdProofId),
+    },
+    routeStatus: p.routeStatus || 'not_onboarded',
+    routeAccountId: p.routeAccountId || '',
+    routeLastError: p.routeLastError || '',
     ifsc: p.ifsc || '',
     accountType: p.accountType || 'savings',
     vpa: p.vpa || '',
@@ -160,6 +172,9 @@ router.post('/tutor/:tutorId/profile', requireAuth, requireTutorSelfOrStaff(), a
       vpa: normalised.vpa,
       bankProofId: isId(req.body.bankProofId) ? req.body.bankProofId : current.bankProofId,
       panProofId: isId(req.body.panProofId) ? req.body.panProofId : current.panProofId,
+      // Route requires four documents; these are the other two.
+      addressProofId: isId(req.body.addressProofId) ? req.body.addressProofId : current.addressProofId,
+      photoIdProofId: isId(req.body.photoIdProofId) ? req.body.photoIdProofId : current.photoIdProofId,
       // Submitting always re-enters verification, even from verified.
       status: PROFILE_STATUS.PENDING_VERIFICATION,
       verifiedNameAtBank: '',
@@ -262,7 +277,21 @@ router.post('/staff/profile/:tutorId/decision', requireAuth, requireStaff, async
 
     tutor.payoutProfile.updatedAt = new Date();
     await tutor.save();
-    res.json({ profile: publicProfile(tutor) });
+
+    // Approving the details is what makes the tutor eligible, so create the
+    // Razorpay linked account here rather than making it a separate chore.
+    // A failure is recorded on the profile and retried from the admin screen;
+    // it must not undo the approval that just succeeded.
+    let routeResult = null;
+    if (approve) {
+      try {
+        routeResult = await onboardTutorToRoute(tutorId);
+      } catch (err) {
+        routeResult = { error: err.message };
+        console.error('[Route] Onboarding failed for tutor', tutorId, '-', err.message);
+      }
+    }
+    res.json({ profile: publicProfile(tutor), route: routeResult });
   } catch (err) {
     res.status(500).json({ message: 'Could not record decision', error: err.message });
   }
@@ -389,11 +418,30 @@ router.post('/staff/batch/:period/approve', requireAuth, requireStaff, async (re
       { $set: { status: PAYOUT_STATUS.APPROVED, approvedBy, approvedAt: new Date() } }
     );
 
+    // Approving is the moment the tutor is actually allowed the money.
+    // Release the held Route transfers for classes that were delivered;
+    // anything unconfirmed stays held, matching what the ledger paid.
+    let releaseSummary = { released: 0, failed: 0, amount: 0 };
+    try {
+      const approved = await Payout.find({ period, status: PAYOUT_STATUS.APPROVED });
+      for (const payout of approved) {
+        const r = await releaseTransfersForPayout(payout, Booking);
+        releaseSummary.released += r.released.length;
+        releaseSummary.failed += r.failures.length;
+        releaseSummary.amount += r.released.reduce((a, t) => a + t.amount, 0);
+      }
+    } catch (err) {
+      console.error('[Route] Release failed during batch approval:', err.message);
+    }
+
     const batch = await Payout.find({ period }).sort({ netAmount: -1 }).select('-lines').lean();
     res.json({
       period,
       approved: result.modifiedCount ?? 0,
-      message: 'Approved. No transfer is sent yet - the payment provider is not connected.',
+      message: releaseSummary.released > 0
+        ? `Approved. ${releaseSummary.released} held transfer(s) released to tutors.`
+        : 'Approved. No transfer was sent - Razorpay Route is not active for these tutors yet.',
+      release: releaseSummary,
       totals: totalsOf(batch),
       batch,
     });
@@ -424,5 +472,17 @@ router.post('/staff/payout/:id/status', requireAuth, requireStaff, async (req, r
     res.status(500).json({ message: 'Could not update payout', error: err.message });
   }
 });
+// POST /api/payouts/staff/profile/:tutorId/route-onboard            [staff]
+// Retry creating the Razorpay linked account after a failure, or create one
+// for a tutor who was verified before Route was switched on.
+router.post('/staff/profile/:tutorId/route-onboard', requireAuth, requireStaff, async (req, res) => {
+  try {
+    const result = await onboardTutorToRoute(req.params.tutorId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
 
 module.exports = router;

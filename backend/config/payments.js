@@ -36,6 +36,46 @@ const MINIMUM_PAYOUT_AMOUNT = Number(process.env.MINIMUM_PAYOUT_AMOUNT || 0);
 const COUNT_PAST_ENROLLED_AS_DELIVERED =
   String(process.env.COUNT_PAST_ENROLLED_AS_DELIVERED || 'false') === 'true';
 
+/* ---------------------------------------------------------------------------
+ * Razorpay Route
+ *
+ * Route splits a student's payment at the moment it is made: the tutor's share
+ * goes to their own linked account held by Razorpay, and is released class by
+ * class as they are delivered. The money never sits in the company account.
+ *
+ * Disabled by default. Marketplace approval is still pending, so every call
+ * site checks the flag and falls back to the existing behaviour when it is off,
+ * which means this ships dark and goes live by changing one variable.
+ * ------------------------------------------------------------------------ */
+
+// Master switch. Nothing calls Razorpay Route while this is false.
+const ROUTE_ENABLED = String(process.env.RAZORPAY_ROUTE_ENABLED || 'false') === 'true';
+
+// Pilot allowlist of Tutor ids. While non-empty, only these tutors are
+// onboarded to Route and have their payments split; everyone else stays on the
+// existing manual path. Empty means all tutors, once ROUTE_ENABLED is on.
+const ROUTE_PILOT_TUTOR_IDS = String(process.env.RAZORPAY_ROUTE_PILOT_TUTORS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+/** Whether this tutor's payments should go through Route right now. */
+function isRouteTutor(tutorId) {
+  if (!ROUTE_ENABLED) return false;
+  if (ROUTE_PILOT_TUTOR_IDS.length === 0) return true;
+  return ROUTE_PILOT_TUTOR_IDS.includes(String(tutorId));
+}
+
+// What Razorpay is told the linked account sells. Tutoring is education.
+const ROUTE_ACCOUNT_PROFILE = {
+  category: 'education',
+  subcategory: 'coaching',
+};
+
+// Every transfer is created held and released only after a class is delivered
+// and the month is approved. Turning this off would pay tutors upfront.
+const ROUTE_HOLD_ON_CREATE =
+  String(process.env.RAZORPAY_ROUTE_HOLD_ON_CREATE || 'true') === 'true';
+
+
 function clampRate(raw, fallback) {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0 || n >= 1) return fallback;
@@ -96,6 +136,11 @@ const PATTERNS = {
 };
 
 module.exports = {
+  ROUTE_ENABLED,
+  ROUTE_PILOT_TUTOR_IDS,
+  ROUTE_ACCOUNT_PROFILE,
+  ROUTE_HOLD_ON_CREATE,
+  isRouteTutor,
   PLATFORM_COMMISSION_RATE,
   MINIMUM_PAYOUT_AMOUNT,
   COUNT_PAST_ENROLLED_AS_DELIVERED,

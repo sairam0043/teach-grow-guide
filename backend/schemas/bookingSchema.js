@@ -52,7 +52,26 @@ const bookingSchema = new mongoose.Schema({
     declinedReason: { type: String }
   },
   rescheduledAt: { type: Date },
-  rescheduledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' }
+  rescheduledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' },
+
+  // Razorpay Route transfers created when the student paid.
+  //
+  // One per class rather than one per booking: Route's on_hold is
+  // all-or-nothing per transfer, so releasing a pack class by class needs a
+  // separate transfer for each. sessionIndex is null for a single class.
+  routeTransfers: [{
+    transferId: { type: String, required: true },
+    sessionIndex: { type: Number, default: null },
+    amount: { type: Number, required: true },
+    status: {
+      type: String,
+      enum: ['held', 'released', 'processed', 'reversed', 'failed'],
+      default: 'held'
+    },
+    createdAt: { type: Date, default: Date.now },
+    releasedAt: { type: Date },
+    failureReason: { type: String }
+  }]
 }, { timestamps: true });
 
 const Booking = mongoose.model('Booking', bookingSchema);

@@ -11,6 +11,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const payoutRoutes = require('./routes/payoutRoutes');
+const routeWebhookRoutes = require('./routes/routeWebhookRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 
@@ -48,6 +49,10 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-skip-network-alert', 'x-requested-with', 'Accept', 'Origin']
 }));
+// Mounted BEFORE express.json(): Razorpay signs the raw request bytes, and
+// re-serialising parsed JSON can reorder keys so the signature never matches.
+app.use('/api/webhooks', routeWebhookRoutes);
+
 app.use(express.json());
 
 const PORT = Number(process.env.PORT) || 5000;

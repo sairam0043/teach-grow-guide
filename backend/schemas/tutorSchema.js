@@ -120,6 +120,24 @@ const tutorSchema = new mongoose.Schema({
     providerContactId: { type: String, default: '' },
     providerFundAccountId: { type: String, default: '' },
 
+    // Razorpay Route. Populated when the tutor is onboarded as a linked
+    // account; until then payments are not split and nothing is held.
+    routeAccountId: { type: String, default: '' },
+    routeStakeholderId: { type: String, default: '' },
+    routeProductConfigId: { type: String, default: '' },
+    routeStatus: {
+      type: String,
+      enum: ['not_onboarded', 'requested', 'under_review', 'activated', 'needs_clarification', 'suspended', 'failed'],
+      default: 'not_onboarded'
+    },
+    routeOnboardedAt: { type: Date },
+    routeLastError: { type: String, default: '' },
+
+    // Route requires four KYC documents; PAN and bank proof are declared
+    // above, these are the other two.
+    addressProofId: { type: mongoose.Schema.Types.ObjectId },
+    photoIdProofId: { type: mongoose.Schema.Types.ObjectId },
+
     status: {
       type: String,
       enum: ['not_submitted', 'pending_verification', 'verification_failed',

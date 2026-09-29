@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Loader2, ShieldCheck, AlertCircle, Lock, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, ShieldCheck, AlertCircle, Lock, CheckCircle2, Clock, Upload } from "lucide-react";
 
 /**
  * Where a tutor enters the bank and tax details used for monthly payouts.
@@ -46,12 +46,26 @@ interface PayoutProfile {
   verificationFailureReason: string;
   rejectionReason: string;
   termsAcceptedRate: number | null;
+  documents?: { pan: boolean; bank: boolean; address: boolean; photoId: boolean };
+  routeStatus?: string;
+  routeLastError?: string;
 }
+
+/** The four documents Razorpay Route requires for a linked account. */
+const DOCUMENTS = [
+  { key: "panProofId",     label: "PAN card",     hint: "A photo or scan of your PAN card" },
+  { key: "bankProofId",    label: "Bank proof",   hint: "Cancelled cheque, passbook first page, or a statement page" },
+  { key: "addressProofId", label: "Address proof",hint: "Aadhaar, passport, voter ID, driving licence, or a recent utility bill" },
+  { key: "photoIdProofId", label: "Photo ID",     hint: "Usually Aadhaar" },
+] as const;
+
+type DocKey = typeof DOCUMENTS[number]["key"];
 
 const BLANK = {
   legalName: "", pan: "", dateOfBirth: "", gstin: "",
   accountHolderName: "", accountNumber: "", confirmAccountNumber: "",
   ifsc: "", accountType: "savings", vpa: "", acceptTerms: false,
+  panProofId: "", bankProofId: "", addressProofId: "", photoIdProofId: "",
 };
 
 // What each state means to the tutor, in their terms rather than the system's.
@@ -127,6 +141,29 @@ const TutorPayoutProfileForm = ({ tutorId }: Props) => {
 
   const set = (k: keyof typeof BLANK) => (v: string | boolean) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  const [uploading, setUploading] = useState<DocKey | null>(null);
+
+  const uploadDoc = async (key: DocKey, file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("That file is larger than 5 MB. Please upload a smaller scan.");
+      return;
+    }
+    setUploading(key);
+    try {
+      const fd = new FormData();
+      fd.append("document", file);
+      const res = await axios.post(`${API_URL}/upload/document`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      set(key)(res.data.id);
+      toast.success(`${DOCUMENTS.find((d) => d.key === key)?.label} uploaded.`);
+    } catch {
+      toast.error("Upload failed. Please try again.");
+    } finally {
+      setUploading(null);
+    }
+  };
 
   const submit = async (confirmReplace = false) => {
     setErrors([]);
@@ -304,6 +341,27 @@ const TutorPayoutProfileForm = ({ tutorId }: Props) => {
                 </div>
               </section>
 
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Documents</h4>
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Razorpay verifies these before you can be paid. PDF, JPG or PNG, up to 5 MB each.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {DOCUMENTS.map((d) => (
+                    <DocumentUpload
+                      key={d.key}
+                      label={d.label}
+                      hint={d.hint}
+                      uploaded={Boolean(form[d.key]) || Boolean(profile?.documents?.[
+                        d.key.replace("ProofId", "").replace("photoId", "photoId") as keyof NonNullable<PayoutProfile["documents"]>
+                      ])}
+                      busy={uploading === d.key}
+                      onFile={(f) => uploadDoc(d.key, f)}
+                    />
+                  ))}
+                </div>
+              </section>
+
               <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
                 <Checkbox checked={form.acceptTerms}
                   onCheckedChange={(v) => set("acceptTerms")(Boolean(v))} className="mt-0.5" />
@@ -338,6 +396,32 @@ const TutorPayoutProfileForm = ({ tutorId }: Props) => {
     </div>
   );
 };
+
+const DocumentUpload = ({ label, hint, uploaded, busy, onFile }: {
+  label: string; hint: string; uploaded: boolean; busy: boolean; onFile: (f: File) => void;
+}) => (
+  <label className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors ${
+    uploaded ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20" : "hover:bg-muted/40"
+  }`}>
+    <input
+      type="file"
+      accept=".pdf,.jpg,.jpeg,.png"
+      className="sr-only"
+      onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
+    />
+    <span className="mt-0.5 shrink-0">
+      {busy ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        : uploaded ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+        : <Upload className="h-4 w-4 text-muted-foreground" />}
+    </span>
+    <span className="min-w-0">
+      <span className="block text-sm font-medium text-foreground">
+        {label} {uploaded && <span className="text-xs font-normal text-emerald-700 dark:text-emerald-400">· uploaded</span>}
+      </span>
+      <span className="block text-xs text-muted-foreground">{busy ? "Uploading…" : hint}</span>
+    </span>
+  </label>
+);
 
 const Field = ({ label, value }: { label: string; value?: string | null }) => (
   <div>

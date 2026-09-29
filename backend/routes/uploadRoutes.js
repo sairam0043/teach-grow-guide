@@ -69,7 +69,7 @@ router.post('/photo', upload.single('photo'), async (req, res) => {
     const baseUrl = configuredBaseUrl || inferredBaseUrl;
     
     const photoUrl = `${baseUrl}/api/upload/file/${saved._id}`;
-    res.json({ url: photoUrl, filename: saved.filename });
+    res.json({ id: saved._id, url: photoUrl, filename: saved.filename });
   } catch (error) {
     res.status(500).json({ message: 'Upload failed', error: error.message });
   }
@@ -97,7 +97,7 @@ router.post('/document', uploadDoc.single('document'), async (req, res) => {
     const baseUrl = configuredBaseUrl || inferredBaseUrl;
 
     const docUrl = `${baseUrl}/api/upload/file/${saved._id}`;
-    res.json({ url: docUrl, filename: saved.filename });
+    res.json({ id: saved._id, url: docUrl, filename: saved.filename });
   } catch (error) {
     res.status(500).json({ message: 'Document upload failed', error: error.message });
   }
