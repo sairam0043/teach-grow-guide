@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, Fragment } from "react";
 import { Link } from "react-router-dom";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2 } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Phone, Tag, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -1457,11 +1457,17 @@ const AdminDashboard = () => {
                       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                       return timeB - timeA;
                     })
-                    .filter(student =>
-                      (student.full_name || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
-                      (student.email || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
-                      (student.phone || "").toLowerCase().includes(studentSearch.toLowerCase())
-                    );
+                    .filter(student => {
+                      const query = studentSearch.toLowerCase().trim();
+                      if (!query) return true;
+                      const name = (student.full_name || "").toLowerCase();
+                      const email = (student.email || "").toLowerCase();
+                      const phone = (student.phone || "").toLowerCase();
+                      const refCode = (student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode || "").toLowerCase();
+                      const referrerName = (student.referrerName || student.referralInfo?.referrer?.name || "").toLowerCase();
+                      const referrerCode = (student.referrerCode || student.referralInfo?.referrer?.referralCode || "").toLowerCase();
+                      return name.includes(query) || email.includes(query) || phone.includes(query) || refCode.includes(query) || referrerName.includes(query) || referrerCode.includes(query);
+                    });
 
                   if (loading) {
                     return (
@@ -1488,7 +1494,7 @@ const AdminDashboard = () => {
                       <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed mt-4">
                         <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
                         <h3 className="text-lg font-semibold text-foreground mb-2">No Match Found</h3>
-                        <p>No students match the name "{studentSearch}".</p>
+                        <p>No students match the search "{studentSearch}".</p>
                       </div>
                     );
                   }
@@ -1504,6 +1510,7 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Contact</TableHead>
                             <TableHead className="font-medium h-12">Class / Grade</TableHead>
                             <TableHead className="font-medium h-12">Source</TableHead>
+                            <TableHead className="font-medium h-12">Referral Code & Referrer</TableHead>
                             <TableHead className="font-medium h-12 text-right">Joined</TableHead>
                             <TableHead className="font-medium h-12 text-right">Actions</TableHead>
                           </TableRow>
@@ -1523,6 +1530,31 @@ const AdminDashboard = () => {
                               <TableCell>{student.phone || "–"}</TableCell>
                               <TableCell><Badge variant="outline" className="font-normal bg-secondary/20">{student.student_class || student.studentClass || "–"}</Badge></TableCell>
                               <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
+                              <TableCell>
+                                {(() => {
+                                  const usedCode = student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode;
+                                  const referrer = student.referralInfo?.referrer;
+                                  const referrerName = student.referrerName || referrer?.name;
+                                  const referrerRole = student.referrerRole || referrer?.role;
+                                  
+                                  if (usedCode || referrerName) {
+                                    return (
+                                      <div className="space-y-1">
+                                        <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 text-[11px] font-mono font-bold flex items-center gap-1 w-fit">
+                                          <Gift className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                                          {usedCode || referrer?.referralCode || "Referred"}
+                                        </Badge>
+                                        {referrerName && (
+                                          <span className="text-[11px] text-muted-foreground block truncate max-w-[150px]" title={`Referred by ${referrerName}${referrerRole ? ` (${referrerRole})` : ''}`}>
+                                            by <strong className="text-foreground/90 font-medium">{referrerName}</strong> {referrerRole && <span className="text-[10px] text-muted-foreground capitalize">({referrerRole})</span>}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return <span className="text-muted-foreground text-xs">Direct</span>;
+                                })()}
+                              </TableCell>
                               <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
                               <TableCell className="text-right">
                                 <Button 
@@ -3946,6 +3978,105 @@ const AdminDashboard = () => {
                   {selectedStudentForDetail.heard_about_us || selectedStudentForDetail.heardAboutUs || "Not specified / Existing User"}
                 </span>
               </div>
+
+              {/* Referral Code & Attribution */}
+              {(() => {
+                const refInfo = selectedStudentForDetail.referralInfo;
+                const usedCode = selectedStudentForDetail.usedReferralCode || refInfo?.usedReferralCode || selectedStudentForDetail.marketingRefCode;
+                const referrer = refInfo?.referrer;
+                const referrerName = selectedStudentForDetail.referrerName || referrer?.name;
+                const referrerRole = selectedStudentForDetail.referrerRole || referrer?.role;
+                const referrerEmail = selectedStudentForDetail.referrerEmail || referrer?.email;
+                const referrerPhone = referrer?.phone;
+                const hasReferral = Boolean(usedCode || referrerName || selectedStudentForDetail.referredBy);
+
+                return (
+                  <div className={`space-y-2.5 p-3.5 rounded-xl border transition-all ${
+                    hasReferral 
+                      ? "bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-purple-500/5 border-purple-500/30 dark:border-purple-500/20 shadow-sm" 
+                      : "bg-secondary/15 border-border/60"
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                        hasReferral ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground"
+                      }`}>
+                        <Gift className="h-3.5 w-3.5" /> Referral Code & Attribution
+                      </span>
+                      {hasReferral ? (
+                        <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-mono text-[10px] px-2 py-0.5 shadow-sm">
+                          Referred Signup
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground border-border">
+                          Direct Signup
+                        </Badge>
+                      )}
+                    </div>
+
+                    {hasReferral ? (
+                      <div className="space-y-2 pt-0.5">
+                        {/* Referral code applied */}
+                        <div className="flex items-center justify-between bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Referral Code Used</span>
+                            <span className="text-xs text-muted-foreground">Code submitted at signup</span>
+                          </div>
+                          <span className="font-mono font-bold text-sm tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-md border border-purple-200 dark:border-purple-800 shadow-sm select-all">
+                            {usedCode || (referrer?.referralCode) || "APPLIED"}
+                          </span>
+                        </div>
+
+                        {/* Whom they used / Referrer details */}
+                        <div className="bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40 space-y-1.5">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">
+                            Referred By (Owner of Code)
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                              {referrerName || "Referred User"}
+                            </span>
+                            {referrerRole && (
+                              <Badge variant="outline" className={`text-[10px] font-bold capitalize ${
+                                referrerRole === 'tutor' 
+                                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200' 
+                                  : referrerRole === 'student' 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200' 
+                                  : 'bg-purple-50 text-purple-600 border-purple-200'
+                              }`}>
+                                {referrerRole === 'tutor' ? '👨‍🏫 Tutor' : referrerRole === 'student' ? '🎓 Student' : '📢 Affiliate'}
+                              </Badge>
+                            )}
+                          </div>
+
+                          {(referrerEmail || referrerPhone || referrer?.referralCode) && (
+                            <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t border-border/40">
+                              {referrerEmail && (
+                                <span className="flex items-center gap-1">
+                                  <Mail className="h-3 w-3 text-muted-foreground" /> {referrerEmail}
+                                </span>
+                              )}
+                              {referrerPhone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3 text-muted-foreground" /> {referrerPhone}
+                                </span>
+                              )}
+                              {referrer?.referralCode && (
+                                <span className="flex items-center gap-1 font-mono text-[11px]">
+                                  <Tag className="h-3 w-3 text-muted-foreground" /> {referrer.referralCode}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground py-0.5">
+                        No referral code was used during registration (direct sign up).
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Dates / Metadata */}
               <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">

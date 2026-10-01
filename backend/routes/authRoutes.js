@@ -176,9 +176,11 @@ router.post('/register', async (req, res) => {
 
     let referredByUserId = undefined;
     let marketingRefCode = undefined;
+    let usedReferralCode = undefined;
 
     if (referredBy && referredBy.trim() !== "") {
       const trimmedRef = referredBy.trim().toUpperCase();
+      usedReferralCode = trimmedRef;
       // First, try to find a tutor by their referralCode (case-insensitive)
       const referringTutor = await Tutor.findOne({ referralCode: trimmedRef });
       if (referringTutor) {
@@ -213,6 +215,7 @@ router.post('/register', async (req, res) => {
       role, 
       timezone: timezone || 'Asia/Kolkata',
       referredBy: referredByUserId,
+      usedReferralCode: usedReferralCode,
       marketingRefCode: marketingRefCode
     });
     await user.save();
@@ -419,7 +422,7 @@ router.post('/login', async (req, res) => {
 
 router.post('/google', async (req, res) => {
   try {
-    const { idToken, role, action, timezone } = req.body;
+    const { idToken, role, action, timezone, referredBy } = req.body;
 
     const ticket = await client.verifyIdToken({
       idToken,
@@ -451,7 +454,9 @@ router.post('/google', async (req, res) => {
         googleId,
         avatar: picture,
         role: role || 'student', // Use provided role or default to student
-        timezone: timezone || 'Asia/Kolkata'
+        timezone: timezone || 'Asia/Kolkata',
+        referredBy: req.body.referredBy ? req.body.referredBy : undefined,
+        usedReferralCode: req.body.referredBy ? req.body.referredBy.trim().toUpperCase() : undefined
       });
       await user.save();
 

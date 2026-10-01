@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
 const Booking = require('../schemas/bookingSchema');
@@ -181,7 +182,158 @@ router.get('/admin/bookings', async (req, res) => {
 router.get('/admin/students', async (req, res) => {
   try {
     const students = await User.find({ role: 'student' }).sort({ createdAt: -1 });
-    res.json(students);
+
+    // Collect all valid referredBy IDs
+    const referrerIds = students
+      .map(s => s.referredBy)
+      .filter(id => id && mongoose.Types.ObjectId.isValid(id));
+
+    // Look up referrer Users
+    const referrerUsers = await User.find({ _id: { $in: referrerIds } })
+      .select('full_name student_name email phone role referralCode avatar');
+    const userMap = new Map();
+    referrerUsers.forEach(u => userMap.set(u._id.toString(), u));
+
+    // Look up referrer Tutors (by userId or _id)
+    const referrerTutors = await Tutor.find({
+      $or: [
+        { userId: { $in: referrerIds } },
+        { _id: { $in: referrerIds } }
+      ]
+    }).select('userId name photo email phone referralCode category');
+    
+    const tutorByUserIdMap = new Map();
+    const tutorByIdMap = new Map();
+    referrerTutors.forEach(t => {
+      if (t.userId) tutorByUserIdMap.set(t.userId.toString(), t);
+      tutorByIdMap.set(t._id.toString(), t);
+    });
+
+    // Also collect all referral codes used (usedReferralCode or marketingRefCode)
+    const extraCodes = students
+      .map(s => s.usedReferralCode || s.marketingRefCode)
+      .filter(Boolean)
+      .map(c => String(c).trim().toUpperCase());
+
+    const extraTutorsMap = new Map();
+    const extraUsersMap = new Map();
+
+    if (extraCodes.length > 0) {
+      const extraTutors = await Tutor.find({ referralCode: { $in: extraCodes } })
+        .select('userId name photo email phone referralCode category');
+      extraTutors.forEach(t => {
+        if (t.referralCode) extraTutorsMap.set(t.referralCode.toUpperCase(), t);
+      });
+
+      const extraUsers = await User.find({ referralCode: { $in: extraCodes } })
+        .select('full_name student_name email phone role referralCode avatar');
+      extraUsers.forEach(u => {
+        if (u.referralCode) extraUsersMap.set(u.referralCode.toUpperCase(), u);
+      });
+    }
+
+    const formattedStudents = students.map(s => {
+      const sObj = s.toObject();
+      let referrerDetails = null;
+      let usedCode = s.usedReferralCode || s.marketingRefCode || null;
+
+      if (s.referredBy) {
+        const refIdStr = s.referredBy.toString();
+        const refTutor = tutorByUserIdMap.get(refIdStr) || tutorByIdMap.get(refIdStr);
+        const refUser = userMap.get(refIdStr);
+
+        if (refTutor) {
+          referrerDetails = {
+            id: refTutor._id.toString(),
+            userId: refUser?._id?.toString() || (refTutor.userId ? refTutor.userId.toString() : refIdStr),
+            name: refTutor.name || refUser?.full_name || 'Tutor',
+            email: refUser?.email || refTutor.email || '',
+            phone: refUser?.phone || refTutor.phone || '',
+            role: 'tutor',
+            referralCode: refTutor.referralCode || refUser?.referralCode || '',
+            avatar: refTutor.photo || refUser?.avatar || '',
+            category: refTutor.category || ''
+          };
+          if (!usedCode) {
+            usedCode = refTutor.referralCode || refUser?.referralCode || '';
+          }
+        } else if (refUser) {
+          referrerDetails = {
+            id: refUser._id.toString(),
+            userId: refUser._id.toString(),
+            name: refUser.student_name || refUser.full_name || 'Student',
+            email: refUser.email || '',
+            phone: refUser.phone || '',
+            role: refUser.role || 'student',
+            referralCode: refUser.referralCode || '',
+            avatar: refUser.avatar || ''
+          };
+          if (!usedCode) {
+            usedCode = refUser.referralCode || '';
+          }
+        } else {
+          referrerDetails = {
+            id: refIdStr,
+            name: 'Referred User',
+            role: 'user',
+            referralCode: usedCode || ''
+          };
+        }
+      } else if (usedCode) {
+        const upperCode = usedCode.toUpperCase();
+        const matchedTutor = extraTutorsMap.get(upperCode);
+        const matchedUser = extraUsersMap.get(upperCode);
+
+        if (matchedTutor) {
+          referrerDetails = {
+            id: matchedTutor._id.toString(),
+            userId: matchedTutor.userId ? matchedTutor.userId.toString() : '',
+            name: matchedTutor.name,
+            email: matchedTutor.email || '',
+            phone: matchedTutor.phone || '',
+            role: 'tutor',
+            referralCode: matchedTutor.referralCode,
+            avatar: matchedTutor.photo || '',
+            category: matchedTutor.category || ''
+          };
+        } else if (matchedUser) {
+          referrerDetails = {
+            id: matchedUser._id.toString(),
+            userId: matchedUser._id.toString(),
+            name: matchedUser.student_name || matchedUser.full_name,
+            email: matchedUser.email || '',
+            phone: matchedUser.phone || '',
+            role: matchedUser.role || 'student',
+            referralCode: matchedUser.referralCode,
+            avatar: matchedUser.avatar || ''
+          };
+        } else {
+          referrerDetails = {
+            id: '',
+            name: `Marketing Campaign / Affiliate`,
+            role: 'affiliate',
+            referralCode: usedCode
+          };
+        }
+      }
+
+      sObj.referralInfo = {
+        hasReferral: Boolean(s.referredBy || usedCode || referrerDetails),
+        usedReferralCode: usedCode || null,
+        referrer: referrerDetails
+      };
+
+      // Also set top-level helper fields
+      sObj.usedReferralCode = usedCode || null;
+      sObj.referrerName = referrerDetails ? referrerDetails.name : null;
+      sObj.referrerRole = referrerDetails ? referrerDetails.role : null;
+      sObj.referrerEmail = referrerDetails ? referrerDetails.email : null;
+      sObj.referrerCode = referrerDetails ? referrerDetails.referralCode : null;
+
+      return sObj;
+    });
+
+    res.json(formattedStudents);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
