@@ -61,7 +61,7 @@
 Built with a high-performance **React 18 + TypeScript SPA** frontend and an **Express 5 + Mongoose 9 (Node.js)** backend connected to **MongoDB Atlas**, the platform automates every phase of the educational journey:
 * **Tutor Discovery & Filtering**: Real-time multi-dimensional search with geocoded Leaflet OpenStreetMap pins and side-by-side tutor comparisons.
 * **Scheduling & Video Classroom Generation**: Google Calendar 2-way OAuth2 synchronization with automated Google Meet video room creation and timezone conversion across global time zones.
-* **Frictionless Commerce**: Integrated Razorpay checkout with student referral credits (₹250 reward balance) and automated platform fee deduplication.
+* **Frictionless Commerce**: Integrated Razorpay checkout with student referral credits (₹200 instant welcome wallet credit upon referral signup + ₹500 completion bonus) and automated platform fee deduplication.
 * **HR & Financial Governance**: Automated 90/10 commission split engine (90% Tutor / 10% Platform fee), bank detail verification, instant HTML email payment receipts via Brevo SMTP, and single-click reminder broadcasts.
 * **AI Future Skills Cohort**: Timed online entrance assessment with auto-grading, keyword matching, student shortlisting, and cohort enrollment tracking.
 * **Context-Aware AI Assistant**: Floating smart assistant powered by Google Gemini LLM with real-time live tutor recommendations and graceful offline fallbacks.
@@ -119,7 +119,7 @@ graph LR
 * **1-Click Free Demos & Recurring Packs**: Book introductory 30-minute free demo classes or recurring multi-week packs with custom schedules.
 * **Global Timezone Converter**: Automatic browser timezone detection with manual switching (Asia/Kolkata, UTC, US Eastern, etc.), countdown timers, and timezone-adjusted class dates.
 * **Direct 1-on-1 In-App Chat**: Communicate directly with booked tutors with unread counters, live message polling, and conversation histories.
-* **Student Referral Wallet (₹250 Platform Credit)**: Share unique student referral codes. Earn **₹250 credit** automatically when a referred student completes their first regular class, redeemable during Razorpay checkout.
+* **Student Referral Wallet (₹200 Welcome Bonus + ₹500 Referral Credits)**: When new students sign up using any tutor or student referral code, they immediately receive **₹200 in their student wallet** to use for booking classes. Referrers earn **₹500 credit** automatically when the referred student completes their first regular class, redeemable during Razorpay checkout.
 * **Post-Class Rating & Reviews**: Submit detailed 5-star ratings and written reviews for verified tutors upon session completion.
 
 ### 2. For Tutors & Educators

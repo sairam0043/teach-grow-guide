@@ -2302,7 +2302,7 @@ const TutorDashboard = () => {
                         </span>
                         <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Invite Students, Earn ₹500!</h2>
                         <p className="text-white/95 text-sm md:text-base leading-relaxed">
-                          Help students find great mentors while boosting your own earnings. Share your unique link or code below to get started.
+                          Students get <strong>₹200 instant wallet credits</strong> upon registration to book classes, and you earn <strong>₹500 cash reward</strong> when they complete their first regular class!
                         </p>
                       </div>
                       <div className="shrink-0 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-inner">
@@ -2321,7 +2321,7 @@ const TutorDashboard = () => {
                           Your Referral Details
                         </CardTitle>
                         <CardDescription>
-                          Share your code or link with students or parents.
+                          Students get ₹200 wallet balance; you earn ₹500 per enrolled student.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -2356,7 +2356,7 @@ const TutorDashboard = () => {
                         <div className="flex flex-col sm:flex-row gap-3 pt-2">
                           <a
                             href={refParamVal ? `https://api.whatsapp.com/send?text=${encodeURIComponent(
-                              `Hey! I'm teaching on Cuvasol Tutor. Register for high-quality classes using my referral code: ${refParamVal} or direct link: ${shareLink}`
+                              `Hey! I'm teaching on Cuvasol Tutor. Register using my referral code: ${refParamVal} to get ₹200 credited to your student wallet for booking classes! Link: ${shareLink}`
                             )}` : "#"}
                             onClick={(e) => !refParamVal && e.preventDefault()}
                             target="_blank"
@@ -2370,9 +2370,9 @@ const TutorDashboard = () => {
                           </a>
                           <a
                             href={refParamVal ? `mailto:?subject=${encodeURIComponent(
-                              "Join me on Cuvasol Tutor!"
+                              "Join me on Cuvasol Tutor — Get ₹200 Free Wallet Credits!"
                             )}&body=${encodeURIComponent(
-                              `Hi there,\n\nI invite you to register as a student on Cuvasol Tutor using my referral code: ${refParamVal} or link:\n${shareLink}\n\nStart your learning journey today!`
+                              `Hi there,\n\nI invite you to register as a student on Cuvasol Tutor using my referral code: ${refParamVal} or direct link:\n${shareLink}\n\nYou'll get ₹200 credited to your wallet instantly to book your classes!\n\nHappy learning!`
                             )}` : "#"}
                             onClick={(e) => !refParamVal && e.preventDefault()}
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer ${!refParamVal && 'opacity-50 cursor-not-allowed'}`}

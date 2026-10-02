@@ -55,9 +55,9 @@ export const registerUser = createAsyncThunk(
 
 export const googleLogin = createAsyncThunk(
   'auth/google',
-  async ({ idToken, role, action }: { idToken: string; role?: string; action: 'login' | 'signup' }, { rejectWithValue }) => {
+  async (payload: { idToken: string; role?: string; action?: 'login' | 'signup'; referredBy?: string; timezone?: string }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_URL}/auth/google`, { idToken, role, action });
+      const response = await axios.post(`${API_URL}/auth/google`, payload);
       return response.data; // { token, user }
     } catch (err: any) {
       return rejectWithValue(err.response?.data?.message || err.message);

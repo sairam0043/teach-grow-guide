@@ -975,9 +975,9 @@ const StudentDashboard = () => {
                         <span className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
                           <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Student Rewards & Wallet
                         </span>
-                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Refer Friends, Earn ₹500 Class Credits!</h2>
+                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Give ₹200, Earn ₹500 Class Credits!</h2>
                         <p className="text-white/95 text-sm md:text-base leading-relaxed">
-                          Invite friends to learn on Cuvasol. When your friend completes their first regular class, you get <strong>₹500 added directly to your Student Wallet</strong> to use for 100% free bookings or discounts on any class!
+                          Invite friends to learn on Cuvasol. When your friend signs up with your referral code, <strong>they get ₹200 credited to their wallet</strong> immediately for booking classes. When they complete their first regular class, <strong>you get ₹500 added to your Student Wallet</strong>!
                         </p>
                       </div>
                       <div className="shrink-0 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-inner">
@@ -1033,7 +1033,7 @@ const StudentDashboard = () => {
                           Your Referral Link & Code
                         </CardTitle>
                         <CardDescription>
-                          Share with classmates, friends, or parents to earn ₹500 credits.
+                          Friends get ₹200 instantly on signup; you earn ₹500 on class completion.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -1068,7 +1068,7 @@ const StudentDashboard = () => {
                         <div className="flex flex-col sm:flex-row gap-3 pt-1">
                           <a
                             href={studentRefCode ? `https://api.whatsapp.com/send?text=${encodeURIComponent(
-                              `Hey! I'm learning with top tutors on Cuvasol. Register using my invite code: ${studentRefCode} or link: ${studentShareLink} to start your classes!`
+                              `Hey! I'm learning with top tutors on Cuvasol. Register using my invite code: ${studentRefCode} to get ₹200 credited to your wallet instantly to book classes! Direct link: ${studentShareLink}`
                             )}` : "#"}
                             onClick={(e) => !studentRefCode && e.preventDefault()}
                             target="_blank"
@@ -1080,9 +1080,9 @@ const StudentDashboard = () => {
                           </a>
                           <a
                             href={studentRefCode ? `mailto:?subject=${encodeURIComponent(
-                              "Join me on Cuvasol Tutor!"
+                              "Join me on Cuvasol Tutor — Get ₹200 Free Wallet Credits!"
                             )}&body=${encodeURIComponent(
-                              `Hi there,\n\nI invite you to learn with expert tutors on Cuvasol! Use my referral code: ${studentRefCode} or direct link:\n${studentShareLink}\n\nHappy learning!`
+                              `Hi there,\n\nI invite you to learn with expert tutors on Cuvasol! Use my referral code: ${studentRefCode} or direct link:\n${studentShareLink}\n\nYou'll get ₹200 in your student wallet instantly to book your classes!\n\nHappy learning!`
                             )}` : "#"}
                             onClick={(e) => !studentRefCode && e.preventDefault()}
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer ${!studentRefCode && 'opacity-50 cursor-not-allowed'}`}

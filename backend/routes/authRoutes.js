@@ -138,6 +138,87 @@ router.post('/send-signup-otp', async (req, res) => {
   }
 });
 
+// POST /api/auth/validate-referral
+router.post('/validate-referral', async (req, res) => {
+  try {
+    const { referralCode } = req.body;
+    if (!referralCode || !referralCode.trim()) {
+      return res.status(400).json({ valid: false, message: 'Please provide a referral code.' });
+    }
+
+    const cleanCode = referralCode.trim().toUpperCase();
+
+    // 1. Check Tutor referral codes (case-insensitive)
+    const referringTutor = await Tutor.findOne({
+      referralCode: { $regex: new RegExp(`^${cleanCode}$`, 'i') }
+    }).select('name referralCode subject category');
+
+    if (referringTutor) {
+      return res.json({
+        valid: true,
+        type: 'tutor',
+        code: referringTutor.referralCode || cleanCode,
+        referrerName: referringTutor.name || 'Tutor',
+        rewardAmount: 200,
+        message: `Valid Tutor Referral Code (${referringTutor.name})! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    // 2. Check Student referral codes (case-insensitive)
+    const referringStudent = await User.findOne({
+      role: 'student',
+      referralCode: { $regex: new RegExp(`^${cleanCode}$`, 'i') }
+    }).select('full_name student_name referralCode');
+
+    if (referringStudent) {
+      const studentName = referringStudent.student_name || referringStudent.full_name || 'a friend';
+      return res.json({
+        valid: true,
+        type: 'student',
+        code: referringStudent.referralCode || cleanCode,
+        referrerName: studentName,
+        rewardAmount: 200,
+        message: `Valid Student Referral Code (${studentName})! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    // 3. Fallback: Check if it's a valid ObjectId or Affiliate marketing pattern
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(cleanCode)) {
+      const refUser = await User.findById(cleanCode);
+      if (refUser) {
+        return res.json({
+          valid: true,
+          type: refUser.role || 'user',
+          code: cleanCode,
+          referrerName: refUser.full_name || 'Member',
+          rewardAmount: 200,
+          message: `Valid Referral Code! ₹200 wallet credits will be added to your account.`
+        });
+      }
+    }
+
+    // Affiliate code format (alphanumeric 3-25 chars)
+    if (/^[A-Z0-9_-]{3,25}$/i.test(cleanCode)) {
+      return res.json({
+        valid: true,
+        type: 'affiliate',
+        code: cleanCode,
+        referrerName: 'Community Referral',
+        rewardAmount: 200,
+        message: `Valid Referral Code! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    return res.status(404).json({
+      valid: false,
+      message: 'Referral code not found. Please check and try again.'
+    });
+  } catch (err) {
+    res.status(500).json({ valid: false, message: 'Error validating referral code', error: err.message });
+  }
+});
+
 router.post('/register', async (req, res) => {
   try {
     const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, heard_about_us, heardAboutUs, referredBy, otp, ...tutorData } = req.body;
@@ -177,17 +258,23 @@ router.post('/register', async (req, res) => {
     let referredByUserId = undefined;
     let marketingRefCode = undefined;
     let usedReferralCode = undefined;
+    let initialWalletBalance = 0;
+    let initialWalletHistory = [];
 
     if (referredBy && referredBy.trim() !== "") {
       const trimmedRef = referredBy.trim().toUpperCase();
       usedReferralCode = trimmedRef;
       // First, try to find a tutor by their referralCode (case-insensitive)
-      const referringTutor = await Tutor.findOne({ referralCode: trimmedRef });
+      const referringTutor = await Tutor.findOne({
+        referralCode: { $regex: new RegExp(`^${trimmedRef}$`, 'i') }
+      });
       if (referringTutor) {
         referredByUserId = referringTutor.userId;
       } else {
         // Next, check if it matches an internal student's referralCode
-        const referringStudent = await User.findOne({ referralCode: trimmedRef });
+        const referringStudent = await User.findOne({
+          referralCode: { $regex: new RegExp(`^${trimmedRef}$`, 'i') }
+        });
         if (referringStudent) {
           referredByUserId = referringStudent._id;
         } else {
@@ -200,6 +287,18 @@ router.post('/register', async (req, res) => {
             marketingRefCode = trimmedRef;
           }
         }
+      }
+
+      // If user is registering as a student and used a referral code, award ₹200 instant welcome wallet credit
+      if (role === 'student') {
+        initialWalletBalance = 200;
+        initialWalletHistory.push({
+          type: 'credit',
+          amount: 200,
+          description: `Welcome Bonus: ₹200 credited for signing up with referral code (${trimmedRef})`,
+          date: new Date()
+        });
+        console.log(`[Student Signup] Credited ₹200 welcome bonus to new student ${full_name || email} for referral code ${trimmedRef}`);
       }
     }
 
@@ -216,7 +315,9 @@ router.post('/register', async (req, res) => {
       timezone: timezone || 'Asia/Kolkata',
       referredBy: referredByUserId,
       usedReferralCode: usedReferralCode,
-      marketingRefCode: marketingRefCode
+      marketingRefCode: marketingRefCode,
+      walletBalance: initialWalletBalance,
+      walletHistory: initialWalletHistory
     });
     await user.save();
 
@@ -456,7 +557,14 @@ router.post('/google', async (req, res) => {
         role: role || 'student', // Use provided role or default to student
         timezone: timezone || 'Asia/Kolkata',
         referredBy: req.body.referredBy ? req.body.referredBy : undefined,
-        usedReferralCode: req.body.referredBy ? req.body.referredBy.trim().toUpperCase() : undefined
+        usedReferralCode: req.body.referredBy ? req.body.referredBy.trim().toUpperCase() : undefined,
+        walletBalance: (role === 'student' || !role) && (req.body.referredBy || req.body.referralCode) ? 200 : 0,
+        walletHistory: (role === 'student' || !role) && (req.body.referredBy || req.body.referralCode) ? [{
+          type: 'credit',
+          amount: 200,
+          description: `Welcome Bonus: ₹200 credited for signing up with referral code (${(req.body.referredBy || req.body.referralCode).trim().toUpperCase()})`,
+          date: new Date()
+        }] : []
       });
       await user.save();
 
