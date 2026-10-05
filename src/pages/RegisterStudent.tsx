@@ -124,6 +124,7 @@ const RegisterStudent = () => {
   const [studentName, setStudentName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [customClass, setCustomClass] = useState("");
+  const [interestedSubject, setInterestedSubject] = useState("");
   const [heardAboutUs, setHeardAboutUs] = useState("");
   const [customHeardAboutUs, setCustomHeardAboutUs] = useState("");
   const [password, setPassword] = useState("");
@@ -187,6 +188,11 @@ const RegisterStudent = () => {
       return;
     }
 
+    if (!interestedSubject.trim()) {
+      toast.error("Please enter the subject(s) you are interested in.");
+      return;
+    }
+
     const finalHeardAboutUs = heardAboutUs === "Other" ? customHeardAboutUs.trim() : heardAboutUs;
     if (!finalHeardAboutUs) {
       toast.error("Please specify where you heard about us.");
@@ -229,6 +235,7 @@ const RegisterStudent = () => {
       student_class: finalClass,
       student_or_parent: studentOrParent,
       student_name: studentOrParent === "Parent" ? studentName.trim() : "",
+      interested_subject: interestedSubject.trim(),
       heard_about_us: finalHeardAboutUs,
       role: "student",
       timezone: detectUserTimeZone(),
@@ -480,6 +487,39 @@ const RegisterStudent = () => {
                     />
                   </div>
                 )}
+                <div className="space-y-2">
+                  <Label htmlFor="interestedSubject">Interested Subject(s)</Label>
+                  <Input
+                    id="interestedSubject"
+                    required
+                    maxLength={120}
+                    placeholder="e.g. Mathematics, Physics, English, Coding"
+                    value={interestedSubject}
+                    onChange={(e) => setInterestedSubject(e.target.value)}
+                  />
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] text-muted-foreground mr-0.5">Quick select:</span>
+                    {["Mathematics", "Physics", "Chemistry", "English", "Coding", "Biology"].map((sub) => (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => {
+                          if (!interestedSubject.trim()) {
+                            setInterestedSubject(sub);
+                          } else {
+                            const current = interestedSubject.split(',').map(s => s.trim().toLowerCase());
+                            if (!current.includes(sub.toLowerCase())) {
+                              setInterestedSubject(`${interestedSubject}, ${sub}`);
+                            }
+                          }
+                        }}
+                        className="text-[11px] px-2 py-0.5 rounded-md bg-secondary/80 hover:bg-primary/10 hover:text-primary transition-colors border border-border/50 text-muted-foreground hover:border-primary/30 cursor-pointer"
+                      >
+                        + {sub}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="heardAboutUs">Where did you hear about us?</Label>
                   <Select value={heardAboutUs} onValueChange={setHeardAboutUs} required>

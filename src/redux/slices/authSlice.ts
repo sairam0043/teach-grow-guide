@@ -10,6 +10,7 @@ interface UserInfo {
   student_class?: string;
   student_name?: string;
   student_or_parent?: string;
+  interested_subject?: string;
   role: 'admin' | 'hr' | 'student' | 'tutor';
   [key: string]: any;
 }

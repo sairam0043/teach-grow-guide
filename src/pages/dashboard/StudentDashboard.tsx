@@ -117,6 +117,9 @@ const StudentDashboard = () => {
   const [profileStudentClass, setProfileStudentClass] = useState(
     user?.student_class || user?.user_metadata?.student_class || ""
   );
+  const [profileInterestedSubject, setProfileInterestedSubject] = useState(
+    user?.interested_subject || user?.user_metadata?.interested_subject || ""
+  );
   const [profileStudentName, setProfileStudentName] = useState(
     user?.student_name || user?.user_metadata?.student_name || ""
   );
@@ -130,6 +133,7 @@ const StudentDashboard = () => {
       setProfileName(String(user.user_metadata?.full_name || user.full_name || "Student"));
       setProfilePhone(user.phone || "");
       setProfileStudentClass(user.student_class || user.user_metadata?.student_class || "");
+      setProfileInterestedSubject(user.interested_subject || user.user_metadata?.interested_subject || "");
       setProfileStudentName(user.student_name || user.user_metadata?.student_name || "");
       if (user.timezone) {
         setStudentTimezone(user.timezone);
@@ -276,6 +280,7 @@ const StudentDashboard = () => {
         phone: profilePhone,
         student_class: profileStudentClass,
         student_name: user?.student_or_parent === "Parent" ? profileStudentName : undefined,
+        interested_subject: profileInterestedSubject,
         timezone: studentTimezone
       });
       if (response.data && response.data.user) {
@@ -284,6 +289,7 @@ const StudentDashboard = () => {
           phone: response.data.user.phone,
           student_class: response.data.user.student_class,
           student_name: response.data.user.student_name,
+          interested_subject: response.data.user.interested_subject,
           timezone: response.data.user.timezone
         }));
       }
@@ -1293,6 +1299,10 @@ const StudentDashboard = () => {
                   <div className="space-y-2">
                     <Label htmlFor="studentClass" className="text-sm font-semibold">Class / Grade</Label>
                     <Input id="studentClass" value={profileStudentClass} onChange={(e) => setProfileStudentClass(e.target.value)} placeholder="e.g. Class 10, Grade 8, College" className="bg-secondary/20 border-border/50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="interestedSubject" className="text-sm font-semibold">Interested Subject(s)</Label>
+                    <Input id="interestedSubject" value={profileInterestedSubject} onChange={(e) => setProfileInterestedSubject(e.target.value)} placeholder="e.g. Mathematics, Physics, English, Coding" className="bg-secondary/20 border-border/50" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>

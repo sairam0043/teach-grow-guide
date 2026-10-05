@@ -1528,7 +1528,16 @@ const AdminDashboard = () => {
                               </TableCell>
                               <TableCell>{student.email || "–"}</TableCell>
                               <TableCell>{student.phone || "–"}</TableCell>
-                              <TableCell><Badge variant="outline" className="font-normal bg-secondary/20">{student.student_class || student.studentClass || "–"}</Badge></TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <Badge variant="outline" className="font-normal bg-secondary/20 block w-fit">{student.student_class || student.studentClass || "–"}</Badge>
+                                  {(student.interested_subject || student.interestedSubject || student.subject) && (
+                                    <span className="text-[11px] text-muted-foreground block truncate max-w-[140px]" title={student.interested_subject || student.interestedSubject || student.subject}>
+                                      📚 {student.interested_subject || student.interestedSubject || student.subject}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
                               <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
                               <TableCell>
                                 {(() => {
@@ -3951,6 +3960,18 @@ const AdminDashboard = () => {
                   <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Class / Grade</span>
                   <span className="text-sm font-semibold text-foreground">
                     <Badge variant="outline" className="bg-secondary/20">{selectedStudentForDetail.student_class || selectedStudentForDetail.studentClass || "–"}</Badge>
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Interested Subject(s)</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject ? (
+                      <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                        {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject}
+                      </Badge>
+                    ) : (
+                      "–"
+                    )}
                   </span>
                 </div>
                 <div className="space-y-1">

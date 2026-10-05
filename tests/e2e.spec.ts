@@ -49,6 +49,9 @@ test.describe("Cuvasol Tutor - Basic E2E Tests", () => {
     await page.locator("button#studentClass").click();
     await page.locator("div[role='option']:has-text('Class 10')").click();
 
+    // Fill interested subject
+    await page.locator("input#interestedSubject").fill("Mathematics, Physics");
+
     await page.locator("input#password").fill("studentpass123");
     await page.locator("input#confirmPassword").fill("studentpass123");
 
