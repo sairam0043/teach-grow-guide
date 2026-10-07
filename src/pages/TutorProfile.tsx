@@ -5,7 +5,7 @@ declare global {
 }
 
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock } from "lucide-react";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Image as ImageIcon } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,16 @@ const TutorProfile = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
+  const [tutorPosts, setTutorPosts] = useState<any[]>([]);
+  const [selectedImageModal, setSelectedImageModal] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (id) {
+      axios.get(`${API_URL}/tutors/${id}/posts`)
+        .then(res => setTutorPosts(res.data || []))
+        .catch(err => console.error("Failed to fetch tutor posts", err));
+    }
+  }, [id]);
 
   const [studentTimezone, setStudentTimezone] = useState(
     user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone()
@@ -1273,6 +1283,76 @@ const TutorProfile = () => {
               </Card>
             )}
 
+            {/* Tutor Posts & Media Showcase Section */}
+            {tutorPosts && tutorPosts.length > 0 && (
+              <Card className="border-border/60 shadow-md overflow-hidden">
+                <CardHeader className="bg-purple-50/50 dark:bg-purple-950/20 border-b pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xl flex items-center gap-2.5 text-foreground font-extrabold">
+                      <ImageIcon className="h-5 w-5 text-purple-600" />
+                      Tutor Posts & Media Showcase
+                    </CardTitle>
+                    <Badge className="bg-purple-600 text-white font-bold px-3 py-1">
+                      {tutorPosts.length} {tutorPosts.length === 1 ? 'Post' : 'Posts'}
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    Explore notes, whiteboard explanations, and study resources posted by {tutor.name}.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2">
+                    {tutorPosts.map((post: any) => (
+                      <div key={post._id} className="bg-card border rounded-2xl p-5 shadow-sm space-y-4 hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              {post.title && <h4 className="font-extrabold text-base text-foreground leading-snug">{post.title}</h4>}
+                              <p className="text-[11px] font-medium text-muted-foreground mt-0.5">
+                                Posted on {new Date(post.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {post.caption && (
+                            <p className="text-xs sm:text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                              {post.caption}
+                            </p>
+                          )}
+
+                          {/* Up to 5 Images Display */}
+                          {post.images && post.images.length > 0 && (
+                            <div className={`grid gap-2 mt-2 ${
+                              post.images.length === 1 ? 'grid-cols-1' :
+                              post.images.length === 2 ? 'grid-cols-2' :
+                              'grid-cols-3'
+                            }`}>
+                              {post.images.map((imgUrl: string, idx: number) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => setSelectedImageModal(resolveAssetUrl(imgUrl))}
+                                  className="relative rounded-xl overflow-hidden border bg-muted aspect-square group cursor-pointer"
+                                >
+                                  <img
+                                    src={resolveAssetUrl(imgUrl)}
+                                    alt={`Post media ${idx + 1}`}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold bg-black/60 px-2 py-1 rounded-full backdrop-blur-sm">View</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {(tutor.mode?.toLowerCase() === "offline" || tutor.mode?.toLowerCase() === "both") && tutor.address && (
               <Card className="overflow-hidden border-border/50 shadow-sm">
                 <CardHeader className="bg-secondary/10 pb-4">
@@ -2293,6 +2373,21 @@ const TutorProfile = () => {
                 {isSubmittingCancellation ? "Submitting..." : "Confirm Cancellation"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Full Image Preview Lightbox Dialog */}
+      <Dialog open={!!selectedImageModal} onOpenChange={() => setSelectedImageModal(null)}>
+        <DialogContent className="max-w-4xl p-2 bg-black/90 border-none text-white overflow-hidden">
+          <div className="relative flex items-center justify-center p-4">
+            {selectedImageModal && (
+              <img
+                src={selectedImageModal}
+                alt="Post Full Image"
+                className="max-h-[85vh] w-auto object-contain rounded-lg shadow-2xl"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

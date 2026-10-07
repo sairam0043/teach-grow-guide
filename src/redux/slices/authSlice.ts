@@ -8,6 +8,7 @@ interface UserInfo {
   full_name: string;
   phone?: string;
   student_class?: string;
+  subject_interests?: string[];
   role: 'admin' | 'student' | 'tutor';
   [key: string]: any;
 }

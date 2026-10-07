@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Image as ImageIcon, FileText, Camera, Upload, X, Loader2 } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -248,6 +248,149 @@ const TutorDashboard = () => {
   const [newExpDuration, setNewExpDuration] = useState("");
   const [newExpDescription, setNewExpDescription] = useState("");
 
+  // Posts management states
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [postTitle, setPostTitle] = useState("");
+  const [postCaption, setPostCaption] = useState("");
+  const [selectedPostImages, setSelectedPostImages] = useState<File[]>([]);
+  const [postImagePreviews, setPostImagePreviews] = useState<string[]>([]);
+  const [isPublishingPost, setIsPublishingPost] = useState(false);
+
+  const fetchTutorPosts = async (tutorId: string) => {
+    if (!tutorId) return;
+    setLoadingPosts(true);
+    try {
+      const res = await axios.get(`${API_URL}/tutors/${tutorId}/posts`);
+      setPosts(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch tutor posts", err);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const handlePostImagesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (selectedPostImages.length + files.length > 5) {
+      toast.error(`Maximum 5 images allowed per post. Already selected: ${selectedPostImages.length}`);
+      return;
+    }
+
+    const validFiles: File[] = [];
+    const newPreviews: string[] = [];
+
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`File "${file.name}" exceeds 5MB limit.`);
+        continue;
+      }
+      validFiles.push(file);
+      newPreviews.push(URL.createObjectURL(file));
+    }
+
+    setSelectedPostImages(prev => [...prev, ...validFiles]);
+    setPostImagePreviews(prev => [...prev, ...newPreviews]);
+  };
+
+  const removeSelectedPostImage = (index: number) => {
+    setSelectedPostImages(prev => prev.filter((_, i) => i !== index));
+    setPostImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePublishPost = async () => {
+    const tutorId = tutorProfile?._id || tutorProfile?.id || user?.id;
+    if (!tutorId) {
+      toast.error("Tutor profile not found.");
+      return;
+    }
+
+    if (selectedPostImages.length === 0) {
+      toast.error("Please select at least 1 image for your post.");
+      return;
+    }
+
+    if (selectedPostImages.length > 5) {
+      toast.error("Maximum 5 images allowed per post.");
+      return;
+    }
+
+    setIsPublishingPost(true);
+    try {
+      const imageUrls: string[] = [];
+
+      try {
+        // Strategy 1: Attempt multi-image upload endpoint
+        const formData = new FormData();
+        selectedPostImages.forEach(file => {
+          formData.append("images", file);
+        });
+
+        // DO NOT set manual Content-Type header; let Axios/browser append the boundary parameter
+        const uploadRes = await axios.post(`${API_URL}/upload/post-images`, formData);
+        if (uploadRes.data?.urls && Array.isArray(uploadRes.data.urls)) {
+          imageUrls.push(...uploadRes.data.urls);
+        }
+      } catch (multiErr) {
+        console.warn("[POST UPLOAD] Multi-image route failed, attempting single image upload fallback...", multiErr);
+        imageUrls.length = 0; // reset
+        
+        // Strategy 2: Fallback to uploading photos individually via /upload/photo
+        for (const file of selectedPostImages) {
+          const singleFormData = new FormData();
+          singleFormData.append("photo", file);
+          const singleRes = await axios.post(`${API_URL}/upload/photo`, singleFormData);
+          if (singleRes.data?.url) {
+            imageUrls.push(singleRes.data.url);
+          }
+        }
+      }
+
+      if (imageUrls.length === 0) {
+        throw new Error("Failed to upload image files to the server.");
+      }
+
+      const postRes = await axios.post(`${API_URL}/tutors/${tutorId}/posts`, {
+        title: postTitle.trim(),
+        caption: postCaption.trim(),
+        images: imageUrls
+      });
+
+      toast.success("Post published successfully!");
+      setPosts(prev => [postRes.data, ...prev]);
+
+      setPostTitle("");
+      setPostCaption("");
+      setSelectedPostImages([]);
+      setPostImagePreviews([]);
+    } catch (err: any) {
+      console.error("Error publishing post:", err);
+      let msg = err.response?.data?.message;
+      if (!msg) {
+        if (err.response?.status === 404) {
+          msg = "Tutor profile or post endpoint not found (404). Please ensure backend is running.";
+        } else {
+          msg = err.message || "Failed to publish post.";
+        }
+      }
+      toast.error(msg);
+    } finally {
+      setIsPublishingPost(false);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await axios.delete(`${API_URL}/tutors/posts/${postId}`);
+      toast.success("Post deleted successfully.");
+      setPosts(prev => prev.filter(p => p._id !== postId));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete post.");
+    }
+  };
+
   const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -277,6 +420,9 @@ const TutorDashboard = () => {
       axios.get(`${API_URL}/tutors/user/${user.id}`)
         .then(res => {
           setTutorProfile(res.data);
+          if (res.data._id || res.data.id) {
+            fetchTutorPosts(res.data._id || res.data.id);
+          }
           if (res.data.timezone) {
             setTutorTimezone(res.data.timezone);
           }
@@ -616,6 +762,10 @@ const TutorDashboard = () => {
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0">Students</TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg px-6 py-2.5 shrink-0">Availability</TabsTrigger>
             <TabsTrigger value="earnings" className="rounded-lg px-6 py-2.5 shrink-0">Earnings</TabsTrigger>
+            <TabsTrigger value="posts" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              <ImageIcon className="h-4 w-4 text-purple-500" />
+              Post
+            </TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
               Messages
               {unreadMessagesCount > 0 && (
@@ -1522,8 +1672,8 @@ const TutorDashboard = () => {
                                         value={sr.rate !== undefined ? sr.rate : ""} 
                                         onChange={(e) => {
                                           const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                                          const val = cleaned === "" ? "" : parseInt(cleaned, 10);
-                                          setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val as number) ? "" : val } : item));
+                                          const val = cleaned === "" ? 0 : parseInt(cleaned, 10);
+                                          setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val) ? 0 : val } : item));
                                         }} 
                                       />
                                       <span className="text-[10px] text-muted-foreground">/hr</span>
@@ -1664,6 +1814,189 @@ const TutorDashboard = () => {
                         </div>
                      </form>
                    </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="posts">
+            <Card className="shadow-md border-border/50">
+              <CardHeader className="bg-secondary/20 border-b pb-4">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5 text-purple-500" />
+                  Share & Manage Posts
+                </CardTitle>
+                <CardDescription>
+                  Post notes, classroom whiteboards, certificates, or study materials. You can attach up to 5 images per post.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-8">
+                {/* Create New Post Form */}
+                <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-5">
+                  <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-primary" /> Create New Post
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="postTitle" className="font-semibold text-sm">Post Title / Topic (Optional)</Label>
+                      <Input
+                        id="postTitle"
+                        placeholder="e.g. Physics Formula Cheat-Sheet & Class Notes"
+                        value={postTitle}
+                        onChange={(e) => setPostTitle(e.target.value)}
+                        className="mt-1.5"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="postCaption" className="font-semibold text-sm">Caption / Description (Optional)</Label>
+                      <Textarea
+                        id="postCaption"
+                        placeholder="Write a brief description or note for students..."
+                        value={postCaption}
+                        onChange={(e) => setPostCaption(e.target.value)}
+                        className="mt-1.5 resize-none"
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="font-semibold text-sm flex items-center gap-1.5">
+                          <Upload className="h-4 w-4 text-purple-600" /> Upload Images (Max 5)
+                        </Label>
+                        <Badge variant="outline" className={`${selectedPostImages.length === 5 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-secondary'}`}>
+                          {selectedPostImages.length} / 5 Images
+                        </Badge>
+                      </div>
+
+                      {selectedPostImages.length < 5 && (
+                        <label className="border-2 border-dashed border-purple-200 dark:border-purple-900/50 hover:border-purple-500 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors bg-purple-50/30 dark:bg-purple-950/10">
+                          <Camera className="h-8 w-8 text-purple-500 mb-2" />
+                          <span className="text-sm font-semibold text-foreground">Click to upload image files</span>
+                          <span className="text-xs text-muted-foreground mt-1">PNG, JPG, WebP, GIF up to 5MB each</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handlePostImagesSelect}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+
+                      {/* Selected Image Thumbnails */}
+                      {postImagePreviews.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-4">
+                          {postImagePreviews.map((previewUrl, idx) => (
+                            <div key={idx} className="relative group rounded-xl overflow-hidden border bg-muted aspect-square shadow-sm">
+                              <img src={previewUrl} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeSelectedPostImage(idx)}
+                                className="absolute top-1.5 right-1.5 bg-rose-600 text-white rounded-full p-1 shadow-md hover:bg-rose-700 transition-colors"
+                                title="Remove image"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                                #{idx + 1}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      onClick={handlePublishPost}
+                      disabled={isPublishingPost || selectedPostImages.length === 0}
+                      className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl px-8 shadow-md"
+                    >
+                      {isPublishingPost ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Publishing Post...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" /> Publish Post
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Existing Published Posts */}
+                <div className="space-y-4">
+                  <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" /> Published Posts ({posts.length})
+                  </h3>
+
+                  {loadingPosts ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-40 w-full rounded-2xl" />
+                      <Skeleton className="h-40 w-full rounded-2xl" />
+                    </div>
+                  ) : posts.length === 0 ? (
+                    <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed">
+                      <ImageIcon className="mx-auto mb-4 h-16 w-16 opacity-30 text-purple-500" />
+                      <h3 className="text-lg font-semibold text-foreground mb-2">No Posts Published Yet</h3>
+                      <p className="text-sm">Create your first post above with up to 5 images to showcase on your booking page.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
+                      {posts.map((post: any) => (
+                        <div key={post._id} className="bg-card border rounded-2xl p-5 shadow-sm space-y-4 relative flex flex-col justify-between hover:shadow-md transition-shadow">
+                          <div>
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div>
+                                {post.title && <h4 className="font-bold text-lg text-foreground">{post.title}</h4>}
+                                <p className="text-xs text-muted-foreground">
+                                  Posted on {new Date(post.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeletePost(post._id)}
+                                className="text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950 h-8 w-8 p-0 shrink-0"
+                                title="Delete post"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            {post.caption && (
+                              <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed mb-4">
+                                {post.caption}
+                              </p>
+                            )}
+
+                            {/* Image Grid (Max 5 images display) */}
+                            {post.images && post.images.length > 0 && (
+                              <div className={`grid gap-2 ${
+                                post.images.length === 1 ? 'grid-cols-1' :
+                                post.images.length === 2 ? 'grid-cols-2' :
+                                'grid-cols-3 sm:grid-cols-3'
+                              }`}>
+                                {post.images.map((imgUrl: string, idx: number) => (
+                                  <div key={idx} className="relative rounded-xl overflow-hidden border bg-muted aspect-square">
+                                    <img
+                                      src={resolveAssetUrl(imgUrl)}
+                                      alt={`Post media ${idx + 1}`}
+                                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 cursor-pointer"
+                                      onClick={() => window.open(resolveAssetUrl(imgUrl), "_blank")}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

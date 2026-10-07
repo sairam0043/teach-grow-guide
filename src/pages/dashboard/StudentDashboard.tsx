@@ -1,13 +1,39 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings } from "lucide-react";
+import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Sparkles, CheckCircle2, MessageSquare, Plus, X, GraduationCap, Award, ShieldCheck, ArrowRight, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const POPULAR_SUBJECTS = [
+  "Mathematics",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Computer Science",
+  "Coding & AI",
+  "English",
+  "Economics",
+  "Social Studies",
+  "Accountancy",
+  "Business Studies",
+  "Malayalam",
+  "Hindi",
+  "French",
+  "Fine Arts",
+  "Music",
+  "Chess"
+];
+
+const STANDARD_CLASSES = [
+  "Class 1", "Class 2", "Class 3", "Class 4", "Class 5",
+  "Class 6", "Class 7", "Class 8", "Class 9", "Class 10",
+  "Class 11", "Class 12", "College / University"
+];
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -100,7 +126,7 @@ const StudentDashboard = () => {
     return "upcoming";
   });
 
-  const [activeChatUserId] = useState<string | undefined>(() => {
+  const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
     const saved = sessionStorage.getItem("active_chat_user_id");
     if (saved) {
       sessionStorage.removeItem("active_chat_user_id");
@@ -115,16 +141,33 @@ const StudentDashboard = () => {
   const [profileStudentClass, setProfileStudentClass] = useState(
     user?.student_class || user?.user_metadata?.student_class || ""
   );
+  const [profileSubjectInterests, setProfileSubjectInterests] = useState<string[]>(() => {
+    const metaInt = user?.subject_interests || user?.user_metadata?.subject_interests;
+    if (Array.isArray(metaInt)) return metaInt;
+    if (typeof metaInt === 'string') return metaInt.split(',').map((s: string) => s.trim()).filter(Boolean);
+    return [];
+  });
+  const [customSubjectInput, setCustomSubjectInput] = useState("");
   const [studentTimezone, setStudentTimezone] = useState(
     user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone()
   );
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
+  // Recommended Tutors States
+  const [allTutors, setAllTutors] = useState<any[]>([]);
+  const [loadingTutors, setLoadingTutors] = useState<boolean>(true);
 
   useEffect(() => {
     if (user) {
       setProfileName(String(user.user_metadata?.full_name || user.full_name || "Student"));
       setProfilePhone(user.phone || "");
       setProfileStudentClass(user.student_class || user.user_metadata?.student_class || "");
+      const metaInt = user.subject_interests || user.user_metadata?.subject_interests;
+      if (Array.isArray(metaInt)) {
+        setProfileSubjectInterests(metaInt);
+      } else if (typeof metaInt === 'string') {
+        setProfileSubjectInterests(metaInt.split(',').map((s: string) => s.trim()).filter(Boolean));
+      }
       if (user.timezone) {
         setStudentTimezone(user.timezone);
       } else if (user.user_metadata?.timezone) {
@@ -132,6 +175,66 @@ const StudentDashboard = () => {
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    axios.get(`${API_URL}/tutors?status=approved`)
+      .then(res => setAllTutors(res.data || []))
+      .catch(err => console.error("Error fetching tutors for recommendations:", err))
+      .finally(() => setLoadingTutors(false));
+  }, []);
+
+  // MANDATORY REQUIREMENT: ONLY VERIFIED TUTORS (isVerified === true)
+  const verifiedTutors = allTutors.filter(t => t.isVerified === true);
+
+  // Recommendation Scoring Logic based on Student Class & Subject Interests
+  const recommendedTutors = verifiedTutors.map(tutor => {
+    let score = 0;
+    const matchReasons: string[] = [];
+
+    const stdClass = (profileStudentClass || "").toLowerCase().trim();
+    const stdSubjects = profileSubjectInterests.map(s => s.toLowerCase().trim()).filter(Boolean);
+
+    // 1. Match Subject Interests
+    const tutorSubjects = (tutor.subjects || []).map((s: string) => s.toLowerCase().trim());
+    const tutorRates = (tutor.subjectRates || []).map((sr: any) => (sr.subject || "").toLowerCase().trim());
+    const allTutorSubjects = Array.from(new Set([...tutorSubjects, ...tutorRates]));
+
+    stdSubjects.forEach(stSub => {
+      const isMatch = allTutorSubjects.some(tSub => tSub.includes(stSub) || stSub.includes(tSub));
+      if (isMatch) {
+        score += 4;
+        const formattedSubject = stSub.charAt(0).toUpperCase() + stSub.slice(1);
+        if (!matchReasons.includes(`Subject: ${formattedSubject}`)) {
+          matchReasons.push(`Subject: ${formattedSubject}`);
+        }
+      }
+    });
+
+    // 2. Match Class / Grade
+    const tutorClasses = (tutor.classesTaught || []).map((c: string) => c.toLowerCase().trim());
+    if (stdClass) {
+      const classNumMatch = stdClass.match(/\d+/)?.[0];
+      const isClassMatch = tutorClasses.some((tc: string) => {
+        if (tc === stdClass) return true;
+        if (classNumMatch && (tc.includes(`class ${classNumMatch}`) || tc.includes(`grade ${classNumMatch}`) || tc === classNumMatch)) return true;
+        return false;
+      });
+
+      if (isClassMatch) {
+        score += 4;
+        matchReasons.push(`Class: ${profileStudentClass}`);
+      }
+    }
+
+    if (tutor.featured) score += 1;
+    if (tutor.rating >= 4.5) score += 1;
+
+    return {
+      tutor,
+      score,
+      matchReasons
+    };
+  }).sort((a, b) => b.score - a.score);
 
   const timezonesList = studentTimezone && !COMMON_TIMEZONES.includes(studentTimezone)
     ? [studentTimezone, ...COMMON_TIMEZONES]
@@ -247,6 +350,7 @@ const StudentDashboard = () => {
         full_name: profileName, 
         phone: profilePhone,
         student_class: profileStudentClass,
+        subject_interests: profileSubjectInterests,
         timezone: studentTimezone
       });
       if (response.data && response.data.user) {
@@ -254,10 +358,11 @@ const StudentDashboard = () => {
           full_name: response.data.user.full_name,
           phone: response.data.user.phone,
           student_class: response.data.user.student_class,
+          subject_interests: response.data.user.subject_interests,
           timezone: response.data.user.timezone
         }));
       }
-      toast.success("Profile updated successfully!");
+      toast.success("Profile & recommendations updated successfully!");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
@@ -345,6 +450,13 @@ const StudentDashboard = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/50 p-1 rounded-xl shadow-sm border mb-4 w-full overflow-x-auto whitespace-nowrap justify-start h-auto">
             <TabsTrigger value="upcoming" className="rounded-lg px-6 py-2.5 shrink-0">My Classes</TabsTrigger>
+            <TabsTrigger value="recommendations" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400">
+              <Sparkles className="h-4 w-4 fill-amber-400 text-amber-500 animate-pulse" />
+              Recommended Tutors
+              {verifiedTutors.length > 0 && (
+                <Badge className="ml-1 bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 border-none">Verified</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Tracker</TabsTrigger>
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0">Payment Ledger</TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
@@ -806,6 +918,240 @@ const StudentDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="recommendations">
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-950 via-indigo-900 to-purple-950 text-white p-6 sm:p-8 shadow-xl border border-white/10">
+                <div className="absolute top-0 right-0 -mt-12 -mr-12 h-64 w-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30 flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5" /> 100% Verified Tutors Only
+                      </span>
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2">
+                      Recommended Tutors For You <Sparkles className="h-6 w-6 text-amber-400 fill-amber-400" />
+                    </h2>
+                    <p className="text-sm text-white/80 mt-1 max-w-2xl">
+                      Matched specifically for your saved grade/class and subject interests.
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={() => setActiveTab("profile")}
+                    variant="outline"
+                    className="bg-white/10 hover:bg-white/20 text-white border-white/20 rounded-full px-5 text-xs sm:text-sm font-semibold shrink-0"
+                  >
+                    <Settings className="h-3.5 w-3.5 mr-1.5" /> Update My Class & Subject Interests
+                  </Button>
+                </div>
+
+                {/* Active Match Filter Badges */}
+                <div className="relative z-10 mt-6 pt-4 border-t border-white/10 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-white/60 font-medium">Matching criteria:</span>
+                  {profileStudentClass ? (
+                    <Badge className="bg-blue-500/20 text-blue-200 border border-blue-400/30">
+                      🎓 Grade: {profileStudentClass}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-300 border-amber-400/40 bg-amber-500/10">
+                      ⚠️ Class not set (Set in Settings)
+                    </Badge>
+                  )}
+
+                  {profileSubjectInterests.length > 0 ? (
+                    profileSubjectInterests.map(sub => (
+                      <Badge key={sub} className="bg-indigo-500/20 text-indigo-200 border border-indigo-400/30">
+                        📚 {sub}
+                      </Badge>
+                    ))
+                  ) : (
+                    <Badge variant="outline" className="text-amber-300 border-amber-400/40 bg-amber-500/10">
+                      ⚠️ No subjects selected (Set in Settings)
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Tutors Grid / States */}
+              {loadingTutors ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
+                  <Skeleton className="h-72 w-full rounded-2xl" />
+                  <Skeleton className="h-72 w-full rounded-2xl" />
+                  <Skeleton className="h-72 w-full rounded-2xl" />
+                </div>
+              ) : verifiedTutors.length === 0 ? (
+                <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed p-8">
+                  <ShieldCheck className="mx-auto mb-4 h-16 w-16 opacity-40 text-primary" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No Verified Tutors Found</h3>
+                  <p className="max-w-md mx-auto text-sm">Our admin team is currently reviewing tutor applications. Check back soon for newly verified tutors!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {profileSubjectInterests.length === 0 && !profileStudentClass && (
+                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-950 dark:text-amber-200 flex items-center justify-between text-xs sm:text-sm">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+                        <span>Add your <strong>Class/Grade</strong> and <strong>Subject Interests</strong> in Profile Settings to see top personalized matches!</span>
+                      </div>
+                      <Button size="sm" onClick={() => setActiveTab("profile")} className="bg-amber-500 hover:bg-amber-600 text-white text-xs shrink-0 rounded-full px-4 ml-2">
+                        Go to Settings
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {recommendedTutors.map(({ tutor, score, matchReasons }) => {
+                      const tutorUserId = tutor.userId?._id || tutor.userId?.id || tutor.userId;
+                      const hasMatches = matchReasons.length > 0;
+
+                      return (
+                        <Card key={tutor._id || tutor.id} className="group border-border/60 hover:border-primary/50 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden bg-card">
+                          <CardHeader className="p-5 pb-3 bg-secondary/10 border-b border-border/40 relative">
+                            <div className="flex items-start gap-4">
+                              <div className="relative shrink-0">
+                                <img
+                                  src={tutor.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random`}
+                                  alt={tutor.name}
+                                  className="h-16 w-16 rounded-2xl object-cover border-2 border-primary/30 shadow-sm"
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random`;
+                                  }}
+                                />
+                                <Badge className="absolute -bottom-2 -right-1 bg-emerald-600 text-white text-[9px] px-1 py-0 border-none shadow-sm flex items-center gap-0.5">
+                                  <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                                </Badge>
+                              </div>
+
+                              <div className="flex-grow min-w-0">
+                                <div className="flex items-center justify-between gap-1">
+                                  <h3 className="font-bold text-lg text-foreground truncate capitalize">{tutor.name}</h3>
+                                </div>
+                                <p className="text-xs text-muted-foreground font-medium mt-0.5">{tutor.experience || 0} years experience</p>
+
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  {tutor.rating > 0 && (
+                                    <div className="flex items-center gap-1 text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/20">
+                                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                                      <span>{tutor.rating}</span>
+                                      {tutor.reviewCount > 0 && <span className="text-muted-foreground font-normal">({tutor.reviewCount})</span>}
+                                    </div>
+                                  )}
+                                  <Badge variant="outline" className="text-[10px] font-semibold text-primary border-primary/30">
+                                    {tutor.category || 'Academic'}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Match Badges */}
+                            {hasMatches && (
+                              <div className="mt-3 flex flex-wrap gap-1">
+                                {matchReasons.map(reason => (
+                                  <span key={reason} className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                    <Sparkles className="h-2.5 w-2.5 text-emerald-500" /> {reason}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </CardHeader>
+
+                          <CardContent className="p-5 flex-grow space-y-3">
+                            {/* Subjects Taught */}
+                            <div>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">Subjects Taught</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(tutor.subjects || []).slice(0, 4).map((sub: string) => (
+                                  <Badge key={sub} variant="secondary" className="text-xs font-medium bg-secondary/80">
+                                    {sub}
+                                  </Badge>
+                                ))}
+                                {(tutor.subjects || []).length > 4 && (
+                                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                                    +{(tutor.subjects || []).length - 4} more
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Classes Taught */}
+                            {tutor.classesTaught && tutor.classesTaught.length > 0 && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-1">
+                                <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <span className="truncate">Classes: <strong className="text-foreground">{tutor.classesTaught.join(", ")}</strong></span>
+                              </div>
+                            )}
+
+                            {/* City & Mode */}
+                            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/30">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3.5 w-3.5 text-rose-500" />
+                                {tutor.city || "Online"}
+                              </span>
+                              <span className="font-medium text-foreground">
+                                Mode: {tutor.mode?.toLowerCase() === "both" ? "Online & Offline" : (tutor.mode || "Online")}
+                              </span>
+                            </div>
+
+                            {/* Pricing */}
+                            <div className="pt-2 flex items-baseline justify-between">
+                              <div>
+                                <span className="text-2xl font-extrabold text-foreground tracking-tight">₹{tutor.hourlyRate || 300}</span>
+                                <span className="text-xs text-muted-foreground font-normal"> / hour</span>
+                              </div>
+                            </div>
+                          </CardContent>
+
+                          <div className="p-4 bg-secondary/20 border-t border-border/40 grid grid-cols-2 gap-2">
+                            <Button
+                              asChild
+                              size="sm"
+                              className="w-full shadow-sm rounded-xl font-bold text-xs bg-primary hover:bg-primary/90"
+                            >
+                              <Link to={`/tutors/${tutor._id || tutor.id}`}>
+                                Book Demo
+                              </Link>
+                            </Button>
+
+                            {tutorUserId ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  if (typeof tutorUserId === 'string') {
+                                    sessionStorage.setItem("active_chat_user_id", tutorUserId);
+                                    setActiveChatUserId(tutorUserId);
+                                  }
+                                  setActiveTab("messages");
+                                }}
+                                className="w-full rounded-xl text-xs font-semibold border-border hover:bg-secondary/60 flex items-center justify-center gap-1"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5 text-blue-500" /> Message
+                              </Button>
+                            ) : (
+                              <Button
+                                asChild
+                                size="sm"
+                                variant="outline"
+                                className="w-full rounded-xl text-xs font-semibold border-border"
+                              >
+                                <Link to={`/tutors/${tutor._id || tutor.id}`}>
+                                  View Profile
+                                </Link>
+                              </Button>
+                            )}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
           <TabsContent value="messages">
             <ChatPanel initialActiveUserId={activeChatUserId} />
           </TabsContent>
@@ -813,8 +1159,8 @@ const StudentDashboard = () => {
           <TabsContent value="profile">
             <Card className="shadow-md border-border/50 max-w-2xl">
               <CardHeader className="bg-secondary/20 border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2"><User className="h-5 w-5 text-blue-500" /> Profile Settings</CardTitle>
-                <CardDescription>Update your personal information.</CardDescription>
+                <CardTitle className="text-xl flex items-center gap-2"><User className="h-5 w-5 text-blue-500" /> Profile & Interest Settings</CardTitle>
+                <CardDescription>Update your personal info, class grade, and subject interests to receive matching verified tutor recommendations.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <form onSubmit={handleProfileUpdate} className="space-y-6">
@@ -830,11 +1176,120 @@ const StudentDashboard = () => {
                     <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
                     <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} placeholder="+1 234 567 890" className="bg-secondary/20 border-border/50" />
                   </div>
+
+                  {/* Class / Grade Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="studentClass" className="text-sm font-semibold">Class / Grade</Label>
-                    <Input id="studentClass" value={profileStudentClass} onChange={(e) => setProfileStudentClass(e.target.value)} placeholder="e.g. Class 10, Grade 8, College" className="bg-secondary/20 border-border/50" />
+                    <Label htmlFor="studentClass" className="text-sm font-semibold flex items-center justify-between">
+                      <span>Class / Grade</span>
+                      <span className="text-xs font-normal text-muted-foreground">Used for tutor matching</span>
+                    </Label>
+                    <Select value={profileStudentClass} onValueChange={setProfileStudentClass}>
+                      <SelectTrigger id="studentClass" className="bg-secondary/20 border-border/50">
+                        <SelectValue placeholder="Select your class or grade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STANDARD_CLASSES.map((cls) => (
+                          <SelectItem key={cls} value={cls}>{cls}</SelectItem>
+                        ))}
+                        {!STANDARD_CLASSES.includes(profileStudentClass) && profileStudentClass && (
+                          <SelectItem value={profileStudentClass}>{profileStudentClass}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="space-y-2">
+
+                  {/* Subject Interests Section */}
+                  <div className="space-y-3 pt-2 border-t border-border/40">
+                    <Label className="text-sm font-semibold flex items-center justify-between">
+                      <span>Subject Interests</span>
+                      <span className="text-xs font-normal text-muted-foreground">Subjects you want to study</span>
+                    </Label>
+
+                    {/* Selected subject tags */}
+                    <div className="flex flex-wrap gap-2 p-3 bg-secondary/15 rounded-xl border border-border/40 min-h-[48px] items-center">
+                      {profileSubjectInterests.length === 0 ? (
+                        <span className="text-xs text-muted-foreground italic">No subjects selected yet. Pick from popular subjects below or type your own.</span>
+                      ) : (
+                        profileSubjectInterests.map((sub) => (
+                          <Badge key={sub} className="bg-primary/15 text-primary hover:bg-primary/25 border border-primary/30 px-3 py-1 text-xs rounded-full flex items-center gap-1.5">
+                            {sub}
+                            <button
+                              type="button"
+                              onClick={() => setProfileSubjectInterests(prev => prev.filter(s => s !== sub))}
+                              className="hover:text-destructive text-primary/70 transition-colors ml-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Popular Subject Quick Select */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">Popular Subjects (Click to select/deselect):</p>
+                      <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto p-1">
+                        {POPULAR_SUBJECTS.map((sub) => {
+                          const isSelected = profileSubjectInterests.includes(sub);
+                          return (
+                            <button
+                              key={sub}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setProfileSubjectInterests(prev => prev.filter(s => s !== sub));
+                                } else {
+                                  setProfileSubjectInterests(prev => [...prev, sub]);
+                                }
+                              }}
+                              className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                                isSelected 
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm font-semibold" 
+                                  : "bg-background hover:bg-secondary text-muted-foreground border-border/60"
+                              }`}
+                            >
+                              {isSelected ? "✓ " : "+ "}{sub}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Custom subject interest input */}
+                    <div className="flex gap-2 pt-1">
+                      <Input
+                        placeholder="Add custom subject (e.g. Robotics, SAT Math)..."
+                        value={customSubjectInput}
+                        onChange={(e) => setCustomSubjectInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (customSubjectInput.trim() && !profileSubjectInterests.includes(customSubjectInput.trim())) {
+                              setProfileSubjectInterests(prev => [...prev, customSubjectInput.trim()]);
+                              setCustomSubjectInput("");
+                            }
+                          }
+                        }}
+                        className="bg-secondary/20 border-border/50 text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (customSubjectInput.trim() && !profileSubjectInterests.includes(customSubjectInput.trim())) {
+                            setProfileSubjectInterests(prev => [...prev, customSubjectInput.trim()]);
+                            setCustomSubjectInput("");
+                          }
+                        }}
+                        className="shrink-0 text-xs"
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Add
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-border/40">
                     <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>
                     <Select value={studentTimezone} onValueChange={setStudentTimezone}>
                       <SelectTrigger id="timezone" className="bg-secondary/20 border-border/50">
@@ -849,8 +1304,9 @@ const StudentDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <Button type="submit" disabled={isUpdatingProfile} className="w-full sm:w-auto shadow-md rounded-full px-8">
-                    {isUpdatingProfile ? "Saving..." : <><Save className="mr-2 h-4 w-4"/> Save Changes</>}
+                    {isUpdatingProfile ? "Saving..." : <><Save className="mr-2 h-4 w-4"/> Save Profile & Recommendations</>}
                   </Button>
                 </form>
               </CardContent>

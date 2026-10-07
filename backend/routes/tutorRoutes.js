@@ -2,6 +2,7 @@ const express = require('express');
 const Tutor = require('../schemas/tutorSchema');
 const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
+const Post = require('../schemas/postSchema');
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
@@ -211,11 +212,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get a single tutor by database ID
-router.get('/:id', async (req, res) => {
+// Get a tutor by associated user ID
+router.get('/user/:userId', async (req, res) => {
   try {
-    const tutor = await Tutor.findById(req.params.id).populate('userId', 'email phone avatar');
-    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+    const tutor = await Tutor.findOne({ userId: req.params.userId }).populate('userId', 'email phone avatar');
+    if (!tutor) return res.status(404).json({ message: 'Tutor profile not found for this user.' });
     
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
@@ -230,14 +231,31 @@ router.get('/:id', async (req, res) => {
     
     res.json(obj);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching tutor', error: error.message });
+    res.status(500).json({ message: 'Error fetching tutor profile', error: error.message });
   }
 });
 
-// Get a tutor by associated user ID
-router.get('/user/:userId', async (req, res) => {
+// Delete a post by ID
+router.delete('/posts/:postId', async (req, res) => {
   try {
-    const tutor = await Tutor.findOne({ userId: req.params.userId }).populate('userId', 'email phone avatar');
+    const { postId } = req.params;
+    const deleted = await Post.findByIdAndDelete(postId);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+    res.json({ message: 'Post deleted successfully', id: postId });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete post', error: error.message });
+  }
+});
+
+// Get a single tutor by database ID
+router.get('/:id', async (req, res) => {
+  try {
+    if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(404).json({ message: 'Invalid tutor ID format' });
+    }
+    const tutor = await Tutor.findById(req.params.id).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
     const obj = tutor.toObject();
@@ -1155,6 +1173,88 @@ router.delete('/:id/admin', async (req, res) => {
     res.json({ message: 'Tutor and associated user account deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting tutor', error: error.message });
+  }
+});
+
+// ================= POST MANAGEMENT ROUTES =================
+
+// Create a new post for a tutor (supports up to 5 images)
+router.post('/:tutorId/posts', async (req, res) => {
+  try {
+    const { title, caption, images } = req.body;
+    const { tutorId } = req.params;
+
+    // Find tutor by Mongo _id or userId
+    let tutor = null;
+    if (tutorId && tutorId.match(/^[0-9a-fA-F]{24}$/)) {
+      tutor = await Tutor.findById(tutorId);
+    }
+    if (!tutor) {
+      tutor = await Tutor.findOne({ userId: tutorId });
+    }
+
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor profile not found.' });
+    }
+
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({ message: 'Please attach at least 1 image (up to 5 images allowed).' });
+    }
+
+    if (images.length > 5) {
+      return res.status(400).json({ message: 'Maximum 5 images allowed per post.' });
+    }
+
+    const newPost = new Post({
+      tutorId: tutor._id,
+      title: title || '',
+      caption: caption || '',
+      images
+    });
+
+    const savedPost = await newPost.save();
+    res.status(201).json(savedPost);
+  } catch (error) {
+    console.error("Error creating post:", error);
+    res.status(500).json({ message: 'Failed to create post', error: error.message });
+  }
+});
+
+// Get all posts for a specific tutor
+router.get('/:tutorId/posts', async (req, res) => {
+  try {
+    const { tutorId } = req.params;
+    let tutor = null;
+    if (tutorId && tutorId.match(/^[0-9a-fA-F]{24}$/)) {
+      tutor = await Tutor.findById(tutorId);
+    }
+    if (!tutor) {
+      tutor = await Tutor.findOne({ userId: tutorId });
+    }
+
+    if (!tutor) {
+      return res.json([]);
+    }
+
+    const posts = await Post.find({ tutorId: tutor._id }).sort({ createdAt: -1 });
+    res.json(posts);
+  } catch (error) {
+    console.error("Error fetching posts:", error);
+    res.status(500).json({ message: 'Failed to fetch posts', error: error.message });
+  }
+});
+
+// Delete a post by ID
+router.delete('/posts/:postId', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const deleted = await Post.findByIdAndDelete(postId);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+    res.json({ message: 'Post deleted successfully', id: postId });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete post', error: error.message });
   }
 });
 

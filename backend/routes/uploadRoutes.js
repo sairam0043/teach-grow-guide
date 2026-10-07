@@ -75,6 +75,40 @@ router.post('/photo', upload.single('photo'), async (req, res) => {
   }
 });
 
+// POST /api/upload/post-images - upload up to 5 post images
+router.post('/post-images', upload.array('images', 5), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No image files uploaded.' });
+    }
+    if (req.files.length > 5) {
+      return res.status(400).json({ message: 'Maximum 5 images allowed per post.' });
+    }
+    
+    const configuredBaseUrl = (process.env.BACKEND_URL || '').trim().replace(/\/$/, '');
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = (forwardedProto || req.protocol || 'http').split(',')[0].trim();
+    const inferredBaseUrl = `${protocol}://${req.get('host')}`;
+    const baseUrl = configuredBaseUrl || inferredBaseUrl;
+    
+    const urls = [];
+    for (const file of req.files) {
+      const newUpload = new Upload({
+        filename: `tutor-post-${Date.now()}-${file.originalname}`,
+        contentType: file.mimetype,
+        data: file.buffer
+      });
+      const saved = await newUpload.save();
+      urls.push(`${baseUrl}/api/upload/file/${saved._id}`);
+    }
+    
+    res.json({ urls });
+  } catch (error) {
+    res.status(500).json({ message: 'Post images upload failed', error: error.message });
+  }
+});
+
+
 // POST /api/upload/document - single file for tutor verification credential (PDF or Image)
 router.post('/document', uploadDoc.single('document'), async (req, res) => {
   try {

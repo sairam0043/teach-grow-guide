@@ -75,7 +75,7 @@ transporter.verify((error, success) => {
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, subject_interests, subjectInterests, student_or_parent, studentOrParent, ...tutorData } = req.body;
 
     // Check if user exists
     let user = await User.findOne({ email });
@@ -90,12 +90,20 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    let parsedSubjectInterests = [];
+    if (Array.isArray(subject_interests || subjectInterests)) {
+      parsedSubjectInterests = subject_interests || subjectInterests;
+    } else if (typeof (subject_interests || subjectInterests) === 'string') {
+      parsedSubjectInterests = (subject_interests || subjectInterests).split(',').map(s => s.trim()).filter(Boolean);
+    }
+
     user = new User({ 
       email, 
       password: hashedPassword, 
       full_name, 
       phone, 
       student_class: student_class || studentClass,
+      subject_interests: parsedSubjectInterests,
       student_or_parent: student_or_parent || studentOrParent || 'Student',
       role, 
       timezone: timezone || 'Asia/Kolkata' 
@@ -246,7 +254,7 @@ router.post('/register', async (req, res) => {
     // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, role } });
+    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, subject_interests: user.subject_interests || [], role, timezone: user.timezone } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -272,7 +280,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, role: user.role } });
+    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -358,8 +366,10 @@ router.post('/google', async (req, res) => {
         full_name: user.full_name,
         phone: user.phone,
         student_class: user.student_class,
+        subject_interests: user.subject_interests || [],
         role: user.role,
-        avatar: user.avatar
+        avatar: user.avatar,
+        timezone: user.timezone
       }
     });
 
@@ -499,7 +509,7 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone, timezone, student_class, studentClass } = req.body;
+    const { full_name, phone, timezone, student_class, studentClass, subject_interests, subjectInterests } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -508,6 +518,14 @@ router.put('/profile/:id', async (req, res) => {
     if (timezone !== undefined) user.timezone = timezone;
     if (student_class !== undefined || studentClass !== undefined) {
       user.student_class = student_class || studentClass;
+    }
+    if (subject_interests !== undefined || subjectInterests !== undefined) {
+      const rawSub = subject_interests !== undefined ? subject_interests : subjectInterests;
+      if (Array.isArray(rawSub)) {
+        user.subject_interests = rawSub;
+      } else if (typeof rawSub === 'string') {
+        user.subject_interests = rawSub.split(',').map(s => s.trim()).filter(Boolean);
+      }
     }
 
     await user.save();
@@ -519,7 +537,7 @@ router.put('/profile/:id', async (req, res) => {
       await Tutor.findOneAndUpdate({ userId: user._id }, updateData);
     }
 
-    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, role: user.role, timezone: user.timezone } });
+    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone } });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
