@@ -513,7 +513,7 @@ const TutorDashboard = () => {
 
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
-    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
+    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '05:00', endTime: '23:00' }] }))
   );
   const [isSavingAvailability, setIsSavingAvailability] = useState(false);
 
@@ -665,7 +665,7 @@ const TutorDashboard = () => {
             slots: uniqueSlots
           };
         }
-        return { ...p, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] };
+        return { ...p, selected: false, slots: [{ startTime: '05:00', endTime: '23:00' }] };
       }));
     }
   }, [tutorStats?.availability]);
@@ -1601,7 +1601,7 @@ const TutorDashboard = () => {
                           className="w-fit text-xs h-7 gap-1 border-dashed"
                           onClick={() => {
                             const newAvail = [...availability];
-                            newAvail[i].slots.push({ startTime: '09:00', endTime: '17:00' });
+                            newAvail[i].slots.push({ startTime: '05:00', endTime: '23:00' });
                             setAvailability(newAvail);
                           }}
                         >

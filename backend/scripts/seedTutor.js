@@ -45,8 +45,8 @@ const seed = async () => {
       hourlyRate: 500,
       status: 'approved', // Seeded as approved so they can see the Welcome onboarding
       availability: [
-        { day: 'Monday', startTime: '09:00', endTime: '17:00' },
-        { day: 'Wednesday', startTime: '09:00', endTime: '17:00' }
+        { day: 'Monday', startTime: '05:00', endTime: '23:00' },
+        { day: 'Wednesday', startTime: '05:00', endTime: '23:00' }
       ],
       workExperience: [
         {
