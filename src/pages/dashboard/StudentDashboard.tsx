@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Wallet, Gift, Sparkles, Copy, ArrowUpRight, ArrowDownLeft, Check, Share2, CheckCircle2, Plus, X, GraduationCap, Award, ShieldCheck, ArrowRight, BadgeCheck } from "lucide-react";
+import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Wallet, Gift, Sparkles, Copy, ArrowUpRight, ArrowDownLeft, Check, Share2, CheckCircle2, Plus, X, GraduationCap, Award, ShieldCheck, ArrowRight, BadgeCheck, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -194,56 +194,73 @@ const StudentDashboard = () => {
   }, []);
 
   // MANDATORY REQUIREMENT: ONLY VERIFIED TUTORS (isVerified === true)
-  const verifiedTutors = allTutors.filter(t => t.isVerified === true);
+  const verifiedTutors = (Array.isArray(allTutors) ? allTutors : []).filter(t => t && t.isVerified === true);
 
   // Recommendation Scoring Logic based on Student Class & Subject Interests
   const recommendedTutors = verifiedTutors.map(tutor => {
-    let score = 0;
-    const matchReasons: string[] = [];
+    try {
+      let score = 0;
+      const matchReasons: string[] = [];
 
-    const stdClass = (profileStudentClass || "").toLowerCase().trim();
-    const stdSubjects = profileSubjectInterests.map(s => s.toLowerCase().trim()).filter(Boolean);
+      const stdClass = String(profileStudentClass || "").toLowerCase().trim();
+      const stdSubjects = (Array.isArray(profileSubjectInterests) ? profileSubjectInterests : [])
+        .map(s => String(s || '').toLowerCase().trim())
+        .filter(Boolean);
 
-    // 1. Match Subject Interests
-    const tutorSubjects = (tutor.subjects || []).map((s: string) => s.toLowerCase().trim());
-    const tutorRates = (tutor.subjectRates || []).map((sr: any) => (sr.subject || "").toLowerCase().trim());
-    const allTutorSubjects = Array.from(new Set([...tutorSubjects, ...tutorRates]));
+      // 1. Match Subject Interests
+      const tutorSubjects = (Array.isArray(tutor?.subjects) ? tutor.subjects : [])
+        .map((s: any) => String(s || '').toLowerCase().trim())
+        .filter(Boolean);
+      const tutorRates = (Array.isArray(tutor?.subjectRates) ? tutor.subjectRates : [])
+        .map((sr: any) => String(sr?.subject || '').toLowerCase().trim())
+        .filter(Boolean);
+      const allTutorSubjects = Array.from(new Set([...tutorSubjects, ...tutorRates]));
 
-    stdSubjects.forEach(stSub => {
-      const isMatch = allTutorSubjects.some(tSub => tSub.includes(stSub) || stSub.includes(tSub));
-      if (isMatch) {
-        score += 4;
-        const formattedSubject = stSub.charAt(0).toUpperCase() + stSub.slice(1);
-        if (!matchReasons.includes(`Subject: ${formattedSubject}`)) {
-          matchReasons.push(`Subject: ${formattedSubject}`);
+      stdSubjects.forEach(stSub => {
+        const isMatch = allTutorSubjects.some(tSub => tSub.includes(stSub) || stSub.includes(tSub));
+        if (isMatch) {
+          score += 4;
+          const formattedSubject = stSub.charAt(0).toUpperCase() + stSub.slice(1);
+          if (!matchReasons.includes(`Subject: ${formattedSubject}`)) {
+            matchReasons.push(`Subject: ${formattedSubject}`);
+          }
         }
-      }
-    });
-
-    // 2. Match Class / Grade
-    const tutorClasses = (tutor.classesTaught || []).map((c: string) => c.toLowerCase().trim());
-    if (stdClass) {
-      const classNumMatch = stdClass.match(/\d+/)?.[0];
-      const isClassMatch = tutorClasses.some((tc: string) => {
-        if (tc === stdClass) return true;
-        if (classNumMatch && (tc.includes(`class ${classNumMatch}`) || tc.includes(`grade ${classNumMatch}`) || tc === classNumMatch)) return true;
-        return false;
       });
 
-      if (isClassMatch) {
-        score += 4;
-        matchReasons.push(`Class: ${profileStudentClass}`);
+      // 2. Match Class / Grade
+      const tutorClasses = (Array.isArray(tutor?.classesTaught) ? tutor.classesTaught : [])
+        .map((c: any) => String(c || '').toLowerCase().trim())
+        .filter(Boolean);
+      if (stdClass) {
+        const classNumMatch = stdClass.match(/\d+/)?.[0];
+        const isClassMatch = tutorClasses.some((tc: string) => {
+          if (tc === stdClass) return true;
+          if (classNumMatch && (tc.includes(`class ${classNumMatch}`) || tc.includes(`grade ${classNumMatch}`) || tc === classNumMatch)) return true;
+          return false;
+        });
+
+        if (isClassMatch) {
+          score += 4;
+          matchReasons.push(`Class: ${profileStudentClass}`);
+        }
       }
+
+      if (tutor?.featured) score += 1;
+      if (typeof tutor?.rating === 'number' && tutor.rating >= 4.5) score += 1;
+
+      return {
+        tutor,
+        score,
+        matchReasons
+      };
+    } catch (e) {
+      console.error("Error scoring recommended tutor:", e);
+      return {
+        tutor,
+        score: 0,
+        matchReasons: []
+      };
     }
-
-    if (tutor.featured) score += 1;
-    if (tutor.rating >= 4.5) score += 1;
-
-    return {
-      tutor,
-      score,
-      matchReasons
-    };
   }).sort((a, b) => b.score - a.score);
 
   const timezonesList = studentTimezone && !COMMON_TIMEZONES.includes(studentTimezone)
@@ -357,8 +374,11 @@ const StudentDashboard = () => {
     if (user?.id) {
       dispatch(fetchStudentStats(user.id));
       axios.get(`${API_URL}/dashboard/student/${user.id}/bookings`)
-        .then(res => setBookings(res.data))
-        .catch(err => console.error(err))
+        .then(res => setBookings(Array.isArray(res.data) ? res.data : []))
+        .catch(err => {
+          console.error(err);
+          setBookings([]);
+        })
         .finally(() => setLoadingBookings(false));
     }
   }, [dispatch, user?.id]);
@@ -431,8 +451,8 @@ const StudentDashboard = () => {
     }
   };
 
-  const enrolledClasses = bookings.filter(b => b.status === 'enrolled');
-  const paymentHistory = bookings.filter(b => b.status === 'enrolled' && b.amountPaid);
+  const enrolledClasses = (Array.isArray(bookings) ? bookings : []).filter(b => b && b.status === 'enrolled');
+  const paymentHistory = (Array.isArray(bookings) ? bookings : []).filter(b => b && b.status === 'enrolled' && b.amountPaid);
 
   return (
     <PageLayout>
