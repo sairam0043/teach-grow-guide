@@ -12,8 +12,10 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
+const visitorRoutes = require('./routes/visitorRoutes');
 
 const app = express();
+
 app.set('trust proxy', 1);
 
 // Lightweight request duration logger
@@ -141,6 +143,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/visitors', visitorRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'cuvasol-backend' });

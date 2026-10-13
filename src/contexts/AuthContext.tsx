@@ -14,6 +14,8 @@ interface AppUser {
   student_name?: string;
   student_or_parent?: string;
   interested_subject?: string;
+  subject_interests?: string[];
+  timezone?: string;
   role?: AppRole;
   user_metadata: Record<string, any>;
 }
@@ -53,6 +55,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       student_name: authUser.student_name,
       student_or_parent: authUser.student_or_parent,
       interested_subject: authUser.interested_subject,
+      subject_interests: authUser.subject_interests,
+      timezone: authUser.timezone,
       role: authUser.role,
       user_metadata: { full_name: authUser.full_name, ...authUser }
     };

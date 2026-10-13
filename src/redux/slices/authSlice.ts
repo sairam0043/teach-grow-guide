@@ -11,6 +11,7 @@ interface UserInfo {
   student_name?: string;
   student_or_parent?: string;
   interested_subject?: string;
+  subject_interests?: string[];
   role: 'admin' | 'hr' | 'student' | 'tutor';
   [key: string]: any;
 }

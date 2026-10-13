@@ -221,7 +221,7 @@ router.post('/validate-referral', async (req, res) => {
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, interested_subject, interestedSubject, subject, heard_about_us, heardAboutUs, referredBy, otp, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, heard_about_us, heardAboutUs, referredBy, otp, ...tutorData } = req.body;
 
     // Check if user exists by email or phone
     const phoneQuery = phone ? { phone } : null;
@@ -254,6 +254,13 @@ router.post('/register', async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+
+    let parsedSubjectInterests = [];
+    if (Array.isArray(subject_interests || subjectInterests)) {
+      parsedSubjectInterests = subject_interests || subjectInterests;
+    } else if (typeof (subject_interests || subjectInterests) === 'string') {
+      parsedSubjectInterests = (subject_interests || subjectInterests).split(',').map(s => s.trim()).filter(Boolean);
+    }
 
     let referredByUserId = undefined;
     let marketingRefCode = undefined;
@@ -311,6 +318,7 @@ router.post('/register', async (req, res) => {
       student_or_parent: student_or_parent || studentOrParent || 'Student',
       student_name: student_name || studentName,
       interested_subject: interested_subject || interestedSubject || subject || '',
+      subject_interests: parsedSubjectInterests,
       heard_about_us: heard_about_us || heardAboutUs,
       role, 
       timezone: timezone || 'Asia/Kolkata',
@@ -481,7 +489,7 @@ router.post('/register', async (req, res) => {
     // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, role, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
+    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role, timezone: user.timezone, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -515,7 +523,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, role: user.role, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
+    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -613,8 +621,10 @@ router.post('/google', async (req, res) => {
         student_name: user.student_name,
         student_or_parent: user.student_or_parent,
         interested_subject: user.interested_subject,
+        subject_interests: user.subject_interests || [],
         role: user.role,
         avatar: user.avatar,
+        timezone: user.timezone,
         referralCode: user.referralCode,
         walletBalance: user.walletBalance || 0
       }
@@ -756,7 +766,7 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone, timezone, student_class, studentClass, student_name, studentName, interested_subject, interestedSubject, subject, avatar, photo } = req.body;
+    const { full_name, phone, timezone, student_class, studentClass, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, avatar, photo } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -774,6 +784,16 @@ router.put('/profile/:id', async (req, res) => {
     if (interested_subject !== undefined || interestedSubject !== undefined || subject !== undefined) {
       user.interested_subject = interested_subject || interestedSubject || subject;
     }
+
+    if (subject_interests !== undefined || subjectInterests !== undefined) {
+      const rawSub = subject_interests !== undefined ? subject_interests : subjectInterests;
+      if (Array.isArray(rawSub)) {
+        user.subject_interests = rawSub;
+      } else if (typeof rawSub === 'string') {
+        user.subject_interests = rawSub.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
     await user.save();
 
     // Also update tutor profile if they are a tutor
@@ -784,7 +804,7 @@ router.put('/profile/:id', async (req, res) => {
       await Tutor.findOneAndUpdate({ userId: user._id }, updateData);
     }
 
-    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, role: user.role, timezone: user.timezone } });
+    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone } });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

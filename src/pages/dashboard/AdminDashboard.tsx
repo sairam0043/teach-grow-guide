@@ -751,6 +751,120 @@ const AdminDashboard = () => {
 
   const totalPlatformRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
 
+  const downloadTutorsCSV = () => {
+    if (!approvedTutors || approvedTutors.length === 0) {
+      toast.error("No tutors available to download.");
+      return;
+    }
+
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Category",
+      "City",
+      "Pincode",
+      "Referral Source",
+      "Subjects",
+      "Boards",
+      "Classes",
+      "Status",
+      "Verified",
+      "Featured",
+      "Joined Date",
+    ];
+
+    const escapeCSV = (value: any) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      const text = Array.isArray(value) ? value.join(", ") : String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const rows = approvedTutors.map((tutor) => [
+      tutor.name,
+      tutor.email,
+      tutor.phone,
+      tutor.category,
+      tutor.city,
+      tutor.pincode,
+      tutor.hearAboutUs,
+      tutor.subjects,
+      tutor.boardsTaught,
+      tutor.classesTaught,
+      tutor.status,
+      tutor.isVerified ? "Yes" : "No",
+      tutor.isFeatured ? "Yes" : "No",
+      tutor.createdAt ? new Date(tutor.createdAt).toLocaleDateString() : "",
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) => row.map(escapeCSV).join(",")),
+    ].join("\r\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `approved_tutors_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Tutors CSV downloaded successfully!");
+  };
+
+  const downloadStudentsCSV = () => {
+    if (!students || students.length === 0) {
+      toast.error("No students available to download.");
+      return;
+    }
+
+    const headers = [
+      "Student ID",
+      "Full Name",
+      "Email",
+      "Contact",
+      "Class / Grade",
+      "Joined Date",
+    ];
+
+    const escapeCSV = (value: any) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      const text = String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const rows = students.map((student) => [
+      student._id || student.id,
+      student.full_name,
+      student.email,
+      student.phone,
+      student.student_class || student.studentClass,
+      student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "",
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) => row.map(escapeCSV).join(",")),
+    ].join("\r\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `registered_students_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Students CSV downloaded successfully!");
+  };
+
   const handleApproval = async (tutorId: string, status: "approved" | "rejected") => {
     if (status === "rejected") {
       setRejectTutorId(tutorId);
@@ -1227,8 +1341,20 @@ const AdminDashboard = () => {
                       </button>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground font-medium self-end sm:self-center">
-                    Showing <strong className="text-foreground">{filteredApprovedTutors.length}</strong> of {approvedTutors.length} tutors
+                  <div className="flex items-center gap-3 self-end sm:self-center">
+                    <div className="text-xs text-muted-foreground font-medium">
+                      Showing <strong className="text-foreground">{filteredApprovedTutors.length}</strong> of {approvedTutors.length} tutors
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={downloadTutorsCSV}
+                      disabled={approvedTutors.length === 0}
+                      className="rounded-xl text-xs font-semibold border-border hover:bg-secondary flex items-center gap-1.5"
+                    >
+                      <Download className="h-3.5 w-3.5 text-blue-600" />
+                      Export CSV
+                    </Button>
                   </div>
                 </div>
 
@@ -1440,15 +1566,27 @@ const AdminDashboard = () => {
                 <CardDescription>View all students on the platform.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="mb-4 relative max-w-sm">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search students by name..."
-                    value={studentSearch}
-                    onChange={(e) => setStudentSearch(e.target.value)}
-                    className="pl-9 rounded-lg"
-                    disabled={loading}
-                  />
+                <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                  <div className="relative max-w-sm flex-1">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search students by name..."
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      className="pl-9 rounded-lg"
+                      disabled={loading}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadStudentsCSV}
+                    disabled={students.length === 0}
+                    className="rounded-xl text-xs font-semibold border-border hover:bg-secondary flex items-center gap-1.5 self-end sm:self-center"
+                  >
+                    <Download className="h-3.5 w-3.5 text-indigo-600" />
+                    Export CSV
+                  </Button>
                 </div>
                 {(() => {
                   const filteredStudents = [...students]
