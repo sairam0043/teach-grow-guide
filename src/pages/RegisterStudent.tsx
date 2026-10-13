@@ -252,7 +252,7 @@ const RegisterStudent = () => {
     toast.success("Account created successfully!");
     setRegistering(false);
     setShowOtpModal(false);
-    navigate(redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login");
+    navigate(redirectUrl && !redirectUrl.includes("login") ? redirectUrl : "/dashboard/student");
   };
   return (
     <PageLayout>
