@@ -66,11 +66,10 @@ export default function TutorMapView({ tutors, selectedCity }: TutorMapViewProps
       attributionControl: true,
     });
 
-    // Add clean map tiles (CartoDB Positron is beautiful, light-themed, and fits modern glassmorphism UI)
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
+    // Add OpenStreetMap tiles (100% free, open-source, no API key required)
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
+      maxZoom: 19
     }).addTo(map);
 
     // Add zoom control at bottom-right
