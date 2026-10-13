@@ -4529,6 +4529,18 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
+              {selectedBookingForDetail.topicToLearn && (
+                <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50">
+                  <span className="text-[10px] text-purple-900 dark:text-purple-300 font-bold uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                    <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    Student's Requested Topics to Learn
+                  </span>
+                  <p className="text-xs text-foreground font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                    {selectedBookingForDetail.topicToLearn}
+                  </p>
+                </div>
+              )}
+
               {/* Timing and Financials Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-card border">

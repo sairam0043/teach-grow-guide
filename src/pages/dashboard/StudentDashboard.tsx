@@ -1067,6 +1067,17 @@ const StudentDashboard = () => {
                              <User className="h-5 w-5 text-primary"/> {booking.tutorName}
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
+                          {booking.topicToLearn && (
+                            <div className="mt-2.5 p-2.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 text-xs max-w-lg">
+                              <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5 mb-0.5">
+                                <BookOpen className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                Requested Topics to Learn:
+                              </span>
+                              <p className="text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {booking.topicToLearn}
+                              </p>
+                            </div>
+                          )}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
                             <Calendar className="h-4 w-4"/> {formatBookingTime(booking, studentTimezone)}
                             {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (

@@ -1093,6 +1093,17 @@ const TutorDashboard = () => {
                             <Users className="h-5 w-5 text-primary" /> Student: {booking.studentName}
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
+                          {booking.topicToLearn && (
+                            <div className="mt-2.5 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50 max-w-xl">
+                              <span className="font-bold text-xs text-purple-900 dark:text-purple-300 flex items-center gap-1.5 mb-1">
+                                <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                Topics Student Needs Explained:
+                              </span>
+                              <p className="text-xs text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {booking.topicToLearn}
+                              </p>
+                            </div>
+                          )}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
                             <Calendar className="h-4 w-4" /> {formatBookingTime(booking, tutorTimezone)}
                             {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
@@ -1404,6 +1415,18 @@ const TutorDashboard = () => {
                             </div>
                             <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
                           </div>
+
+                          {cls.topicToLearn && (
+                            <div className="mb-4 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50">
+                              <span className="font-bold text-xs text-purple-900 dark:text-purple-300 flex items-center gap-1.5 mb-1">
+                                <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                Topics to Cover:
+                              </span>
+                              <p className="text-xs text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {cls.topicToLearn}
+                              </p>
+                            </div>
+                          )}
 
                           {cls.rescheduleRequest && cls.rescheduleRequest.status === 'pending' && (
                             cls.rescheduleRequest.requestedBy === 'Student' ? (

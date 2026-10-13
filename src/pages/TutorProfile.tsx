@@ -5,7 +5,7 @@ declare global {
 }
 
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon } from "lucide-react";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,7 @@ const TutorProfile = () => {
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
   const [tutorPosts, setTutorPosts] = useState<any[]>([]);
   const [selectedImageModal, setSelectedImageModal] = useState<string | null>(null);
+  const [demoTopics, setDemoTopics] = useState<string>("");
 
   useEffect(() => {
     if (id) {
@@ -383,6 +384,7 @@ const TutorProfile = () => {
               if (pending.subject) setSelectedSubject(pending.subject);
               if (pending.slot) setSelectedSlot(pending.slot);
               if (pending.plan) setSelectedPlan(pending.plan);
+              if (pending.demoTopics) setDemoTopics(pending.demoTopics);
 
               sessionStorage.removeItem("pending_booking");
               toast.success("Restored your selected booking slot!");
@@ -514,6 +516,13 @@ const TutorProfile = () => {
       }
     }
 
+    if (selectedPlan.type === 'Free Demo Class' && !demoTopics.trim()) {
+      toast.error("Please enter what topics you need the tutor to explain before booking the demo.");
+      const topicsEl = document.getElementById("demo-topics");
+      if (topicsEl) topicsEl.focus();
+      return;
+    }
+
     if (selectedPlan.type === 'Free Demo Class' && isDemoDisabledForSubject) {
       if (demoBookingForSubject?.status === 'pending') {
         toast.error(`You have already requested a demo session for ${selectedSubject}. Please wait for the tutor to accept or reject it.`);
@@ -538,7 +547,8 @@ const TutorProfile = () => {
                   date: date ? date.toISOString() : null,
                   subject: selectedSubject,
                   slot: selectedSlot,
-                  plan: selectedPlan
+                  plan: selectedPlan,
+                  demoTopics: demoTopics.trim()
                 }));
                 window.scrollTo(0, 0);
                 navigate("/login");
@@ -555,7 +565,8 @@ const TutorProfile = () => {
                   date: date ? date.toISOString() : null,
                   subject: selectedSubject,
                   slot: selectedSlot,
-                  plan: selectedPlan
+                  plan: selectedPlan,
+                  demoTopics: demoTopics.trim()
                 }));
                 window.scrollTo(0, 0);
                 navigate("/register/student");
@@ -628,7 +639,8 @@ const TutorProfile = () => {
         subject: selectedSubject,
         studentId: user.id,
         studentName,
-        utcTiming
+        utcTiming,
+        topicToLearn: demoTopics.trim()
       };
 
       if (!isDemoBooking) {
@@ -2093,6 +2105,44 @@ const TutorProfile = () => {
                                 </div>
                               );
                             })()}
+                          </div>
+                        )}
+
+                        {/* Student Topics to be Taught / Focus Areas */}
+                        {selectedPlan && (
+                          <div className="space-y-2 mt-4 p-3.5 border rounded-xl bg-secondary/15 dark:bg-secondary/10 shadow-xs animate-in fade-in">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="demo-topics" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                <BookOpen className="h-3.5 w-3.5 text-primary" />
+                                Topics to be Taught / Questions {selectedPlan.type === 'Free Demo Class' ? <span className="text-destructive font-black">*</span> : <span className="text-muted-foreground font-normal text-[11px]">(Optional)</span>}
+                              </Label>
+                              {selectedPlan.type === 'Free Demo Class' && (
+                                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5">
+                                  Required for Demo
+                                </Badge>
+                              )}
+                            </div>
+                            <Textarea
+                              id="demo-topics"
+                              placeholder={
+                                selectedPlan.type === 'Free Demo Class'
+                                  ? "Please explain what specific topics or chapters you want the tutor to explain in this demo (e.g. Calculus derivatives, Organic chemistry reactions, grammar basics) so the tutor can prepare beforehand..."
+                                  : "Any specific chapters, topics, or goals you would like the tutor to focus on..."
+                              }
+                              value={demoTopics}
+                              onChange={(e) => setDemoTopics(e.target.value)}
+                              className="text-xs min-h-[75px] resize-none rounded-lg bg-background"
+                              maxLength={500}
+                            />
+                            <p className="text-[11px] text-muted-foreground leading-normal">
+                              {selectedPlan.type === 'Free Demo Class' ? (
+                                <span className="text-primary font-medium">
+                                  💡 This informs the tutor in advance so they can prepare custom material for your demo.
+                                </span>
+                              ) : (
+                                <span>Helps the tutor prepare custom learning plans for your session.</span>
+                              )}
+                            </p>
                           </div>
                         )}
 

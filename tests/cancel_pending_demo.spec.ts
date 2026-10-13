@@ -52,6 +52,9 @@ test.describe("Cancellation of Pending Demo Requests", () => {
     await expect(firstTimingSlot).toBeVisible();
     await firstTimingSlot.click();
 
+    // Fill required demo topics
+    await page.locator("#demo-topics").fill("Newton laws of motion and friction concepts");
+
     // 8. Book the Free Demo Class
     const bookBtn = page.locator("button:has-text('Book Free Demo Session')");
     await expect(bookBtn).toBeEnabled();
@@ -125,6 +128,9 @@ test.describe("Cancellation of Pending Demo Requests", () => {
     const firstTimingSlot = page.locator("button:has(div.font-medium)").first();
     await expect(firstTimingSlot).toBeVisible();
     await firstTimingSlot.click();
+
+    // Fill required demo topics
+    await page.locator("#demo-topics").fill("Calculus integration and area under curves");
 
     // 8. Book Demo
     const bookBtn = page.locator("button:has-text('Book Free Demo Session')");

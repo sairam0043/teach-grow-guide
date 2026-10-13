@@ -463,10 +463,13 @@ router.post('/:id/slots', async (req, res) => {
 router.post('/:id/book', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, utcTiming } = req.body;
+    const { timing, subject, studentId, studentName, utcTiming, topicToLearn } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
+    if (!topicToLearn || !topicToLearn.trim()) {
+      return res.status(400).json({ message: 'Please specify the topic(s) or concepts you would like the tutor to cover in this demo.' });
+    }
 
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
@@ -511,6 +514,7 @@ router.post('/:id/book', async (req, res) => {
       timing,
       utcTiming: utcTiming ? new Date(utcTiming) : undefined,
       subject,
+      topicToLearn: (topicToLearn || '').trim(),
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
       status: 'pending'
@@ -535,10 +539,14 @@ router.post('/:id/book', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutorUser.email,
           subject: 'New Demo Session Requested (Pending Approval)',
-          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
+          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nTopics to cover:\n"${(topicToLearn || '').trim()}"\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
           html: `<h3>New Demo Session Requested</h3>
                  <p>Hello <b>${tutor.name}</b>,</p>
                  <p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p>
+                 <div style="background-color: #f3f4f6; padding: 12px; border-radius: 8px; margin: 14px 0; border-left: 4px solid #4f46e5;">
+                   <strong style="color: #4f46e5; display: block; margin-bottom: 4px;">Topics Student Needs Explained:</strong>
+                   <p style="margin: 0; color: #1f2937; white-space: pre-wrap;">${(topicToLearn || '').trim()}</p>
+                 </div>
                  <p>Please log in to your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
                  <p>Best regards,<br/>Cuvasol Tutor Team</p>`,
         }).then(() => {
@@ -634,7 +642,7 @@ router.post('/:id/book-verification-demo', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet } = req.body;
+    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet, topicToLearn } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -742,6 +750,7 @@ router.post('/:id/book-class', async (req, res) => {
       timing,
       utcTiming: utcTiming ? new Date(utcTiming) : undefined,
       subject,
+      topicToLearn: (topicToLearn || '').trim(),
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
       status: isGroup ? 'pending' : (fullyPaidByWallet ? 'enrolled' : 'pending_payment'),

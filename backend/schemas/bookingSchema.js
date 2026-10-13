@@ -8,6 +8,7 @@ const bookingSchema = new mongoose.Schema({
   studentId: { type: String, required: true },
   studentName: { type: String, required: true },
   subject: { type: String, required: true },
+  topicToLearn: { type: String, trim: true, default: '' },
   status: { type: String, enum: ['pending', 'pending_payment', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'], default: 'confirmed' },
   planType: { type: String },
   amountPaid: { type: Number },
