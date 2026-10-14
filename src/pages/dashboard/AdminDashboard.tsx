@@ -1821,7 +1821,7 @@ const AdminDashboard = () => {
                                     Mark Completed
                                   </Button>
                                 )}
-                                {['pending', 'confirmed'].includes(demo.status) && (
+                                {['pending', 'confirmed', 'rejected'].includes(demo.status) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1939,7 +1939,7 @@ const AdminDashboard = () => {
                             <TableCell className="text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1.5">
-                                {['pending', 'confirmed', 'enrolled'].includes(booking.status) && (
+                                {['pending', 'confirmed', 'enrolled', 'rejected'].includes(booking.status) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -4551,7 +4551,7 @@ const AdminDashboard = () => {
                         <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
                       </span>
                     </div>
-                    {['pending', 'confirmed', 'enrolled'].includes(selectedBookingForDetail.status) && (
+                    {['pending', 'confirmed', 'enrolled', 'rejected'].includes(selectedBookingForDetail.status) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -4911,10 +4911,11 @@ const AdminDashboard = () => {
         booking={reschedulingBooking}
         userRole="Admin"
         onSuccess={(updatedBooking) => {
-          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
           if (selectedBookingForDetail && selectedBookingForDetail._id === updatedBooking._id) {
-            setSelectedBookingForDetail(updatedBooking);
+            setSelectedBookingForDetail((prev: any) => ({ ...prev, ...updatedBooking }));
           }
+          fetchTutors();
         }}
       />
     </PageLayout>

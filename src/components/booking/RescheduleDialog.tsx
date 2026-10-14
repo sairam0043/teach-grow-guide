@@ -329,22 +329,42 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
                 {booking.planType || "Demo Class"}
               </Badge>
             </div>
-            <p className="text-muted-foreground">
+            <div className="text-muted-foreground">
               {userRole === "Student" ? (
-                <>
+                <p>
                   Tutor: <strong className="text-foreground">{booking.tutorName}</strong>
-                </>
+                </p>
+              ) : userRole === "Admin" ? (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                  <p>Tutor: <strong className="text-foreground">{booking.tutorName || "Unknown Tutor"}</strong></p>
+                  {booking.studentName && booking.studentName !== "Admin Verification" && (
+                    <p>Student: <strong className="text-foreground">{booking.studentName}</strong></p>
+                  )}
+                </div>
               ) : (
-                <>
+                <p>
                   Student: <strong className="text-foreground">{booking.studentName}</strong>
-                </>
+                </p>
               )}
-            </p>
+            </div>
             <p className="text-muted-foreground flex items-center gap-1.5 font-medium pt-0.5">
               <Clock className="h-3.5 w-3.5 text-primary" />
               Current Timing: <span className="text-foreground font-semibold">{booking.timing}</span>
             </p>
           </div>
+
+          {/* Decline Reason / Note Banner if previously declined */}
+          {booking.cancellationReason && (
+            <div className="p-3 bg-rose-50/80 dark:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-rose-700 dark:text-rose-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>Tutor&apos;s Decline Reason / Note:</span>
+              </div>
+              <p className="text-rose-950 dark:text-rose-200 italic pl-5 font-medium">
+                &ldquo;{booking.cancellationReason}&rdquo;
+              </p>
+            </div>
+          )}
 
           {/* Tutor Availability Schedule Info */}
           {loadingTutor ? (

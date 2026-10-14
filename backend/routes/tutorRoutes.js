@@ -1410,20 +1410,56 @@ router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
     }
 
     const oldTiming = booking.timing;
+    const oldStatus = booking.status;
     booking.timing = requestedTiming;
     if (requestedUtcTiming) {
       booking.utcTiming = new Date(requestedUtcTiming);
     }
     booking.rescheduledAt = new Date();
     booking.rescheduledBy = 'Admin';
+
+    const isVerificationDemo = booking.subject === 'Verification Demo Class' || booking.studentId === 'admin';
+
+    // If the booking was previously declined/rejected or cancelled, reactivate it!
+    if (['rejected', 'cancelled'].includes(booking.status)) {
+      booking.status = isVerificationDemo ? 'pending' : (booking.amountPaid ? 'confirmed' : 'pending');
+      booking.cancellationReason = undefined;
+      booking.cancelledBy = undefined;
+      booking.cancelledAt = undefined;
+    }
+
     if (booking.rescheduleRequest) {
       booking.rescheduleRequest.status = 'approved';
       booking.rescheduleRequest.requestedTiming = requestedTiming;
       booking.rescheduleRequest.requestedUtcTiming = requestedUtcTiming ? new Date(requestedUtcTiming) : undefined;
+      if (reason) booking.rescheduleRequest.reason = reason;
+    } else {
+      booking.rescheduleRequest = {
+        requestedTiming,
+        requestedUtcTiming: requestedUtcTiming ? new Date(requestedUtcTiming) : undefined,
+        requestedBy: 'Admin',
+        reason: reason || (oldStatus === 'rejected' ? 'Rescheduled following tutor decline' : ''),
+        status: 'approved',
+        requestedAt: new Date()
+      };
+    }
+
+    // Refresh video room meeting link for the updated timing
+    try {
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: requestedTiming,
+        utcTiming: requestedUtcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-verification-${booking._id}`
+      });
+    } catch (meetErr) {
+      console.error('[Admin Reschedule] Meeting link update error:', meetErr.message);
     }
 
     await booking.save();
-    console.log(`[Admin Reschedule] Booking ID ${booking._id} rescheduled by Admin to ${requestedTiming}`);
+    console.log(`[Admin Reschedule] Booking ID ${booking._id} rescheduled by Admin to ${requestedTiming} (Status: ${booking.status})`);
 
     // Notify tutor and student
     try {
@@ -1437,9 +1473,28 @@ router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
         transporter.sendMail({
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutorUser.email,
-          subject: `Class Rescheduled by Administrator: ${booking.subject}`,
-          text: `Hello ${tutor.name},\n\nOur administrator has rescheduled the ${booking.subject} class with ${booking.studentName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
-          html: `
+          subject: isVerificationDemo
+            ? `Verification Demo Class Rescheduled: ${requestedTiming}`
+            : `Class Rescheduled by Administrator: ${booking.subject}`,
+          text: isVerificationDemo
+            ? `Hello ${tutor.name},\n\nOur administrator has rescheduled your Verification Demo Class to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Notes: ${reason}\n` : ''}\nPlease log in to your dashboard to review and accept this session.\n\nBest regards,\nCuvasol Tutor Team`
+            : `Hello ${tutor.name},\n\nOur administrator has rescheduled the ${booking.subject} class with ${booking.studentName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
+          html: isVerificationDemo
+            ? `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #7c3aed; text-align: center;">Verification Demo Class Rescheduled</h2>
+              <p>Hello <strong>${tutor.name}</strong>,</p>
+              <p>Our administrator has rescheduled your <strong>Verification Demo Class</strong> session.</p>
+              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+              </div>
+              <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to review and accept this updated session time.</p>
+              <p>Best regards,<br/>Cuvasol Tutor Team</p>
+            </div>
+            `
+            : `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
               <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
               <p>Hello <strong>${tutor.name}</strong>,</p>
@@ -1456,7 +1511,7 @@ router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
         }).catch(err => console.error('[Admin Reschedule Email] Tutor error:', err.message));
       }
 
-      if (studentEmail) {
+      if (studentEmail && !isVerificationDemo) {
         transporter.sendMail({
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: studentEmail,
