@@ -543,12 +543,13 @@ router.get('/student/:studentId', async (req, res) => {
 router.get('/student/:studentId/bookings', async (req, res) => {
   try {
     const studentId = req.params.studentId;
-    const bookings = await Booking.find({ studentId }).populate('tutorId', 'address googleMapsUrl mode city timezone').sort({ createdAt: -1 });
+    const bookings = await Booking.find({ studentId }).populate('tutorId', 'address googleMapsUrl googleMeetLink mode city timezone').sort({ createdAt: -1 });
     const formatted = bookings.map(b => {
       const obj = b.toObject();
       if (b.tutorId) {
         obj.tutorAddress = b.tutorId.address;
         obj.tutorGoogleMapsUrl = b.tutorId.googleMapsUrl;
+        obj.tutorGoogleMeetLink = b.tutorId.googleMeetLink;
         obj.tutorMode = b.tutorId.mode;
         obj.tutorCity = b.tutorId.city;
         obj.tutorTimezone = b.tutorId.timezone;

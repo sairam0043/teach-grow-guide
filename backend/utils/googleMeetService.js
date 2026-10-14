@@ -190,8 +190,26 @@ const generateMeetingLinkForBooking = async ({
     }
   }
 
+  // If the tutor has configured their direct Google Meet link, prioritize it for classes and student bookings
+  let activeTutor = tutor;
+  if (!isAdminDemo && tutor) {
+    if (!activeTutor.googleMeetLink && (activeTutor._id || typeof activeTutor === 'string')) {
+      try {
+        const Tutor = require('../schemas/tutorSchema');
+        const dbTutor = await Tutor.findById(activeTutor._id || activeTutor);
+        if (dbTutor) activeTutor = dbTutor;
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (activeTutor && activeTutor.googleMeetLink && activeTutor.googleMeetLink.trim()) {
+      console.log(`[GoogleMeetService] Using tutor's direct Google Meet link: ${activeTutor.googleMeetLink}`);
+      return activeTutor.googleMeetLink.trim();
+    }
+  }
+
   // Otherwise, if it is a normal student booking and the tutor has calendar connected, use tutor calendar
-  if (!isAdminDemo && tutor.googleTokens && tutor.googleTokens.refreshToken) {
+  if (!isAdminDemo && activeTutor && activeTutor.googleTokens && activeTutor.googleTokens.refreshToken) {
     try {
       const User = require('../schemas/userSchema');
       const tutorUser = await User.findById(tutor.userId);
