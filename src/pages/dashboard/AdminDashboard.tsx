@@ -162,8 +162,15 @@ const AdminDashboard = () => {
   const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
   const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
-  const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
-  const [bookingToComplete, setBookingToComplete] = useState<{ id: string; tutorName: string } | null>(null);
+  const [bookingToComplete, setBookingToComplete] = useState<{
+    id: string;
+    tutorName: string;
+    timing?: string;
+    subject?: string;
+    existingComment?: string;
+  } | null>(null);
+  const [adminCompletionComment, setAdminCompletionComment] = useState("");
+  const [isCompletingBooking, setIsCompletingBooking] = useState(false);
 
   // Referrals Leaderboard State
   const [referralsLeaderboard, setReferralsLeaderboard] = useState<any[]>([]);
@@ -951,12 +958,13 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleUpdateBookingStatus = async (bookingId: string, status: string, cancellationReason?: string) => {
+  const handleUpdateBookingStatus = async (bookingId: string, status: string, cancellationReason?: string, adminComment?: string) => {
     try {
       await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { 
         status,
         cancellationReason: cancellationReason || (status === 'cancelled' ? 'Cancelled by Admin' : undefined),
-        cancelledBy: status === 'cancelled' || status === 'rejected' ? 'Admin' : undefined
+        cancelledBy: status === 'cancelled' || status === 'rejected' ? 'Admin' : undefined,
+        adminComment
       });
       toast.success(`Booking status updated to ${status} successfully.`);
       fetchTutors();
@@ -1789,6 +1797,12 @@ const AdminDashboard = () => {
                                     "{demo.cancellationReason}"
                                   </p>
                                 )}
+                                {demo.status === 'completed' && demo.adminComment && (
+                                  <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1 max-w-[220px] truncate mx-auto italic flex items-center justify-center gap-1" title={`Admin Note: ${demo.adminComment}`}>
+                                    <MessageSquare className="h-3 w-3 shrink-0" />
+                                    <span>"{demo.adminComment}"</span>
+                                  </p>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell className="text-center">
@@ -1812,13 +1826,22 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2">
-                                {demo.status === 'confirmed' && (
+                                {['pending', 'confirmed'].includes(demo.status) && (
                                   <Button
                                     size="sm"
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg"
-                                    onClick={() => setBookingToComplete({ id: demo._id, tutorName: demo.tutorName || "Unknown Tutor" })}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg text-xs flex items-center gap-1 shadow-xs"
+                                    onClick={() => {
+                                      setBookingToComplete({
+                                        id: demo._id,
+                                        tutorName: demo.tutorName || "Unknown Tutor",
+                                        timing: demo.timing,
+                                        subject: demo.subject,
+                                        existingComment: demo.adminComment || ""
+                                      });
+                                      setAdminCompletionComment(demo.adminComment || "");
+                                    }}
                                   >
-                                    Mark Completed
+                                    <CheckCircle className="h-3.5 w-3.5" /> Completed
                                   </Button>
                                 )}
                                 {['pending', 'confirmed', 'rejected'].includes(demo.status) && (
@@ -4564,6 +4587,24 @@ const AdminDashboard = () => {
                         <Clock className="h-3 w-3" /> Reschedule
                       </Button>
                     )}
+                    {['pending', 'confirmed'].includes(selectedBookingForDetail.status) && selectedBookingForDetail.subject === "Verification Demo Class" && (
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                        onClick={() => {
+                          setBookingToComplete({
+                            id: selectedBookingForDetail._id,
+                            tutorName: selectedBookingForDetail.tutorName || "Unknown Tutor",
+                            timing: selectedBookingForDetail.timing,
+                            subject: selectedBookingForDetail.subject,
+                            existingComment: selectedBookingForDetail.adminComment || ""
+                          });
+                          setAdminCompletionComment(selectedBookingForDetail.adminComment || "");
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3" /> Completed
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="p-4 rounded-xl bg-card border">
@@ -4870,35 +4911,93 @@ const AdminDashboard = () => {
           })()}
         </DialogContent>
       </Dialog>
-      {/* Complete Booking Confirmation Modal */}
-      <Dialog open={bookingToComplete !== null} onOpenChange={(open) => !open && setBookingToComplete(null)}>
-        <DialogContent className="sm:max-w-[450px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
+      {/* Complete Booking Confirmation Modal with Admin Comment */}
+      <Dialog
+        open={bookingToComplete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBookingToComplete(null);
+            setAdminCompletionComment("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[480px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-blue-600">
-              <CheckCircle className="h-5 w-5" /> Confirm Demo Completion
+              <CheckCircle className="h-5 w-5" /> Mark Demo as Completed
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground mt-1">
-              Are you sure you want to mark the verification demo for <strong>{bookingToComplete?.tutorName}</strong> as completed? This action will update their status and cannot be undone.
+              Mark the verification demo for <strong className="text-foreground">{bookingToComplete?.tutorName}</strong> as completed.
+              {bookingToComplete?.timing && (
+                <span className="block mt-0.5 text-xs text-muted-foreground">
+                  Scheduled Time: <strong className="text-foreground">{bookingToComplete.timing}</strong>
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-completion-comment" className="text-xs font-semibold flex items-center justify-between">
+                <span>Admin Comment / Feedback</span>
+                <span className="text-[11px] text-muted-foreground font-normal">(Optional)</span>
+              </Label>
+              <Textarea
+                id="admin-completion-comment"
+                placeholder="e.g. Tutor attended demo session via direct link. Good communication, subject expertise verified, profile approved..."
+                value={adminCompletionComment}
+                onChange={(e) => setAdminCompletionComment(e.target.value)}
+                rows={3}
+                className="text-xs resize-none rounded-lg"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                This comment will be saved to the verification demo record for reference.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-border/40">
             <Button
               variant="ghost"
-              onClick={() => setBookingToComplete(null)}
-              className="rounded-lg h-10 px-4 hover:bg-secondary/20 font-semibold"
+              onClick={() => {
+                setBookingToComplete(null);
+                setAdminCompletionComment("");
+              }}
+              disabled={isCompletingBooking}
+              className="rounded-lg h-9 px-4 hover:bg-secondary/20 font-semibold text-xs"
             >
               Cancel
             </Button>
             <Button
               onClick={async () => {
                 if (bookingToComplete) {
-                  await handleUpdateBookingStatus(bookingToComplete.id, 'completed');
-                  setBookingToComplete(null);
+                  try {
+                    setIsCompletingBooking(true);
+                    await handleUpdateBookingStatus(
+                      bookingToComplete.id,
+                      'completed',
+                      undefined,
+                      adminCompletionComment.trim()
+                    );
+                    setBookingToComplete(null);
+                    setAdminCompletionComment("");
+                  } finally {
+                    setIsCompletingBooking(false);
+                  }
                 }
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-10 px-4 shadow-md font-semibold"
+              disabled={isCompletingBooking}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-9 px-4 shadow-md font-semibold text-xs flex items-center gap-1.5"
             >
-              Mark Completed
+              {isCompletingBooking ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3.5 w-3.5" /> Mark Completed
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>

@@ -899,7 +899,7 @@ router.get('/:id/bookings/student/:studentId', async (req, res) => {
 // Update booking status
 router.put('/booking/:bookingId/status', async (req, res) => {
   try {
-    const { status, cancellationReason, cancelledBy } = req.body;
+    const { status, cancellationReason, cancelledBy, adminComment } = req.body;
     if (!['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'].includes(status)) {
        return res.status(400).json({ message: 'Invalid status' });
     }
@@ -910,6 +910,12 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     booking.status = status;
     if (cancellationReason !== undefined) {
       booking.cancellationReason = cancellationReason;
+    }
+    if (adminComment !== undefined) {
+      booking.adminComment = adminComment;
+    }
+    if (status === 'completed') {
+      booking.completedAt = new Date();
     }
     if (status === 'cancelled' || status === 'rejected') {
       booking.cancelledAt = new Date();
@@ -925,7 +931,7 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     }
     await booking.save();
     
-    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status} (Cancelled By: ${booking.cancelledBy || 'N/A'})`);
+    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status}${adminComment ? ` (Admin Comment: "${adminComment}")` : ''} (Cancelled By: ${booking.cancelledBy || 'N/A'})`);
 
     // Handle wallet refund if booking was cancelled or rejected
     if (status === 'cancelled' || status === 'rejected') {

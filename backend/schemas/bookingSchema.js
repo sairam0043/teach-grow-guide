@@ -19,6 +19,8 @@ const bookingSchema = new mongoose.Schema({
   cancellationReason: { type: String },
   cancelledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' },
   cancelledAt: { type: Date },
+  adminComment: { type: String, default: '' },
+  completedAt: { type: Date },
   groupDetails: {
     isGroup: { type: Boolean, default: false },
     invitedEmails: [{
