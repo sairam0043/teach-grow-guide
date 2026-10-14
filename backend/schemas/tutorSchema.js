@@ -21,6 +21,7 @@ const tutorSchema = new mongoose.Schema({
   pincode: { type: String, default: "" },
   address: { type: String, default: "" },
   googleMapsUrl: { type: String, default: "" },
+  googleMeetLink: { type: String, default: "" },
   bio: { type: String },
   subjects: [{ type: String }],
   classesTaught: [{ type: String }],

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, Fragment } from "react";
 import { Link } from "react-router-dom";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Phone, Tag, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2 } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Phone, Tag, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -108,6 +108,7 @@ const AdminDashboard = () => {
   const [editCity, setEditCity] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editGoogleMapsUrl, setEditGoogleMapsUrl] = useState("");
+  const [editGoogleMeetLink, setEditGoogleMeetLink] = useState("");
   const [editMode, setEditMode] = useState("Online");
   const [editQualification, setEditQualification] = useState("");
   const [editExperience, setEditExperience] = useState<number | string>(0);
@@ -375,6 +376,7 @@ const AdminDashboard = () => {
     setEditCity(tutor.city || "");
     setEditAddress(tutor.address || "");
     setEditGoogleMapsUrl(tutor.googleMapsUrl || "");
+    setEditGoogleMeetLink(tutor.googleMeetLink || "");
     setEditMode(tutor.mode || "Online");
     setEditQualification(tutor.qualification || "");
     setEditExperience(tutor.experience ?? 0);
@@ -517,6 +519,7 @@ const AdminDashboard = () => {
         experience: Number(editExperience),
         address: editAddress,
         googleMapsUrl: editGoogleMapsUrl,
+        googleMeetLink: editGoogleMeetLink,
         mode: editMode,
         category: editCategory,
         subjectRates: editSubjectRates,
@@ -3435,6 +3438,18 @@ const AdminDashboard = () => {
                     />
                   </div>
                   <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Direct Google Meet Link</label>
+                    <Input 
+                      value={editGoogleMeetLink} 
+                      onChange={(e) => setEditGoogleMeetLink(e.target.value)} 
+                      placeholder="https://meet.google.com/abc-defg-hij"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
                     <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Mode</label>
                     <Select value={editMode} onValueChange={setEditMode}>
                       <SelectTrigger className="bg-background text-sm font-semibold">
@@ -3852,6 +3867,34 @@ const AdminDashboard = () => {
                         <MapPin className="h-3.5 w-3.5" /> View on Google Maps
                       </a>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Direct Google Meet Link Section */}
+              {selectedTutorForDetail.googleMeetLink && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Direct Google Meet Link</h4>
+                  <div className="p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/10 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-emerald-600">
+                        <Video className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Google Meet Room</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[280px]">
+                          {selectedTutorForDetail.googleMeetLink}
+                        </p>
+                      </div>
+                    </div>
+                    <a 
+                      href={selectedTutorForDetail.googleMeetLink.startsWith('http') ? selectedTutorForDetail.googleMeetLink : `https://${selectedTutorForDetail.googleMeetLink}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-2 px-4 rounded-lg border border-emerald-200 dark:border-emerald-900/30 transition-colors inline-flex items-center gap-1.5"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Open Meet
+                    </a>
                   </div>
                 </div>
               )}

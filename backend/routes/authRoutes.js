@@ -426,6 +426,14 @@ router.post('/register', async (req, res) => {
           const { expandGoogleMapsUrl } = require('../utils/urlHelper');
           return await expandGoogleMapsUrl(rawUrl);
         })(),
+        googleMeetLink: (() => {
+          const rawMeet = (tutorData.googleMeetLink || tutorData.google_meet_link || '').trim();
+          if (!rawMeet) return '';
+          if (!/^https?:\/\//i.test(rawMeet)) {
+            return `https://${rawMeet}`;
+          }
+          return rawMeet;
+        })(),
         timezone: tutorData.timezone || timezone || 'Asia/Kolkata',
         hearAboutUs: tutorData.hearAboutUs || '',
         pincode: tutorData.pincode || ''
@@ -588,7 +596,15 @@ router.post('/google', async (req, res) => {
           experience: 0,
           hourlyRate: 500,
           photo: user.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name) + "&background=random",
-          timezone: timezone || 'Asia/Kolkata'
+          timezone: timezone || 'Asia/Kolkata',
+          googleMeetLink: (() => {
+            const rawMeet = (req.body.googleMeetLink || req.body.google_meet_link || '').trim();
+            if (!rawMeet) return '';
+            if (!/^https?:\/\//i.test(rawMeet)) {
+              return `https://${rawMeet}`;
+            }
+            return rawMeet;
+          })()
         });
         await tutor.save();
 

@@ -110,10 +110,10 @@ export const InternetConnectionAlert: React.FC<InternetConnectionAlertProps> = (
 
       {/* Main Text Content */}
       <div className="flex-1 pr-6 sm:pr-2">
-        <h3 className="font-extrabold text-base sm:text-lg text-black dark:text-amber-100 leading-tight mb-1 tracking-tight">
+        <h3 className="font-extrabold text-base sm:text-lg text-black leading-tight mb-1 tracking-tight">
           Computer not connected
         </h3>
-        <p className="text-sm sm:text-base text-black dark:text-amber-200/90 leading-normal font-bold">
+        <p className="text-sm sm:text-base text-black leading-normal font-bold">
           Make sure your computer has an active internet connection.{" "}
           <button
             type="button"

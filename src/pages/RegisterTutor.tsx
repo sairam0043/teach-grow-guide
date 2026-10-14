@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { Eye, EyeOff, Calendar, Clock, PlusCircle, Check, GraduationCap, Award, Briefcase, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Calendar, Clock, PlusCircle, Check, GraduationCap, Award, Briefcase, Trash2, Video, ExternalLink } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleLogin } from "@react-oauth/google";
 
@@ -103,6 +103,7 @@ const RegisterTutor = () => {
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [address, setAddress] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [googleMeetLink, setGoogleMeetLink] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [subjectRates, setSubjectRates] = useState<Record<string, number>>({});
   const [otherSubjectText, setOtherSubjectText] = useState("");
@@ -339,6 +340,8 @@ const RegisterTutor = () => {
       teaching_mode: teachingMode.toLowerCase(),
       address: (teachingMode === "Offline" || teachingMode === "Both") ? address : "",
       google_maps_url: (teachingMode === "Offline" || teachingMode === "Both") ? googleMapsUrl : "",
+      googleMeetLink: googleMeetLink.trim(),
+      google_meet_link: googleMeetLink.trim(),
       availability: JSON.stringify(selectedDays.flatMap(dayObj => {
         const seen = new Set<string>();
         const uniqueSlots = dayObj.slots.filter(slot => {
@@ -664,6 +667,41 @@ const RegisterTutor = () => {
                       onChange={(e) => setGoogleMapsUrl(e.target.value)} 
                     />
                   </div>
+                </div>
+              )}
+
+              {(teachingMode === "Online" || teachingMode === "Both") && (
+                <div className="p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="googleMeetLink" className="flex items-center gap-2 font-medium text-foreground text-sm">
+                      <Video className="h-4 w-4 text-emerald-600" />
+                      Direct Google Meet Link <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                      <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30">
+                        Online Classes
+                      </Badge>
+                    </Label>
+                    {googleMeetLink && (
+                      <a
+                        href={googleMeetLink.startsWith("http") ? googleMeetLink : `https://${googleMeetLink}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold"
+                      >
+                        <ExternalLink className="h-3 w-3" /> Test Link
+                      </a>
+                    )}
+                  </div>
+                  <Input 
+                    id="googleMeetLink" 
+                    type="url"
+                    placeholder="e.g. https://meet.google.com/abc-defg-hij" 
+                    value={googleMeetLink} 
+                    onChange={(e) => setGoogleMeetLink(e.target.value)} 
+                    className="bg-background shadow-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Provide your personal or recurring Google Meet URL. When students book online classes or demo sessions with you, they will join via this meeting link.
+                  </p>
                 </div>
               )}
 

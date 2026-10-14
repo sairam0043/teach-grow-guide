@@ -1670,7 +1670,7 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
 // Admin can update approval status, featured flag, and verification badge status
 router.put('/:id/admin', async (req, res) => {
   try {
-    const { status, featured, rejectionReason, isVerified } = req.body;
+    const { status, featured, rejectionReason, isVerified, googleMeetLink } = req.body;
     const updateData = {};
     if (status) {
       updateData.status = status;
@@ -1681,6 +1681,13 @@ router.put('/:id/admin', async (req, res) => {
     if (featured !== undefined) updateData.featured = featured;
     if (rejectionReason !== undefined) updateData.rejectionReason = rejectionReason;
     if (isVerified !== undefined) updateData.isVerified = isVerified;
+    if (googleMeetLink !== undefined) {
+      let link = (googleMeetLink || '').trim();
+      if (link && !/^https?:\/\//i.test(link)) {
+        link = `https://${link}`;
+      }
+      updateData.googleMeetLink = link;
+    }
 
     const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
@@ -1787,7 +1794,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, timezone, classesTaught, boardsTaught, workExperience, mode } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, googleMeetLink, timezone, classesTaught, boardsTaught, workExperience, mode } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -1819,6 +1826,13 @@ router.put('/:id/profile', async (req, res) => {
     if (googleMapsUrl !== undefined) {
       const { expandGoogleMapsUrl } = require('../utils/urlHelper');
       currentTutor.googleMapsUrl = await expandGoogleMapsUrl(googleMapsUrl);
+    }
+    if (googleMeetLink !== undefined) {
+      let link = (googleMeetLink || '').trim();
+      if (link && !/^https?:\/\//i.test(link)) {
+        link = `https://${link}`;
+      }
+      currentTutor.googleMeetLink = link;
     }
     
     // Update subjectRates / subjects

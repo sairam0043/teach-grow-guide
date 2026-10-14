@@ -31,6 +31,8 @@ export interface Tutor {
   demoSlots: DemoSlot[];
   availability?: { day: string; startTime: string; endTime: string }[];
   isVerified?: boolean;
+  googleMapsUrl?: string;
+  googleMeetLink?: string;
 }
 
 export const mockTutors: Tutor[] = [

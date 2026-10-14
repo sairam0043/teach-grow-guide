@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2 } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -523,6 +523,7 @@ const TutorDashboard = () => {
     qualification: "",
     address: "",
     googleMapsUrl: "",
+    googleMeetLink: "",
     mode: "Online",
   });
   const [subjectRates, setSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
@@ -608,6 +609,7 @@ const TutorDashboard = () => {
             qualification: res.data.qualification || "",
             address: res.data.address || "",
             googleMapsUrl: res.data.googleMapsUrl || "",
+            googleMeetLink: res.data.googleMeetLink || "",
             mode: getFormattedMode(res.data.mode),
           });
           setWorkExperience(res.data.workExperience || []);
@@ -844,6 +846,7 @@ const TutorDashboard = () => {
         qualification: profileData.qualification,
         address: profileData.address,
         googleMapsUrl: profileData.googleMapsUrl,
+        googleMeetLink: profileData.googleMeetLink,
         mode: profileData.mode,
         subjectRates,
         classesTaught: selectedClasses,
@@ -922,10 +925,10 @@ const TutorDashboard = () => {
         </div>
 
         {tutorProfile?.status === "pending" && (
-          <Alert variant="destructive" className="mb-8 border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-500 shadow-sm rounded-xl">
-            <AlertCircle className="h-5 w-5" />
-            <AlertTitle className="font-bold text-lg">Account Pending Approval</AlertTitle>
-            <AlertDescription className="mt-2 text-sm leading-relaxed">
+          <Alert variant="destructive" className="mb-8 border-amber-500/50 bg-amber-500/10 text-slate-900 dark:text-slate-100 shadow-sm rounded-xl">
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <AlertTitle className="font-bold text-lg text-slate-900 dark:text-white">Account Pending Approval</AlertTitle>
+            <AlertDescription className="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-200 font-medium">
               Your tutor profile is under review by our admin team. Once approved, you will be publicly listed on the platform and students will be able to book your slots.
             </AlertDescription>
           </Alert>
@@ -2106,6 +2109,41 @@ const TutorDashboard = () => {
                         </div>
                       )}
 
+                      {(profileData.mode?.toLowerCase() === "online" || profileData.mode?.toLowerCase() === "both") && (
+                        <div className="p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="tutorGoogleMeetLink" className="text-sm font-semibold flex items-center gap-2">
+                              <Video className="h-4 w-4 text-emerald-600" />
+                              Direct Google Meet Link
+                              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30">
+                                Online Classes
+                              </Badge>
+                            </Label>
+                            {profileData.googleMeetLink && (
+                              <a
+                                href={profileData.googleMeetLink.startsWith("http") ? profileData.googleMeetLink : `https://${profileData.googleMeetLink}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold"
+                              >
+                                <ExternalLink className="h-3 w-3" /> Test Link
+                              </a>
+                            )}
+                          </div>
+                          <Input
+                            id="tutorGoogleMeetLink"
+                            type="url"
+                            value={profileData.googleMeetLink || ""}
+                            onChange={(e) => setProfileData({ ...profileData, googleMeetLink: e.target.value })}
+                            placeholder="e.g. https://meet.google.com/abc-defg-hij"
+                            className="bg-secondary/20 shadow-sm"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Your direct Google Meet link for online classes and demo sessions. When students book sessions with you, this meeting link will be automatically used.
+                          </p>
+                        </div>
+                      )}
+
                       <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
                         <div className="space-y-2">
                           <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
@@ -2307,11 +2345,11 @@ const TutorDashboard = () => {
                                       min={1}
                                       max={10000}
                                       className="w-20 h-8 text-xs font-bold text-center"
-                                      value={sr.rate !== undefined ? sr.rate : ""}
+                                      value={sr.rate || ""}
                                       onChange={(e) => {
                                         const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                                        const val = cleaned === "" ? "" : parseInt(cleaned, 10);
-                                        setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val as number) ? "" : val } : item));
+                                        const val = cleaned === "" ? 0 : parseInt(cleaned, 10);
+                                        setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val) ? 0 : val } : item));
                                       }}
                                     />
                                     <span className="text-[10px] text-muted-foreground">/hr</span>
