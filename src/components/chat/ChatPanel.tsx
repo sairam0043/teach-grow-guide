@@ -40,11 +40,16 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
   
+interface StagedAttachment {
+  file: File;
+  previewUrl: string;
+  fileType: string;
+}
+
   // File & Media Attachment State
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [stagedPreviews, setStagedPreviews] = useState<string[]>([]);
-  const [lightboxImage, setLightboxImage] = useState<{ url: string; filename: string } | null>(null);
+  const [stagedFiles, setStagedFiles] = useState<StagedAttachment[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -180,11 +185,11 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
             if (tutorRes.data) {
               contactData = {
                 id: targetUserId,
-                full_name: tutorRes.data.name,
-                email: tutorRes.data.email || "",
+                full_name: tutorRes.data?.name || "Tutor",
+                email: tutorRes.data?.email || "",
                 role: "tutor",
-                avatar: tutorRes.data.photo || tutorRes.data.avatar || "",
-                tutorProfileId: tutorRes.data.id
+                avatar: tutorRes.data?.photo || tutorRes.data?.avatar || "",
+                tutorProfileId: tutorRes.data?.id || null
               };
             }
           } catch (err2) {
@@ -271,11 +276,35 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   };
 
+  // Helper: Detect file category from file object
+  const getLocalFileType = (file: File) => {
+    if (file.type?.startsWith('image/') || /\.(jpeg|jpg|png|webp|gif|svg|bmp)$/i.test(file.name || '')) {
+      return 'image';
+    }
+    if (file.type === 'application/pdf' || (file.name || '').toLowerCase().endsWith('.pdf')) {
+      return 'pdf';
+    }
+    if (/\.(doc|docx|odt|rtf|txt)$/i.test(file.name || '')) {
+      return 'doc';
+    }
+    if (/\.(xls|xlsx|csv|ods)$/i.test(file.name || '')) {
+      return 'spreadsheet';
+    }
+    if (/\.(ppt|pptx|odp)$/i.test(file.name || '')) {
+      return 'presentation';
+    }
+    if (/\.(zip|rar|7z|tar|gz)$/i.test(file.name || '')) {
+      return 'archive';
+    }
+    return 'file';
+  };
+
   // Helper: Process newly selected or dropped files
-  const handleFilesAdded = (newFiles: File[]) => {
+  const handleFilesAdded = (incomingFiles: FileList | File[]) => {
+    const newFiles = Array.from(incomingFiles || []);
     if (!newFiles || newFiles.length === 0) return;
 
-    if (selectedFiles.length + newFiles.length > 5) {
+    if (stagedFiles.length + newFiles.length > 5) {
       toast.error("You can attach a maximum of 5 files per message.");
       return;
     }
@@ -288,39 +317,36 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
 
     const blockedExts = ['exe', 'bat', 'cmd', 'sh', 'vbs', 'msi', 'com', 'scr', 'ps1', 'jar', 'apk'];
     const invalidFiles = newFiles.filter(f => {
-      const ext = f.name.toLowerCase().split('.').pop() || '';
+      const ext = (f.name || '').toLowerCase().split('.').pop() || '';
       return blockedExts.includes(ext);
     });
     if (invalidFiles.length > 0) {
-      toast.error("Executable files are not permitted for security reasons.");
+      toast.error("Executable and script files are not permitted for security reasons.");
       return;
     }
 
-    const newPreviews = newFiles.map(f => {
-      if (f.type.startsWith('image/')) {
-        return URL.createObjectURL(f);
-      }
-      return '';
-    });
+    const newStaged: StagedAttachment[] = newFiles.map(f => ({
+      file: f,
+      previewUrl: f.type?.startsWith('image/') ? URL.createObjectURL(f) : '',
+      fileType: getLocalFileType(f)
+    }));
 
-    setSelectedFiles(prev => [...prev, ...newFiles]);
-    setStagedPreviews(prev => [...prev, ...newPreviews]);
+    setStagedFiles(prev => [...prev, ...newStaged]);
   };
 
   const removeStagedFile = (index: number) => {
-    if (stagedPreviews[index]) {
-      URL.revokeObjectURL(stagedPreviews[index]);
+    const item = stagedFiles[index];
+    if (item?.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl);
     }
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-    setStagedPreviews(prev => prev.filter((_, i) => i !== index));
+    setStagedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const clearStagedFiles = () => {
-    stagedPreviews.forEach(url => {
-      if (url) URL.revokeObjectURL(url);
+    stagedFiles.forEach(item => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     });
-    setSelectedFiles([]);
-    setStagedPreviews([]);
+    setStagedFiles([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -352,20 +378,20 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
     e.preventDefault();
     const currentId = getEffectiveUserId();
     const hasText = inputText.trim().length > 0;
-    const hasFiles = selectedFiles.length > 0;
+    const hasFiles = stagedFiles.length > 0;
     if ((!hasText && !hasFiles) || !currentId || !activeChat?.otherUser?.id) return;
     
     const textToSend = inputText.trim();
-    const filesToUpload = [...selectedFiles];
+    const itemsToUpload = [...stagedFiles];
     setInputText("");
     clearStagedFiles();
     setIsSending(true);
     
     try {
       let uploadedAttachments: any[] = [];
-      if (filesToUpload.length > 0) {
+      if (itemsToUpload.length > 0) {
         const formData = new FormData();
-        filesToUpload.forEach(f => formData.append('files', f));
+        itemsToUpload.forEach(item => formData.append('files', item.file));
 
         const uploadRes = await axios.post(`${API_URL}/upload/chat-attachment`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
@@ -407,7 +433,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to send message.");
       setInputText(textToSend); // restore
-      handleFilesAdded(filesToUpload); // restore files
+      setStagedFiles(itemsToUpload); // restore files
     } finally {
       setIsSending(false);
     }
@@ -809,12 +835,12 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
             </div>
 
             {/* Staged Attachments Preview Bar */}
-            {stagedPreviews.length > 0 && (
+            {stagedFiles.length > 0 && (
               <div className="p-3 border-t bg-muted/40 shrink-0">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Paperclip className="h-3.5 w-3.5 text-indigo-500" />
-                    Attachments ({stagedPreviews.length})
+                    Attachments ({stagedFiles.length})
                   </span>
                   <Button
                     type="button"
@@ -827,42 +853,46 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                   </Button>
                 </div>
                 <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin">
-                  {stagedPreviews.map((staged, sIdx) => (
-                    <div 
-                      key={sIdx} 
-                      className="relative group shrink-0 flex items-center gap-2 p-1.5 pr-2.5 bg-card border rounded-xl shadow-xs max-w-[200px]"
-                    >
-                      {staged.previewUrl ? (
-                        <img 
-                          src={staged.previewUrl} 
-                          alt={staged.file.name} 
-                          className="h-10 w-10 rounded-lg object-cover border" 
-                        />
-                      ) : (
-                        <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
-                          staged.fileType === 'pdf' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400'
-                        }`}>
-                          <FileText className="h-5 w-5" />
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium truncate" title={staged.file.name}>
-                          {staged.file.name}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {formatFileSize(staged.file.size)}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeStagedFile(sIdx)}
-                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 hover:scale-110 transition-all"
-                        title="Remove attachment"
+                  {stagedFiles.map((staged, sIdx) => {
+                    const fileName = staged.file?.name || "Attachment";
+                    const fileSize = staged.file?.size || 0;
+                    return (
+                      <div 
+                        key={sIdx} 
+                        className="relative group shrink-0 flex items-center gap-2 p-1.5 pr-2.5 bg-card border rounded-xl shadow-xs max-w-[200px]"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                        {staged.previewUrl ? (
+                          <img 
+                            src={staged.previewUrl} 
+                            alt={fileName} 
+                            className="h-10 w-10 rounded-lg object-cover border" 
+                          />
+                        ) : (
+                          <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
+                            staged.fileType === 'pdf' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400'
+                          }`}>
+                            <FileText className="h-5 w-5" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium truncate" title={fileName}>
+                            {fileName}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {formatFileSize(fileSize)}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeStagedFile(sIdx)}
+                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 hover:scale-110 transition-all"
+                          title="Remove attachment"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -897,7 +927,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onPaste={handleClipboardPaste}
-                placeholder={selectedFiles.length > 0 ? "Add a message (optional)..." : "Type your message or paste an image..."}
+                placeholder={stagedFiles.length > 0 ? "Add a message (optional)..." : "Type your message or paste an image..."}
                 disabled={isSending}
                 className="flex-1 bg-secondary/20 border border-border/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors text-foreground placeholder:text-muted-foreground"
               />
@@ -905,7 +935,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
               <Button 
                 type="submit" 
                 size="icon" 
-                disabled={isSending || (!inputText.trim() && selectedFiles.length === 0)}
+                disabled={isSending || (!inputText.trim() && stagedFiles.length === 0)}
                 className="rounded-xl h-10 w-10 shadow-md transition-transform active:scale-95 bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
               >
                 {isSending ? (
