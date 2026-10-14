@@ -19,6 +19,7 @@ import { resolveAssetUrl } from "@/lib/assetUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
