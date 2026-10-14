@@ -5,10 +5,14 @@ import API_URL from "@/config/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, User, MessageSquare, ExternalLink, ShieldAlert, ArrowLeft, Shield, CheckCheck } from "lucide-react";
+import { 
+  Send, User, MessageSquare, ExternalLink, ShieldAlert, ArrowLeft, Shield, CheckCheck,
+  Paperclip, FileText, File, Download, Eye, X, Loader2, Maximize2, Image as ImageIcon
+} from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { format, isToday, isYesterday } from "date-fns";
 import { Link } from "react-router-dom";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface ChatPanelProps {
   initialActiveUserId?: string; // Optional deep link by user ID
@@ -35,6 +39,13 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
   
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  
+  // File & Media Attachment State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [stagedPreviews, setStagedPreviews] = useState<string[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; filename: string } | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -251,44 +262,152 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
     scrollToBottom();
   }, [messages]);
 
-  // 4. Send Message
+  // Helper: Format file size in human-readable units
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes || bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  };
+
+  // Helper: Process newly selected or dropped files
+  const handleFilesAdded = (newFiles: File[]) => {
+    if (!newFiles || newFiles.length === 0) return;
+
+    if (selectedFiles.length + newFiles.length > 5) {
+      toast.error("You can attach a maximum of 5 files per message.");
+      return;
+    }
+
+    const oversized = newFiles.filter(f => f.size > 15 * 1024 * 1024);
+    if (oversized.length > 0) {
+      toast.error(`"${oversized[0].name}" exceeds the 15MB file size limit.`);
+      return;
+    }
+
+    const blockedExts = ['exe', 'bat', 'cmd', 'sh', 'vbs', 'msi', 'com', 'scr', 'ps1', 'jar', 'apk'];
+    const invalidFiles = newFiles.filter(f => {
+      const ext = f.name.toLowerCase().split('.').pop() || '';
+      return blockedExts.includes(ext);
+    });
+    if (invalidFiles.length > 0) {
+      toast.error("Executable files are not permitted for security reasons.");
+      return;
+    }
+
+    const newPreviews = newFiles.map(f => {
+      if (f.type.startsWith('image/')) {
+        return URL.createObjectURL(f);
+      }
+      return '';
+    });
+
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+    setStagedPreviews(prev => [...prev, ...newPreviews]);
+  };
+
+  const removeStagedFile = (index: number) => {
+    if (stagedPreviews[index]) {
+      URL.revokeObjectURL(stagedPreviews[index]);
+    }
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setStagedPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearStagedFiles = () => {
+    stagedPreviews.forEach(url => {
+      if (url) URL.revokeObjectURL(url);
+    });
+    setSelectedFiles([]);
+    setStagedPreviews([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFilesAdded(Array.from(e.target.files));
+    }
+  };
+
+  const handleClipboardPaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const pastedFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) pastedFiles.push(file);
+      }
+    }
+    if (pastedFiles.length > 0) {
+      handleFilesAdded(pastedFiles);
+    }
+  };
+
+  // 4. Send Message (Text and/or Attachments)
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const currentId = getEffectiveUserId();
-    if (!inputText.trim() || !currentId || !activeChat?.otherUser?.id) return;
+    const hasText = inputText.trim().length > 0;
+    const hasFiles = selectedFiles.length > 0;
+    if ((!hasText && !hasFiles) || !currentId || !activeChat?.otherUser?.id) return;
     
     const textToSend = inputText.trim();
+    const filesToUpload = [...selectedFiles];
     setInputText("");
+    clearStagedFiles();
     setIsSending(true);
     
     try {
+      let uploadedAttachments: any[] = [];
+      if (filesToUpload.length > 0) {
+        const formData = new FormData();
+        filesToUpload.forEach(f => formData.append('files', f));
+
+        const uploadRes = await axios.post(`${API_URL}/upload/chat-attachment`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (uploadRes.data?.attachments) {
+          uploadedAttachments = uploadRes.data.attachments;
+        }
+      }
+
       const res = await axios.post(`${API_URL}/messages`, {
         senderId: currentId,
         receiverId: activeChat.otherUser.id,
-        text: textToSend
+        text: textToSend,
+        attachments: uploadedAttachments
       });
       
       // Add message locally to speed up rendering
       setMessages(prev => [...prev, res.data]);
 
+      const previewText = textToSend || (uploadedAttachments.length > 0
+        ? (uploadedAttachments[0].fileType === 'image' ? '📷 Photo' : `📄 ${uploadedAttachments[0].filename}`)
+        : 'Attachment');
+
       // Update active chat last message preview
       setActiveChat((prev: any) => prev ? {
         ...prev,
-        lastMessage: { text: textToSend, createdAt: new Date(), senderId: currentId }
+        lastMessage: { text: previewText, createdAt: new Date(), senderId: currentId }
       } : prev);
 
       // Update in conversations list
       setConversations(prev => prev.map(c => 
         c.otherUser.id === activeChat.otherUser.id
-          ? { ...c, lastMessage: { text: textToSend, createdAt: new Date(), senderId: user.id } }
+          ? { ...c, lastMessage: { text: previewText, createdAt: new Date(), senderId: currentId } }
           : c
       ));
       
       // Silent refresh of inbox list to sync timestamps/previews
       fetchInbox(false);
     } catch (err: any) {
-      toast.error("Failed to send message.");
+      toast.error(err.response?.data?.message || "Failed to send message.");
       setInputText(textToSend); // restore
+      handleFilesAdded(filesToUpload); // restore files
     } finally {
       setIsSending(false);
     }
@@ -393,7 +512,7 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                       <p className={`text-xs truncate max-w-[150px] ${
                         hasUnread ? "font-bold text-foreground" : "text-muted-foreground"
                       }`}>
-                        {chat.lastMessage?.text || "No message content"}
+                        {chat.lastMessage?.text || (chat.lastMessage?.attachments?.length ? '📎 Attachment' : 'No messages yet')}
                       </p>
                       {hasUnread && (
                         <span className="h-5 w-5 bg-rose-500 text-white font-extrabold text-[10px] flex items-center justify-center rounded-full shrink-0 animate-pulse">
@@ -484,7 +603,28 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
             </div>
 
             {/* Message Bubble List */}
-            <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div 
+              ref={containerRef} 
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
+              onDrop={(e) => { 
+                e.preventDefault(); 
+                setIsDragOver(false); 
+                if (e.dataTransfer.files) handleFilesAdded(e.dataTransfer.files); 
+              }}
+              className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+            >
+              {/* Drag over visual overlay */}
+              {isDragOver && (
+                <div className="absolute inset-2 z-30 bg-indigo-50/90 dark:bg-indigo-950/80 border-2 border-dashed border-indigo-500 rounded-2xl flex flex-col items-center justify-center pointer-events-none backdrop-blur-xs">
+                  <div className="p-3 bg-indigo-100 dark:bg-indigo-900/60 rounded-full text-indigo-600 dark:text-indigo-400 mb-2 animate-bounce">
+                    <Paperclip className="h-6 w-6" />
+                  </div>
+                  <p className="font-bold text-sm text-indigo-700 dark:text-indigo-300">Drop files here to attach</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Images, PDFs, documents up to 15MB</p>
+                </div>
+              )}
+
               {loadingMessages ? (
                 <div className="space-y-4 py-8">
                   <Skeleton className="h-10 w-2/3 rounded-xl" />
@@ -545,14 +685,116 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
                           )}
 
                           {/* Message body */}
-                          <div className={`p-3 rounded-2xl shadow-sm text-sm ${
+                          <div className={`p-3 rounded-2xl shadow-sm text-sm space-y-2.5 ${
                             isOwn 
                               ? "bg-primary text-primary-foreground rounded-br-none" 
                               : isAdminMsg
                               ? "bg-indigo-50 border border-indigo-200 text-indigo-950 dark:bg-indigo-950/40 dark:border-indigo-800/60 dark:text-indigo-100 rounded-bl-none font-medium"
                               : "bg-card border text-foreground rounded-bl-none"
                           }`}>
-                            {msg.text}
+                            {/* Attachments if any */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="space-y-2">
+                                {/* 1. Images Grid */}
+                                {(() => {
+                                  const images = msg.attachments.filter(a => a.fileType === 'image');
+                                  if (images.length === 0) return null;
+                                  return (
+                                    <div className={`grid gap-1.5 ${images.length === 1 ? 'grid-cols-1' : images.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                                      {images.map((img, imgIdx) => (
+                                        <div 
+                                          key={img.fileId || imgIdx} 
+                                          onClick={() => setLightboxImage(img.url)}
+                                          className="group relative cursor-pointer overflow-hidden rounded-xl border border-black/10 dark:border-white/10 bg-black/5 aspect-square flex items-center justify-center max-h-56"
+                                        >
+                                          <img 
+                                            src={img.url} 
+                                            alt={img.filename} 
+                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                            loading="lazy"
+                                          />
+                                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <Maximize2 className="h-5 w-5 text-white drop-shadow-md" />
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+
+                                {/* 2. Non-image attachments (PDFs, docs, etc.) */}
+                                {msg.attachments.filter(a => a.fileType !== 'image').map((file, fIdx) => (
+                                  <div 
+                                    key={file.fileId || fIdx}
+                                    className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all ${
+                                      isOwn 
+                                        ? 'bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/15' 
+                                        : 'bg-background/80 hover:bg-background border-border/70 text-foreground shadow-xs'
+                                    }`}
+                                  >
+                                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                      file.fileType === 'pdf' 
+                                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' 
+                                        : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
+                                    }`}>
+                                      <FileText className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-semibold truncate leading-tight" title={file.filename}>
+                                        {file.filename}
+                                      </p>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <span className="text-[10px] opacity-75 uppercase font-medium">
+                                          {file.fileType}
+                                        </span>
+                                        <span className="text-[10px] opacity-60">•</span>
+                                        <span className="text-[10px] opacity-75">
+                                          {formatFileSize(file.size)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {file.fileType === 'pdf' && (
+                                        <a 
+                                          href={file.url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          title="View PDF"
+                                          className={`p-1.5 rounded-lg transition-colors ${
+                                            isOwn 
+                                              ? 'hover:bg-primary-foreground/20 text-primary-foreground' 
+                                              : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                                          }`}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </a>
+                                      )}
+                                      <a 
+                                        href={file.url} 
+                                        download={file.filename} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        title="Download file"
+                                        className={`p-1.5 rounded-lg transition-colors ${
+                                          isOwn 
+                                            ? 'hover:bg-primary-foreground/20 text-primary-foreground' 
+                                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                                        }`}
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Message text */}
+                            {msg.text && (
+                              <div className="whitespace-pre-wrap break-words leading-relaxed">
+                                {msg.text}
+                              </div>
+                            )}
                           </div>
                           {/* Timestamp */}
                           <span className="text-[9px] text-muted-foreground mt-1 px-1 flex items-center gap-1">
@@ -566,23 +808,111 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
               )}
             </div>
 
+            {/* Staged Attachments Preview Bar */}
+            {stagedPreviews.length > 0 && (
+              <div className="p-3 border-t bg-muted/40 shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5 text-indigo-500" />
+                    Attachments ({stagedPreviews.length})
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearStagedFiles}
+                    className="h-6 text-[11px] text-muted-foreground hover:text-rose-500 px-2"
+                  >
+                    Clear all
+                  </Button>
+                </div>
+                <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin">
+                  {stagedPreviews.map((staged, sIdx) => (
+                    <div 
+                      key={sIdx} 
+                      className="relative group shrink-0 flex items-center gap-2 p-1.5 pr-2.5 bg-card border rounded-xl shadow-xs max-w-[200px]"
+                    >
+                      {staged.previewUrl ? (
+                        <img 
+                          src={staged.previewUrl} 
+                          alt={staged.file.name} 
+                          className="h-10 w-10 rounded-lg object-cover border" 
+                        />
+                      ) : (
+                        <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
+                          staged.fileType === 'pdf' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400' : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400'
+                        }`}>
+                          <FileText className="h-5 w-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium truncate" title={staged.file.name}>
+                          {staged.file.name}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatFileSize(staged.file.size)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeStagedFile(sIdx)}
+                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 hover:scale-110 transition-all"
+                        title="Remove attachment"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Input Send Bar */}
-            <form onSubmit={handleSendMessage} className="p-3 border-t bg-card shrink-0 flex gap-2 shadow-[0_-2px_10px_rgba(0,0,0,0.02)]">
+            <form onSubmit={handleSendMessage} className="p-3 border-t bg-card shrink-0 flex items-center gap-2 shadow-[0_-2px_10px_rgba(0,0,0,0.02)]">
+              {/* Hidden file input */}
+              <input 
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                multiple
+                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar"
+                className="hidden"
+              />
+
+              {/* Attachment button */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSending}
+                title="Attach files (images, PDFs, documents)"
+                className="rounded-xl h-10 w-10 text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 shrink-0 transition-colors"
+              >
+                <Paperclip className="h-4.5 w-4.5" />
+              </Button>
+
               <input
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Type your message here..."
+                onPaste={handleClipboardPaste}
+                placeholder={selectedFiles.length > 0 ? "Add a message (optional)..." : "Type your message or paste an image..."}
                 disabled={isSending}
-                className="flex-1 bg-secondary/20 border border-border/50 rounded-xl px-4 text-sm focus:outline-none focus:border-primary transition-colors text-foreground placeholder:text-muted-foreground"
+                className="flex-1 bg-secondary/20 border border-border/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors text-foreground placeholder:text-muted-foreground"
               />
+
               <Button 
                 type="submit" 
                 size="icon" 
-                disabled={isSending || !inputText.trim()}
-                className="rounded-xl h-10 w-10 shadow-md transition-transform active:scale-95 bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSending || (!inputText.trim() && selectedFiles.length === 0)}
+                className="rounded-xl h-10 w-10 shadow-md transition-transform active:scale-95 bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
               >
-                <Send className="h-4 w-4" />
+                {isSending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </form>
           </>
@@ -599,6 +929,44 @@ const ChatPanel = ({ initialActiveUserId, initialActiveUser }: ChatPanelProps) =
         )}
       </div>
 
+      {/* Image Lightbox Modal */}
+      <Dialog open={!!lightboxImage} onOpenChange={(open) => !open && setLightboxImage(null)}>
+        <DialogContent className="max-w-4xl p-2 bg-black/90 border-black/50 text-white overflow-hidden sm:rounded-2xl">
+          <div className="relative flex flex-col items-center justify-center p-2 min-h-[300px] max-h-[85vh]">
+            {lightboxImage && (
+              <>
+                <img 
+                  src={lightboxImage} 
+                  alt="Enlarged view" 
+                  className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg shadow-2xl" 
+                />
+                <div className="flex items-center gap-3 mt-3">
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="bg-white/10 hover:bg-white/20 text-white border-white/20 gap-1.5 text-xs rounded-lg"
+                  >
+                    <a href={lightboxImage} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-3.5 w-3.5" /> Open in New Tab
+                    </a>
+                  </Button>
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="default"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 text-xs rounded-lg shadow-md"
+                  >
+                    <a href={lightboxImage} download="chat-image" target="_blank" rel="noopener noreferrer">
+                      <Download className="h-3.5 w-3.5" /> Download
+                    </a>
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -28,9 +28,12 @@ async function resolveUserId(id) {
 // POST /api/messages - Send a message
 router.post('/', async (req, res) => {
   try {
-    let { senderId, receiverId, text } = req.body;
-    if (!senderId || !receiverId || !text) {
-      return res.status(400).json({ message: 'Sender, receiver, and text are required.' });
+    let { senderId, receiverId, text, attachments } = req.body;
+    const hasText = text && typeof text === 'string' && text.trim().length > 0;
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+    if (!senderId || !receiverId || (!hasText && !hasAttachments)) {
+      return res.status(400).json({ message: 'Sender, receiver, and at least a message or attachment are required.' });
     }
 
     const resolvedSender = await resolveUserId(senderId) || senderId;
@@ -39,7 +42,8 @@ router.post('/', async (req, res) => {
     const message = new Message({
       sender: resolvedSender,
       receiver: resolvedReceiver,
-      text: text.trim(),
+      text: hasText ? text.trim() : '',
+      attachments: hasAttachments ? attachments : [],
       read: false
     });
 
@@ -60,9 +64,16 @@ router.post('/', async (req, res) => {
           ? 'https://tutor.cuvasol.com/dashboard/tutor' 
           : 'https://tutor.cuvasol.com/dashboard/student';
 
+        const attachmentSummary = hasAttachments
+          ? `[📎 ${attachments.length} Attachment${attachments.length > 1 ? 's' : ''}: ${attachments.map(a => a.filename).join(', ')}]`
+          : '';
+        const previewText = hasText
+          ? `${text}${attachmentSummary ? `\n${attachmentSummary}` : ''}`
+          : attachmentSummary;
+
         sendEmail({
           to: populated.receiver.email,
-          subject: `📩 New Message from Cuvasol Admin Support: "${text.slice(0, 45)}${text.length > 45 ? '...' : ''}"`,
+          subject: `📩 New Message from Cuvasol Admin Support: "${previewText.slice(0, 45)}${previewText.length > 45 ? '...' : ''}"`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
               <div style="background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%); padding: 24px; text-align: center; color: #ffffff;">
@@ -72,7 +83,7 @@ router.post('/', async (req, res) => {
               <div style="padding: 24px; color: #374151; font-size: 15px; line-height: 1.6;">
                 <p>Hello <strong>${receiverName}</strong>,</p>
                 <p>You have received a direct message from <strong>${senderName}</strong>:</p>
-                <div style="background: #f3f4f6; border-left: 4px solid #6366f1; padding: 16px; border-radius: 6px; margin: 20px 0; font-size: 15px; color: #1f2937; white-space: pre-wrap;">${text}</div>
+                <div style="background: #f3f4f6; border-left: 4px solid #6366f1; padding: 16px; border-radius: 6px; margin: 20px 0; font-size: 15px; color: #1f2937; white-space: pre-wrap;">${previewText}</div>
                 <div style="text-align: center; margin: 24px 0;">
                   <a href="${dashboardUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 15px;">Open Messages in Dashboard</a>
                 </div>
@@ -247,7 +258,10 @@ router.get('/inbox/:userId', async (req, res) => {
             tutorProfileId
           },
           lastMessage: {
-            text: msg.text || '',
+            text: msg.text || (msg.attachments && msg.attachments.length > 0
+              ? (msg.attachments[0].fileType === 'image' ? '📷 Photo' : `📄 ${msg.attachments[0].filename}`)
+              : ''),
+            attachments: msg.attachments || [],
             createdAt: msg.createdAt,
             senderId: msg?.sender?._id || null
           },
