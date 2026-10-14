@@ -162,6 +162,7 @@ const AdminDashboard = () => {
   const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
   const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
+  const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
   const [bookingToComplete, setBookingToComplete] = useState<{
     id: string;
     tutorName: string;
