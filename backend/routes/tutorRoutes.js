@@ -4,6 +4,8 @@ const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
 const Post = require('../schemas/postSchema');
 const nodemailer = require('nodemailer');
+const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
+const { rewardReferrerOnClassCompletion, refundWalletOnBookingCancel } = require('../utils/referralWalletHelper');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -103,7 +105,7 @@ const getBookingSessionTimestamps = (booking) => {
   return [];
 };
 
-const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSessions, isPack, requestedUtcTiming) => {
+const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSessions, isPack, requestedUtcTiming, excludeBookingId = null) => {
   const requestedTimestamps = [];
   if (isPack && requestedSessions && requestedSessions.length > 0) {
     for (const s of requestedSessions) {
@@ -129,10 +131,15 @@ const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSes
     return null;
   }
 
-  const activeBookings = await Booking.find({
+  const query = {
     tutorId,
     status: { $in: ['pending', 'pending_payment', 'confirmed', 'enrolled'] }
-  });
+  };
+  if (excludeBookingId) {
+    query._id = { $ne: excludeBookingId };
+  }
+
+  const activeBookings = await Booking.find(query);
 
   for (const booking of activeBookings) {
     const existingTimestamps = getBookingSessionTimestamps(booking);
@@ -151,6 +158,85 @@ const checkTutorScheduleConflict = async (tutorId, requestedTiming, requestedSes
   return null;
 };
 
+// Helper to validate whether a requested date/time falls within tutor's availability
+const validateTutorAvailability = (tutor, timingStr, utcTiming) => {
+  if (!tutor) return { valid: true };
+
+  let dateObj = null;
+  if (utcTiming) {
+    dateObj = new Date(utcTiming);
+  } else if (timingStr) {
+    dateObj = parseTimingStringToDate(timingStr);
+  }
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    return { valid: false, message: 'Invalid timing date or format' };
+  }
+
+  const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
+  const tutorTz = tutor.timezone || 'Asia/Kolkata';
+
+  if (hasDynamicAvailability) {
+    // Determine weekday in tutor's timezone
+    const tutorWeekday = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      timeZone: tutorTz
+    }).format(dateObj);
+
+    // Format local hour and minute in tutor timezone
+    const tutorTimeFormatter = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+      timeZone: tutorTz
+    });
+    const parts = tutorTimeFormatter.formatToParts(dateObj);
+    let hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    if (hour === 24) hour = 0;
+    const min = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    const sessionTimeMinutes = hour * 60 + min;
+
+    // Filter tutor's availability matching this weekday
+    const dayAvailabilities = tutor.availability.filter(a => a.day === tutorWeekday);
+    if (dayAvailabilities.length === 0) {
+      const availableDays = [...new Set(tutor.availability.map(a => a.day))].join(', ');
+      return {
+        valid: false,
+        message: `Tutor is not available on ${tutorWeekday}. Available working days: ${availableDays}.`
+      };
+    }
+
+    const fitsInWindow = dayAvailabilities.some(avail => {
+      if (!avail.startTime || !avail.endTime) return false;
+      const [sh, sm] = avail.startTime.split(':').map(Number);
+      const [eh, em] = avail.endTime.split(':').map(Number);
+      const startMin = sh * 60 + sm;
+      const endMin = eh * 60 + em;
+      return sessionTimeMinutes >= startMin && sessionTimeMinutes < endMin;
+    });
+
+    if (!fitsInWindow) {
+      const windows = dayAvailabilities.map(a => `${a.startTime} - ${a.endTime}`).join(', ');
+      return {
+        valid: false,
+        message: `Requested time (${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')} ${tutorTz}) is outside tutor's working hours on ${tutorWeekday} (${windows}).`
+      };
+    }
+
+    return { valid: true };
+  } else if (tutor.availableTimings && tutor.availableTimings.length > 0) {
+    const timePart = timingStr.includes(' at ') ? timingStr.split(' at ')[1] : timingStr;
+    const matches = tutor.availableTimings.some(t => t.trim().toLowerCase() === timePart.trim().toLowerCase());
+    if (!matches) {
+      return {
+        valid: false,
+        message: `Requested slot (${timePart}) is not in tutor's available timings (${tutor.availableTimings.join(', ')}).`
+      };
+    }
+    return { valid: true };
+  }
+
+  return { valid: true };
+};
 
 // Helper to securely calculate backend prices for a booking plan
 const calculatePlanPrice = (tutor, subject, planType) => {
@@ -191,33 +277,125 @@ router.get('/', async (req, res) => {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.featured) filter.featured = req.query.featured === 'true';
 
+    // Cache public approved tutor listings
+    if (req.query.status === 'approved') {
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    }
+
     const tutors = await Tutor.find(filter).populate('userId', 'email phone avatar');
-    // Transform _id to id for frontend compatibility
-    const formattedTutors = tutors.map(t => {
+
+    // Optimization: Bulk fetch all referral data in only 2 queries to avoid N+1 DB load
+    const referredMap = new Map();
+    const bookingsMap = new Map();
+    
+    if (req.query.status !== 'approved') {
+      const tutorUserIds = tutors.map(t => t.userId?._id || t.userId).filter(Boolean);
+      const referredStudents = await User.find({ 
+        referredBy: { $in: tutorUserIds }, 
+        role: 'student' 
+      });
+      
+      referredStudents.forEach(s => {
+        if (s.referredBy) {
+          const refStr = s.referredBy.toString();
+          if (!referredMap.has(refStr)) {
+            referredMap.set(refStr, []);
+          }
+          referredMap.get(refStr).push(s);
+        }
+      });
+
+      const referredStudentIds = referredStudents.map(s => s._id);
+      const bookings = await Booking.find({ studentId: { $in: referredStudentIds } });
+
+      bookings.forEach(b => {
+        if (b.studentId) {
+          const sidStr = b.studentId.toString();
+          if (!bookingsMap.has(sidStr)) {
+            bookingsMap.set(sidStr, []);
+          }
+          bookingsMap.get(sidStr).push(b);
+        }
+      });
+    }
+
+    // Transform _id to id for frontend compatibility and calculate referral metrics
+    const formattedTutors = await Promise.all(tutors.map(async t => {
       const obj = t.toObject();
       obj.id = obj._id.toString();
+
+      // Lazy generate referralCode on-the-fly if missing
+      if (!t.referralCode) {
+        const cleanName = (t.name || 'TUTOR').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        t.referralCode = `${cleanName}${randomNum}`;
+        await t.save();
+        obj.referralCode = t.referralCode;
+      }
       if (obj.userId) {
         obj.email = obj.userId.email;
         obj.phone = obj.userId.phone;
         obj.avatar = obj.userId.avatar;
+
+        // Skip expensive referral DB queries for public tutor listings to avoid N+1 DB load
+        if (req.query.status === 'approved') {
+          obj.referralsInvited = 0;
+          obj.referralsCompleted = 0;
+          obj.referralsEarnings = 0;
+        } else {
+          const tutorUserIdStr = obj.userId._id ? obj.userId._id.toString() : obj.userId.toString();
+          const tutorReferredStudents = referredMap.get(tutorUserIdStr) || [];
+          const invitedCount = tutorReferredStudents.length;
+          let completedCount = 0;
+
+          if (invitedCount > 0) {
+            for (const student of tutorReferredStudents) {
+              const studentBookings = bookingsMap.get(student._id.toString()) || [];
+              const hasRegularClass = studentBookings.some(b => 
+                b.planType && 
+                b.planType !== 'Free Demo Class' && 
+                !b.planType.toLowerCase().includes('demo') &&
+                (b.status === 'completed' || (b.sessions && b.sessions.some(s => s.status === 'completed')))
+              );
+              if (hasRegularClass) {
+                completedCount++;
+              }
+            }
+          }
+          obj.referralsInvited = invitedCount;
+          obj.referralsCompleted = completedCount;
+          obj.referralsEarnings = Math.min(completedCount * 500, 5000);
+        }
+      } else {
+        obj.referralsInvited = 0;
+        obj.referralsCompleted = 0;
+        obj.referralsEarnings = 0;
       }
       if (obj.demoSlots) {
         obj.demoSlots = obj.demoSlots.map(s => ({...s, id: s._id.toString()}));
       }
       return obj;
-    });
+    }));
     res.json(formattedTutors);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching tutors', error: error.message });
   }
 });
 
-// Get a tutor by associated user ID
-router.get('/user/:userId', async (req, res) => {
+// Get a single tutor by database ID
+router.get('/:id', async (req, res) => {
   try {
-    const tutor = await Tutor.findOne({ userId: req.params.userId }).populate('userId', 'email phone avatar');
-    if (!tutor) return res.status(404).json({ message: 'Tutor profile not found for this user.' });
+    if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(404).json({ message: 'Invalid tutor ID format' });
+    }
+    const tutor = await Tutor.findById(req.params.id).populate('userId', 'email phone avatar');
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
+    // Cache public approved tutor profile page responses
+    if (tutor.status === 'approved') {
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    }
+
     const obj = tutor.toObject();
     obj.id = obj._id.toString();
     if (obj.userId) {
@@ -231,31 +409,14 @@ router.get('/user/:userId', async (req, res) => {
     
     res.json(obj);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching tutor profile', error: error.message });
+    res.status(500).json({ message: 'Error fetching tutor', error: error.message });
   }
 });
 
-// Delete a post by ID
-router.delete('/posts/:postId', async (req, res) => {
+// Get a tutor by associated user ID
+router.get('/user/:userId', async (req, res) => {
   try {
-    const { postId } = req.params;
-    const deleted = await Post.findByIdAndDelete(postId);
-    if (!deleted) {
-      return res.status(404).json({ message: 'Post not found' });
-    }
-    res.json({ message: 'Post deleted successfully', id: postId });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to delete post', error: error.message });
-  }
-});
-
-// Get a single tutor by database ID
-router.get('/:id', async (req, res) => {
-  try {
-    if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-      return res.status(404).json({ message: 'Invalid tutor ID format' });
-    }
-    const tutor = await Tutor.findById(req.params.id).populate('userId', 'email phone avatar');
+    const tutor = await Tutor.findOne({ userId: req.params.userId }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
     const obj = tutor.toObject();
@@ -302,13 +463,17 @@ router.post('/:id/slots', async (req, res) => {
 router.post('/:id/book', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, utcTiming } = req.body;
+    const { timing, subject, studentId, studentName, utcTiming, topicToLearn } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
+    if (!topicToLearn || !topicToLearn.trim()) {
+      return res.status(400).json({ message: 'Please specify the topic(s) or concepts you would like the tutor to cover in this demo.' });
+    }
 
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
 
     // Validate slot timing is at least 3 hours in the future
     const bookingDate = parseTimingStringToDate(timing);
@@ -319,13 +484,10 @@ router.post('/:id/book', async (req, res) => {
       }
     }
 
-    // Validate the timing actually exists in tutor's timings
-    // The frontend sends format "Date at Time", so we extract the time part
-    const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
-    
-    const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
-    if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
-      return res.status(400).json({ message: 'This slot is not available or does not exist.' });
+    // Validate tutor availability (working days and hours)
+    const availabilityCheck = validateTutorAvailability(tutor, timing, utcTiming);
+    if (!availabilityCheck.valid) {
+      return res.status(400).json({ message: availabilityCheck.message });
     }
 
     // Check for tutor schedule conflicts
@@ -352,11 +514,19 @@ router.post('/:id/book', async (req, res) => {
       timing,
       utcTiming: utcTiming ? new Date(utcTiming) : undefined,
       subject,
+      topicToLearn: (topicToLearn || '').trim(),
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
       status: 'pending'
     });
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-demo-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId,
+      subject,
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-demo-${newBooking._id}`
+    });
     await newBooking.save();
     console.log(`[Booking] Demo session saved for student: ${studentName} with status: pending`);
     
@@ -369,10 +539,14 @@ router.post('/:id/book', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutorUser.email,
           subject: 'New Demo Session Requested (Pending Approval)',
-          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
+          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nTopics to cover:\n"${(topicToLearn || '').trim()}"\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
           html: `<h3>New Demo Session Requested</h3>
                  <p>Hello <b>${tutor.name}</b>,</p>
                  <p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p>
+                 <div style="background-color: #f3f4f6; padding: 12px; border-radius: 8px; margin: 14px 0; border-left: 4px solid #4f46e5;">
+                   <strong style="color: #4f46e5; display: block; margin-bottom: 4px;">Topics Student Needs Explained:</strong>
+                   <p style="margin: 0; color: #1f2937; white-space: pre-wrap;">${(topicToLearn || '').trim()}</p>
+                 </div>
                  <p>Please log in to your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
                  <p>Best regards,<br/>Cuvasol Tutor Team</p>`,
         }).then(() => {
@@ -426,7 +600,14 @@ router.post('/:id/book-verification-demo', async (req, res) => {
       studentName: 'Admin Verification',
       status: 'pending'
     });
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-verification-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId: 'admin',
+      subject: 'Verification Demo Class',
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-verification-${newBooking._id}`
+    });
     await newBooking.save();
 
     // Send email notification to tutor
@@ -461,7 +642,7 @@ router.post('/:id/book-verification-demo', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming } = req.body;
+    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet, topicToLearn } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -469,6 +650,7 @@ router.post('/:id/book-class', async (req, res) => {
 
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
 
     const isPack = planType.includes('Pack');
 
@@ -483,10 +665,9 @@ router.post('/:id/book-class', async (req, res) => {
     }
 
     if (!isPack) {
-      const timePart = timing.includes(' at ') ? timing.split(' at ')[1] : timing;
-      const hasDynamicAvailability = tutor.availability && tutor.availability.length > 0;
-      if (!hasDynamicAvailability && (!tutor.availableTimings || !tutor.availableTimings.includes(timePart))) {
-        return res.status(400).json({ message: 'This slot is not available or does not exist.' });
+      const availabilityCheck = validateTutorAvailability(tutor, timing, utcTiming);
+      if (!availabilityCheck.valid) {
+        return res.status(400).json({ message: availabilityCheck.message });
       }
 
       const bookingDate = parseTimingStringToDate(timing);
@@ -529,18 +710,54 @@ router.post('/:id/book-class', async (req, res) => {
     // Securely calculate price on the backend
     const calculatedPrice = calculatePlanPrice(tutor, subject, planType);
     
-    // Direct booking means they're immediately enrolled, unless it's a group requiring approval
+    // Handle Student Wallet deduction
+    let walletDiscount = 0;
+    let fullyPaidByWallet = false;
+    let studentUser = null;
+
+    if (useWallet && studentId && studentId !== 'anonymous_student') {
+      const mongoose = require('mongoose');
+      if (mongoose.Types.ObjectId.isValid(studentId)) {
+        studentUser = await User.findById(studentId);
+        if (studentUser && studentUser.walletBalance > 0) {
+          walletDiscount = Math.min(studentUser.walletBalance, calculatedPrice);
+          if (walletDiscount >= calculatedPrice && !isGroup) {
+            fullyPaidByWallet = true;
+          }
+        }
+      }
+    }
+
+    const netPayable = Math.max(0, calculatedPrice - walletDiscount);
+
+    if (fullyPaidByWallet && studentUser) {
+      // Deduct full amount from student wallet immediately
+      studentUser.walletBalance = Math.max(0, studentUser.walletBalance - walletDiscount);
+      if (!studentUser.walletHistory) studentUser.walletHistory = [];
+      studentUser.walletHistory.push({
+        type: 'debit',
+        amount: walletDiscount,
+        description: `Applied wallet credits to book ${planType} - ${subject} with ${tutor.name}`,
+        date: new Date()
+      });
+      await studentUser.save();
+    }
+
+    // Direct booking means they're immediately enrolled if 100% wallet paid, or pending_payment if partial/no wallet
     const newBooking = new Booking({
       tutorId: tutor._id,
       tutorName: tutor.name,
       timing,
       utcTiming: utcTiming ? new Date(utcTiming) : undefined,
       subject,
+      topicToLearn: (topicToLearn || '').trim(),
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
-      status: isGroup ? 'pending' : 'pending_payment',
+      status: isGroup ? 'pending' : (fullyPaidByWallet ? 'enrolled' : 'pending_payment'),
       planType,
-      amountPaid: calculatedPrice,
+      amountPaid: fullyPaidByWallet ? calculatedPrice : netPayable,
+      originalAmount: calculatedPrice,
+      walletUsed: walletDiscount,
       groupDetails: isGroup ? {
         isGroup: true,
         invitedEmails: otherStudentsEmails.map(email => ({ email, status: 'pending', paidShare: false }))
@@ -549,17 +766,37 @@ router.post('/:id/book-class', async (req, res) => {
       sessions: isPack && sessions ? sessions : undefined
     });
 
-    newBooking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}`;
+    newBooking.meetingLink = await generateMeetingLinkForBooking({
+      tutor,
+      studentId,
+      subject,
+      timing,
+      utcTiming,
+      fallbackJitsiPrefix: `cuvasol-tutor-class-${newBooking._id}`
+    });
     
-    // Set individual session Jitsi meeting links
+    // Set individual session Google Meet/Jitsi meeting links
     if (isPack && newBooking.sessions && newBooking.sessions.length > 0) {
-      newBooking.sessions = newBooking.sessions.map((session, idx) => ({
-        date: session.date,
-        time: session.time,
-        status: session.status || 'scheduled',
-        utcDate: session.utcDate ? new Date(session.utcDate) : undefined,
-        meetingLink: `https://meet.jit.si/cuvasol-tutor-class-${newBooking._id}-session-${idx + 1}`
-      }));
+      const updatedSessions = [];
+      for (let idx = 0; idx < newBooking.sessions.length; idx++) {
+        const session = newBooking.sessions[idx];
+        const sessMeetLink = await generateMeetingLinkForBooking({
+          tutor,
+          studentId,
+          subject: `${subject} (Session ${idx + 1})`,
+          timing: `${session.date} at ${session.time}`,
+          utcTiming: session.utcDate,
+          fallbackJitsiPrefix: `cuvasol-tutor-class-${newBooking._id}-session-${idx + 1}`
+        });
+        updatedSessions.push({
+          date: session.date,
+          time: session.time,
+          status: session.status || 'scheduled',
+          utcDate: session.utcDate ? new Date(session.utcDate) : undefined,
+          meetingLink: sessMeetLink
+        });
+      }
+      newBooking.sessions = updatedSessions;
     }
 
     await newBooking.save();
@@ -595,16 +832,44 @@ router.post('/:id/book-class', async (req, res) => {
             to: tutorUser.email,
             subject: 'New Group Class Booking',
             text: `Hello ${tutor.name},\n\nA new group class has been initiated by ${studentName} for ${subject} at ${timing}.\n\nPlan: ${planType}\n\nYou can join the private video room once all members enroll: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
-            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Join Jitsi Video Room</a></p><p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
+            html: `<h3>New Group Class Booking</h3><p>Hello <b>${tutor.name}</b>,</p><p>A new group class booking has been initiated by <b>${studentName}</b> for <b>${subject}</b> at <b>${timing}</b>.</p><p><b>Plan:</b> ${planType}</p><p>You can join the private video room once all members enroll:</p><p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${newBooking.meetingLink && newBooking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Jitsi Video Room'}</a></p><p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
           });
           console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
         }
       } catch (mailError) {
         console.error('[Booking] Failed to send tutor notification:', mailError.message);
       }
+    } else if (fullyPaidByWallet) {
+      // Notify Tutor & Student of successful 100% wallet enrollment
+      try {
+        const tutorUser = await User.findById(tutor.userId);
+        if (tutorUser && tutorUser.email) {
+          const isGoogleMeet = newBooking.meetingLink && newBooking.meetingLink.includes('meet.google.com');
+          const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
+          await transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: tutorUser.email,
+            subject: 'New Course Enrollment Confirmed (Paid via Student Wallet)',
+            text: `Hello ${tutor.name},\n\nStudent ${studentName} has enrolled in your class for ${subject} at ${timing} (paid via student credits).\n\nYou can join the private video room directly here: ${newBooking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `<h3>New Course Enrollment Confirmed</h3>
+                   <p>Hello <b>${tutor.name}</b>,</p>
+                   <p>Student <b>${studentName}</b> is officially enrolled in your course for <b>${subject}</b> at <b>${timing}</b>.</p>
+                   <p>You can join the private video room directly by clicking the link below:</p>
+                   <p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${meetBtnText}</a></p>
+                   <p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
+          });
+        }
+      } catch (mailError) {
+        console.error('[Booking] Failed to send tutor wallet enrollment notification:', mailError.message);
+      }
     }
 
-    res.status(200).json({ message: 'Class booked successfully', booking: newBooking });
+    res.status(200).json({ 
+      message: fullyPaidByWallet ? 'Class booked and fully paid with wallet balance!' : 'Class booked successfully', 
+      booking: newBooking,
+      fullyPaidByWallet,
+      netPayable
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error booking class', error: error.message });
   }
@@ -634,7 +899,7 @@ router.get('/:id/bookings/student/:studentId', async (req, res) => {
 // Update booking status
 router.put('/booking/:bookingId/status', async (req, res) => {
   try {
-    const { status, cancellationReason } = req.body;
+    const { status, cancellationReason, cancelledBy, adminComment } = req.body;
     if (!['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'].includes(status)) {
        return res.status(400).json({ message: 'Invalid status' });
     }
@@ -643,12 +908,37 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     
     const oldStatus = booking.status;
     booking.status = status;
-    if (cancellationReason) {
+    if (cancellationReason !== undefined) {
       booking.cancellationReason = cancellationReason;
+    }
+    if (adminComment !== undefined) {
+      booking.adminComment = adminComment;
+    }
+    if (status === 'completed') {
+      booking.completedAt = new Date();
+    }
+    if (status === 'cancelled' || status === 'rejected') {
+      booking.cancelledAt = new Date();
+      if (cancelledBy) {
+        booking.cancelledBy = cancelledBy;
+      } else if (status === 'rejected') {
+        booking.cancelledBy = 'Tutor';
+      } else if (booking.studentId === 'admin') {
+        booking.cancelledBy = 'Admin';
+      } else {
+        booking.cancelledBy = 'Student';
+      }
     }
     await booking.save();
     
-    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status}`);
+    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status}${adminComment ? ` (Admin Comment: "${adminComment}")` : ''} (Cancelled By: ${booking.cancelledBy || 'N/A'})`);
+
+    // Handle wallet refund if booking was cancelled or rejected
+    if (status === 'cancelled' || status === 'rejected') {
+      await refundWalletOnBookingCancel(booking);
+    } else if (status === 'completed') {
+      await rewardReferrerOnClassCompletion(booking);
+    }
 
     const isDemo = !booking.planType || booking.planType === 'Free Demo Class';
 
@@ -693,7 +983,7 @@ router.put('/booking/:bookingId/status', async (req, res) => {
                 <div style="text-align: center; margin: 25px 0;">
                   <a href="${booking.meetingLink}" 
                      style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                    Join Video Room (Jitsi)
+                    ${booking.meetingLink && booking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Video Room (Jitsi)'}
                   </a>
                 </div>
 
@@ -802,6 +1092,463 @@ router.put('/booking/:bookingId/status', async (req, res) => {
   }
 });
 
+// Request to reschedule a booking (initiated by Student or Tutor)
+router.post('/booking/:bookingId/reschedule-request', async (req, res) => {
+  try {
+    const { requestedTiming, requestedUtcTiming, reason, requestedBy } = req.body;
+    if (!requestedTiming) {
+      return res.status(400).json({ message: 'Requested new timing is required' });
+    }
+
+    const booking = await Booking.findById(req.params.bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    if (['cancelled', 'rejected', 'completed'].includes(booking.status)) {
+      return res.status(400).json({ message: `Cannot reschedule a ${booking.status} booking` });
+    }
+
+    const initiatorRole = requestedBy === 'Tutor' ? 'Tutor' : 'Student';
+
+    // Validate slot timing is at least 3 hours in the future
+    const bookingDate = parseTimingStringToDate(requestedTiming);
+    if (bookingDate) {
+      const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+      if (bookingDate < minTime) {
+        return res.status(400).json({ message: 'You can only reschedule to slots at least 3 hours in the future.' });
+      }
+    }
+
+    // Fetch tutor and validate dynamic availability
+    const tutor = await Tutor.findById(booking.tutorId);
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor not found for this booking' });
+    }
+
+    const availabilityCheck = validateTutorAvailability(tutor, requestedTiming, requestedUtcTiming);
+    if (!availabilityCheck.valid) {
+      return res.status(400).json({ message: availabilityCheck.message });
+    }
+
+    // Check for tutor schedule conflicts excluding current booking
+    const conflict = await checkTutorScheduleConflict(booking.tutorId, requestedTiming, null, false, requestedUtcTiming, booking._id);
+    if (conflict) {
+      return res.status(400).json({ message: `The tutor already has another scheduled or pending session at ${requestedTiming}.` });
+    }
+
+    booking.rescheduleRequest = {
+      requestedTiming,
+      requestedUtcTiming: requestedUtcTiming ? new Date(requestedUtcTiming) : undefined,
+      requestedBy: initiatorRole,
+      reason: reason || '',
+      requestedAt: new Date(),
+      status: 'pending',
+      declinedReason: ''
+    };
+
+    await booking.save();
+    console.log(`[Reschedule] Request saved for Booking ID ${booking._id} by ${initiatorRole} to ${requestedTiming}`);
+
+    // Send email notification to the opposite party
+    try {
+      const tutor = await Tutor.findById(booking.tutorId);
+      const tutorUser = tutor?.userId ? await User.findById(tutor.userId) : null;
+      const studentUser = /^[0-9a-fA-F]{24}$/.test(booking.studentId) ? await User.findById(booking.studentId) : null;
+      const frontendUrl = getFrontendUrl(req);
+
+      if (initiatorRole === 'Student') {
+        // Notify Tutor
+        if (tutorUser && tutorUser.email) {
+          transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: tutorUser.email,
+            subject: `Action Required: Reschedule Requested by ${booking.studentName}`,
+            text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} has requested to reschedule their ${booking.subject} class from "${booking.timing}" to "${requestedTiming}".\n\nReason: ${reason || 'No reason specified.'}\n\nPlease log in to your dashboard to Accept or Decline this request:\n${frontendUrl}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #2563eb; text-align: center;">Class Reschedule Requested</h2>
+                <p>Hello <strong>${tutor.name}</strong>,</p>
+                <p>Student <strong>${booking.studentName}</strong> has requested to reschedule their <strong>${booking.subject}</strong> session.</p>
+                <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; border: 1px solid #bfdbfe; margin: 20px 0;">
+                  <p style="margin: 0 0 8px 0;"><strong>Original Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${booking.timing}</span></p>
+                  <p style="margin: 0 0 8px 0;"><strong>Requested New Timing:</strong> <span style="color: #2563eb; font-weight: bold;">${requestedTiming}</span></p>
+                  <p style="margin: 0;"><strong>Reason:</strong> ${reason || 'No reason provided.'}</p>
+                </div>
+                <p>Please log in to your <a href="${frontendUrl}/dashboard/tutor" style="color: #2563eb; font-weight: bold;">Tutor Dashboard</a> to Accept or Decline this request.</p>
+                <p>Best regards,<br/>Cuvasol Tutor Team</p>
+              </div>
+            `
+          }).catch(err => console.error('[Reschedule Email] Error sending to tutor:', err.message));
+        }
+      } else {
+        // Notify Student
+        let studentEmail = studentUser?.email;
+        if (!studentEmail && booking.studentId === 'admin') {
+          studentEmail = process.env.ADMIN_EMAIL || 'admin@cuvasoltutor.com';
+        }
+        if (studentEmail) {
+          transporter.sendMail({
+            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            to: studentEmail,
+            subject: `Action Required: Reschedule Requested by Tutor ${booking.tutorName}`,
+            text: `Hello ${booking.studentName},\n\nTutor ${booking.tutorName} has requested to reschedule your ${booking.subject} class from "${booking.timing}" to "${requestedTiming}".\n\nReason: ${reason || 'No reason specified.'}\n\nPlease log in to your dashboard to Accept or Decline this request:\n${frontendUrl}/dashboard/student\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #2563eb; text-align: center;">Class Reschedule Requested by Tutor</h2>
+                <p>Hello <strong>${booking.studentName}</strong>,</p>
+                <p>Tutor <strong>${booking.tutorName}</strong> has requested to reschedule your <strong>${booking.subject}</strong> session.</p>
+                <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; border: 1px solid #bfdbfe; margin: 20px 0;">
+                  <p style="margin: 0 0 8px 0;"><strong>Original Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${booking.timing}</span></p>
+                  <p style="margin: 0 0 8px 0;"><strong>Requested New Timing:</strong> <span style="color: #2563eb; font-weight: bold;">${requestedTiming}</span></p>
+                  <p style="margin: 0;"><strong>Reason:</strong> ${reason || 'No reason provided.'}</p>
+                </div>
+                <p>Please log in to your <a href="${frontendUrl}/dashboard/student" style="color: #2563eb; font-weight: bold;">Student Dashboard</a> to Accept or Decline this request.</p>
+                <p>Best regards,<br/>Cuvasol Tutor Team</p>
+              </div>
+            `
+          }).catch(err => console.error('[Reschedule Email] Error sending to student:', err.message));
+        }
+      }
+    } catch (mailErr) {
+      console.error('[Reschedule Email] Error processing notification:', mailErr.message);
+    }
+
+    res.json({ message: 'Reschedule request submitted successfully', booking });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Confirm or Decline a Reschedule Request
+router.post('/booking/:bookingId/reschedule-confirm', async (req, res) => {
+  try {
+    const { action, declinedReason, confirmedBy } = req.body;
+    if (!['approve', 'decline'].includes(action)) {
+      return res.status(400).json({ message: 'Action must be either "approve" or "decline"' });
+    }
+
+    const booking = await Booking.findById(req.params.bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    if (!booking.rescheduleRequest || booking.rescheduleRequest.status !== 'pending') {
+      return res.status(400).json({ message: 'No pending reschedule request found for this booking' });
+    }
+
+    const originalTiming = booking.timing;
+    const requestedTiming = booking.rescheduleRequest.requestedTiming;
+    const requestedUtcTiming = booking.rescheduleRequest.requestedUtcTiming;
+    const requestedByRole = booking.rescheduleRequest.requestedBy;
+
+    const frontendUrl = getFrontendUrl(req);
+    const tutor = await Tutor.findById(booking.tutorId);
+    const tutorUser = tutor?.userId ? await User.findById(tutor.userId) : null;
+    const studentUser = /^[0-9a-fA-F]{24}$/.test(booking.studentId) ? await User.findById(booking.studentId) : null;
+    let studentEmail = studentUser?.email;
+    if (!studentEmail && booking.studentId === 'admin') {
+      studentEmail = process.env.ADMIN_EMAIL || 'admin@cuvasoltutor.com';
+    }
+
+    if (action === 'approve') {
+      // Re-verify schedule conflict
+      const conflict = await checkTutorScheduleConflict(booking.tutorId, requestedTiming, null, false, requestedUtcTiming, booking._id);
+      if (conflict) {
+        return res.status(400).json({ message: `Schedule conflict detected at ${requestedTiming}. Cannot approve.` });
+      }
+
+      booking.timing = requestedTiming;
+      if (requestedUtcTiming) {
+        booking.utcTiming = requestedUtcTiming;
+      }
+      booking.rescheduledAt = new Date();
+      booking.rescheduledBy = requestedByRole;
+      booking.rescheduleRequest.status = 'approved';
+      if (booking.status === 'pending') {
+        booking.status = 'confirmed';
+      }
+
+      await booking.save();
+      console.log(`[Reschedule] Booking ID ${booking._id} approved to ${requestedTiming}`);
+
+      // Send confirmation emails
+      try {
+        if (requestedByRole === 'Student') {
+          // Send approval confirmation to Student
+          if (studentEmail) {
+            transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+              to: studentEmail,
+              subject: `Reschedule Confirmed: ${booking.subject} with ${booking.tutorName}`,
+              text: `Hello ${booking.studentName},\n\nGreat news! Tutor ${booking.tutorName} has APPROVED your reschedule request for ${booking.subject}.\n\nNew Class Timing: ${booking.timing}\nOriginal Timing: ${originalTiming}\nMeeting Room Link: ${booking.meetingLink || 'Available on your dashboard'}\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #059669; text-align: center;">Reschedule Request Approved!</h2>
+                  <p>Hello <strong>${booking.studentName}</strong>,</p>
+                  <p>Great news! Tutor <strong>${booking.tutorName}</strong> has approved your reschedule request for <strong>${booking.subject}</strong>.</p>
+                  <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
+                    <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #059669; font-weight: bold; font-size: 16px;">${booking.timing}</span></p>
+                    <p style="margin: 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${originalTiming}</span></p>
+                  </div>
+                  <p>You can join your class at the new time directly from your <a href="${frontendUrl}/dashboard/student" style="color: #059669; font-weight: bold;">Student Dashboard</a>.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
+                </div>
+              `
+            }).catch(err => console.error('[Reschedule Email] Error notifying student:', err.message));
+          }
+        } else {
+          // Send approval confirmation to Tutor
+          if (tutorUser && tutorUser.email) {
+            transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+              to: tutorUser.email,
+              subject: `Reschedule Confirmed: ${booking.subject} with ${booking.studentName}`,
+              text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} has APPROVED your reschedule request for ${booking.subject}.\n\nNew Class Timing: ${booking.timing}\nOriginal Timing: ${originalTiming}\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #059669; text-align: center;">Reschedule Request Approved!</h2>
+                  <p>Hello <strong>${tutor.name}</strong>,</p>
+                  <p>Student <strong>${booking.studentName}</strong> has accepted your reschedule request for <strong>${booking.subject}</strong>.</p>
+                  <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
+                    <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #059669; font-weight: bold; font-size: 16px;">${booking.timing}</span></p>
+                    <p style="margin: 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${originalTiming}</span></p>
+                  </div>
+                  <p>You can view your updated calendar on your <a href="${frontendUrl}/dashboard/tutor" style="color: #059669; font-weight: bold;">Tutor Dashboard</a>.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
+                </div>
+              `
+            }).catch(err => console.error('[Reschedule Email] Error notifying tutor:', err.message));
+          }
+        }
+      } catch (mailErr) {
+        console.error('[Reschedule Email] Error:', mailErr.message);
+      }
+
+      return res.json({ message: 'Reschedule request approved successfully', booking });
+    } else {
+      // Decline action
+      booking.rescheduleRequest.status = 'declined';
+      booking.rescheduleRequest.declinedReason = declinedReason || 'No reason provided';
+      await booking.save();
+      console.log(`[Reschedule] Booking ID ${booking._id} reschedule declined`);
+
+      // Send decline notification emails
+      try {
+        if (requestedByRole === 'Student') {
+          if (studentEmail) {
+            transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+              to: studentEmail,
+              subject: `Reschedule Request Declined: ${booking.subject}`,
+              text: `Hello ${booking.studentName},\n\nTutor ${booking.tutorName} was unable to accept your reschedule request for ${requestedTiming}.\n${declinedReason ? `Reason: ${declinedReason}\n` : ''}\nYour class remains scheduled for the original timing: ${booking.timing}.\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #dc2626; text-align: center;">Reschedule Request Declined</h2>
+                  <p>Hello <strong>${booking.studentName}</strong>,</p>
+                  <p>Tutor <strong>${booking.tutorName}</strong> was unable to accept your reschedule request for <strong>${requestedTiming}</strong>.</p>
+                  ${declinedReason ? `<p><strong>Reason:</strong> ${declinedReason}</p>` : ''}
+                  <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca; margin: 20px 0;">
+                    <p style="margin: 0;"><strong>Active Class Timing:</strong> <span style="color: #dc2626; font-weight: bold;">${booking.timing}</span> (Unchanged)</p>
+                  </div>
+                  <p>Your session remains active at the original time. Please visit your <a href="${frontendUrl}/dashboard/student">Student Dashboard</a> to manage or join.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
+                </div>
+              `
+            }).catch(err => console.error('[Reschedule Email] Error:', err.message));
+          }
+        } else {
+          if (tutorUser && tutorUser.email) {
+            transporter.sendMail({
+              from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+              to: tutorUser.email,
+              subject: `Reschedule Request Declined by Student: ${booking.subject}`,
+              text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} was unable to accept your reschedule request for ${requestedTiming}.\n${declinedReason ? `Reason: ${declinedReason}\n` : ''}\nThe class remains scheduled for the original timing: ${booking.timing}.\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #dc2626; text-align: center;">Reschedule Request Declined</h2>
+                  <p>Hello <strong>${tutor.name}</strong>,</p>
+                  <p>Student <strong>${booking.studentName}</strong> was unable to accept your reschedule request for <strong>${requestedTiming}</strong>.</p>
+                  ${declinedReason ? `<p><strong>Reason:</strong> ${declinedReason}</p>` : ''}
+                  <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca; margin: 20px 0;">
+                    <p style="margin: 0;"><strong>Active Class Timing:</strong> <span style="color: #dc2626; font-weight: bold;">${booking.timing}</span> (Unchanged)</p>
+                  </div>
+                  <p>The session remains active at the original time. Please visit your <a href="${frontendUrl}/dashboard/tutor">Tutor Dashboard</a>.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
+                </div>
+              `
+            }).catch(err => console.error('[Reschedule Email] Error:', err.message));
+          }
+        }
+      } catch (mailErr) {
+        console.error('[Reschedule Email] Error:', mailErr.message);
+      }
+
+      return res.json({ message: 'Reschedule request declined', booking });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin direct reschedule endpoint
+router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
+  try {
+    const { requestedTiming, requestedUtcTiming, reason } = req.body;
+    if (!requestedTiming) {
+      return res.status(400).json({ message: 'Requested timing is required' });
+    }
+
+    const booking = await Booking.findById(req.params.bookingId);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    const tutor = await Tutor.findById(booking.tutorId);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found for this booking' });
+
+    // Validate tutor availability (unless explicit admin override requested)
+    if (!req.body.overrideAvailability) {
+      const availabilityCheck = validateTutorAvailability(tutor, requestedTiming, requestedUtcTiming);
+      if (!availabilityCheck.valid) {
+        return res.status(400).json({ message: availabilityCheck.message });
+      }
+    }
+
+    // Check for tutor schedule conflicts (unless explicit conflict override requested)
+    const conflict = await checkTutorScheduleConflict(booking.tutorId, requestedTiming, null, false, requestedUtcTiming, booking._id);
+    if (conflict && !req.body.overrideConflict) {
+      return res.status(400).json({ message: `The tutor already has another scheduled session at ${requestedTiming}.` });
+    }
+
+    const oldTiming = booking.timing;
+    const oldStatus = booking.status;
+    booking.timing = requestedTiming;
+    if (requestedUtcTiming) {
+      booking.utcTiming = new Date(requestedUtcTiming);
+    }
+    booking.rescheduledAt = new Date();
+    booking.rescheduledBy = 'Admin';
+
+    const isVerificationDemo = booking.subject === 'Verification Demo Class' || booking.studentId === 'admin';
+
+    // If the booking was previously declined/rejected or cancelled, reactivate it!
+    if (['rejected', 'cancelled'].includes(booking.status)) {
+      booking.status = isVerificationDemo ? 'pending' : (booking.amountPaid ? 'confirmed' : 'pending');
+      booking.cancellationReason = undefined;
+      booking.cancelledBy = undefined;
+      booking.cancelledAt = undefined;
+    }
+
+    if (booking.rescheduleRequest) {
+      booking.rescheduleRequest.status = 'approved';
+      booking.rescheduleRequest.requestedTiming = requestedTiming;
+      booking.rescheduleRequest.requestedUtcTiming = requestedUtcTiming ? new Date(requestedUtcTiming) : undefined;
+      if (reason) booking.rescheduleRequest.reason = reason;
+    } else {
+      booking.rescheduleRequest = {
+        requestedTiming,
+        requestedUtcTiming: requestedUtcTiming ? new Date(requestedUtcTiming) : undefined,
+        requestedBy: 'Admin',
+        reason: reason || (oldStatus === 'rejected' ? 'Rescheduled following tutor decline' : ''),
+        status: 'approved',
+        requestedAt: new Date()
+      };
+    }
+
+    // Refresh video room meeting link for the updated timing
+    try {
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: requestedTiming,
+        utcTiming: requestedUtcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-verification-${booking._id}`
+      });
+    } catch (meetErr) {
+      console.error('[Admin Reschedule] Meeting link update error:', meetErr.message);
+    }
+
+    await booking.save();
+    console.log(`[Admin Reschedule] Booking ID ${booking._id} rescheduled by Admin to ${requestedTiming} (Status: ${booking.status})`);
+
+    // Notify tutor and student
+    try {
+      const frontendUrl = getFrontendUrl(req);
+      const tutor = await Tutor.findById(booking.tutorId);
+      const tutorUser = tutor?.userId ? await User.findById(tutor.userId) : null;
+      const studentUser = /^[0-9a-fA-F]{24}$/.test(booking.studentId) ? await User.findById(booking.studentId) : null;
+      let studentEmail = studentUser?.email;
+
+      if (tutorUser && tutorUser.email) {
+        transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: tutorUser.email,
+          subject: isVerificationDemo
+            ? `Verification Demo Class Rescheduled: ${requestedTiming}`
+            : `Class Rescheduled by Administrator: ${booking.subject}`,
+          text: isVerificationDemo
+            ? `Hello ${tutor.name},\n\nOur administrator has rescheduled your Verification Demo Class to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Notes: ${reason}\n` : ''}\nPlease log in to your dashboard to review and accept this session.\n\nBest regards,\nCuvasol Tutor Team`
+            : `Hello ${tutor.name},\n\nOur administrator has rescheduled the ${booking.subject} class with ${booking.studentName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
+          html: isVerificationDemo
+            ? `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #7c3aed; text-align: center;">Verification Demo Class Rescheduled</h2>
+              <p>Hello <strong>${tutor.name}</strong>,</p>
+              <p>Our administrator has rescheduled your <strong>Verification Demo Class</strong> session.</p>
+              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+              </div>
+              <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to review and accept this updated session time.</p>
+              <p>Best regards,<br/>Cuvasol Tutor Team</p>
+            </div>
+            `
+            : `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
+              <p>Hello <strong>${tutor.name}</strong>,</p>
+              <p>Our platform administrator has rescheduled your <strong>${booking.subject}</strong> session with <strong>${booking.studentName}</strong>.</p>
+              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+              </div>
+              <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to view your updated schedule.</p>
+              <p>Best regards,<br/>Cuvasol Tutor Team</p>
+            </div>
+          `
+        }).catch(err => console.error('[Admin Reschedule Email] Tutor error:', err.message));
+      }
+
+      if (studentEmail && !isVerificationDemo) {
+        transporter.sendMail({
+          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+          to: studentEmail,
+          subject: `Class Rescheduled by Administrator: ${booking.subject}`,
+          text: `Hello ${booking.studentName},\n\nOur administrator has rescheduled your ${booking.subject} class with tutor ${booking.tutorName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
+              <p>Hello <strong>${booking.studentName}</strong>,</p>
+              <p>Our platform administrator has rescheduled your <strong>${booking.subject}</strong> session with tutor <strong>${booking.tutorName}</strong>.</p>
+              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+              </div>
+              <p>Please visit your <a href="${frontendUrl}/dashboard/student" style="color: #7c3aed; font-weight: bold;">Student Dashboard</a> to join at the new time.</p>
+              <p>Best regards,<br/>Cuvasol Tutor Team</p>
+            </div>
+          `
+        }).catch(err => console.error('[Admin Reschedule Email] Student error:', err.message));
+      }
+    } catch (mailErr) {
+      console.error('[Admin Reschedule Email] Error:', mailErr.message);
+    }
+
+    res.json({ message: 'Class rescheduled successfully by administrator', booking });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Mock Payment for Enrollment
 router.put('/booking/:bookingId/pay', async (req, res) => {
   try {
@@ -819,7 +1566,15 @@ router.put('/booking/:bookingId/pay', async (req, res) => {
     booking.planType = planType;
     booking.amountPaid = amountPaid;
     if (!booking.meetingLink) {
-      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+      const tutor = await Tutor.findById(booking.tutorId);
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: booking.timing,
+        utcTiming: booking.utcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
     }
     await booking.save();
     res.json({ message: 'Payment successful, enrolled in course!', booking });
@@ -845,6 +1600,11 @@ router.put('/booking/:bookingId/session/:sessionIdx/status', async (req, res) =>
     
     booking.sessions[idx].status = status;
     await booking.save();
+
+    if (status === 'completed') {
+      await rewardReferrerOnClassCompletion(booking);
+    }
+
     res.json(booking);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -882,11 +1642,22 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
 
     if (anyDeclined) {
       booking.status = 'cancelled';
+      booking.cancelledBy = 'Student';
+      booking.cancellationReason = `Declined by group participant: ${email}`;
+      booking.cancelledAt = new Date();
     } else if (allApproved) {
       booking.status = 'enrolled';
     }
     if (booking.status === 'enrolled' && !booking.meetingLink) {
-      booking.meetingLink = `https://meet.jit.si/cuvasol-tutor-class-${booking._id}`;
+      const tutor = await Tutor.findById(booking.tutorId);
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: booking.timing,
+        utcTiming: booking.utcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
     }
     await booking.save();
 
@@ -1079,7 +1850,13 @@ router.put('/:id/profile', async (req, res) => {
     }
 
     if (category !== undefined) currentTutor.category = category;
-    if (photo !== undefined) currentTutor.photo = photo;
+    if (photo !== undefined) {
+      currentTutor.photo = photo;
+      if (currentTutor.userId) {
+        const User = require('../schemas/userSchema');
+        await User.findByIdAndUpdate(currentTutor.userId, { avatar: photo });
+      }
+    }
     if (verificationDocument !== undefined) currentTutor.verificationDocument = verificationDocument;
     if (timezone !== undefined) currentTutor.timezone = timezone;
 
@@ -1096,6 +1873,59 @@ router.put('/:id/profile', async (req, res) => {
     res.json(obj);
   } catch (error) {
     res.status(500).json({ message: 'Error updating tutor profile', error: error.message });
+  }
+});
+
+// Tutor can update their payment / bank account details
+router.put('/:id/payment-details', async (req, res) => {
+  try {
+    const { accountHolderName, bankName, accountNumber, ifscCode, accountType, upiId, isConfirmed } = req.body;
+
+    if (!accountHolderName || !accountHolderName.trim()) {
+      return res.status(400).json({ message: 'Account Holder Name is required' });
+    }
+    if (!bankName || !bankName.trim()) {
+      return res.status(400).json({ message: 'Bank Name is required' });
+    }
+    if (!accountNumber || !accountNumber.trim()) {
+      return res.status(400).json({ message: 'Bank Account Number is required' });
+    }
+    if (!ifscCode || !ifscCode.trim()) {
+      return res.status(400).json({ message: 'IFSC Code is required' });
+    }
+    if (!isConfirmed) {
+      return res.status(400).json({ message: 'Please confirm that the bank details provided are accurate and belong to you' });
+    }
+
+    const tutor = await Tutor.findById(req.params.id);
+    if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    tutor.paymentDetails = {
+      accountHolderName: accountHolderName.trim(),
+      bankName: bankName.trim(),
+      accountNumber: accountNumber.trim(),
+      ifscCode: ifscCode.trim().toUpperCase(),
+      accountType: accountType || 'Savings Account',
+      upiId: (upiId || '').trim(),
+      isConfirmed: Boolean(isConfirmed),
+      updatedAt: new Date()
+    };
+
+    await tutor.save();
+    await tutor.populate('userId', 'email phone avatar');
+
+    const obj = tutor.toObject();
+    obj.id = obj._id.toString();
+    if (obj.userId) {
+      obj.email = obj.userId.email;
+      obj.phone = obj.userId.phone;
+      obj.avatar = obj.userId.avatar;
+    }
+
+    res.json({ message: 'Payment account details saved successfully!', tutor: obj });
+  } catch (error) {
+    console.error('[Tutor Payment Details] Error saving payment details:', error);
+    res.status(500).json({ message: 'Error saving payment details', error: error.message });
   }
 });
 
@@ -1261,6 +2091,7 @@ router.delete('/posts/:postId', async (req, res) => {
 router.checkTutorScheduleConflict = checkTutorScheduleConflict;
 router.getBookingSessionTimestamps = getBookingSessionTimestamps;
 router.parseSessionToDate = parseSessionToDate;
+router.validateTutorAvailability = validateTutorAvailability;
 
 module.exports = router;
 

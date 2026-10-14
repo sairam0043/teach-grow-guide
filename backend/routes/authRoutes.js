@@ -33,6 +33,7 @@ const getFrontendUrl = (req) => {
 
 const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
+const SignupOtp = require('../schemas/signupOtpSchema');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -73,14 +74,178 @@ transporter.verify((error, success) => {
   }
 });
 
+// POST /api/auth/send-signup-otp
+router.post('/send-signup-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email address is required' });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+
+    // Generate random 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Save or update OTP in the SignupOtp collection
+    await SignupOtp.findOneAndUpdate(
+      { email },
+      { otp, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    // Send OTP via email
+    try {
+      console.log(`[Auth] Attempting to send verification OTP to: ${email}`);
+      
+      // Development fallback console logging
+      console.log(`[DEVELOPMENT] EMAIL VERIFICATION OTP FOR ${email}: ${otp}`);
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || '"Cuvasol Support" <noreply@cuvasoltutor.com>',
+        to: email,
+        subject: 'Email Verification OTP - Cuvasol',
+        text: `Your OTP for email verification is: ${otp}. It is valid for 15 minutes.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+            <h2 style="color: #0d9488; text-align: center;">Cuvasol Email Verification</h2>
+            <p>Thank you for signing up with Cuvasol. Please use the following One-Time Password (OTP) to complete your registration:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0d9488; background-color: #f0fdfa; padding: 10px 20px; border-radius: 6px; border: 1px solid #ccfbf1;">
+                ${otp}
+              </span>
+            </div>
+            <p>This OTP is valid for 15 minutes. If you did not request this code, please ignore this email.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+            <p style="font-size: 11px; color: #777; text-align: center;">Cuvasol Support Team</p>
+          </div>
+        `
+      });
+      console.log(`[Auth] Verification OTP sent successfully to ${email}`);
+    } catch (mailError) {
+      console.error('[Auth] Failed to send verification OTP email:', mailError.message);
+      // Log development fallback for local testing in case email service fails
+      console.log(`[DEVELOPMENT FALLBACK] OTP FOR ${email}: ${otp}`);
+    }
+
+    res.json({ message: 'Verification OTP sent to your email.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/auth/validate-referral
+router.post('/validate-referral', async (req, res) => {
+  try {
+    const { referralCode } = req.body;
+    if (!referralCode || !referralCode.trim()) {
+      return res.status(400).json({ valid: false, message: 'Please provide a referral code.' });
+    }
+
+    const cleanCode = referralCode.trim().toUpperCase();
+
+    // 1. Check Tutor referral codes (case-insensitive)
+    const referringTutor = await Tutor.findOne({
+      referralCode: { $regex: new RegExp(`^${cleanCode}$`, 'i') }
+    }).select('name referralCode subject category');
+
+    if (referringTutor) {
+      return res.json({
+        valid: true,
+        type: 'tutor',
+        code: referringTutor.referralCode || cleanCode,
+        referrerName: referringTutor.name || 'Tutor',
+        rewardAmount: 200,
+        message: `Valid Tutor Referral Code (${referringTutor.name})! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    // 2. Check Student referral codes (case-insensitive)
+    const referringStudent = await User.findOne({
+      role: 'student',
+      referralCode: { $regex: new RegExp(`^${cleanCode}$`, 'i') }
+    }).select('full_name student_name referralCode');
+
+    if (referringStudent) {
+      const studentName = referringStudent.student_name || referringStudent.full_name || 'a friend';
+      return res.json({
+        valid: true,
+        type: 'student',
+        code: referringStudent.referralCode || cleanCode,
+        referrerName: studentName,
+        rewardAmount: 200,
+        message: `Valid Student Referral Code (${studentName})! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    // 3. Fallback: Check if it's a valid ObjectId or Affiliate marketing pattern
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(cleanCode)) {
+      const refUser = await User.findById(cleanCode);
+      if (refUser) {
+        return res.json({
+          valid: true,
+          type: refUser.role || 'user',
+          code: cleanCode,
+          referrerName: refUser.full_name || 'Member',
+          rewardAmount: 200,
+          message: `Valid Referral Code! ₹200 wallet credits will be added to your account.`
+        });
+      }
+    }
+
+    // Affiliate code format (alphanumeric 3-25 chars)
+    if (/^[A-Z0-9_-]{3,25}$/i.test(cleanCode)) {
+      return res.json({
+        valid: true,
+        type: 'affiliate',
+        code: cleanCode,
+        referrerName: 'Community Referral',
+        rewardAmount: 200,
+        message: `Valid Referral Code! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    return res.status(404).json({
+      valid: false,
+      message: 'Referral code not found. Please check and try again.'
+    });
+  } catch (err) {
+    res.status(500).json({ valid: false, message: 'Error validating referral code', error: err.message });
+  }
+});
+
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, subject_interests, subjectInterests, student_or_parent, studentOrParent, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, heard_about_us, heardAboutUs, referredBy, otp, ...tutorData } = req.body;
 
-    // Check if user exists
-    let user = await User.findOne({ email });
+    // Check if user exists by email or phone
+    const phoneQuery = phone ? { phone } : null;
+    const checkQuery = phoneQuery ? { $or: [{ email }, phoneQuery] } : { email };
+    let user = await User.findOne(checkQuery);
     if (user) {
-      return res.status(400).json({ message: 'User already exists' });
+      if (user.email === email) {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      } else {
+        return res.status(400).json({ message: 'User with this phone number already exists' });
+      }
+    }
+
+    // Verify OTP for student registration
+    if (role === 'student') {
+      if (!otp) {
+        return res.status(400).json({ message: 'Email verification OTP is required.' });
+      }
+      const otpRecord = await SignupOtp.findOne({ email });
+      if (!otpRecord || otpRecord.otp !== otp.toString().trim()) {
+        return res.status(400).json({ message: 'Invalid or expired verification OTP.' });
+      }
+      // OTP verified! Delete it so it cannot be reused
+      await SignupOtp.deleteOne({ email });
     }
 
     if (role === 'tutor' && (!tutorData.verificationDocument || tutorData.verificationDocument.trim() === '')) {
@@ -97,18 +262,88 @@ router.post('/register', async (req, res) => {
       parsedSubjectInterests = (subject_interests || subjectInterests).split(',').map(s => s.trim()).filter(Boolean);
     }
 
+    let referredByUserId = undefined;
+    let marketingRefCode = undefined;
+    let usedReferralCode = undefined;
+    let initialWalletBalance = 0;
+    let initialWalletHistory = [];
+
+    if (referredBy && referredBy.trim() !== "") {
+      const trimmedRef = referredBy.trim().toUpperCase();
+      usedReferralCode = trimmedRef;
+      // First, try to find a tutor by their referralCode (case-insensitive)
+      const referringTutor = await Tutor.findOne({
+        referralCode: { $regex: new RegExp(`^${trimmedRef}$`, 'i') }
+      });
+      if (referringTutor) {
+        referredByUserId = referringTutor.userId;
+      } else {
+        // Next, check if it matches an internal student's referralCode
+        const referringStudent = await User.findOne({
+          referralCode: { $regex: new RegExp(`^${trimmedRef}$`, 'i') }
+        });
+        if (referringStudent) {
+          referredByUserId = referringStudent._id;
+        } else {
+          // Fallback 1: Check if it's a valid MongoDB ObjectId (for backward compatibility)
+          const mongoose = require('mongoose');
+          if (mongoose.Types.ObjectId.isValid(trimmedRef)) {
+            referredByUserId = trimmedRef;
+          } else {
+            // Fallback 2: External affiliate marketing referral code (e.g. SARAH-CLEAN-26)
+            marketingRefCode = trimmedRef;
+          }
+        }
+      }
+
+      // If user is registering as a student and used a referral code, award ₹200 instant welcome wallet credit
+      if (role === 'student') {
+        initialWalletBalance = 200;
+        initialWalletHistory.push({
+          type: 'credit',
+          amount: 200,
+          description: `Welcome Bonus: ₹200 credited for signing up with referral code (${trimmedRef})`,
+          date: new Date()
+        });
+        console.log(`[Student Signup] Credited ₹200 welcome bonus to new student ${full_name || email} for referral code ${trimmedRef}`);
+      }
+    }
+
     user = new User({ 
       email, 
       password: hashedPassword, 
       full_name, 
       phone, 
       student_class: student_class || studentClass,
-      subject_interests: parsedSubjectInterests,
       student_or_parent: student_or_parent || studentOrParent || 'Student',
+      student_name: student_name || studentName,
+      interested_subject: interested_subject || interestedSubject || subject || '',
+      subject_interests: parsedSubjectInterests,
+      heard_about_us: heard_about_us || heardAboutUs,
       role, 
-      timezone: timezone || 'Asia/Kolkata' 
+      timezone: timezone || 'Asia/Kolkata',
+      referredBy: referredByUserId,
+      usedReferralCode: usedReferralCode,
+      marketingRefCode: marketingRefCode,
+      walletBalance: initialWalletBalance,
+      walletHistory: initialWalletHistory
     });
     await user.save();
+
+    // Trigger webhook notification to Marketing Portal asynchronously
+    if (marketingRefCode) {
+      try {
+        const { notifyMarketingStudentSignup } = require('../utils/marketingWebhookHelper');
+        notifyMarketingStudentSignup({
+          refCode: marketingRefCode,
+          studentName: user.full_name || user.student_name,
+          studentEmail: user.email,
+          studentPhone: user.phone
+        }).catch(err => console.warn('[Marketing Webhook Dispatch Error]:', err.message));
+      } catch (hookErr) {
+        console.warn('[Marketing Webhook Error]:', hookErr.message);
+      }
+    }
 
     if (role === 'tutor') {
       let parsedSubjects = [];
@@ -254,7 +489,7 @@ router.post('/register', async (req, res) => {
     // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, subject_interests: user.subject_interests || [], role, timezone: user.timezone } });
+    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role, timezone: user.timezone, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -275,12 +510,20 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Lazy generate referral code if student and missing
+    if (!user.referralCode && user.role === 'student') {
+      const rawName = (user.student_name || user.full_name || 'STUDENT').replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase() || 'STU';
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      user.referralCode = `${rawName}${randomNum}`;
+      await user.save();
+    }
+
     // Note: We now allow tutors to log in even if pending or rejected 
     // so they can access their settings, see warnings, and correct/re-submit credentials!
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone } });
+    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -289,7 +532,7 @@ router.post('/login', async (req, res) => {
 
 router.post('/google', async (req, res) => {
   try {
-    const { idToken, role, action, timezone } = req.body;
+    const { idToken, role, action, timezone, referredBy } = req.body;
 
     const ticket = await client.verifyIdToken({
       idToken,
@@ -321,7 +564,16 @@ router.post('/google', async (req, res) => {
         googleId,
         avatar: picture,
         role: role || 'student', // Use provided role or default to student
-        timezone: timezone || 'Asia/Kolkata'
+        timezone: timezone || 'Asia/Kolkata',
+        referredBy: req.body.referredBy ? req.body.referredBy : undefined,
+        usedReferralCode: req.body.referredBy ? req.body.referredBy.trim().toUpperCase() : undefined,
+        walletBalance: (role === 'student' || !role) && (req.body.referredBy || req.body.referralCode) ? 200 : 0,
+        walletHistory: (role === 'student' || !role) && (req.body.referredBy || req.body.referralCode) ? [{
+          type: 'credit',
+          amount: 200,
+          description: `Welcome Bonus: ₹200 credited for signing up with referral code (${(req.body.referredBy || req.body.referralCode).trim().toUpperCase()})`,
+          date: new Date()
+        }] : []
       });
       await user.save();
 
@@ -366,10 +618,15 @@ router.post('/google', async (req, res) => {
         full_name: user.full_name,
         phone: user.phone,
         student_class: user.student_class,
+        student_name: user.student_name,
+        student_or_parent: user.student_or_parent,
+        interested_subject: user.interested_subject,
         subject_interests: user.subject_interests || [],
         role: user.role,
         avatar: user.avatar,
-        timezone: user.timezone
+        timezone: user.timezone,
+        referralCode: user.referralCode,
+        walletBalance: user.walletBalance || 0
       }
     });
 
@@ -509,16 +766,25 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone, timezone, student_class, studentClass, subject_interests, subjectInterests } = req.body;
+    const { full_name, phone, timezone, student_class, studentClass, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, avatar, photo } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (full_name) user.full_name = full_name;
     if (phone !== undefined) user.phone = phone;
     if (timezone !== undefined) user.timezone = timezone;
+    if (avatar !== undefined || photo !== undefined) user.avatar = avatar || photo;
     if (student_class !== undefined || studentClass !== undefined) {
       user.student_class = student_class || studentClass;
     }
+    if (student_name !== undefined || studentName !== undefined) {
+      user.student_name = student_name || studentName;
+    }
+
+    if (interested_subject !== undefined || interestedSubject !== undefined || subject !== undefined) {
+      user.interested_subject = interested_subject || interestedSubject || subject;
+    }
+
     if (subject_interests !== undefined || subjectInterests !== undefined) {
       const rawSub = subject_interests !== undefined ? subject_interests : subjectInterests;
       if (Array.isArray(rawSub)) {
@@ -534,10 +800,11 @@ router.put('/profile/:id', async (req, res) => {
     if (user.role === 'tutor') {
       const updateData = { name: full_name };
       if (timezone !== undefined) updateData.timezone = timezone;
+      if (avatar !== undefined || photo !== undefined) updateData.photo = avatar || photo;
       await Tutor.findOneAndUpdate({ userId: user._id }, updateData);
     }
 
-    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone } });
+    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone } });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -595,6 +862,100 @@ router.post('/contact', async (req, res) => {
     res.json({ success: true, message: 'Your message has been sent successfully!' });
   } catch (error) {
     console.error(`[Contact Form] Error processing submission:`, error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.get('/google-calendar/url', async (req, res) => {
+  try {
+    const { tutorId } = req.query;
+    if (!tutorId) {
+      return res.status(400).json({ message: 'tutorId query parameter is required' });
+    }
+    
+    const { getOAuth2Client } = require('../utils/googleMeetService');
+    const oauth2Client = getOAuth2Client();
+    
+    const scopes = [
+      'https://www.googleapis.com/auth/calendar.events'
+    ];
+    
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: scopes,
+      state: tutorId
+    });
+    
+    res.json({ url });
+  } catch (error) {
+    console.error('[Google OAuth URL] Error generating url:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/google-calendar/save-tokens', async (req, res) => {
+  try {
+    const { code, tutorId } = req.body;
+    if (!code || !tutorId) {
+      return res.status(400).json({ message: 'code and tutorId are required' });
+    }
+    
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor not found' });
+    }
+    
+    const { getOAuth2Client } = require('../utils/googleMeetService');
+    const oauth2Client = getOAuth2Client();
+    
+    const { tokens } = await oauth2Client.getToken(code);
+    
+    tutor.googleTokens = {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token || (tutor.googleTokens && tutor.googleTokens.refreshToken),
+      expiryDate: tokens.expiry_date
+    };
+    
+    await tutor.save();
+    res.json({ success: true, message: 'Google Calendar successfully connected!' });
+  } catch (error) {
+    console.error('[Google OAuth Save Tokens] Error:', error);
+    res.status(500).json({ message: 'Failed to authenticate with Google', error: error.message });
+  }
+});
+
+router.get('/google-calendar/status', async (req, res) => {
+  try {
+    const { tutorId } = req.query;
+    if (!tutorId) {
+      return res.status(400).json({ message: 'tutorId is required' });
+    }
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor not found' });
+    }
+    const connected = !!(tutor.googleTokens && tutor.googleTokens.refreshToken);
+    res.json({ connected });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.post('/google-calendar/disconnect', async (req, res) => {
+  try {
+    const { tutorId } = req.body;
+    if (!tutorId) {
+      return res.status(400).json({ message: 'tutorId is required' });
+    }
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor not found' });
+    }
+    tutor.googleTokens = undefined;
+    await tutor.save();
+    res.json({ success: true, message: 'Disconnected Google Calendar' });
+  } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

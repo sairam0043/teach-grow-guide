@@ -57,6 +57,7 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
             src="/verified-badge.png"
             alt="Verified Tutor"
             className="absolute right-3 top-3 h-10 w-10 z-10 drop-shadow-md select-none transition-transform duration-300 hover:scale-110"
+            title="Verified Tutor"
           />
         )}
         
@@ -94,7 +95,7 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
             <div className="flex items-center gap-1.5">
               <h3 className="font-serif text-lg text-card-foreground capitalize">{tutor.name}</h3>
               {tutor.isVerified && (
-                <CheckCircle2 className="h-4 w-4 fill-blue-500 text-white shrink-0" aria-label="Verified Tutor" />
+                <CheckCircle2 className="h-4 w-4 fill-blue-500 text-white shrink-0" title="Verified Tutor" />
               )}
             </div>
             <p className="text-sm text-muted-foreground">{tutor.experience} years experience</p>

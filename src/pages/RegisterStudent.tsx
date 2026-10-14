@@ -7,12 +7,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { Eye, EyeOff, Check, ArrowLeft, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Check, ArrowLeft, ArrowRight, Gift, Sparkles, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { GoogleLogin } from "@react-oauth/google";
 
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { detectUserTimeZone } from "@/utils/timezone";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import axios from "axios";
+import API_URL from "@/config/api";
 
 const CLASS_OPTIONS = [
   "Class 1",
@@ -31,6 +41,15 @@ const CLASS_OPTIONS = [
   "Other"
 ];
 
+const HEARD_ABOUT_US_OPTIONS = [
+  "Google Search",
+  "Social Media (Instagram, Facebook, LinkedIn)",
+  "Friend / Family Referral",
+  "Advertisement / Flyer",
+  "School / College",
+  "Other"
+];
+
 const capitalizeName = (str: string): string => {
   return str
     .split(' ')
@@ -39,16 +58,75 @@ const capitalizeName = (str: string): string => {
 };
 
 const RegisterStudent = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { signUp, googleSignIn, user, role } = useAuth();
+
+  const [referralCode, setReferralCode] = useState("");
+  const [isReferralFromLink, setIsReferralFromLink] = useState(false);
+  const [validatingRef, setValidatingRef] = useState(false);
+  const [refStatus, setRefStatus] = useState<{
+    valid: boolean | null;
+    message?: string;
+    referrerName?: string;
+  }>({ valid: null });
+
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+    const params = new URLSearchParams(location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      sessionStorage.setItem("student_referral_code", ref.toUpperCase());
+      setReferralCode(ref.toUpperCase());
+      setIsReferralFromLink(true);
+    } else {
+      const savedRef = sessionStorage.getItem("student_referral_code");
+      if (savedRef) {
+        setReferralCode(savedRef);
+        setIsReferralFromLink(true);
+      }
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!referralCode || !referralCode.trim()) {
+      setRefStatus({ valid: null });
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setValidatingRef(true);
+      try {
+        const res = await axios.post(`${API_URL}/auth/validate-referral`, { referralCode: referralCode.trim() });
+        if (res.data && res.data.valid) {
+          setRefStatus({
+            valid: true,
+            message: res.data.message || "Valid referral code! ₹200 wallet credits will be added to your account.",
+            referrerName: res.data.referrerName
+          });
+        } else {
+          setRefStatus({ valid: false, message: "Invalid or unrecognized referral code." });
+        }
+      } catch (err: any) {
+        setRefStatus({ valid: false, message: err.response?.data?.message || "Invalid referral code." });
+      } finally {
+        setValidatingRef(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [referralCode]);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [studentOrParent, setStudentOrParent] = useState("Student");
+  const [studentName, setStudentName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [customClass, setCustomClass] = useState("");
+  const [interestedSubject, setInterestedSubject] = useState("");
+  const [heardAboutUs, setHeardAboutUs] = useState("");
+  const [customHeardAboutUs, setCustomHeardAboutUs] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -56,9 +134,21 @@ const RegisterStudent = () => {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showFormMobile, setShowFormMobile] = useState(false);
-  const { signUp, googleSignIn, user, role } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+
+  // OTP Verification States
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+
+  useEffect(() => {
+    let timer: any;
+    if (resendCountdown > 0) {
+      timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
 
   useEffect(() => {
     if (user) {
@@ -75,12 +165,37 @@ const RegisterStudent = () => {
   const queryParams = new URLSearchParams(location.search);
   const redirectUrl = queryParams.get("redirect");
 
+  const handleSendOtp = async () => {
+    setSendingOtp(true);
+    try {
+      const response = await axios.post(`${API_URL}/auth/send-signup-otp`, { email });
+      toast.success(response.data.message || "Verification OTP sent to your email.");
+      setShowOtpModal(true);
+      setResendCountdown(60);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to send verification OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const finalClass = studentClass === "Other" ? customClass.trim() : studentClass;
     if (!finalClass) {
       toast.error("Please select or specify your class / grade.");
+      return;
+    }
+
+    if (!interestedSubject.trim()) {
+      toast.error("Please enter the subject(s) you are interested in.");
+      return;
+    }
+
+    const finalHeardAboutUs = heardAboutUs === "Other" ? customHeardAboutUs.trim() : heardAboutUs;
+    if (!finalHeardAboutUs) {
+      toast.error("Please specify where you heard about us.");
       return;
     }
 
@@ -94,25 +209,50 @@ const RegisterStudent = () => {
       return;
     }
 
-    setLoading(true);
+    if (studentOrParent === "Parent" && !studentName.trim()) {
+      toast.error("Please enter the student's full name.");
+      return;
+    }
+
+    // Trigger OTP instead of direct sign up
+    await handleSendOtp();
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp || otp.trim().length !== 6) {
+      toast.error("Please enter a valid 6-digit OTP.");
+      return;
+    }
+
+    setRegistering(true);
+    const finalClass = studentClass === "Other" ? customClass.trim() : studentClass;
+    const finalHeardAboutUs = heardAboutUs === "Other" ? customHeardAboutUs.trim() : heardAboutUs;
+
     const { error } = await signUp(email, password, {
       full_name: name,
       phone,
       student_class: finalClass,
       student_or_parent: studentOrParent,
+      student_name: studentOrParent === "Parent" ? studentName.trim() : "",
+      interested_subject: interestedSubject.trim(),
+      heard_about_us: finalHeardAboutUs,
       role: "student",
       timezone: detectUserTimeZone(),
+      referredBy: referralCode.trim(),
+      otp: otp.trim()
     });
+
     if (error) {
       toast.error(error.message);
-      setLoading(false);
+      setRegistering(false);
       return;
     }
 
-    // Create student record after auth — wait for session
-    toast.success("Account created! Please check your email to confirm, then log in.");
-    setLoading(false);
-    navigate(redirectUrl ? `/login?redirect=${encodeURIComponent(redirectUrl)}` : "/login");
+    toast.success("Account created successfully!");
+    setRegistering(false);
+    setShowOtpModal(false);
+    navigate(redirectUrl && !redirectUrl.includes("login") ? redirectUrl : "/dashboard/student");
   };
   return (
     <PageLayout>
@@ -152,7 +292,7 @@ const RegisterStudent = () => {
               </div>
 
               {/* Promotional Offer Card */}
-              <div className="mb-6 p-5 rounded-xl bg-gradient-to-br from-primary/25 via-primary/10 to-transparent border border-primary/35 shadow-lg backdrop-blur-md relative overflow-hidden">
+              <div className="mb-4 p-5 rounded-xl bg-gradient-to-br from-primary/25 via-primary/10 to-transparent border border-primary/35 shadow-lg backdrop-blur-md relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 opacity-50" />
                 <span className="relative z-10 text-[9px] font-extrabold tracking-wider text-primary bg-white px-2 py-0.5 rounded uppercase inline-block mb-1.5">
                   Special Offer
@@ -162,6 +302,22 @@ const RegisterStudent = () => {
                 </h3>
                 <p className="relative z-10 text-[13px] text-white/90 mt-1 font-semibold">
                   Plans starting from ₹1,500/month
+                </p>
+              </div>
+
+              {/* Referral Welcome Bonus Badge */}
+              <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-amber-500/20 via-emerald-500/15 to-transparent border border-amber-500/30 shadow-md backdrop-blur-md relative overflow-hidden">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Gift className="h-4 w-4 text-amber-400" />
+                  <span className="text-[10px] font-extrabold tracking-wider text-amber-300 uppercase">
+                    Referral Welcome Bonus
+                  </span>
+                </div>
+                <h4 className="text-sm font-bold text-white">
+                  Get ₹200 Instant Wallet Credits
+                </h4>
+                <p className="text-xs text-white/85 mt-1 leading-snug">
+                  Sign up with any tutor or friend referral code to get ₹200 credited to your wallet to book classes!
                 </p>
               </div>
 
@@ -273,7 +429,16 @@ const RegisterStudent = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="studentOrParent">Are you a Student or Parent?</Label>
-                  <Select value={studentOrParent} onValueChange={setStudentOrParent} required>
+                  <Select
+                    value={studentOrParent}
+                    onValueChange={(val) => {
+                      setStudentOrParent(val);
+                      if (val === "Student") {
+                        setStudentName("");
+                      }
+                    }}
+                    required
+                  >
                     <SelectTrigger id="studentOrParent">
                       <SelectValue placeholder="Select Option" />
                     </SelectTrigger>
@@ -283,6 +448,18 @@ const RegisterStudent = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                {studentOrParent === "Parent" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <Label htmlFor="studentName">Student's Full Name</Label>
+                    <Input
+                      id="studentName"
+                      required
+                      maxLength={100}
+                      value={studentName}
+                      onChange={(e) => setStudentName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="studentClass">Class / Grade</Label>
                   <Select value={studentClass} onValueChange={setStudentClass} required>
@@ -310,6 +487,125 @@ const RegisterStudent = () => {
                     />
                   </div>
                 )}
+                <div className="space-y-2">
+                  <Label htmlFor="interestedSubject">Interested Subject(s)</Label>
+                  <Input
+                    id="interestedSubject"
+                    required
+                    maxLength={120}
+                    placeholder="e.g. Mathematics, Physics, English, Coding"
+                    value={interestedSubject}
+                    onChange={(e) => setInterestedSubject(e.target.value)}
+                  />
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] text-muted-foreground mr-0.5">Quick select:</span>
+                    {["Mathematics", "Physics", "Chemistry", "English", "Coding", "Biology"].map((sub) => (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => {
+                          if (!interestedSubject.trim()) {
+                            setInterestedSubject(sub);
+                          } else {
+                            const current = interestedSubject.split(',').map(s => s.trim().toLowerCase());
+                            if (!current.includes(sub.toLowerCase())) {
+                              setInterestedSubject(`${interestedSubject}, ${sub}`);
+                            }
+                          }
+                        }}
+                        className="text-[11px] px-2 py-0.5 rounded-md bg-secondary/80 hover:bg-primary/10 hover:text-primary transition-colors border border-border/50 text-muted-foreground hover:border-primary/30 cursor-pointer"
+                      >
+                        + {sub}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="heardAboutUs">Where did you hear about us?</Label>
+                  <Select value={heardAboutUs} onValueChange={setHeardAboutUs} required>
+                    <SelectTrigger id="heardAboutUs">
+                      <SelectValue placeholder="Select Option" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[260px]">
+                      {HEARD_ABOUT_US_OPTIONS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {heardAboutUs === "Other" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <Label htmlFor="customHeardAboutUs">Specify Where You Heard About Us</Label>
+                    <Input
+                      id="customHeardAboutUs"
+                      required
+                      placeholder="e.g. Local Event, Online Forum, Blog Post"
+                      value={customHeardAboutUs}
+                      onChange={(e) => setCustomHeardAboutUs(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="referralCode" className="flex items-center gap-1.5 font-semibold">
+                      <Gift className="h-3.5 w-3.5 text-amber-500" />
+                      Referral Code <span className="text-xs font-normal text-muted-foreground">(Optional)</span>
+                    </Label>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      🎁 Get ₹200 Wallet Credit
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Input 
+                      id="referralCode" 
+                      placeholder="e.g. TUTOR1234 or FRIEND5678" 
+                      value={referralCode} 
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())} 
+                      readOnly={isReferralFromLink}
+                      className={`font-semibold tracking-wider pr-9 ${
+                        isReferralFromLink 
+                          ? "bg-muted text-muted-foreground select-none cursor-not-allowed" 
+                          : refStatus.valid === true 
+                            ? "border-emerald-500 focus-visible:ring-emerald-500 bg-emerald-50/30 dark:bg-emerald-950/20" 
+                            : refStatus.valid === false 
+                              ? "border-amber-500 focus-visible:ring-amber-500" 
+                              : ""
+                      }`}
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      {validatingRef && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                      {!validatingRef && refStatus.valid === true && <CheckCircle className="h-4 w-4 text-emerald-600" />}
+                      {!validatingRef && refStatus.valid === false && <AlertCircle className="h-4 w-4 text-amber-500" />}
+                    </div>
+                  </div>
+
+                  {refStatus.valid === true && (
+                    <div className="flex items-start gap-1.5 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 text-xs animate-in fade-in duration-200">
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald-600 animate-pulse" />
+                      <div>
+                        <p className="font-bold">₹200 Welcome Wallet Credit Applied!</p>
+                        <p className="text-[11px] text-emerald-600/90 dark:text-emerald-400 mt-0.5">
+                          {refStatus.referrerName ? `Referred by ${refStatus.referrerName}. ` : ""}
+                          ₹200 will be added directly to your student wallet to use for booking classes.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {refStatus.valid === false && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                      ⚠️ {refStatus.message || "Referral code not recognized. You can still register without one."}
+                    </p>
+                  )}
+
+                  {isReferralFromLink && refStatus.valid !== true && (
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                      ✓ Referral code applied automatically from link.
+                    </p>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
@@ -368,8 +664,8 @@ const RegisterStudent = () => {
                     and Privacy Policy. <span className="text-destructive">*</span>
                   </Label>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creating Account..." : "Sign Up"}
+                <Button type="submit" className="w-full" disabled={sendingOtp}>
+                  {sendingOtp ? "Sending OTP..." : "Sign Up"}
                 </Button>
               </form>
 
@@ -385,6 +681,62 @@ const RegisterStudent = () => {
 
         </div>
       </div>
+
+      {/* OTP Verification Modal */}
+      <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-foreground">
+              Confirm Email Address
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-2">
+              We've sent a 6-digit verification code to <span className="font-semibold text-foreground">{email}</span>. Please enter it below to complete your registration.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleOtpSubmit} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="signup-otp" className="text-sm font-semibold">
+                Verification OTP Code
+              </Label>
+              <Input
+                id="signup-otp"
+                type="text"
+                maxLength={6}
+                placeholder="123456"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                className="text-center font-bold tracking-widest text-lg h-11"
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+              <span>OTP is valid for 15 minutes.</span>
+              {resendCountdown > 0 ? (
+                <span>Resend in {resendCountdown}s</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  className="text-primary font-semibold hover:underline bg-transparent border-none cursor-pointer"
+                >
+                  Resend OTP
+                </button>
+              )}
+            </div>
+
+            <DialogFooter className="mt-4 pt-2 gap-2 sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setShowOtpModal(false)} disabled={registering}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={registering} className="font-semibold bg-primary text-primary-foreground">
+                {registering ? "Verifying..." : "Confirm & Register"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };

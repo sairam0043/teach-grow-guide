@@ -97,11 +97,11 @@ export const InternetConnectionAlert: React.FC<InternetConnectionAlertProps> = (
 
   if (!shouldDisplay) return null;
 
-  // Banner card content matching exact screenshot design with maximum contrast & bold text
+  // Banner card content matching design with clear contrast
   const AlertCard = (
     <div
       role="alert"
-      className="bg-[#FFF9EA] border-2 border-[#EAD595] text-black rounded-2xl p-4 sm:p-5 shadow-2xl max-w-lg w-full flex items-start gap-4 transition-all duration-300 relative animate-in fade-in slide-in-from-top-4"
+      className="bg-[#FFF9EA] dark:bg-amber-950/90 border-2 border-[#EAD595] dark:border-amber-700/60 text-black dark:text-amber-100 rounded-2xl p-4 sm:p-5 shadow-2xl max-w-lg w-full flex items-start gap-4 transition-all duration-300 relative animate-in fade-in slide-from-top-4"
     >
       {/* Warning Triangle Icon */}
       <div className="shrink-0 mt-0.5">
@@ -110,16 +110,16 @@ export const InternetConnectionAlert: React.FC<InternetConnectionAlertProps> = (
 
       {/* Main Text Content */}
       <div className="flex-1 pr-6 sm:pr-2">
-        <h3 className="font-extrabold text-base sm:text-lg text-black leading-tight mb-1 tracking-tight">
+        <h3 className="font-extrabold text-base sm:text-lg text-black dark:text-amber-100 leading-tight mb-1 tracking-tight">
           Computer not connected
         </h3>
-        <p className="text-sm sm:text-base text-black leading-normal font-bold">
+        <p className="text-sm sm:text-base text-black dark:text-amber-200/90 leading-normal font-bold">
           Make sure your computer has an active internet connection.{" "}
           <button
             type="button"
             onClick={checkConnection}
             disabled={isChecking}
-            className="font-black text-[#15803D] hover:text-[#166534] hover:underline focus:outline-none transition-colors cursor-pointer inline-flex items-center gap-1 disabled:opacity-60 ml-0.5"
+            className="font-black text-[#15803D] dark:text-emerald-400 hover:text-[#166534] dark:hover:text-emerald-300 hover:underline focus:outline-none transition-colors cursor-pointer inline-flex items-center gap-1 disabled:opacity-60 ml-0.5"
           >
             {isChecking ? (
               <>
@@ -133,7 +133,7 @@ export const InternetConnectionAlert: React.FC<InternetConnectionAlertProps> = (
         </p>
 
         {lastCheckFailed && !isChecking && (
-          <p className="text-xs text-red-700 mt-1.5 font-extrabold">
+          <p className="text-xs text-red-700 dark:text-red-400 mt-1.5 font-extrabold">
             Connection attempt failed. Please check your network connection and try again.
           </p>
         )}
@@ -144,7 +144,7 @@ export const InternetConnectionAlert: React.FC<InternetConnectionAlertProps> = (
         <button
           type="button"
           onClick={() => setIsDismissed(true)}
-          className="absolute top-3.5 right-3.5 text-gray-600 hover:text-black p-1 rounded-lg hover:bg-black/10 transition-colors"
+          className="absolute top-3.5 right-3.5 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white p-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
           aria-label="Dismiss alert"
         >
           <X className="w-4 h-4 stroke-[2.5]" />

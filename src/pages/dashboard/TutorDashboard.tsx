@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Image as ImageIcon, FileText, Camera, Upload, X, Loader2 } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2 } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +26,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
+import { getMeetingHref } from "@/utils/meeting";
+import { RescheduleDialog, DeclineRescheduleDialog } from "@/components/booking/RescheduleDialog";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -98,10 +100,10 @@ const TutorDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const name = String(user?.user_metadata?.full_name || "Tutor");
-  
+
   const dispatch = useDispatch<AppDispatch>();
   const { tutorStats, loading: statsLoading } = useSelector((state: RootState) => state.dashboard);
-  
+
   const [tutorProfile, setTutorProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -139,9 +141,83 @@ const TutorDashboard = () => {
     }
     return "demos";
   });
+
+  const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
+    const saved = sessionStorage.getItem("active_chat_user_id");
+    if (saved) {
+      sessionStorage.removeItem("active_chat_user_id");
+      return saved;
+    }
+    return undefined;
+  });
+
+  const [activeChatUser, setActiveChatUser] = useState<any | null>(() => {
+    const saved = sessionStorage.getItem("active_chat_user");
+    if (saved) {
+      try {
+        sessionStorage.removeItem("active_chat_user");
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [checkingGoogle, setCheckingGoogle] = useState(true);
+
+  useEffect(() => {
+    const checkGoogleCalendarStatus = async () => {
+      if (!tutorProfile?.id) return;
+      try {
+        const res = await axios.get(`${API_URL}/auth/google-calendar/status`, {
+          params: { tutorId: tutorProfile.id }
+        });
+        setIsGoogleConnected(res.data.connected);
+      } catch (err) {
+        console.error("Error checking Google Calendar status:", err);
+      } finally {
+        setCheckingGoogle(false);
+      }
+    };
+    checkGoogleCalendarStatus();
+  }, [tutorProfile?.id]);
+
+  const handleGoogleConnect = async () => {
+    if (!tutorProfile?.id) return;
+    try {
+      const res = await axios.get(`${API_URL}/auth/google-calendar/url`, {
+        params: { tutorId: tutorProfile.id }
+      });
+      if (res.data.url) {
+        window.location.href = res.data.url;
+      }
+    } catch (err) {
+      console.error("Error getting Google Calendar auth URL:", err);
+      toast.error("Failed to start Google Calendar authentication.");
+    }
+  };
+
+  const handleGoogleDisconnect = async () => {
+    if (!tutorProfile?.id) return;
+    try {
+      const res = await axios.post(`${API_URL}/auth/google-calendar/disconnect`, {
+        tutorId: tutorProfile.id
+      });
+      if (res.data.success) {
+        setIsGoogleConnected(false);
+        toast.success("Successfully disconnected Google Calendar.");
+      }
+    } catch (err) {
+      console.error("Error disconnecting Google Calendar:", err);
+      toast.error("Failed to disconnect Google Calendar.");
+    }
+  };
 
   // Rejection Reason states
   const [rejectingBookingId, setRejectingBookingId] = useState<string | null>(null);
@@ -169,15 +245,16 @@ const TutorDashboard = () => {
       toast.error("Please specify your reason");
       return;
     }
-    
+
     setIsSubmittingRejection(true);
     try {
-      await axios.put(`${API_URL}/tutors/booking/${rejectingBookingId}/status`, { 
+      await axios.put(`${API_URL}/tutors/booking/${rejectingBookingId}/status`, {
         status: 'rejected',
-        cancellationReason: finalReason
+        cancellationReason: finalReason,
+        cancelledBy: 'Tutor'
       });
       toast.success("Booking rejected successfully.");
-      setBookings(prev => prev.map(b => b._id === rejectingBookingId ? { ...b, status: 'rejected', cancellationReason: finalReason } : b));
+      setBookings(prev => prev.map(b => b._id === rejectingBookingId ? { ...b, status: 'rejected', cancellationReason: finalReason, cancelledBy: 'Tutor' } : b));
       setIsRejectDialogOpen(false);
       setRejectingBookingId(null);
       setRejectReasonType("");
@@ -189,13 +266,91 @@ const TutorDashboard = () => {
     }
   };
 
+  // Outcome Dialog states
+  const [outcomeBookingId, setOutcomeBookingId] = useState<string | null>(null);
+  const [isOutcomeDialogOpen, setIsOutcomeDialogOpen] = useState(false);
+  const [outcomeType, setOutcomeType] = useState<string>("");
+  const [outcomeNotes, setOutcomeNotes] = useState<string>("");
+  const [isSubmittingOutcome, setIsSubmittingOutcome] = useState(false);
+
+  const handleOutcomeSubmit = async () => {
+    if (!outcomeBookingId) return;
+    if (!outcomeType) {
+      toast.error("Please select an outcome");
+      return;
+    }
+
+    let status = 'completed';
+    let finalReason = "";
+
+    if (outcomeType === "Completed successfully") {
+      status = 'completed';
+      finalReason = outcomeNotes.trim() ? `Completed successfully: ${outcomeNotes.trim()}` : "Completed successfully";
+    } else {
+      status = 'cancelled';
+      const baseReason = outcomeType;
+      finalReason = outcomeNotes.trim() ? `${baseReason}: ${outcomeNotes.trim()}` : baseReason;
+    }
+
+    setIsSubmittingOutcome(true);
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${outcomeBookingId}/status`, {
+        status,
+        cancellationReason: finalReason,
+        cancelledBy: status === 'cancelled' ? 'Tutor' : undefined
+      });
+      toast.success(`Booking status updated to ${status}.`);
+      setBookings(prev => prev.map(b => b._id === outcomeBookingId ? { ...b, status, cancellationReason: finalReason, cancelledBy: status === 'cancelled' ? 'Tutor' : b.cancelledBy } : b));
+      setIsOutcomeDialogOpen(false);
+      setOutcomeBookingId(null);
+      setOutcomeType("");
+      setOutcomeNotes("");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update booking status");
+    } finally {
+      setIsSubmittingOutcome(false);
+    }
+  };
+
+  // Reschedule states
+  const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
+  const [decliningBooking, setDecliningBooking] = useState<any | null>(null);
+  const [isDeclineDialogOpen, setIsDeclineDialogOpen] = useState(false);
+
+  const handleApproveReschedule = async (bookingId: string) => {
+    try {
+      const res = await axios.post(`${API_URL}/tutors/booking/${bookingId}/reschedule-confirm`, {
+        action: 'approve',
+        confirmedBy: 'Tutor'
+      });
+      toast.success("Reschedule request accepted! Calendar updated.");
+      setBookings(prev => prev.map(b => b._id === bookingId ? res.data.booking : b));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to accept reschedule request");
+    }
+  };
+
   useEffect(() => {
-    if (!user?.id) return;
-    
+    const effectiveUserId = user?.id || (user as any)?._id || (() => {
+      try {
+        const stored = localStorage.getItem('user_info');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.id || parsed._id || parsed.userId || null;
+        }
+      } catch (e) {}
+      return null;
+    })();
+
+    if (!effectiveUserId) return;
+
     const fetchUnreadCount = async () => {
       if (document.hidden) return; // skip polling when browser tab is inactive/backgrounded
       try {
-        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const res = await axios.get(`${API_URL}/messages/inbox/${effectiveUserId}`, {
+          headers: { 'x-skip-network-alert': 'true' }
+        });
         const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
         setUnreadMessagesCount(total);
       } catch (err) {
@@ -204,7 +359,7 @@ const TutorDashboard = () => {
     };
 
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 12000); // Check every 12 seconds
+    const interval = setInterval(fetchUnreadCount, 25000); // Check every 25 seconds
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -213,40 +368,6 @@ const TutorDashboard = () => {
       setUnreadMessagesCount(0);
     }
   }, [activeTab]);
-
-  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
-    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
-  );
-  const [isSavingAvailability, setIsSavingAvailability] = useState(false);
-
-  // Profile Edit State
-  const [profileData, setProfileData] = useState({
-    bio: "",
-    qualification: "",
-    address: "",
-    googleMapsUrl: "",
-    mode: "Online",
-  });
-  const [subjectRates, setSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
-  const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
-  const [newSubjectName, setNewSubjectName] = useState("");
-  const [newSubjectRate, setNewSubjectRate] = useState(300);
-  const [customSubjectInput, setCustomSubjectInput] = useState(false);
-  const [newSubjectCategory, setNewSubjectCategory] = useState("Academic");
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string>("");
-  const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
-  const [docNamePreview, setDocNamePreview] = useState<string>("");
-
-  // Work Experience Editor states
-  const [workExperience, setWorkExperience] = useState<{ role: string; company: string; duration: string; description?: string }[]>([]);
-  const [newExpRole, setNewExpRole] = useState("");
-  const [newExpCompany, setNewExpCompany] = useState("");
-  const [newExpDuration, setNewExpDuration] = useState("");
-  const [newExpDescription, setNewExpDescription] = useState("");
 
   // Posts management states
   const [posts, setPosts] = useState<any[]>([]);
@@ -328,7 +449,6 @@ const TutorDashboard = () => {
           formData.append("images", file);
         });
 
-        // DO NOT set manual Content-Type header; let Axios/browser append the boundary parameter
         const uploadRes = await axios.post(`${API_URL}/upload/post-images`, formData);
         if (uploadRes.data?.urls && Array.isArray(uploadRes.data.urls)) {
           imageUrls.push(...uploadRes.data.urls);
@@ -391,6 +511,54 @@ const TutorDashboard = () => {
     }
   };
 
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
+    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '05:00', endTime: '23:00' }] }))
+  );
+  const [isSavingAvailability, setIsSavingAvailability] = useState(false);
+
+  // Profile Edit State
+  const [profileData, setProfileData] = useState({
+    bio: "",
+    qualification: "",
+    address: "",
+    googleMapsUrl: "",
+    mode: "Online",
+  });
+  const [subjectRates, setSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [newSubjectRate, setNewSubjectRate] = useState(300);
+  const [customSubjectInput, setCustomSubjectInput] = useState(false);
+  const [newSubjectCategory, setNewSubjectCategory] = useState("Academic");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>("");
+  const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
+  const [docNamePreview, setDocNamePreview] = useState<string>("");
+
+  // Work Experience Editor states
+  const [workExperience, setWorkExperience] = useState<{ role: string; company: string; duration: string; description?: string }[]>([]);
+  const [newExpRole, setNewExpRole] = useState("");
+  const [newExpCompany, setNewExpCompany] = useState("");
+  const [newExpDuration, setNewExpDuration] = useState("");
+  const [newExpDescription, setNewExpDescription] = useState("");
+
+  // Payment Details Form State
+  const [paymentForm, setPaymentForm] = useState({
+    accountHolderName: "",
+    bankName: "",
+    accountNumber: "",
+    confirmAccountNumber: "",
+    ifscCode: "",
+    accountType: "Savings Account",
+    upiId: "",
+    isConfirmed: false
+  });
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+
   const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -449,6 +617,18 @@ const TutorDashboard = () => {
             ? res.data.subjectRates
             : (res.data.subjects || []).map((sub: string) => ({ subject: sub, rate: res.data.hourlyRate || 300 }));
           setSubjectRates(legacyRates);
+          if (res.data.paymentDetails) {
+            setPaymentForm({
+              accountHolderName: res.data.paymentDetails.accountHolderName || "",
+              bankName: res.data.paymentDetails.bankName || "",
+              accountNumber: res.data.paymentDetails.accountNumber || "",
+              confirmAccountNumber: res.data.paymentDetails.accountNumber || "",
+              ifscCode: res.data.paymentDetails.ifscCode || "",
+              accountType: res.data.paymentDetails.accountType || "Savings Account",
+              upiId: res.data.paymentDetails.upiId || "",
+              isConfirmed: Boolean(res.data.paymentDetails.isConfirmed)
+            });
+          }
           dispatch(fetchTutorStats(res.data.id)); // Database object ID natively fetched
           axios.get(`${API_URL}/dashboard/tutor/${res.data.id}/bookings`)
             .then(bRes => setBookings(bRes.data))
@@ -479,20 +659,20 @@ const TutorDashboard = () => {
               return true;
             });
 
-          return { 
-            ...p, 
-            selected: true, 
-            slots: uniqueSlots 
+          return {
+            ...p,
+            selected: true,
+            slots: uniqueSlots
           };
         }
-        return { ...p, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] };
+        return { ...p, selected: false, slots: [{ startTime: '05:00', endTime: '23:00' }] };
       }));
     }
   }, [tutorStats?.availability]);
 
   const handleSaveAvailability = () => {
     if (!tutorProfile) return;
-    
+
     const selectedDays = availability.filter(a => a.selected);
     if (selectedDays.length === 0) {
       toast.error("Please select at least one available day.");
@@ -502,12 +682,12 @@ const TutorDashboard = () => {
     for (const day of selectedDays) {
       for (const slot of day.slots) {
         if (!slot.startTime || !slot.endTime) {
-           toast.error(`Please set valid times for ${day.day}.`);
-           return;
+          toast.error(`Please set valid times for ${day.day}.`);
+          return;
         }
         if (slot.endTime <= slot.startTime) {
-           toast.error(`End time must be later than start time for ${day.day}.`);
-           return;
+          toast.error(`End time must be later than start time for ${day.day}.`);
+          return;
         }
       }
     }
@@ -523,7 +703,7 @@ const TutorDashboard = () => {
       });
       return uniqueSlots.map(slot => ({ day: dayObj.day, startTime: slot.startTime, endTime: slot.endTime }));
     });
-    
+
     setIsSavingAvailability(true);
     dispatch(updateTutorAvailability({ tutorId: tutorProfile.id, availability: payload }))
       .unwrap()
@@ -556,6 +736,62 @@ const TutorDashboard = () => {
       }));
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to update session status");
+    }
+  };
+
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tutorProfile?.id) {
+      toast.error("Tutor profile not found. Please refresh the page.");
+      return;
+    }
+
+    if (!paymentForm.accountHolderName.trim()) {
+      toast.error("Please enter Account Holder Name");
+      return;
+    }
+    if (!paymentForm.bankName.trim()) {
+      toast.error("Please enter Bank Name");
+      return;
+    }
+    if (!paymentForm.accountNumber.trim()) {
+      toast.error("Please enter Bank Account Number");
+      return;
+    }
+    if (paymentForm.accountNumber !== paymentForm.confirmAccountNumber) {
+      toast.error("Bank Account Number and Confirm Account Number do not match");
+      return;
+    }
+    if (!paymentForm.ifscCode.trim()) {
+      toast.error("Please enter IFSC Code");
+      return;
+    }
+    if (!paymentForm.isConfirmed) {
+      toast.error("Please confirm that the bank details provided are accurate and belong to you");
+      return;
+    }
+
+    setIsSavingPayment(true);
+    try {
+      const res = await axios.put(`${API_URL}/tutors/${tutorProfile.id}/payment-details`, {
+        accountHolderName: paymentForm.accountHolderName.trim(),
+        bankName: paymentForm.bankName.trim(),
+        accountNumber: paymentForm.accountNumber.trim(),
+        ifscCode: paymentForm.ifscCode.trim().toUpperCase(),
+        accountType: paymentForm.accountType,
+        upiId: paymentForm.upiId.trim(),
+        isConfirmed: paymentForm.isConfirmed
+      });
+
+      if (res.data && res.data.tutor) {
+        setTutorProfile(res.data.tutor);
+      }
+      toast.success("Payment details saved successfully!");
+    } catch (error: any) {
+      console.error("Error saving payment details:", error);
+      toast.error(error.response?.data?.message || "Failed to save payment details");
+    } finally {
+      setIsSavingPayment(false);
     }
   };
 
@@ -617,9 +853,9 @@ const TutorDashboard = () => {
         timezone: tutorTimezone,
         workExperience
       };
-      
+
       console.log("[DEBUG] handleProfileUpdate: payload=", payload);
-      
+
       const [authRes, tutorRes] = await Promise.all([
         axios.put(`${API_URL}/auth/profile/${user.id}`, {
           full_name: profileName,
@@ -636,7 +872,7 @@ const TutorDashboard = () => {
           timezone: authRes.data.user.timezone
         }));
       }
-      
+
       // Update local state from response
       if (tutorRes.data) {
         console.log("[DEBUG] handleProfileUpdate success: res.data=", tutorRes.data);
@@ -645,7 +881,7 @@ const TutorDashboard = () => {
       setSelectedFile(null);
       setSelectedDocFile(null);
       setDocNamePreview("");
-      
+
       toast.success("Public profile updated successfully!");
     } catch (error: any) {
       console.error("[DEBUG] handleProfileUpdate error:", error, error.response?.data);
@@ -657,7 +893,7 @@ const TutorDashboard = () => {
 
   const enrolledClasses = bookings.filter(b => b.status === 'enrolled');
   const demoRequests = bookings.filter(b => b.status !== 'enrolled');
-  
+
   // Extract unique students
   const uniqueStudents = Array.from(new Map(enrolledClasses.map(cls => [cls.studentId, cls])).values());
 
@@ -724,6 +960,34 @@ const TutorDashboard = () => {
           </Alert>
         )}
 
+        {unreadMessagesCount > 0 && (
+          <Alert className="mb-8 border-indigo-500/40 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 text-foreground shadow-md rounded-2xl p-5 border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="h-10 w-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <AlertTitle className="font-bold text-base flex items-center gap-2 text-indigo-950 dark:text-indigo-200">
+                  New Message from Platform Admin & Support
+                  <span className="bg-rose-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full animate-bounce">
+                    {unreadMessagesCount} unread
+                  </span>
+                </AlertTitle>
+                <AlertDescription className="text-xs text-muted-foreground mt-0.5">
+                  You have incoming messages from Cuvasol administrators regarding your application, demo sessions, or account support.
+                </AlertDescription>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setActiveTab("messages")}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm hover:shadow-indigo-500/20 shrink-0 gap-1.5 self-end sm:self-center"
+            >
+              <MessageSquare className="h-4 w-4" /> Open Messages
+            </Button>
+          </Alert>
+        )}
+
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
           {[
             { icon: Clock, label: "Demo Requests", value: tutorStats?.demoRequests || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
@@ -731,8 +995,8 @@ const TutorDashboard = () => {
             { icon: Calendar, label: "Upcoming Classes", value: enrolledClasses.length, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30", tab: "schedule" },
             { icon: DollarSign, label: "Total Earnings", value: `₹${enrolledClasses.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "earnings" },
           ].map((stat) => (
-            <Card 
-              key={stat.label} 
+            <Card
+              key={stat.label}
               onClick={() => setActiveTab(stat.tab)}
               className="border-none shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:bg-secondary/10"
             >
@@ -761,12 +1025,24 @@ const TutorDashboard = () => {
             <TabsTrigger value="schedule" className="rounded-lg px-6 py-2.5 shrink-0">Class Schedule</TabsTrigger>
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0">Students</TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg px-6 py-2.5 shrink-0">Availability</TabsTrigger>
-            <TabsTrigger value="earnings" className="rounded-lg px-6 py-2.5 shrink-0">Earnings</TabsTrigger>
-            <TabsTrigger value="posts" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
-              <ImageIcon className="h-4 w-4 text-purple-500" />
-              Post
+            <TabsTrigger value="earnings" className="rounded-lg px-6 py-2.5 shrink-0">My Earnings</TabsTrigger>
+            <TabsTrigger value="payment" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              <CreditCard className="h-4 w-4 text-emerald-600" />
+              Payment Details
             </TabsTrigger>
-            <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+            <TabsTrigger value="referrals" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              <Gift className="h-4 w-4 text-emerald-500" />
+              Refer & Earn
+            </TabsTrigger>
+            <TabsTrigger 
+              value="messages" 
+              className={`rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 transition-all ${
+                unreadMessagesCount > 0 
+                  ? "bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800" 
+                  : ""
+              }`}
+            >
+              <MessageSquare className="h-4 w-4 text-indigo-600" />
               Messages
               {unreadMessagesCount > 0 && (
                 <span className="h-5 w-5 bg-rose-500 text-white font-extrabold text-[10px] flex items-center justify-center rounded-full shrink-0 animate-pulse">
@@ -774,13 +1050,16 @@ const TutorDashboard = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="posts" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              <Camera className="h-4 w-4 text-purple-500" />
+              Posts & Updates
+            </TabsTrigger>
             <TabsTrigger
               value="profile"
-              className={`rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 transition-all ${
-                tutorProfile?.status === "rejected"
-                  ? "border border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold hover:bg-rose-500/20 data-[state=active]:bg-rose-600 data-[state=active]:text-white"
-                  : ""
-              }`}
+              className={`rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 transition-all ${tutorProfile?.status === "rejected"
+                ? "border border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold hover:bg-rose-500/20 data-[state=active]:bg-rose-600 data-[state=active]:text-white"
+                : ""
+                }`}
             >
               <Settings className="h-4 w-4" />
               Profile Settings
@@ -811,45 +1090,96 @@ const TutorDashboard = () => {
                       <div key={booking._id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-card p-5 rounded-xl border shadow-sm hover:shadow-md transition-shadow">
                         <div className="mb-4 sm:mb-0">
                           <p className="font-bold text-lg text-foreground flex items-center gap-2">
-                             <Users className="h-5 w-5 text-primary"/> Student: {booking.studentName}
+                            <Users className="h-5 w-5 text-primary" /> Student: {booking.studentName}
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
+                          {booking.topicToLearn && (
+                            <div className="mt-2.5 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50 max-w-xl">
+                              <span className="font-bold text-xs text-purple-900 dark:text-purple-300 flex items-center gap-1.5 mb-1">
+                                <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                Topics Student Needs Explained:
+                              </span>
+                              <p className="text-xs text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {booking.topicToLearn}
+                              </p>
+                            </div>
+                          )}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-                            <Calendar className="h-4 w-4"/> {formatBookingTime(booking, tutorTimezone)}
+                            <Calendar className="h-4 w-4" /> {formatBookingTime(booking, tutorTimezone)}
                             {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
                           </p>
+                          {booking.rescheduleRequest && booking.rescheduleRequest.status === 'pending' && (
+                            booking.rescheduleRequest.requestedBy === 'Student' ? (
+                              <div className="w-full mt-3 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600" /> Reschedule Requested by Student
+                                  </span>
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
+                                    ACTION REQUIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-amber-950 dark:text-amber-100">
+                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{booking.rescheduleRequest.requestedTiming}</span>
+                                </p>
+                                {booking.rescheduleRequest.reason && (
+                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{booking.rescheduleRequest.reason}"</p>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(booking._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept Reschedule
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
+                                    setDecliningBooking(booking);
+                                    setIsDeclineDialogOpen(true);
+                                  }}>
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full mt-3 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                                  Reschedule requested to <strong>{booking.rescheduleRequest.requestedTiming}</strong>
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-semibold">
+                                  Awaiting Student Approval
+                                </Badge>
+                              </div>
+                            )
+                          )}
                         </div>
                         <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground font-medium">STATUS:</span>
-                            <Badge variant="outline" className={`px-3 py-1 border-none ${
-                               booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                               booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                               booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                               'bg-red-100 text-red-700'
-                             }`}>
-                               {booking.status.toUpperCase()}
-                             </Badge>
+                            <Badge variant="outline" className={`px-3 py-1 border-none ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                              booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                                booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-red-100 text-red-700'
+                              }`}>
+                              {booking.status.toUpperCase()}
+                            </Badge>
                           </div>
-                          
-                          <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+
+                          <div className="flex flex-wrap gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                             {booking.status === 'pending' && (
                               <>
                                 {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) ? (
                                   <>
-                                    <Button 
-                                      size="sm" 
-                                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold" 
+                                    <Button
+                                      size="sm"
+                                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 font-semibold"
                                       onClick={() => handleBookingAction(booking._id, 'confirmed')}
                                     >
-                                      <Check className="mr-1 h-4 w-4"/> Accept Request
+                                      <Check className="mr-1 h-4 w-4" /> Accept Request
                                     </Button>
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline" 
-                                      className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" 
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                                       onClick={() => {
                                         setRejectingBookingId(booking._id);
                                         setIsRejectDialogOpen(true);
@@ -859,10 +1189,10 @@ const TutorDashboard = () => {
                                     </Button>
                                   </>
                                 ) : (
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" 
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                                     onClick={() => {
                                       setRejectingBookingId(booking._id);
                                       setIsRejectDialogOpen(true);
@@ -874,7 +1204,7 @@ const TutorDashboard = () => {
                               </>
                             )}
                             {booking.status === 'confirmed' && (
-                               <>
+                              <>
                                 {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                                   <Button
                                     size="sm"
@@ -882,22 +1212,44 @@ const TutorDashboard = () => {
                                     asChild
                                   >
                                     <a
-                                      href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                      href={getMeetingHref(booking.meetingLink, booking._id, name, user?.email || '', booking.subject)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                     >
                                       <Video className="h-4 w-4" /> Join Demo Room
                                     </a>
                                   </Button>
-                                 )}
-                                <Button size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm" onClick={() => handleBookingAction(booking._id, 'completed')}>
-                                  <Check className="mr-1 h-4 w-4"/> Mark Completed
-                                </Button>
+                                )}
+                                {booking.subject !== "Verification Demo Class" && (
+                                  <Button
+                                    size="sm"
+                                    className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                                    onClick={() => {
+                                      setOutcomeBookingId(booking._id);
+                                      setIsOutcomeDialogOpen(true);
+                                    }}
+                                  >
+                                    <Check className="mr-1 h-4 w-4" /> Mark Completed
+                                  </Button>
+                                )}
+                                {(!booking.rescheduleRequest || booking.rescheduleRequest.status !== 'pending') && !(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full sm:w-auto text-primary border-primary/30 hover:bg-primary/5 font-semibold text-xs"
+                                    onClick={() => {
+                                      setReschedulingBooking(booking);
+                                      setIsRescheduleDialogOpen(true);
+                                    }}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                  </Button>
+                                )}
                                 <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
                                   setRejectingBookingId(booking._id);
                                   setIsRejectDialogOpen(true);
                                 }}>Reject</Button>
-                               </>
+                              </>
                             )}
                           </div>
                         </div>
@@ -937,10 +1289,10 @@ const TutorDashboard = () => {
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                               <div>
                                 <h4 className="font-extrabold text-xl text-foreground flex items-center gap-2">
-                                  {cls.subject} 
+                                  {cls.subject}
                                   <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1 text-xs">Monthly Package</Badge>
                                 </h4>
-                                <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1.5"><Users className="h-3.5 w-3.5 text-primary"/> Student: <span className="font-semibold text-foreground">{cls.studentName}</span></p>
+                                <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1.5"><Users className="h-3.5 w-3.5 text-primary" /> Student: <span className="font-semibold text-foreground">{cls.studentName}</span></p>
                               </div>
                               <div className="text-left sm:text-right w-full sm:w-auto">
                                 <span className="text-xs font-bold text-muted-foreground block uppercase tracking-wider">Plan Type</span>
@@ -960,12 +1312,12 @@ const TutorDashboard = () => {
                             </div>
 
                             <div className="flex flex-wrap gap-2 justify-between items-center pt-2">
-                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary"/> {formatBookingTime(cls, tutorTimezone)}</span>
-                              
+                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> {formatBookingTime(cls, tutorTimezone)}</span>
+
                               <div className="flex gap-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   onClick={() => setExpandedBookingId(isExpanded ? null : cls._id)}
                                   className="font-semibold"
                                 >
@@ -999,11 +1351,10 @@ const TutorDashboard = () => {
                                         </div>
 
                                         <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                                          <Badge variant="outline" className={`px-2.5 py-0.5 border-none text-[10px] uppercase font-bold tracking-wider ${
-                                            session.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                          <Badge variant="outline" className={`px-2.5 py-0.5 border-none text-[10px] uppercase font-bold tracking-wider ${session.status === 'completed' ? 'bg-green-100 text-green-700' :
                                             session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                            'bg-blue-100 text-blue-700'
-                                          }`}>
+                                              'bg-blue-100 text-blue-700'
+                                            }`}>
                                             {session.status}
                                           </Badge>
 
@@ -1017,7 +1368,7 @@ const TutorDashboard = () => {
                                                     asChild
                                                   >
                                                     <a
-                                                      href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                                      href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, name, user?.email || '')}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
                                                     >
@@ -1025,16 +1376,16 @@ const TutorDashboard = () => {
                                                     </a>
                                                   </Button>
                                                 )}
-                                                <Button 
-                                                  size="sm" 
+                                                <Button
+                                                  size="sm"
                                                   className="bg-green-600 hover:bg-green-700 text-white shadow-sm text-xs font-semibold"
                                                   onClick={() => handleSessionStatusChange(cls._id, sIdx, 'completed')}
                                                 >
-                                                  <Check className="mr-1 h-3.5 w-3.5"/> Complete
+                                                  <Check className="mr-1 h-3.5 w-3.5" /> Complete
                                                 </Button>
-                                                <Button 
-                                                  size="sm" 
-                                                  variant="outline" 
+                                                <Button
+                                                  size="sm"
+                                                  variant="outline"
                                                   className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 text-xs"
                                                   onClick={() => handleSessionStatusChange(cls._id, sIdx, 'cancelled')}
                                                 >
@@ -1058,34 +1409,104 @@ const TutorDashboard = () => {
                       return (
                         <div key={cls._id} className="flex flex-col bg-card hover:bg-secondary/10 transition-colors p-5 rounded-xl border shadow-sm">
                           <div className="flex justify-between items-start mb-4">
-                             <div>
-                               <h4 className="font-bold text-lg text-foreground">{cls.subject}</h4>
-                               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1"><Users className="h-3 w-3"/> Student: {cls.studentName}</p>
-                             </div>
-                             <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
+                            <div>
+                              <h4 className="font-bold text-lg text-foreground">{cls.subject}</h4>
+                              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1"><Users className="h-3 w-3" /> Student: {cls.studentName}</p>
+                            </div>
+                            <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
                           </div>
+
+                          {cls.topicToLearn && (
+                            <div className="mb-4 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50">
+                              <span className="font-bold text-xs text-purple-900 dark:text-purple-300 flex items-center gap-1.5 mb-1">
+                                <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                Topics to Cover:
+                              </span>
+                              <p className="text-xs text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {cls.topicToLearn}
+                              </p>
+                            </div>
+                          )}
+
+                          {cls.rescheduleRequest && cls.rescheduleRequest.status === 'pending' && (
+                            cls.rescheduleRequest.requestedBy === 'Student' ? (
+                              <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600" /> Reschedule Requested by Student
+                                  </span>
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
+                                    ACTION REQUIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-amber-950 dark:text-amber-100">
+                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{cls.rescheduleRequest.requestedTiming}</span>
+                                </p>
+                                {cls.rescheduleRequest.reason && (
+                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{cls.rescheduleRequest.reason}"</p>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(cls._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept Reschedule
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
+                                    setDecliningBooking(cls);
+                                    setIsDeclineDialogOpen(true);
+                                  }}>
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mb-4 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                                  Reschedule requested to <strong>{cls.rescheduleRequest.requestedTiming}</strong>
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-semibold">
+                                  Awaiting Student Approval
+                                </Badge>
+                              </div>
+                            )
+                          )}
+
                           <div className="mt-auto pt-4 border-t flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
-                             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                               <Clock className="h-4 w-4"/> {formatBookingTime(cls, tutorTimezone)}
-                               {(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
-                                 <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
-                               )}
-                             </span>
-                             {!(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
-                               <Button
-                                 size="sm"
-                                 className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse w-full sm:w-auto"
-                                 asChild
-                               >
-                                 <a
-                                   href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(name)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                   target="_blank"
-                                   rel="noopener noreferrer"
-                                 >
-                                   <Video className="h-4 w-4" /> Join Classroom
-                                 </a>
-                               </Button>
-                             )}
+                            <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                              <Clock className="h-4 w-4" /> {formatBookingTime(cls, tutorTimezone)}
+                              {(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
+                                <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
+                              )}
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {(!cls.rescheduleRequest || cls.rescheduleRequest.status !== 'pending') && !(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full sm:w-auto text-primary border-primary/30 hover:bg-primary/5 font-semibold text-xs"
+                                  onClick={() => {
+                                    setReschedulingBooking(cls);
+                                    setIsRescheduleDialogOpen(true);
+                                  }}
+                                >
+                                  <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                </Button>
+                              )}
+                              {!(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
+                                <Button
+                                  size="sm"
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse w-full sm:w-auto"
+                                  asChild
+                                >
+                                  <a
+                                    href={getMeetingHref(cls.meetingLink, cls._id, name, user?.email || '')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Video className="h-4 w-4" /> Join Classroom
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -1139,27 +1560,27 @@ const TutorDashboard = () => {
                   {availability.map((dayObj, i) => (
                     <div key={dayObj.day} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border rounded-xl bg-card hover:bg-secondary/10 transition-colors shadow-sm">
                       <div className="flex items-center gap-3 min-w-[140px]">
-                        <Checkbox 
-                           id={`day-${dayObj.day}`} 
-                           checked={dayObj.selected}
-                           onCheckedChange={(checked) => {
-                             const newAvail = [...availability];
-                             newAvail[i].selected = checked === true;
-                             setAvailability(newAvail);
-                           }}
-                           className="h-5 w-5"
+                        <Checkbox
+                          id={`day-${dayObj.day}`}
+                          checked={dayObj.selected}
+                          onCheckedChange={(checked) => {
+                            const newAvail = [...availability];
+                            newAvail[i].selected = checked === true;
+                            setAvailability(newAvail);
+                          }}
+                          className="h-5 w-5"
                         />
                         <Label htmlFor={`day-${dayObj.day}`} className="font-medium cursor-pointer text-base">{dayObj.day}</Label>
                       </div>
-                      
+
                       <div className={`flex flex-col gap-3 transition-opacity ${dayObj.selected ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
                         {dayObj.slots.map((slot, slotIdx) => (
                           <div key={slotIdx} className="flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-2 bg-secondary/30 p-1.5 rounded-lg border">
                               <Label className="text-xs text-muted-foreground w-8 text-center font-semibold">IN</Label>
-                              <Input 
-                                type="time" 
-                                className="w-[130px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2" 
+                              <Input
+                                type="time"
+                                className="w-[130px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2"
                                 value={slot.startTime}
                                 onChange={(e) => {
                                   const newAvail = [...availability];
@@ -1170,8 +1591,8 @@ const TutorDashboard = () => {
                             </div>
                             <div className="flex items-center gap-2 bg-secondary/30 p-1.5 rounded-lg border">
                               <Label className="text-xs text-muted-foreground w-8 text-center font-semibold">OUT</Label>
-                              <Input 
-                                type="time" 
+                              <Input
+                                type="time"
                                 className="w-[130px] h-8 border-none bg-transparent shadow-none focus-visible:ring-0 px-2"
                                 value={slot.endTime}
                                 onChange={(e) => {
@@ -1182,9 +1603,9 @@ const TutorDashboard = () => {
                               />
                             </div>
                             {dayObj.slots.length > 1 && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={() => {
                                   const newAvail = [...availability];
@@ -1197,13 +1618,13 @@ const TutorDashboard = () => {
                             )}
                           </div>
                         ))}
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           className="w-fit text-xs h-7 gap-1 border-dashed"
                           onClick={() => {
                             const newAvail = [...availability];
-                            newAvail[i].slots.push({ startTime: '09:00', endTime: '17:00' });
+                            newAvail[i].slots.push({ startTime: '05:00', endTime: '23:00' });
                             setAvailability(newAvail);
                           }}
                         >
@@ -1212,10 +1633,10 @@ const TutorDashboard = () => {
                       </div>
                     </div>
                   ))}
-                  
+
                   <div className="pt-6 flex justify-end">
                     <Button onClick={handleSaveAvailability} disabled={isSavingAvailability} className="shadow-md rounded-full px-8">
-                      {isSavingAvailability ? 'Saving...' : <><Save className="mr-2 h-4 w-4"/> Save Availability</>}
+                      {isSavingAvailability ? 'Saving...' : <><Save className="mr-2 h-4 w-4" /> Save Availability</>}
                     </Button>
                   </div>
                 </div>
@@ -1231,7 +1652,7 @@ const TutorDashboard = () => {
               </CardHeader>
               <CardContent className="p-6">
                 {loadingBookings ? (
-                   <div className="py-4"><Skeleton className="h-32 w-full rounded-xl" /></div>
+                  <div className="py-4"><Skeleton className="h-32 w-full rounded-xl" /></div>
                 ) : enrolledClasses.length === 0 ? (
                   <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-4">
                     <DollarSign className="mx-auto mb-4 h-16 w-16 opacity-30 text-emerald-500" />
@@ -1271,8 +1692,176 @@ const TutorDashboard = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="payment">
+            <Card className="shadow-md border-border/50 max-w-4xl mx-auto">
+              <CardHeader className="bg-secondary/10 border-b pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <CardTitle className="text-xl flex items-center gap-2 text-foreground font-bold">
+                    <CreditCard className="h-5 w-5 text-emerald-600" /> Setup Payment Account
+                  </CardTitle>
+                  {tutorProfile?.paymentDetails?.accountNumber && (
+                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none px-2.5 py-1 text-xs font-semibold flex items-center gap-1 w-fit">
+                      <ShieldCheck className="h-3.5 w-3.5" /> Account Verified
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription className="text-sm text-muted-foreground mt-1">
+                  Enter your bank account details securely. Monthly tutor payouts will be deposited directly to this account via RazorpayX.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 md:p-8">
+                <form onSubmit={handlePaymentSubmit} className="space-y-6">
+                  {/* Row 1: Account Holder Name & Bank Name */}
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="accountHolderName" className="text-sm font-semibold text-foreground flex items-center gap-1">
+                        Account Holder Name <span className="text-rose-500">*</span>
+                      </Label>
+                      <Input
+                        id="accountHolderName"
+                        placeholder="As listed on bank passbook"
+                        value={paymentForm.accountHolderName}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, accountHolderName: e.target.value })}
+                        className="bg-secondary/20 border-border/50 shadow-sm"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bankName" className="text-sm font-semibold text-foreground flex items-center gap-1">
+                        Bank Name <span className="text-rose-500">*</span>
+                      </Label>
+                      <Input
+                        id="bankName"
+                        placeholder="e.g. HDFC Bank, State Bank of India"
+                        value={paymentForm.bankName}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, bankName: e.target.value })}
+                        className="bg-secondary/20 border-border/50 shadow-sm"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 2: Bank Account Number & Confirm Account Number */}
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="accountNumber" className="text-sm font-semibold text-foreground flex items-center gap-1">
+                        Bank Account Number <span className="text-rose-500">*</span>
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="accountNumber"
+                          type={showAccountNumber ? "text" : "password"}
+                          placeholder="Enter account number"
+                          value={paymentForm.accountNumber}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, accountNumber: e.target.value.replace(/[^0-9]/g, '') })}
+                          className="bg-secondary/20 border-border/50 shadow-sm pr-10"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAccountNumber(!showAccountNumber)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                          tabIndex={-1}
+                        >
+                          {showAccountNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmAccountNumber" className="text-sm font-semibold text-foreground flex items-center gap-1">
+                        Confirm Account Number <span className="text-rose-500">*</span>
+                      </Label>
+                      <Input
+                        id="confirmAccountNumber"
+                        type="text"
+                        placeholder="Re-enter account number"
+                        value={paymentForm.confirmAccountNumber}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, confirmAccountNumber: e.target.value.replace(/[^0-9]/g, '') })}
+                        className="bg-secondary/20 border-border/50 shadow-sm"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 3: IFSC Code & Account Type */}
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="ifscCode" className="text-sm font-semibold text-foreground flex items-center gap-1">
+                        IFSC Code <span className="text-rose-500">*</span>
+                      </Label>
+                      <Input
+                        id="ifscCode"
+                        placeholder="e.g. HDFC0001234"
+                        value={paymentForm.ifscCode}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, ifscCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
+                        className="bg-secondary/20 border-border/50 shadow-sm font-mono uppercase"
+                        maxLength={11}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="accountType" className="text-sm font-semibold text-foreground flex items-center gap-1">
+                        Account Type <span className="text-rose-500">*</span>
+                      </Label>
+                      <Select
+                        value={paymentForm.accountType}
+                        onValueChange={(val) => setPaymentForm({ ...paymentForm, accountType: val })}
+                      >
+                        <SelectTrigger id="accountType" className="bg-secondary/20 border-border/50 shadow-sm">
+                          <SelectValue placeholder="Select account type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Savings Account">Savings Account</SelectItem>
+                          <SelectItem value="Current Account">Current Account</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Row 4: UPI ID (Optional) */}
+                  <div className="space-y-2">
+                    <Label htmlFor="upiId" className="text-sm font-semibold text-foreground flex items-center gap-1">
+                      UPI ID <span className="text-muted-foreground font-normal">(Optional)</span>
+                    </Label>
+                    <Input
+                      id="upiId"
+                      placeholder="e.g. yourname@upi"
+                      value={paymentForm.upiId}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, upiId: e.target.value.trim() })}
+                      className="bg-secondary/20 border-border/50 shadow-sm"
+                    />
+                  </div>
+
+                  {/* Row 5: Checkbox Authorization */}
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-secondary/10 border border-border/40">
+                    <Checkbox
+                      id="paymentConfirmation"
+                      checked={paymentForm.isConfirmed}
+                      onCheckedChange={(checked) => setPaymentForm({ ...paymentForm, isConfirmed: checked === true })}
+                      className="mt-0.5 rounded-sm data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                    />
+                    <Label htmlFor="paymentConfirmation" className="text-xs sm:text-sm font-normal text-muted-foreground leading-relaxed cursor-pointer select-none">
+                      I confirm that the bank account details provided are correct and belong to me. I authorize Cuvasol Tutor to use these details for processing my tutor payments through RazorpayX.
+                    </Label>
+                  </div>
+
+                  {/* Row 6: Submit Button */}
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      type="submit"
+                      disabled={isSavingPayment || !paymentForm.isConfirmed}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md px-8 h-11 rounded-lg transition-all"
+                    >
+                      {isSavingPayment ? "Saving Details..." : "Save Payment Details"}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="messages">
-            <ChatPanel />
+            <ChatPanel initialActiveUserId={activeChatUserId} initialActiveUser={activeChatUser} />
           </TabsContent>
 
           <TabsContent value="profile">
@@ -1283,542 +1872,868 @@ const TutorDashboard = () => {
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid lg:grid-cols-3 gap-8">
-                   <div className="lg:col-span-1 border rounded-xl p-5 bg-secondary/10 self-start shadow-sm">
-                      <h4 className="font-semibold mb-4 text-foreground border-b pb-2">Account Overview</h4>
-                      
-                      {/* Profile Photo Display and Upload */}
-                      <div className="flex flex-col items-center mb-6 pb-6 border-b">
-                        <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-background shadow-md bg-secondary/30">
-                          <img 
-                            src={photoPreview || photoSrc} 
-                            alt={name} 
-                            className="w-full h-full object-cover" 
-                            onError={(e) => {
-                              e.currentTarget.onerror = null;
-                              e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=400`;
-                            }}
-                          />
-                        </div>
-                        <div className="mt-4 w-full">
-                          <Label htmlFor="photo-upload" className="text-xs font-semibold text-muted-foreground block mb-1">
-                            Change Profile Photo
-                          </Label>
-                          <Input 
-                            id="photo-upload" 
-                            type="file" 
-                            accept="image/*" 
-                            className="bg-background cursor-pointer text-xs" 
-                            onChange={handleFileChange}
-                          />
-                        </div>
-                      </div>
+                  <div className="lg:col-span-1 border rounded-xl p-5 bg-secondary/10 self-start shadow-sm">
+                    <h4 className="font-semibold mb-4 text-foreground border-b pb-2">Account Overview</h4>
 
-                      {/* Verification Credentials Display and Upload */}
-                      <div className="flex flex-col mb-6 pb-6 border-b">
-                        <Label htmlFor="doc-upload" className="text-xs font-semibold text-muted-foreground block mb-2">
-                          Resume / CV (PDF/Image)
-                        </Label>
-                        <Input 
-                          id="doc-upload" 
-                          type="file" 
-                          accept="application/pdf,image/*" 
-                          className="bg-background cursor-pointer text-xs" 
-                          onChange={handleDocFileChange}
+                    {/* Profile Photo Display and Upload */}
+                    <div className="flex flex-col items-center mb-6 pb-6 border-b">
+                      <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-background shadow-md bg-secondary/30">
+                        <img
+                          src={photoPreview || photoSrc}
+                          alt={name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=400`;
+                          }}
                         />
-                        {docNamePreview && (
-                          <p className="text-[10px] text-emerald-600 font-semibold mt-1.5">✓ Selected: {docNamePreview}</p>
-                        )}
-                        {tutorProfile?.verificationDocument && (
-                          <div className="mt-3">
-                            <a 
-                              href={resolveAssetUrl(tutorProfile.verificationDocument)} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5"
-                            >
-                              📄 View Uploaded Resume/CV
-                            </a>
-                          </div>
+                      </div>
+                      <div className="mt-4 w-full">
+                        <Label htmlFor="photo-upload" className="text-xs font-semibold text-muted-foreground block mb-1">
+                          Change Profile Photo
+                        </Label>
+                        <Input
+                          id="photo-upload"
+                          type="file"
+                          accept="image/*"
+                          className="bg-background cursor-pointer text-xs"
+                          onChange={handleFileChange}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Verification Credentials Display and Upload */}
+                    <div className="flex flex-col mb-6 pb-6 border-b">
+                      <Label htmlFor="doc-upload" className="text-xs font-semibold text-muted-foreground block mb-2">
+                        Resume / CV (PDF/Image)
+                      </Label>
+                      <Input
+                        id="doc-upload"
+                        type="file"
+                        accept="application/pdf,image/*"
+                        className="bg-background cursor-pointer text-xs"
+                        onChange={handleDocFileChange}
+                      />
+                      {docNamePreview && (
+                        <p className="text-[10px] text-emerald-600 font-semibold mt-1.5">✓ Selected: {docNamePreview}</p>
+                      )}
+                      {tutorProfile?.verificationDocument && (
+                        <div className="mt-3">
+                          <a
+                            href={resolveAssetUrl(tutorProfile.verificationDocument)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5"
+                          >
+                            📄 View Uploaded Resume/CV
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Name</p>
+                        <p className="font-medium text-foreground">{name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Email</p>
+                        <p className="font-medium text-foreground">{String(user?.email || "")}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Approval Status</p>
+                        {loading ? (
+                          <Skeleton className="h-5 w-20 mt-1" />
+                        ) : (
+                          <Badge variant={tutorProfile?.status === 'approved' ? 'default' : 'secondary'} className={`mt-1 ${tutorProfile?.status === 'approved' ? 'bg-green-600' : ''}`}>
+                            {tutorProfile?.status ? tutorProfile.status.charAt(0).toUpperCase() + tutorProfile.status.slice(1) : "Unknown"}
+                          </Badge>
                         )}
                       </div>
+                    </div>
 
-                      <div className="space-y-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Name</p>
-                          <p className="font-medium text-foreground">{name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Email</p>
-                          <p className="font-medium text-foreground">{String(user?.email || "")}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Approval Status</p>
-                          {loading ? (
-                            <Skeleton className="h-5 w-20 mt-1" />
-                          ) : (
-                            <Badge variant={tutorProfile?.status === 'approved' ? 'default' : 'secondary'} className={`mt-1 ${tutorProfile?.status === 'approved' ? 'bg-green-600' : ''}`}>
-                              {tutorProfile?.status ? tutorProfile.status.charAt(0).toUpperCase() + tutorProfile.status.slice(1) : "Unknown"}
+                    {/* Google Calendar Sync UI */}
+                    <div className="mt-6 pt-6 border-t border-border">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Calendar className="h-4.5 w-4.5 text-primary" />
+                        <h5 className="font-semibold text-sm text-foreground">Google Calendar Sync</h5>
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                        Sync classes to your calendar and automatically generate Google Meet video links for your booked sessions.
+                      </p>
+
+                      {checkingGoogle ? (
+                        <div className="h-9 w-full bg-secondary animate-pulse rounded-lg" />
+                      ) : isGoogleConnected ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-muted-foreground">Status:</span>
+                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none font-semibold text-[10px] px-2 py-0.5">
+                              Connected
                             </Badge>
-                          )}
-                        </div>
-                      </div>
-                   </div>
-
-                   <div className="lg:col-span-2">
-                     <form onSubmit={handleProfileUpdate} className="space-y-6">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="name" className="text-sm font-semibold">Full Name</Label>
-                            <Input 
-                              id="name" 
-                              value={profileName} 
-                              onChange={(e) => setProfileName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))} 
-                              className="bg-secondary/20 border-border/50 shadow-sm" 
-                              required 
-                            />
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
-                            <Input 
-                              id="phone" 
-                              value={profilePhone} 
-                              onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} 
-                              placeholder="+1 234 567 890" 
-                              className="bg-secondary/20 border-border/50 shadow-sm" 
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="bio" className="text-sm font-semibold">Professional Bio</Label>
-                          <textarea 
-                            id="bio" 
-                            rows={4}
-                            value={profileData.bio} 
-                            onChange={(e) => setProfileData({...profileData, bio: e.target.value})} 
-                            placeholder="Tell students about yourself, your teaching style, and why they should choose you..."
-                            className="flex min-h-[100px] w-full rounded-md border border-input bg-secondary/20 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50" 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
-                            <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({...profileData, qualification: e.target.value.replace(/[^a-zA-Z0-9\s.()/-]/g, '')})} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
-                          </div>
-                          
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>
-                              <Select value={tutorTimezone} onValueChange={setTutorTimezone}>
-                                <SelectTrigger id="timezone" className="bg-secondary/20 border-border/50">
-                                  <SelectValue placeholder="Select timezone" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px]">
-                                  {timezonesList.map((tz) => (
-                                    <SelectItem key={tz} value={tz}>
-                                      {tz}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="mode" className="text-sm font-semibold">Teaching Mode</Label>
-                              <Select 
-                                value={profileData.mode} 
-                                onValueChange={(val) => setProfileData({...profileData, mode: val})}
-                              >
-                                <SelectTrigger id="mode" className="bg-secondary/20 border-border/50">
-                                  <SelectValue placeholder="Select teaching mode" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Online">Online Classes</SelectItem>
-                                  <SelectItem value="Offline">Offline Classes</SelectItem>
-                                  <SelectItem value="Both">Both (Online & Offline)</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-
-                         {(profileData.mode?.toLowerCase() === "offline" || profileData.mode?.toLowerCase() === "both") && (
-                           <div className="grid gap-4 sm:grid-cols-2 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
-                             <div className="space-y-2">
-                               <Label htmlFor="address" className="text-sm font-semibold">Classroom Address</Label>
-                               <Input 
-                                 id="address" 
-                                 value={profileData.address} 
-                                 onChange={(e) => setProfileData({...profileData, address: e.target.value})} 
-                                 placeholder="e.g. 1st Floor, Building Name, Street Name" 
-                                 className="bg-secondary/20 shadow-sm"
-                               />
-                             </div>
-                             <div className="space-y-2">
-                               <Label htmlFor="googleMapsUrl" className="text-sm font-semibold">Google Maps Link</Label>
-                               <Input 
-                                 id="googleMapsUrl" 
-                                 type="url"
-                                 value={profileData.googleMapsUrl} 
-                                 onChange={(e) => setProfileData({...profileData, googleMapsUrl: e.target.value})} 
-                                 placeholder="e.g. https://maps.app.goo.gl/..." 
-                                 className="bg-secondary/20 shadow-sm"
-                               />
-                             </div>
-                           </div>
-                         )}
-
-                         <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
-                           <div className="space-y-2">
-                             <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
-                               <GraduationCap className="h-4 w-4 text-primary" /> Classes / Grade Levels Taught
-                             </Label>
-                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                               {CLASS_TAUGHT_OPTIONS.map((c) => {
-                                 const isChecked = selectedClasses.includes(c);
-                                 return (
-                                   <button
-                                     key={c}
-                                     type="button"
-                                     onClick={() => setSelectedClasses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
-                                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
-                                       isChecked
-                                         ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                         : "bg-background text-foreground border-border hover:bg-secondary/40"
-                                     }`}
-                                   >
-                                     <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground"}`}>
-                                       {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
-                                     </div>
-                                     <span className="truncate">{c}</span>
-                                   </button>
-                                 );
-                               })}
-                             </div>
-                           </div>
-
-                           <div className="space-y-2 pt-3 border-t border-border/40">
-                             <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
-                               <Award className="h-4 w-4 text-indigo-500" /> Educational Boards Taught
-                             </Label>
-                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                               {BOARD_TAUGHT_OPTIONS.map((b) => {
-                                 const isChecked = selectedBoards.includes(b);
-                                 return (
-                                   <button
-                                     key={b}
-                                     type="button"
-                                     onClick={() => setSelectedBoards(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b])}
-                                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
-                                       isChecked
-                                         ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                                         : "bg-background text-foreground border-border hover:bg-secondary/40"
-                                     }`}
-                                   >
-                                     <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-indigo-600 border-white" : "border-muted-foreground"}`}>
-                                       {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
-                                     </div>
-                                     <span className="truncate">{b}</span>
-                                   </button>
-                                 );
-                               })}
-                             </div>
-                           </div>
-                         </div>
-
-                         {/* Work Experience Section */}
-                         <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
-                           <Label className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
-                             <Briefcase className="h-4 w-4 text-primary" /> Work Experience History
-                           </Label>
-                           
-                           {/* Work Experience List */}
-                           {workExperience.length === 0 ? (
-                             <p className="text-xs text-muted-foreground italic p-3 bg-background rounded-lg border border-dashed text-center">
-                               No work experience added yet. Add your previous teaching or professional roles below.
-                             </p>
-                           ) : (
-                             <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
-                               {workExperience.map((exp, expIdx) => (
-                                 <div key={expIdx} className="flex items-start justify-between gap-4 bg-background p-3 rounded-lg border shadow-sm transition-all hover:border-primary/20 relative">
-                                   <div className="flex-1 space-y-0.5">
-                                     <div className="font-bold text-sm text-foreground">{exp.role}</div>
-                                     <div className="text-xs font-semibold text-primary">{exp.company}</div>
-                                     <div className="text-[10px] text-muted-foreground font-medium">{exp.duration}</div>
-                                     {exp.description && (
-                                       <p className="text-xs text-muted-foreground leading-relaxed mt-1.5 border-t pt-1.5 border-border/40">
-                                         {exp.description}
-                                       </p>
-                                     )}
-                                   </div>
-                                   <Button 
-                                     type="button" 
-                                     variant="ghost" 
-                                     size="sm"
-                                     className="h-8 w-8 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 shrink-0"
-                                     onClick={() => {
-                                       setWorkExperience(prev => prev.filter((_, idx) => idx !== expIdx));
-                                     }}
-                                   >
-                                     <Trash2 className="h-4 w-4" />
-                                   </Button>
-                                 </div>
-                               ))}
-                             </div>
-                           )}
-
-                           {/* Add New Work Experience Sub-Form */}
-                           <div className="space-y-3 pt-3 border-t border-border/40">
-                             <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider">Add Work Experience</p>
-                             <div className="grid gap-3 sm:grid-cols-2">
-                               <div className="space-y-1">
-                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">Role / Position</Label>
-                                 <Input 
-                                   placeholder="e.g. Senior Physics Teacher" 
-                                   value={newExpRole} 
-                                   onChange={(e) => setNewExpRole(e.target.value)}
-                                   className="h-9 text-xs bg-background"
-                                 />
-                               </div>
-                               <div className="space-y-1">
-                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">School / Institution / Company</Label>
-                                 <Input 
-                                   placeholder="e.g. Delhi Public School" 
-                                   value={newExpCompany} 
-                                   onChange={(e) => setNewExpCompany(e.target.value)}
-                                   className="h-9 text-xs bg-background"
-                                 />
-                               </div>
-                             </div>
-                             
-                             <div className="grid gap-3 sm:grid-cols-3">
-                               <div className="space-y-1 sm:col-span-1">
-                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">Duration</Label>
-                                 <Input 
-                                   placeholder="e.g. 2022 - Present or 3 years" 
-                                   value={newExpDuration} 
-                                   onChange={(e) => setNewExpDuration(e.target.value)}
-                                   className="h-9 text-xs bg-background"
-                                 />
-                               </div>
-                               <div className="space-y-1 sm:col-span-2">
-                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">Description / Key Achievements</Label>
-                                 <Input 
-                                   placeholder="e.g. Taught AP level courses, prepared curriculum..." 
-                                   value={newExpDescription} 
-                                   onChange={(e) => setNewExpDescription(e.target.value)}
-                                   className="h-9 text-xs bg-background"
-                                 />
-                               </div>
-                             </div>
-
-                             <Button 
-                               type="button" 
-                               variant="secondary"
-                               onClick={() => {
-                                 if (!newExpRole.trim()) {
-                                   toast.error("Please enter a role/position.");
-                                   return;
-                                 }
-                                 if (!newExpCompany.trim()) {
-                                   toast.error("Please enter a school or company name.");
-                                   return;
-                                 }
-                                 if (!newExpDuration.trim()) {
-                                   toast.error("Please enter duration.");
-                                   return;
-                                 }
-                                 setWorkExperience(prev => [...prev, {
-                                   role: newExpRole.trim(),
-                                   company: newExpCompany.trim(),
-                                   duration: newExpDuration.trim(),
-                                   description: newExpDescription.trim()
-                                 }]);
-                                 setNewExpRole("");
-                                 setNewExpCompany("");
-                                 setNewExpDuration("");
-                                 setNewExpDescription("");
-                               }}
-                               className="h-9 text-xs shrink-0 w-full sm:w-auto"
-                             >
-                               <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add Experience
-                             </Button>
-                           </div>
-                         </div>
-
-                        <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
-                          <Label className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
-                            📚 Subjects & Hourly Rates
-                          </Label>
-                          
-                          {/* Subject Rates List */}
-                          {subjectRates.length === 0 ? (
-                            <p className="text-xs text-muted-foreground italic p-2 bg-background rounded-lg border border-dashed text-center">
-                              No subjects added yet. Please add at least one subject below.
-                            </p>
-                          ) : (
-                            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
-                              {subjectRates.map((sr, sIdx) => (
-                                <div key={sIdx} className="flex items-center justify-between gap-4 bg-background p-3 rounded-lg border shadow-sm transition-all hover:border-primary/20">
-                                  <span className="text-sm font-bold text-foreground truncate max-w-[200px]">
-                                    {sr.subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
-                                  </span>
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground font-semibold">₹</span>
-                                      <Input 
-                                        type="number" 
-                                        min={1} 
-                                        max={10000} 
-                                        className="w-20 h-8 text-xs font-bold text-center" 
-                                        value={sr.rate !== undefined ? sr.rate : ""} 
-                                        onChange={(e) => {
-                                          const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                                          const val = cleaned === "" ? 0 : parseInt(cleaned, 10);
-                                          setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val) ? 0 : val } : item));
-                                        }} 
-                                      />
-                                      <span className="text-[10px] text-muted-foreground">/hr</span>
-                                    </div>
-                                    <Button 
-                                      type="button" 
-                                      variant="ghost" 
-                                      size="sm"
-                                      className="h-8 w-8 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                                      onClick={() => {
-                                        setSubjectRates(prev => prev.filter((_, idx) => idx !== sIdx));
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Add New Subject Sub-Form */}
-                          <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-border/40 items-end sm:items-center">
-                            <div className="flex-1 w-full space-y-1">
-                              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Subject Name</Label>
-                              {customSubjectInput ? (
-                                <div className="flex flex-col sm:flex-row gap-2 w-full">
-                                  <Select value={newSubjectCategory} onValueChange={setNewSubjectCategory}>
-                                    <SelectTrigger className="h-9 text-xs bg-background w-full sm:w-36">
-                                      <SelectValue placeholder="Category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="Academic">Academic</SelectItem>
-                                      <SelectItem value="Extracurricular">Extracurricular</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <div className="flex flex-1 gap-1.5 w-full">
-                                    <Input 
-                                      placeholder="Enter subject name..." 
-                                      value={newSubjectName} 
-                                      onChange={(e) => setNewSubjectName(e.target.value.replace(/[^a-zA-Z0-9\s-]/g, ''))}
-                                      className="h-9 text-xs bg-background"
-                                    />
-                                    <Button 
-                                      type="button" 
-                                      variant="ghost" 
-                                      size="sm" 
-                                      onClick={() => { setCustomSubjectInput(false); setNewSubjectName(""); }}
-                                      className="h-9 px-2 text-xs shrink-0"
-                                    >
-                                      Back
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <Select 
-                                  value={newSubjectName} 
-                                  onValueChange={(val) => {
-                                    if (val === "custom") {
-                                      setCustomSubjectInput(true);
-                                      setNewSubjectName("");
-                                    } else {
-                                      setNewSubjectName(val);
-                                    }
-                                  }}
-                                >
-                                  <SelectTrigger className="h-9 text-xs bg-background">
-                                    <SelectValue placeholder="Choose subject..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[
-                                      "Mathematics", "Physics", "Chemistry", "Biology", "Coding / Computer Science", "English", "History", "Geography", "Economics & Finance", "Foreign Languages",
-                                      "Music (Vocal/Instruments)", "Dance", "Fine Arts & Drawing", "Chess", "Yoga & Meditation", "Public Speaking & Debate", "Creative Writing", "Photography & Video",
-                                      "Malayalam"
-                                    ]
-                                      .filter(sub => !subjectRates.some(sr => standardizeSubjectName(sr.subject) === standardizeSubjectName(sub)))
-                                      .map(sub => (
-                                        <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-                                      ))
-                                    }
-                                    <SelectItem value="custom">+ Custom Subject...</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            </div>
-
-                            <div className="w-fit space-y-1">
-                              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Rate (₹/hr)</Label>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-muted-foreground">₹</span>
-                                <Input 
-                                  type="number" 
-                                  min={1} 
-                                  max={10000} 
-                                  className="w-20 h-9 text-xs font-bold text-center bg-background" 
-                                  value={newSubjectRate !== undefined ? newSubjectRate : ""} 
-                                  onChange={(e) => {
-                                    const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                                    const val = cleaned === "" ? "" : parseInt(cleaned, 10);
-                                    setNewSubjectRate(isNaN(val as number) ? "" : val as any);
-                                  }} 
-                                />
-                              </div>
-                            </div>
-
-                            <Button 
-                              type="button" 
-                              variant="secondary"
-                              onClick={() => {
-                                if (!newSubjectName.trim()) {
-                                  toast.error("Please select or enter a subject name.");
-                                  return;
-                                }
-                                const subjectName = customSubjectInput
-                                  ? `${newSubjectName.trim()} (${newSubjectCategory})`
-                                  : newSubjectName.trim();
-                                  
-                                const stdNew = standardizeSubjectName(subjectName);
-                                if (subjectRates.some(sr => standardizeSubjectName(sr.subject) === stdNew)) {
-                                  toast.error("This subject is already in your profile.");
-                                  return;
-                                }
-                                setSubjectRates(prev => [...prev, { subject: subjectName, rate: newSubjectRate as number }]);
-                                setNewSubjectName("");
-                                setCustomSubjectInput(false);
-                              }}
-                              className="h-9 text-xs shrink-0"
-                            >
-                              <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
-                            </Button>
-                          </div>
-                        </div>
-                        
-                        <div className="pt-2">
-                          <Button type="submit" disabled={isSavingProfile} className="w-full sm:w-auto shadow-md rounded-full px-8">
-                            {isSavingProfile ? "Saving..." : <><Save className="mr-2 h-4 w-4"/> Update Public Profile</>}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="w-full text-xs font-semibold rounded-lg h-9"
+                            onClick={handleGoogleDisconnect}
+                          >
+                            Disconnect Calendar
                           </Button>
                         </div>
-                     </form>
-                   </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-muted-foreground">Status:</span>
+                            <Badge variant="outline" className="border-border text-muted-foreground text-[10px] px-2 py-0.5">
+                              Disconnected
+                            </Badge>
+                          </div>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-9 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                            onClick={handleGoogleConnect}
+                          >
+                            <Calendar className="h-3.5 w-3.5" />
+                            Connect Google Calendar
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-2">
+                    <form onSubmit={handleProfileUpdate} className="space-y-6">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="name" className="text-sm font-semibold">Full Name</Label>
+                          <Input
+                            id="name"
+                            value={profileName}
+                            onChange={(e) => setProfileName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))}
+                            className="bg-secondary/20 border-border/50 shadow-sm"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
+                          <Input
+                            id="phone"
+                            value={profilePhone}
+                            onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))}
+                            placeholder="+1 234 567 890"
+                            className="bg-secondary/20 border-border/50 shadow-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="bio" className="text-sm font-semibold">Professional Bio</Label>
+                        <textarea
+                          id="bio"
+                          rows={4}
+                          value={profileData.bio}
+                          onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                          placeholder="Tell students about yourself, your teaching style, and why they should choose you..."
+                          className="flex min-h-[100px] w-full rounded-md border border-input bg-secondary/20 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="qualification" className="text-sm font-semibold">Highest Qualification</Label>
+                        <Input id="qualification" value={profileData.qualification} onChange={(e) => setProfileData({ ...profileData, qualification: e.target.value.replace(/[^a-zA-Z0-9\s.()/-]/g, '') })} placeholder="e.g. M.Sc. in Mathematics" className="bg-secondary/20 shadow-sm" />
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>
+                          <Select value={tutorTimezone} onValueChange={setTutorTimezone}>
+                            <SelectTrigger id="timezone" className="bg-secondary/20 border-border/50">
+                              <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                              {timezonesList.map((tz) => (
+                                <SelectItem key={tz} value={tz}>
+                                  {tz}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="mode" className="text-sm font-semibold">Teaching Mode</Label>
+                          <Select
+                            value={profileData.mode}
+                            onValueChange={(val) => setProfileData({ ...profileData, mode: val })}
+                          >
+                            <SelectTrigger id="mode" className="bg-secondary/20 border-border/50">
+                              <SelectValue placeholder="Select teaching mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Online">Online Classes</SelectItem>
+                              <SelectItem value="Offline">Offline Classes</SelectItem>
+                              <SelectItem value="Both">Both (Online & Offline)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {(profileData.mode?.toLowerCase() === "offline" || profileData.mode?.toLowerCase() === "both") && (
+                        <div className="grid gap-4 sm:grid-cols-2 p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="space-y-2">
+                            <Label htmlFor="address" className="text-sm font-semibold">Classroom Address</Label>
+                            <Input
+                              id="address"
+                              value={profileData.address}
+                              onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                              placeholder="e.g. 1st Floor, Building Name, Street Name"
+                              className="bg-secondary/20 shadow-sm"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="googleMapsUrl" className="text-sm font-semibold">Google Maps Link</Label>
+                            <Input
+                              id="googleMapsUrl"
+                              type="url"
+                              value={profileData.googleMapsUrl}
+                              onChange={(e) => setProfileData({ ...profileData, googleMapsUrl: e.target.value })}
+                              placeholder="e.g. https://maps.app.goo.gl/..."
+                              className="bg-secondary/20 shadow-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                            <GraduationCap className="h-4 w-4 text-primary" /> Classes / Grade Levels Taught
+                          </Label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {CLASS_TAUGHT_OPTIONS.map((c) => {
+                              const isChecked = selectedClasses.includes(c);
+                              return (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onClick={() => setSelectedClasses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${isChecked
+                                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                    : "bg-background text-foreground border-border hover:bg-secondary/40"
+                                    }`}
+                                >
+                                  <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground"}`}>
+                                    {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                  </div>
+                                  <span className="truncate">{c}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 pt-3 border-t border-border/40">
+                          <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                            <Award className="h-4 w-4 text-indigo-500" /> Educational Boards Taught
+                          </Label>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {BOARD_TAUGHT_OPTIONS.map((b) => {
+                              const isChecked = selectedBoards.includes(b);
+                              return (
+                                <button
+                                  key={b}
+                                  type="button"
+                                  onClick={() => setSelectedBoards(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b])}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${isChecked
+                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                    : "bg-background text-foreground border-border hover:bg-secondary/40"
+                                    }`}
+                                >
+                                  <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-indigo-600 border-white" : "border-muted-foreground"}`}>
+                                    {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                  </div>
+                                  <span className="truncate">{b}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Work Experience Section */}
+                      <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
+                        <Label className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
+                          <Briefcase className="h-4 w-4 text-primary" /> Work Experience History
+                        </Label>
+
+                        {/* Work Experience List */}
+                        {workExperience.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic p-3 bg-background rounded-lg border border-dashed text-center">
+                            No work experience added yet. Add your previous teaching or professional roles below.
+                          </p>
+                        ) : (
+                          <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
+                            {workExperience.map((exp, expIdx) => (
+                              <div key={expIdx} className="flex items-start justify-between gap-4 bg-background p-3 rounded-lg border shadow-sm transition-all hover:border-primary/20 relative">
+                                <div className="flex-1 space-y-0.5">
+                                  <div className="font-bold text-sm text-foreground">{exp.role}</div>
+                                  <div className="text-xs font-semibold text-primary">{exp.company}</div>
+                                  <div className="text-[10px] text-muted-foreground font-medium">{exp.duration}</div>
+                                  {exp.description && (
+                                    <p className="text-xs text-muted-foreground leading-relaxed mt-1.5 border-t pt-1.5 border-border/40">
+                                      {exp.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 shrink-0"
+                                  onClick={() => {
+                                    setWorkExperience(prev => prev.filter((_, idx) => idx !== expIdx));
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add New Work Experience Sub-Form */}
+                        <div className="space-y-3 pt-3 border-t border-border/40">
+                          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wider">Add Work Experience</p>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Role / Position</Label>
+                              <Input
+                                placeholder="e.g. Senior Physics Teacher"
+                                value={newExpRole}
+                                onChange={(e) => setNewExpRole(e.target.value)}
+                                className="h-9 text-xs bg-background"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-muted-foreground uppercase">School / Institution / Company</Label>
+                              <Input
+                                placeholder="e.g. Delhi Public School"
+                                value={newExpCompany}
+                                onChange={(e) => setNewExpCompany(e.target.value)}
+                                className="h-9 text-xs bg-background"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="space-y-1 sm:col-span-1">
+                              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Duration</Label>
+                              <Input
+                                placeholder="e.g. 2022 - Present or 3 years"
+                                value={newExpDuration}
+                                onChange={(e) => setNewExpDuration(e.target.value)}
+                                className="h-9 text-xs bg-background"
+                              />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Description / Key Achievements</Label>
+                              <Input
+                                placeholder="e.g. Taught AP level courses, prepared curriculum..."
+                                value={newExpDescription}
+                                onChange={(e) => setNewExpDescription(e.target.value)}
+                                className="h-9 text-xs bg-background"
+                              />
+                            </div>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                              if (!newExpRole.trim()) {
+                                toast.error("Please enter a role/position.");
+                                return;
+                              }
+                              if (!newExpCompany.trim()) {
+                                toast.error("Please enter a school or company name.");
+                                return;
+                              }
+                              if (!newExpDuration.trim()) {
+                                toast.error("Please enter duration.");
+                                return;
+                              }
+                              setWorkExperience(prev => [...prev, {
+                                role: newExpRole.trim(),
+                                company: newExpCompany.trim(),
+                                duration: newExpDuration.trim(),
+                                description: newExpDescription.trim()
+                              }]);
+                              setNewExpRole("");
+                              setNewExpCompany("");
+                              setNewExpDuration("");
+                              setNewExpDescription("");
+                            }}
+                            className="h-9 text-xs shrink-0 w-full sm:w-auto"
+                          >
+                            <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add Experience
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
+                        <Label className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
+                          📚 Subjects & Hourly Rates
+                        </Label>
+
+                        {/* Subject Rates List */}
+                        {subjectRates.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic p-2 bg-background rounded-lg border border-dashed text-center">
+                            No subjects added yet. Please add at least one subject below.
+                          </p>
+                        ) : (
+                          <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                            {subjectRates.map((sr, sIdx) => (
+                              <div key={sIdx} className="flex items-center justify-between gap-4 bg-background p-3 rounded-lg border shadow-sm transition-all hover:border-primary/20">
+                                <span className="text-sm font-bold text-foreground truncate max-w-[200px]">
+                                  {sr.subject.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
+                                </span>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground font-semibold">₹</span>
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      max={10000}
+                                      className="w-20 h-8 text-xs font-bold text-center"
+                                      value={sr.rate !== undefined ? sr.rate : ""}
+                                      onChange={(e) => {
+                                        const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                        const val = cleaned === "" ? "" : parseInt(cleaned, 10);
+                                        setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val as number) ? "" : val } : item));
+                                      }}
+                                    />
+                                    <span className="text-[10px] text-muted-foreground">/hr</span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                    onClick={() => {
+                                      setSubjectRates(prev => prev.filter((_, idx) => idx !== sIdx));
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add New Subject Sub-Form */}
+                        <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-border/40 items-end sm:items-center">
+                          <div className="flex-1 w-full space-y-1">
+                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">Subject Name</Label>
+                            {customSubjectInput ? (
+                              <div className="flex flex-col sm:flex-row gap-2 w-full">
+                                <Select value={newSubjectCategory} onValueChange={setNewSubjectCategory}>
+                                  <SelectTrigger className="h-9 text-xs bg-background w-full sm:w-36">
+                                    <SelectValue placeholder="Category" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Academic">Academic</SelectItem>
+                                    <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <div className="flex flex-1 gap-1.5 w-full">
+                                  <Input
+                                    placeholder="Enter subject name..."
+                                    value={newSubjectName}
+                                    onChange={(e) => setNewSubjectName(e.target.value.replace(/[^a-zA-Z0-9\s-]/g, ''))}
+                                    className="h-9 text-xs bg-background"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => { setCustomSubjectInput(false); setNewSubjectName(""); }}
+                                    className="h-9 px-2 text-xs shrink-0"
+                                  >
+                                    Back
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <Select
+                                value={newSubjectName}
+                                onValueChange={(val) => {
+                                  if (val === "custom") {
+                                    setCustomSubjectInput(true);
+                                    setNewSubjectName("");
+                                  } else {
+                                    setNewSubjectName(val);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-9 text-xs bg-background">
+                                  <SelectValue placeholder="Choose subject..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[
+                                    "Mathematics", "Physics", "Chemistry", "Biology", "Coding / Computer Science", "English", "History", "Geography", "Economics & Finance", "Foreign Languages",
+                                    "Music (Vocal/Instruments)", "Dance", "Fine Arts & Drawing", "Chess", "Yoga & Meditation", "Public Speaking & Debate", "Creative Writing", "Photography & Video",
+                                    "Malayalam"
+                                  ]
+                                    .filter(sub => !subjectRates.some(sr => standardizeSubjectName(sr.subject) === standardizeSubjectName(sub)))
+                                    .map(sub => (
+                                      <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                                    ))
+                                  }
+                                  <SelectItem value="custom">+ Custom Subject...</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+
+                          <div className="w-fit space-y-1">
+                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">Rate (₹/hr)</Label>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground">₹</span>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={10000}
+                                className="w-20 h-9 text-xs font-bold text-center bg-background"
+                                value={newSubjectRate !== undefined ? newSubjectRate : ""}
+                                onChange={(e) => {
+                                  const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                  const val = cleaned === "" ? "" : parseInt(cleaned, 10);
+                                  setNewSubjectRate(isNaN(val as number) ? "" : val as any);
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                              if (!newSubjectName.trim()) {
+                                toast.error("Please select or enter a subject name.");
+                                return;
+                              }
+                              const subjectName = customSubjectInput
+                                ? `${newSubjectName.trim()} (${newSubjectCategory})`
+                                : newSubjectName.trim();
+
+                              const stdNew = standardizeSubjectName(subjectName);
+                              if (subjectRates.some(sr => standardizeSubjectName(sr.subject) === stdNew)) {
+                                toast.error("This subject is already in your profile.");
+                                return;
+                              }
+                              setSubjectRates(prev => [...prev, { subject: subjectName, rate: newSubjectRate as number }]);
+                              setNewSubjectName("");
+                              setCustomSubjectInput(false);
+                            }}
+                            className="h-9 text-xs shrink-0"
+                          >
+                            <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <Button type="submit" disabled={isSavingProfile} className="w-full sm:w-auto shadow-md rounded-full px-8">
+                          {isSavingProfile ? "Saving..." : <><Save className="mr-2 h-4 w-4" /> Update Public Profile</>}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
+          <TabsContent value="referrals">
+            {(() => {
+              const refParamVal = tutorStats?.referralCode || "";
+              const shareLink = `${window.location.origin}/register/student?ref=${refParamVal}`;
+              return (
+                <div className="space-y-6">
+                  {/* Header block with background gradient */}
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 p-6 md:p-8 text-white shadow-lg">
+                    <div className="absolute -right-10 -bottom-10 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+                    <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="space-y-2 max-w-2xl">
+                        <span className="inline-flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
+                          <Sparkles className="h-3 w-3 animate-pulse" /> Tutor Rewards Program
+                        </span>
+                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Invite Students, Earn ₹500!</h2>
+                        <p className="text-white/95 text-sm md:text-base leading-relaxed">
+                          Students get <strong>₹200 instant wallet credits</strong> upon registration to book classes, and you earn <strong>₹500 cash reward</strong> when they complete their first regular class!
+                        </p>
+                      </div>
+                      <div className="shrink-0 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-inner">
+                        <Gift className="h-14 w-14 text-white drop-shadow-md animate-bounce" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grid with Referral Link and Stats */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Referral Link Card */}
+                    <Card className="border-none shadow-md bg-card/65 backdrop-blur-md">
+                      <CardHeader className="pb-4">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Gift className="h-5 w-5 text-emerald-500" />
+                          Your Referral Details
+                        </CardTitle>
+                        <CardDescription>
+                          Students get ₹200 wallet balance; you earn ₹500 per enrolled student.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 mb-2">
+                          <span className="text-sm font-semibold text-muted-foreground">Your Referral Code:</span>
+                          <span className="text-sm font-mono font-bold bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 px-3 py-1 rounded-lg tracking-wider border border-emerald-200/20 shadow-sm">
+                            {refParamVal || "Generating..."}
+                          </span>
+                        </div>
+
+                        <div className="flex gap-2 items-center bg-secondary/35 p-2 rounded-xl border">
+                          <input
+                            type="text"
+                            readOnly
+                            value={shareLink}
+                            className="bg-transparent border-none outline-none text-xs flex-1 px-2 font-mono text-muted-foreground select-all"
+                          />
+                          <Button
+                            size="sm"
+                            disabled={!refParamVal}
+                            onClick={() => {
+                              navigator.clipboard.writeText(shareLink);
+                              toast.success("Referral link copied to clipboard!");
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 shrink-0 rounded-lg h-9"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>Copy</span>
+                          </Button>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                          <a
+                            href={refParamVal ? `https://api.whatsapp.com/send?text=${encodeURIComponent(
+                              `Hey! I'm teaching on Cuvasol Tutor. Register using my referral code: ${refParamVal} to get ₹200 credited to your student wallet for booking classes! Link: ${shareLink}`
+                            )}` : "#"}
+                            onClick={(e) => !refParamVal && e.preventDefault()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl text-sm transition-all shadow-sm cursor-pointer ${!refParamVal && 'opacity-50 cursor-not-allowed'}`}
+                          >
+                            <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.864-9.864.002-2.637-1.019-5.117-2.879-6.98-1.858-1.863-4.331-2.887-6.977-2.889-5.442 0-9.87 4.422-9.873 9.869-.001 1.724.453 3.41 1.32 4.933l-.994 3.633 3.719-.976zm9.9-6.082c-.272-.136-1.614-.796-1.863-.886-.25-.09-.432-.136-.613.136-.182.272-.704.886-.863 1.068-.159.182-.318.204-.59.068-.272-.136-1.15-.424-2.19-1.353-.809-.721-1.355-1.613-1.514-1.886-.159-.272-.017-.419.119-.554.123-.122.272-.318.409-.477.136-.159.182-.272.272-.454.09-.182.045-.341-.023-.477-.068-.136-.613-1.477-.84-2.022-.222-.534-.445-.46-.613-.469-.159-.008-.341-.01-.523-.01s-.477.068-.727.341c-.25.272-.954.932-.954 2.272 0 1.34 1 .272 2.635 1.136 3.488 2.062 5.093 3.84 5.365 4.09.272.25.795.795.795 1.727 0 .932-.727 1.704-.84 1.886-.114.182-.227.363-.454.432s-.432-.023-.704-.159z" />
+                            </svg>
+                            Share via WhatsApp
+                          </a>
+                          <a
+                            href={refParamVal ? `mailto:?subject=${encodeURIComponent(
+                              "Join me on Cuvasol Tutor — Get ₹200 Free Wallet Credits!"
+                            )}&body=${encodeURIComponent(
+                              `Hi there,\n\nI invite you to register as a student on Cuvasol Tutor using my referral code: ${refParamVal} or direct link:\n${shareLink}\n\nYou'll get ₹200 credited to your wallet instantly to book your classes!\n\nHappy learning!`
+                            )}` : "#"}
+                            onClick={(e) => !refParamVal && e.preventDefault()}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer ${!refParamVal && 'opacity-50 cursor-not-allowed'}`}
+                          >
+                            ✉ Email Invitation
+                          </a>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Referral Stats (Mock Tracker) */}
+                    <Card className="border-none shadow-md bg-card/65 backdrop-blur-md">
+                      <CardHeader className="pb-4">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-emerald-500" />
+                          Rewards Tracker
+                        </CardTitle>
+                        <CardDescription>
+                          Monitor your refer-and-earn metrics in real-time.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
+                            <span className="block text-2xl font-black text-foreground">
+                              {tutorStats?.referralStats?.invitedCount ?? 0}
+                            </span>
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Invited</span>
+                          </div>
+                          <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
+                            <span className="block text-2xl font-black text-foreground">
+                              {tutorStats?.referralStats?.completedCount ?? 0}
+                            </span>
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Successful Referrals</span>
+                          </div>
+                          <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 text-center">
+                            <span className="block text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                              ₹{tutorStats?.referralStats?.earnings ?? 0}
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mt-1">Earned</span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground italic text-center mt-4">
+                          Referral credits are updated automatically once a referred student registers and completes a regular class.
+                        </p>
+                        <p className="text-[10px] text-muted-foreground text-center mt-2">
+                          If you have any queries reg referral program reach us at <a href="mailto:support@cuvasol.com" className="text-primary hover:underline font-medium">support@cuvasol.com</a>
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Instructions / Program Rules Card */}
+                  <Card className="border-none shadow-md bg-card/65 backdrop-blur-md overflow-hidden relative">
+                    {/* Visual side highlights */}
+                    <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-emerald-500" />
+                    <CardHeader className="pb-3 pl-8">
+                      <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                        📋 Program Rules & Instructions
+                      </CardTitle>
+                      <CardDescription>
+                        Please read the referral guidelines carefully to ensure eligibility.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pl-8 space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                              1
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-bold text-foreground">Referral Reward</h4>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                Each tutor can refer students. You will receive a <strong className="text-emerald-600 dark:text-emerald-400">₹500 reward</strong> when your referred student registers and completes a regular class.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="h-6 w-6 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                              2
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-bold text-foreground">Completed Regular Classes Only</h4>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                The student must actually complete a <strong className="text-foreground">regular class</strong>. Free demo classes or incomplete bookings do <strong className="text-rose-500">not</strong> qualify.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                              3
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-bold text-foreground">First Class Reward Limit</h4>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                The ₹500 reward applies <strong className="text-foreground">only to the student's first completed regular class</strong>. Subsequent sessions with that student will not generate additional referral rewards.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                              4
+                            </div>
+                            <div className="space-y-1 w-full">
+                              <h4 className="text-sm font-bold text-foreground">Referral Reward Structure & Cap</h4>
+                              <div className="text-xs text-muted-foreground leading-relaxed space-y-2">
+                                <p>Earn ₹500 for each successfully registered student who completes a regular class:</p>
+                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">1 Ref:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹500</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">3 Refs:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹1,500</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">5 Refs:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹2,500</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                                    <span className="text-muted-foreground">10 Refs:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹5,000</span>
+                                  </div>
+                                </div>
+                                <p className="text-[11px] pt-0.5">
+                                  The maximum cumulative referral reward is capped at <strong className="text-foreground">₹5,000 INR per tutor</strong>.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="h-6 w-6 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                              5
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-bold text-foreground">New Students Only</h4>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                Multiple tutors cannot refer a single student. To qualify, the referred student's email and phone number must not already exist in the database.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 hover:bg-secondary/25 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                              6
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-bold text-foreground">Self-Booking Under Referrer</h4>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                A referred student <strong className="text-emerald-600 dark:text-emerald-400">can book</strong> a class or demo session with the same tutor who referred them. However, to count as a successful referral, they <strong className="text-foreground">must complete a regular class</strong> (just booking or a demo session alone does not qualify).
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 flex items-start gap-3 mt-4">
+                        <AlertCircle className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-bold text-emerald-800 dark:text-emerald-400">Flexible Learning Eligibility</h4>
+                          <p className="text-[11px] text-emerald-700/90 dark:text-emerald-400/80 leading-relaxed">
+                            The student is free to take their class with any tutor on the platform. As long as they sign up through your referral link and <strong>complete a regular class</strong>, you will be eligible to receive the referral reward.
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
+          </TabsContent>
+
+          {/* Posts & Updates Tab Content */}
           <TabsContent value="posts">
             <Card className="shadow-md border-border/50">
               <CardHeader className="bg-secondary/20 border-b pb-4">
@@ -2027,7 +2942,7 @@ const TutorDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
-            
+
             {rejectReasonType === "Other" && (
               <div className="w-full space-y-2 animate-in fade-in duration-200">
                 <Label htmlFor="customRejectReason" className="text-xs text-muted-foreground">Specify Reason</Label>
@@ -2058,6 +2973,89 @@ const TutorDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* About the Booking / Outcome Dialog */}
+      <Dialog open={isOutcomeDialogOpen} onOpenChange={setIsOutcomeDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>About the Booking</DialogTitle>
+            <DialogDescription>
+              Please update the session outcome and add any relevant details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Session Outcome</Label>
+              <Select value={outcomeType} onValueChange={setOutcomeType}>
+                <SelectTrigger className="w-full bg-secondary/10">
+                  <SelectValue placeholder="Select outcome..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Completed successfully">Completed successfully</SelectItem>
+                  <SelectItem value="Student did not join (No-show)">Student did not join (No-show)</SelectItem>
+                  <SelectItem value="Tutor was not available at that time">Tutor was not available at that time</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-full space-y-2">
+              <Label htmlFor="outcomeNotes" className="text-xs text-muted-foreground">
+                {outcomeType === "Other" ? "Specify Reason / Notes" : "Additional Notes / Reason (Optional)"}
+              </Label>
+              <Textarea
+                id="outcomeNotes"
+                placeholder={outcomeType === "Other" ? "Explain what happened..." : "Provide any extra details if needed..."}
+                value={outcomeNotes}
+                onChange={(e) => setOutcomeNotes(e.target.value)}
+                className="resize-none bg-secondary/10"
+                rows={3}
+              />
+            </div>
+
+            <div className="flex gap-3 justify-end mt-4">
+              <Button variant="outline" onClick={() => {
+                setIsOutcomeDialogOpen(false);
+                setOutcomeBookingId(null);
+                setOutcomeType("");
+                setOutcomeNotes("");
+              }}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleOutcomeSubmit}
+                disabled={isSubmittingOutcome || !outcomeType}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+              >
+                {isSubmittingOutcome ? "Updating..." : "Submit Outcome"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Dialog */}
+      <RescheduleDialog
+        isOpen={isRescheduleDialogOpen}
+        onOpenChange={setIsRescheduleDialogOpen}
+        booking={reschedulingBooking}
+        userRole="Tutor"
+        userTimezone={tutorTimezone}
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+        }}
+      />
+
+      {/* Decline Reschedule Dialog */}
+      <DeclineRescheduleDialog
+        isOpen={isDeclineDialogOpen}
+        onOpenChange={setIsDeclineDialogOpen}
+        booking={decliningBooking}
+        userRole="Tutor"
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+        }}
+      />
     </PageLayout>
   );
 };

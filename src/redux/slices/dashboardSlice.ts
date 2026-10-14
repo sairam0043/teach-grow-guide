@@ -48,12 +48,48 @@ interface DashboardState {
     activeTutors: number; 
     totalBookings: number; 
     totalStudents: number; 
+    activeStudents?: number;
     totalRevenue: number;
     geoStats?: { North: number; South: number; East: number; West: number; Unspecified: number };
     topCities?: Array<{ name: string; count: number }>;
   } | null;
-  tutorStats: { demoRequests: number; activeStudents: number; upcomingClasses: number; totalEarnings: number; availableTimings: string[]; availability?: any[] } | null;
-  studentStats: { enrolledCourses: number; upcomingClasses: number; completedSessions: number; demoBookings?: number; savedTutors: number } | null;
+  tutorStats: { 
+    demoRequests: number; 
+    activeStudents: number; 
+    upcomingClasses: number; 
+    totalEarnings: number; 
+    availableTimings: string[]; 
+    availability?: any[];
+    referralStats?: {
+      invitedCount: number;
+      completedCount: number;
+      earnings: number;
+    };
+    referralCode?: string;
+  } | null;
+  studentStats: { 
+    enrolledCourses: number; 
+    upcomingClasses: number; 
+    completedSessions: number; 
+    demoBookings?: number; 
+    savedTutors: number;
+    walletBalance?: number;
+    walletHistory?: Array<{
+      _id?: string;
+      type: 'credit' | 'debit';
+      amount: number;
+      description: string;
+      date: string;
+      bookingId?: string;
+      referredStudentId?: string;
+    }>;
+    referralCode?: string;
+    referralStats?: {
+      invitedCount: number;
+      completedCount: number;
+      earnings: number;
+    };
+  } | null;
   loading: boolean;
   error: string | null;
 }

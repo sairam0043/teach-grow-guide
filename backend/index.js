@@ -11,9 +11,11 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const chatbotRoutes = require('./routes/chatbotRoutes');
 const visitorRoutes = require('./routes/visitorRoutes');
 
 const app = express();
+
 app.set('trust proxy', 1);
 
 // Lightweight request duration logger
@@ -45,33 +47,90 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-skip-network-alert', 'x-requested-with', 'Accept', 'Origin']
 }));
 app.use(express.json());
 
 const PORT = Number(process.env.PORT) || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/teachgrow';
 
-let cachedConnection = null;
+let cached = global.mongoose;
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
 
-const connectDB = async () => {
-  if (cachedConnection && mongoose.connection.readyState === 1) {
-    return cachedConnection;
+// Connection event listeners for auto-recovery
+mongoose.connection.on('disconnected', () => {
+  console.warn('[MongoDB] Connection dropped, resetting cache.');
+  cached.conn = null;
+  cached.promise = null;
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('[MongoDB] Runtime connection error:', err.message);
+  if (mongoose.connection.readyState === 0) {
+    cached.conn = null;
+    cached.promise = null;
   }
-  console.log('Initializing new MongoDB connection...');
-  cachedConnection = await mongoose.connect(MONGO_URI);
-  return cachedConnection;
+});
+
+const connectDB = async (retries = 2) => {
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  const opts = {
+    bufferCommands: false,
+    maxPoolSize: 10,
+    minPoolSize: 1,
+    serverSelectionTimeoutMS: 15000, // 15s buffer for replica discovery & TLS handshake
+    connectTimeoutMS: 15000,
+    socketTimeoutMS: 45000,
+    family: 4,                      // Force IPv4 to prevent IPv6 DNS/TLS handshake errors
+    heartbeatFrequencyMS: 10000,
+    retryWrites: true,
+    retryReads: true
+  };
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (!cached.promise) {
+        cached.promise = mongoose.connect(MONGO_URI, opts).then((mongooseInstance) => {
+          return mongooseInstance;
+        });
+      }
+      cached.conn = await cached.promise;
+      return cached.conn;
+    } catch (e) {
+      console.error(`[MongoDB] Connection attempt ${attempt} failed: ${e.message}`);
+      cached.conn = null;
+      cached.promise = null;
+      if (attempt < retries) {
+        // Wait 300ms before retrying transient TLS/handshake failures
+        await new Promise(r => setTimeout(r, 300));
+      } else {
+        throw e;
+      }
+    }
+  }
 };
 
 // Middleware to ensure DB connection is established for serverless environments (Vercel)
 if (process.env.VERCEL) {
   app.use(async (req, res, next) => {
+    // Skip database check for lightweight static/health routes
+    if (req.path === '/api/health' || req.path === '/') {
+      return next();
+    }
     try {
       await connectDB();
       next();
     } catch (err) {
-      console.error('Database connection failed in serverless handler:', err);
-      res.status(500).json({ error: 'Database connection failed', details: err.message });
+      console.error('[Vercel] Database connection failed in serverless handler:', err);
+      res.status(500).json({
+        error: 'Database connection temporarily unavailable',
+        details: err.message
+      });
     }
   });
 }
@@ -83,6 +142,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/visitors', visitorRoutes);
 
 app.get('/api/health', (_req, res) => {

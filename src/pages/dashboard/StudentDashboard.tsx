@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Sparkles, CheckCircle2, MessageSquare, Plus, X, GraduationCap, Award, ShieldCheck, ArrowRight, BadgeCheck } from "lucide-react";
+import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Wallet, Gift, Sparkles, Copy, ArrowUpRight, ArrowDownLeft, Check, Share2, CheckCircle2, Plus, X, GraduationCap, Award, ShieldCheck, ArrowRight, BadgeCheck, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,6 +48,8 @@ import { Badge } from "@/components/ui/badge";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { toast } from "@/components/ui/sonner";
 import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
+import { getMeetingHref } from "@/utils/meeting";
+import { RescheduleDialog, DeclineRescheduleDialog } from "@/components/booking/RescheduleDialog";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -141,6 +143,9 @@ const StudentDashboard = () => {
   const [profileStudentClass, setProfileStudentClass] = useState(
     user?.student_class || user?.user_metadata?.student_class || ""
   );
+  const [profileInterestedSubject, setProfileInterestedSubject] = useState(
+    user?.interested_subject || user?.user_metadata?.interested_subject || ""
+  );
   const [profileSubjectInterests, setProfileSubjectInterests] = useState<string[]>(() => {
     const metaInt = user?.subject_interests || user?.user_metadata?.subject_interests;
     if (Array.isArray(metaInt)) return metaInt;
@@ -148,6 +153,9 @@ const StudentDashboard = () => {
     return [];
   });
   const [customSubjectInput, setCustomSubjectInput] = useState("");
+  const [profileStudentName, setProfileStudentName] = useState(
+    user?.student_name || user?.user_metadata?.student_name || ""
+  );
   const [studentTimezone, setStudentTimezone] = useState(
     user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone()
   );
@@ -162,12 +170,14 @@ const StudentDashboard = () => {
       setProfileName(String(user.user_metadata?.full_name || user.full_name || "Student"));
       setProfilePhone(user.phone || "");
       setProfileStudentClass(user.student_class || user.user_metadata?.student_class || "");
+      setProfileInterestedSubject(user.interested_subject || user.user_metadata?.interested_subject || "");
       const metaInt = user.subject_interests || user.user_metadata?.subject_interests;
       if (Array.isArray(metaInt)) {
         setProfileSubjectInterests(metaInt);
       } else if (typeof metaInt === 'string') {
         setProfileSubjectInterests(metaInt.split(',').map((s: string) => s.trim()).filter(Boolean));
       }
+      setProfileStudentName(user.student_name || user.user_metadata?.student_name || "");
       if (user.timezone) {
         setStudentTimezone(user.timezone);
       } else if (user.user_metadata?.timezone) {
@@ -184,56 +194,73 @@ const StudentDashboard = () => {
   }, []);
 
   // MANDATORY REQUIREMENT: ONLY VERIFIED TUTORS (isVerified === true)
-  const verifiedTutors = allTutors.filter(t => t.isVerified === true);
+  const verifiedTutors = (Array.isArray(allTutors) ? allTutors : []).filter(t => t && t.isVerified === true);
 
   // Recommendation Scoring Logic based on Student Class & Subject Interests
   const recommendedTutors = verifiedTutors.map(tutor => {
-    let score = 0;
-    const matchReasons: string[] = [];
+    try {
+      let score = 0;
+      const matchReasons: string[] = [];
 
-    const stdClass = (profileStudentClass || "").toLowerCase().trim();
-    const stdSubjects = profileSubjectInterests.map(s => s.toLowerCase().trim()).filter(Boolean);
+      const stdClass = String(profileStudentClass || "").toLowerCase().trim();
+      const stdSubjects = (Array.isArray(profileSubjectInterests) ? profileSubjectInterests : [])
+        .map(s => String(s || '').toLowerCase().trim())
+        .filter(Boolean);
 
-    // 1. Match Subject Interests
-    const tutorSubjects = (tutor.subjects || []).map((s: string) => s.toLowerCase().trim());
-    const tutorRates = (tutor.subjectRates || []).map((sr: any) => (sr.subject || "").toLowerCase().trim());
-    const allTutorSubjects = Array.from(new Set([...tutorSubjects, ...tutorRates]));
+      // 1. Match Subject Interests
+      const tutorSubjects = (Array.isArray(tutor?.subjects) ? tutor.subjects : [])
+        .map((s: any) => String(s || '').toLowerCase().trim())
+        .filter(Boolean);
+      const tutorRates = (Array.isArray(tutor?.subjectRates) ? tutor.subjectRates : [])
+        .map((sr: any) => String(sr?.subject || '').toLowerCase().trim())
+        .filter(Boolean);
+      const allTutorSubjects = Array.from(new Set([...tutorSubjects, ...tutorRates]));
 
-    stdSubjects.forEach(stSub => {
-      const isMatch = allTutorSubjects.some(tSub => tSub.includes(stSub) || stSub.includes(tSub));
-      if (isMatch) {
-        score += 4;
-        const formattedSubject = stSub.charAt(0).toUpperCase() + stSub.slice(1);
-        if (!matchReasons.includes(`Subject: ${formattedSubject}`)) {
-          matchReasons.push(`Subject: ${formattedSubject}`);
+      stdSubjects.forEach(stSub => {
+        const isMatch = allTutorSubjects.some(tSub => tSub.includes(stSub) || stSub.includes(tSub));
+        if (isMatch) {
+          score += 4;
+          const formattedSubject = stSub.charAt(0).toUpperCase() + stSub.slice(1);
+          if (!matchReasons.includes(`Subject: ${formattedSubject}`)) {
+            matchReasons.push(`Subject: ${formattedSubject}`);
+          }
         }
-      }
-    });
-
-    // 2. Match Class / Grade
-    const tutorClasses = (tutor.classesTaught || []).map((c: string) => c.toLowerCase().trim());
-    if (stdClass) {
-      const classNumMatch = stdClass.match(/\d+/)?.[0];
-      const isClassMatch = tutorClasses.some((tc: string) => {
-        if (tc === stdClass) return true;
-        if (classNumMatch && (tc.includes(`class ${classNumMatch}`) || tc.includes(`grade ${classNumMatch}`) || tc === classNumMatch)) return true;
-        return false;
       });
 
-      if (isClassMatch) {
-        score += 4;
-        matchReasons.push(`Class: ${profileStudentClass}`);
+      // 2. Match Class / Grade
+      const tutorClasses = (Array.isArray(tutor?.classesTaught) ? tutor.classesTaught : [])
+        .map((c: any) => String(c || '').toLowerCase().trim())
+        .filter(Boolean);
+      if (stdClass) {
+        const classNumMatch = stdClass.match(/\d+/)?.[0];
+        const isClassMatch = tutorClasses.some((tc: string) => {
+          if (tc === stdClass) return true;
+          if (classNumMatch && (tc.includes(`class ${classNumMatch}`) || tc.includes(`grade ${classNumMatch}`) || tc === classNumMatch)) return true;
+          return false;
+        });
+
+        if (isClassMatch) {
+          score += 4;
+          matchReasons.push(`Class: ${profileStudentClass}`);
+        }
       }
+
+      if (tutor?.featured) score += 1;
+      if (typeof tutor?.rating === 'number' && tutor.rating >= 4.5) score += 1;
+
+      return {
+        tutor,
+        score,
+        matchReasons
+      };
+    } catch (e) {
+      console.error("Error scoring recommended tutor:", e);
+      return {
+        tutor,
+        score: 0,
+        matchReasons: []
+      };
     }
-
-    if (tutor.featured) score += 1;
-    if (tutor.rating >= 4.5) score += 1;
-
-    return {
-      tutor,
-      score,
-      matchReasons
-    };
   }).sort((a, b) => b.score - a.score);
 
   const timezonesList = studentTimezone && !COMMON_TIMEZONES.includes(studentTimezone)
@@ -256,6 +283,12 @@ const StudentDashboard = () => {
   const [cancelReasonType, setCancelReasonType] = useState<string>("");
   const [customCancelReason, setCustomCancelReason] = useState<string>("");
   const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
+
+  // Reschedule states
+  const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
+  const [decliningBooking, setDecliningBooking] = useState<any | null>(null);
+  const [isDeclineDialogOpen, setIsDeclineDialogOpen] = useState(false);
 
   const CANCELLATION_REASONS = [
     "Schedule Conflict / Time clash",
@@ -281,10 +314,11 @@ const StudentDashboard = () => {
     try {
       await axios.put(`${API_URL}/tutors/booking/${cancellingBookingId}/status`, { 
         status: 'cancelled',
-        cancellationReason: finalReason
+        cancellationReason: finalReason,
+        cancelledBy: 'Student'
       });
       toast.success("Booking cancelled successfully.");
-      setBookings(prev => prev.map(b => b._id === cancellingBookingId ? { ...b, status: 'cancelled', cancellationReason: finalReason } : b));
+      setBookings(prev => prev.map(b => b._id === cancellingBookingId ? { ...b, status: 'cancelled', cancellationReason: finalReason, cancelledBy: 'Student' } : b));
       setIsCancelDialogOpen(false);
       setCancellingBookingId(null);
       setCancelReasonType("");
@@ -296,13 +330,28 @@ const StudentDashboard = () => {
     }
   };
 
+  const handleApproveReschedule = async (bookingId: string) => {
+    try {
+      const res = await axios.post(`${API_URL}/tutors/booking/${bookingId}/reschedule-confirm`, {
+        action: 'approve',
+        confirmedBy: 'Student'
+      });
+      toast.success("Reschedule request accepted! Class timing updated.");
+      setBookings(prev => prev.map(b => b._id === bookingId ? res.data.booking : b));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to accept reschedule request");
+    }
+  };
+
   useEffect(() => {
     if (!user?.id) return;
     
     const fetchUnreadCount = async () => {
       if (document.hidden) return; // skip polling when browser tab is inactive/backgrounded
       try {
-        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+          headers: { 'x-skip-network-alert': 'true' }
+        });
         const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
         setUnreadMessagesCount(total);
       } catch (err) {
@@ -311,7 +360,7 @@ const StudentDashboard = () => {
     };
 
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 12000); // Check every 12 seconds
+    const interval = setInterval(fetchUnreadCount, 25000); // Check every 25 seconds
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -325,8 +374,11 @@ const StudentDashboard = () => {
     if (user?.id) {
       dispatch(fetchStudentStats(user.id));
       axios.get(`${API_URL}/dashboard/student/${user.id}/bookings`)
-        .then(res => setBookings(res.data))
-        .catch(err => console.error(err))
+        .then(res => setBookings(Array.isArray(res.data) ? res.data : []))
+        .catch(err => {
+          console.error(err);
+          setBookings([]);
+        })
         .finally(() => setLoadingBookings(false));
     }
   }, [dispatch, user?.id]);
@@ -350,6 +402,8 @@ const StudentDashboard = () => {
         full_name: profileName, 
         phone: profilePhone,
         student_class: profileStudentClass,
+        student_name: user?.student_or_parent === "Parent" ? profileStudentName : undefined,
+        interested_subject: profileInterestedSubject,
         subject_interests: profileSubjectInterests,
         timezone: studentTimezone
       });
@@ -358,11 +412,13 @@ const StudentDashboard = () => {
           full_name: response.data.user.full_name,
           phone: response.data.user.phone,
           student_class: response.data.user.student_class,
+          student_name: response.data.user.student_name,
+          interested_subject: response.data.user.interested_subject,
           subject_interests: response.data.user.subject_interests,
           timezone: response.data.user.timezone
         }));
       }
-      toast.success("Profile & recommendations updated successfully!");
+      toast.success("Profile updated successfully!");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
@@ -395,8 +451,8 @@ const StudentDashboard = () => {
     }
   };
 
-  const enrolledClasses = bookings.filter(b => b.status === 'enrolled');
-  const paymentHistory = bookings.filter(b => b.status === 'enrolled' && b.amountPaid);
+  const enrolledClasses = (Array.isArray(bookings) ? bookings : []).filter(b => b && b.status === 'enrolled');
+  const paymentHistory = (Array.isArray(bookings) ? bookings : []).filter(b => b && b.status === 'enrolled' && b.amountPaid);
 
   return (
     <PageLayout>
@@ -406,21 +462,17 @@ const StudentDashboard = () => {
             <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Welcome, {profileName}!</h1>
             <p className="text-lg text-muted-foreground mt-1">Manage your learning journey, classes, and payments.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button asChild size="lg" className="shadow-md rounded-full px-8">
-              <Link to="/tutors"><Search className="mr-2 h-4 w-4" /> Find a New Tutor</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="shadow-sm rounded-full px-6">
-              <Link to="/recently-viewed">Recently Viewed</Link>
-            </Button>
-          </div>
+          <Button asChild size="lg" className="shadow-md rounded-full px-8">
+            <Link to="/tutors"><Search className="mr-2 h-4 w-4" /> Find a New Tutor</Link>
+          </Button>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-10">
           {[
             { icon: Calendar, label: "Upcoming Classes", value: studentStats?.upcomingClasses || 0, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30", tab: "upcoming" },
             { icon: Clock, label: "Demo Bookings", value: studentStats?.demoBookings ?? studentStats?.completedSessions ?? 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
             { icon: BookOpen, label: "Enrolled Courses", value: studentStats?.enrolledCourses || 0, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30", tab: "upcoming" },
+            { icon: Wallet, label: "Student Wallet", value: `₹${studentStats?.walletBalance || 0}`, color: "text-amber-500", bg: "bg-amber-100 dark:bg-amber-900/30", tab: "wallet" },
             { icon: CreditCard, label: "Total Spent", value: `₹${paymentHistory.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "payments" },
           ].map((stat, idx) => (
             <Card 
@@ -428,19 +480,19 @@ const StudentDashboard = () => {
               onClick={() => setActiveTab(stat.tab)}
               className="border-none shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:bg-secondary/10"
             >
-              <CardContent className="flex items-center gap-5 p-6">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg}`}>
-                  <stat.icon className={`h-7 w-7 ${stat.color}`} />
+              <CardContent className="flex items-center gap-4 p-5">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl shrink-0 ${stat.bg}`}>
+                  <stat.icon className={`h-6 w-6 ${stat.color}`} />
                 </div>
                 <div>
                   {statsLoading ? (
-                    <Skeleton className="h-8 w-16 mb-1" />
+                    <Skeleton className="h-7 w-14 mb-1" />
                   ) : (
-                    <p className="text-3xl font-bold text-foreground tracking-tight">
+                    <p className="text-2xl font-bold text-foreground tracking-tight">
                       {String(stat.value)}
                     </p>
                   )}
-                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                  <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
                 </div>
               </CardContent>
             </Card>
@@ -458,6 +510,15 @@ const StudentDashboard = () => {
               )}
             </TabsTrigger>
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Tracker</TabsTrigger>
+            <TabsTrigger value="wallet" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-amber-500" />
+              Wallet & Referrals
+              {(studentStats?.walletBalance || 0) > 0 && (
+                <span className="bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold text-[11px] px-2 py-0.5 rounded-full border border-amber-500/20">
+                  ₹{studentStats?.walletBalance}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0">Payment Ledger</TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
               Messages
@@ -630,7 +691,7 @@ const StudentDashboard = () => {
                                               asChild
                                             >
                                               <a
-                                                href={`${session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}-session-${sIdx + 1}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
+                                                href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, profileName, user?.email || '')}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                               >
@@ -693,38 +754,95 @@ const StudentDashboard = () => {
                               )}
                             </div>
                           )}
+
+                          {cls.rescheduleRequest && cls.rescheduleRequest.status === 'pending' && (
+                            cls.rescheduleRequest.requestedBy === 'Tutor' ? (
+                              <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600" /> Tutor Requested Reschedule
+                                  </span>
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
+                                    ACTION REQUIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-amber-950 dark:text-amber-100">
+                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{cls.rescheduleRequest.requestedTiming}</span>
+                                </p>
+                                {cls.rescheduleRequest.reason && (
+                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{cls.rescheduleRequest.reason}"</p>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(cls._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept New Time
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
+                                    setDecliningBooking(cls);
+                                    setIsDeclineDialogOpen(true);
+                                  }}>
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mb-4 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                                  Reschedule requested to <strong>{cls.rescheduleRequest.requestedTiming}</strong>
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-semibold">
+                                  Awaiting Tutor Approval
+                                </Badge>
+                              </div>
+                            )
+                          )}
                           
-                          <div className="mt-auto pt-4 border-t flex justify-between items-center">
+                          <div className="mt-auto pt-4 border-t flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                              <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                                <Clock className="h-4 w-4"/> {formatBookingTime(cls, studentTimezone)}
                                {(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
                                  <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
                                )}
                              </span>
-                             <div className="flex gap-2">
+                             <div className="flex flex-wrap gap-2">
                                {!cls.isRated && (
                                  <Button size="sm" variant="secondary" className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100" onClick={() => {
                                    setRatingBookingId(cls._id);
                                    setRatingTutorId(cls.tutorId);
                                    setIsRatingDialogOpen(true);
-                                  }}>
-                                    <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
-                                  </Button>
-                                )}
+                                 }}>
+                                   <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
+                                 </Button>
+                               )}
                                {!(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
-                                <Button
-                                  size="sm"
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
-                                  asChild
-                                >
-                                  <a
-                                    href={`${cls.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${cls._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <>
+                                  {(!cls.rescheduleRequest || cls.rescheduleRequest.status !== 'pending') && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      className="text-primary border-primary/30 hover:bg-primary/5 font-semibold text-xs" 
+                                      onClick={() => {
+                                        setReschedulingBooking(cls);
+                                        setIsRescheduleDialogOpen(true);
+                                      }}
+                                    >
+                                      <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
+                                    asChild
                                   >
-                                    <Video className="h-4 w-4" /> Join Class
-                                  </a>
-                                </Button>
+                                    <a
+                                       href={getMeetingHref(cls.meetingLink, cls._id, profileName, user?.email || '')}
+                                       target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <Video className="h-4 w-4" /> Join Class
+                                    </a>
+                                  </Button>
+                                </>
                                )}
                                <Button variant="outline" size="sm" asChild>
                                  <Link to={`/tutors/${cls.tutorId}`}>View Tutor</Link>
@@ -740,249 +858,40 @@ const StudentDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="demos">
-            <Card className="shadow-md border-border/50">
-              <CardHeader className="bg-secondary/20 border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2"><Clock className="h-5 w-5 text-indigo-500" /> Demo Bookings Tracker</CardTitle>
-                <CardDescription>Track the status of your free demo sessions.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                {loadingBookings ? (
-                  <div className="space-y-4 py-4">
-                    <Skeleton className="h-20 w-full rounded-xl" />
-                  </div>
-                ) : bookings.filter(b => b.status !== 'enrolled').length === 0 ? (
-                  <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-4">
-                    <Clock className="mx-auto mb-4 h-16 w-16 opacity-30 text-indigo-500" />
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No Demos Booked</h3>
-                    <p>You haven't booked any demo sessions yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4 mt-4">
-                    {bookings.filter(b => b.status !== 'enrolled').map((booking: any) => (
-                      <div key={booking._id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-card p-5 rounded-xl border shadow-sm hover:shadow-md transition-shadow">
-                        <div className="mb-4 sm:mb-0">
-                          <p className="font-bold text-lg text-foreground flex items-center gap-2">
-                             <User className="h-5 w-5 text-primary"/> {booking.tutorName}
-                          </p>
-                          {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
-                          <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-                            <Calendar className="h-4 w-4"/> {formatBookingTime(booking, studentTimezone)}
-                            {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
-                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
-                            )}
-                          </p>
-                          
-                          {booking.tutorAddress && (booking.tutorMode?.toLowerCase() === "offline" || booking.tutorMode?.toLowerCase() === "both") && (
-                             <div className="mt-3 p-3 border rounded-xl bg-secondary/5 space-y-2 w-full max-w-md">
-                               <div className="flex items-center gap-1.5">
-                                 <MapPin className="h-3.5 w-3.5 text-rose-500" />
-                                 <span className="text-xs font-semibold text-foreground">Location: {booking.tutorAddress}</span>
-                               </div>
-                               <div className="relative w-full h-32 overflow-hidden rounded-lg border bg-secondary/20 shadow-inner">
-                                 <iframe
-                                   title="Demo Map Preview"
-                                   width="100%"
-                                   height="100%"
-                                   style={{ border: 0 }}
-                                   loading="lazy"
-                                   src={`https://maps.google.com/maps?q=${encodeURIComponent(booking.tutorAddress + ", " + (booking.tutorCity || ""))}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
-                                 />
-                               </div>
-                               {booking.tutorGoogleMapsUrl && (
-                                 <a 
-                                   href={booking.tutorGoogleMapsUrl} 
-                                   target="_blank" 
-                                   rel="noopener noreferrer"
-                                   className="text-[11px] font-semibold text-rose-500 hover:underline inline-flex items-center gap-1"
-                                 >
-                                   <MapPin className="h-3 w-3" /> View large map
-                                 </a>
-                               )}
-                             </div>
-                           )}
-                        </div>
-                        <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground font-medium">STATUS:</span>
-                            <Badge variant="outline" className={`px-3 py-1 border-none ${
-                               booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                               booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                               booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                               'bg-red-100 text-red-700'
-                             }`}>
-                               {booking.status.toUpperCase()}
-                             </Badge>
-                          </div>
-                          
-                          <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                            {(booking.status === 'confirmed' || booking.status === 'pending') && (
-                               <>
-                                 {booking.status === 'confirmed' && !(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
-                                   <Button
-                                     size="sm"
-                                     className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
-                                     asChild
-                                   >
-                                     <a
-                                       href={`${booking.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${booking._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="${encodeURIComponent(profileName)}"&userInfo.email="${encodeURIComponent(user?.email || '')}"`}
-                                       target="_blank"
-                                       rel="noopener noreferrer"
-                                     >
-                                       <Video className="h-4 w-4" /> Join Demo Room
-                                     </a>
-                                   </Button>
-                                 )}
-                                 {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
-                                   <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
-                                      setCancellingBookingId(booking._id);
-                                      setIsCancelDialogOpen(true);
-                                    }}>Cancel Demo</Button>
-                                 )}
-                               </>
-                            )}
-                            {booking.status === 'completed' && (
-                                <>
-                                  {!booking.isRated && (
-                                     <Button size="sm" variant="secondary" className="w-full sm:w-auto text-yellow-600 bg-yellow-50 hover:bg-yellow-100" onClick={() => {
-                                       setRatingBookingId(booking._id);
-                                       setRatingTutorId(booking.tutorId);
-                                       setIsRatingDialogOpen(true);
-                                     }}>
-                                       <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
-                                     </Button>
-                                  )}
-                                  <Button asChild size="sm" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md">
-                                    <Link to={`/tutors/${booking.tutorId}`}>Enroll & Pay</Link>
-                                  </Button>
-                                </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="payments">
-            <Card className="shadow-md border-border/50">
-              <CardHeader className="bg-secondary/20 border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2"><History className="h-5 w-5 text-emerald-500" /> Payment Ledger</CardTitle>
-                <CardDescription>A record of all your enrolled class payments.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                {loadingBookings ? (
-                   <div className="py-4"><Skeleton className="h-32 w-full rounded-xl" /></div>
-                ) : paymentHistory.length === 0 ? (
-                  <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-4">
-                    <CreditCard className="mx-auto mb-4 h-16 w-16 opacity-30 text-emerald-500" />
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No Payments Found</h3>
-                    <p>Your payment history is currently empty.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto mt-4 rounded-xl border">
-                    <table className="w-full text-sm text-left">
-                      <thead className="text-xs text-muted-foreground bg-secondary/50 uppercase border-b">
-                        <tr>
-                          <th className="px-6 py-4 font-medium">Date</th>
-                          <th className="px-6 py-4 font-medium">Tutor / Subject</th>
-                          <th className="px-6 py-4 font-medium">Plan Type</th>
-                          <th className="px-6 py-4 font-medium text-right">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paymentHistory.map((payment: any) => (
-                          <tr key={payment._id} className="bg-card border-b last:border-0 hover:bg-secondary/20 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap font-medium text-foreground">
-                              {new Date(payment.createdAt).toLocaleDateString()}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="font-semibold text-foreground">{payment.tutorName}</div>
-                              <div className="text-muted-foreground text-xs">{payment.subject}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <Badge variant="secondary" className="bg-primary/10 text-primary">{payment.planType}</Badge>
-                            </td>
-                            <td className="px-6 py-4 text-right font-bold text-emerald-600">
-                              ₹{payment.amountPaid}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="recommendations">
-            <div className="space-y-6">
-              {/* Header Banner */}
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-950 via-indigo-900 to-purple-950 text-white p-6 sm:p-8 shadow-xl border border-white/10">
-                <div className="absolute top-0 right-0 -mt-12 -mr-12 h-64 w-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30 flex items-center gap-1.5">
-                        <ShieldCheck className="h-3.5 w-3.5" /> 100% Verified Tutors Only
-                      </span>
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2">
-                      Recommended Tutors For You <Sparkles className="h-6 w-6 text-amber-400 fill-amber-400" />
-                    </h2>
-                    <p className="text-sm text-white/80 mt-1 max-w-2xl">
-                      Matched specifically for your saved grade/class and subject interests.
-                    </p>
-                  </div>
-
-                  <Button
-                    onClick={() => setActiveTab("profile")}
-                    variant="outline"
-                    className="bg-white/10 hover:bg-white/20 text-white border-white/20 rounded-full px-5 text-xs sm:text-sm font-semibold shrink-0"
-                  >
-                    <Settings className="h-3.5 w-3.5 mr-1.5" /> Update My Class & Subject Interests
-                  </Button>
+          {/* Recommended Tutors Tab Content */}
+          <TabsContent value="recommendations" className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b">
+                <div>
+                  <h2 className="text-2xl font-extrabold text-foreground flex items-center gap-2">
+                    <Sparkles className="h-6 w-6 text-amber-500 fill-amber-400" />
+                    Recommended Tutors for You
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Verified tutors matched automatically based on your 
+                    {profileStudentClass ? <span className="font-semibold text-foreground"> {profileStudentClass}</span> : null}
+                    {profileSubjectInterests.length > 0 ? (
+                      <span> and subject interests (<span className="font-semibold text-primary">{profileSubjectInterests.join(", ")}</span>)</span>
+                    ) : null}.
+                  </p>
                 </div>
 
-                {/* Active Match Filter Badges */}
-                <div className="relative z-10 mt-6 pt-4 border-t border-white/10 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-white/60 font-medium">Matching criteria:</span>
-                  {profileStudentClass ? (
-                    <Badge className="bg-blue-500/20 text-blue-200 border border-blue-400/30">
-                      🎓 Grade: {profileStudentClass}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-amber-300 border-amber-400/40 bg-amber-500/10">
-                      ⚠️ Class not set (Set in Settings)
-                    </Badge>
-                  )}
-
-                  {profileSubjectInterests.length > 0 ? (
-                    profileSubjectInterests.map(sub => (
-                      <Badge key={sub} className="bg-indigo-500/20 text-indigo-200 border border-indigo-400/30">
-                        📚 {sub}
-                      </Badge>
-                    ))
-                  ) : (
-                    <Badge variant="outline" className="text-amber-300 border-amber-400/40 bg-amber-500/10">
-                      ⚠️ No subjects selected (Set in Settings)
-                    </Badge>
-                  )}
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 font-bold px-3 py-1.5 flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    Verified Tutors Only
+                  </Badge>
                 </div>
               </div>
 
-              {/* Tutors Grid / States */}
               {loadingTutors ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <Skeleton className="h-72 w-full rounded-2xl" />
                   <Skeleton className="h-72 w-full rounded-2xl" />
                   <Skeleton className="h-72 w-full rounded-2xl" />
                 </div>
               ) : verifiedTutors.length === 0 ? (
-                <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed p-8">
+                <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed">
                   <ShieldCheck className="mx-auto mb-4 h-16 w-16 opacity-40 text-primary" />
                   <h3 className="text-lg font-semibold text-foreground mb-2">No Verified Tutors Found</h3>
                   <p className="max-w-md mx-auto text-sm">Our admin team is currently reviewing tutor applications. Check back soon for newly verified tutors!</p>
@@ -1152,6 +1061,549 @@ const StudentDashboard = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="demos">
+            <Card className="shadow-md border-border/50">
+              <CardHeader className="bg-secondary/20 border-b pb-4">
+                <CardTitle className="text-xl flex items-center gap-2"><Clock className="h-5 w-5 text-indigo-500" /> Demo Bookings Tracker</CardTitle>
+                <CardDescription>Track the status of your free demo sessions.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {loadingBookings ? (
+                  <div className="space-y-4 py-4">
+                    <Skeleton className="h-20 w-full rounded-xl" />
+                  </div>
+                ) : bookings.filter(b => b.status !== 'enrolled').length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-4">
+                    <Clock className="mx-auto mb-4 h-16 w-16 opacity-30 text-indigo-500" />
+                    <h3 className="text-lg font-semibold text-foreground mb-2">No Demos Booked</h3>
+                    <p>You haven't booked any demo sessions yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 mt-4">
+                    {bookings.filter(b => b.status !== 'enrolled').map((booking: any) => (
+                      <div key={booking._id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-card p-5 rounded-xl border shadow-sm hover:shadow-md transition-shadow">
+                        <div className="mb-4 sm:mb-0">
+                          <p className="font-bold text-lg text-foreground flex items-center gap-2">
+                             <User className="h-5 w-5 text-primary"/> {booking.tutorName}
+                          </p>
+                          {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
+                          {booking.topicToLearn && (
+                            <div className="mt-2.5 p-2.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 text-xs max-w-lg">
+                              <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5 mb-0.5">
+                                <BookOpen className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                Requested Topics to Learn:
+                              </span>
+                              <p className="text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {booking.topicToLearn}
+                              </p>
+                            </div>
+                          )}
+                          <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+                            <Calendar className="h-4 w-4"/> {formatBookingTime(booking, studentTimezone)}
+                            {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
+                            )}
+                          </p>
+                          
+                          {booking.tutorAddress && (booking.tutorMode?.toLowerCase() === "offline" || booking.tutorMode?.toLowerCase() === "both") && (
+                             <div className="mt-3 p-3 border rounded-xl bg-secondary/5 space-y-2 w-full max-w-md">
+                               <div className="flex items-center gap-1.5">
+                                 <MapPin className="h-3.5 w-3.5 text-rose-500" />
+                                 <span className="text-xs font-semibold text-foreground">Location: {booking.tutorAddress}</span>
+                               </div>
+                               <div className="relative w-full h-32 overflow-hidden rounded-lg border bg-secondary/20 shadow-inner">
+                                 <iframe
+                                   title="Demo Map Preview"
+                                   width="100%"
+                                   height="100%"
+                                   style={{ border: 0 }}
+                                   loading="lazy"
+                                   src={`https://maps.google.com/maps?q=${encodeURIComponent(booking.tutorAddress + ", " + (booking.tutorCity || ""))}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                                 />
+                               </div>
+                               {booking.tutorGoogleMapsUrl && (
+                                 <a 
+                                   href={booking.tutorGoogleMapsUrl} 
+                                   target="_blank" 
+                                   rel="noopener noreferrer"
+                                   className="text-[11px] font-semibold text-rose-500 hover:underline inline-flex items-center gap-1"
+                                 >
+                                   <MapPin className="h-3 w-3" /> View large map
+                                 </a>
+                               )}
+                             </div>
+                           )}
+                          {booking.rescheduleRequest && booking.rescheduleRequest.status === 'pending' && (
+                            booking.rescheduleRequest.requestedBy === 'Tutor' ? (
+                              <div className="w-full mt-3 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600" /> Tutor Requested Reschedule
+                                  </span>
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
+                                    ACTION REQUIRED
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-amber-950 dark:text-amber-100">
+                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{booking.rescheduleRequest.requestedTiming}</span>
+                                </p>
+                                {booking.rescheduleRequest.reason && (
+                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{booking.rescheduleRequest.reason}"</p>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(booking._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept New Time
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
+                                    setDecliningBooking(booking);
+                                    setIsDeclineDialogOpen(true);
+                                  }}>
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full mt-3 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                                  Reschedule requested to <strong>{booking.rescheduleRequest.requestedTiming}</strong>
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 font-semibold">
+                                  Awaiting Tutor Approval
+                                </Badge>
+                              </div>
+                            )
+                          )}
+                        </div>
+                        <div className="flex flex-col items-start sm:items-end gap-3 w-full sm:w-auto">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground font-medium">STATUS:</span>
+                            <Badge variant="outline" className={`px-3 py-1 border-none ${
+                               booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                               booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                               booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                               'bg-red-100 text-red-700'
+                             }`}>
+                              {booking.status.toUpperCase()}
+                            </Badge>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                            {(booking.status === 'confirmed' || booking.status === 'pending') && (
+                               <>
+                                 {booking.status === 'confirmed' && !(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
+                                   <Button
+                                     size="sm"
+                                     className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1 animate-pulse"
+                                     asChild
+                                   >
+                                     <a
+                                       href={getMeetingHref(booking.meetingLink, booking._id, profileName, user?.email || '', booking.subject)}
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                     >
+                                       <Video className="h-4 w-4" /> Join Demo Room
+                                     </a>
+                                   </Button>
+                                 )}
+                                 {!(booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
+                                   <>
+                                     {(!booking.rescheduleRequest || booking.rescheduleRequest.status !== 'pending') && (
+                                       <Button 
+                                         size="sm" 
+                                         variant="outline" 
+                                         className="w-full sm:w-auto text-primary border-primary/30 hover:bg-primary/5 font-semibold text-xs" 
+                                         onClick={() => {
+                                           setReschedulingBooking(booking);
+                                           setIsRescheduleDialogOpen(true);
+                                         }}
+                                       >
+                                         <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                       </Button>
+                                     )}
+                                     <Button size="sm" variant="outline" className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => {
+                                        setCancellingBookingId(booking._id);
+                                        setIsCancelDialogOpen(true);
+                                      }}>Cancel Demo</Button>
+                                   </>
+                                 )}
+                               </>
+                            )}
+                            {booking.status === 'completed' && (
+                                <>
+                                  {!booking.isRated && (
+                                     <Button size="sm" variant="secondary" className="w-full sm:w-auto text-yellow-600 bg-yellow-50 hover:bg-yellow-100" onClick={() => {
+                                       setRatingBookingId(booking._id);
+                                       setRatingTutorId(booking.tutorId);
+                                       setIsRatingDialogOpen(true);
+                                     }}>
+                                       <Star className="h-4 w-4 mr-1" fill="currentColor"/> Rate
+                                     </Button>
+                                  )}
+                                  <Button asChild size="sm" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md">
+                                    <Link to={`/tutors/${booking.tutorId}`}>Enroll & Pay</Link>
+                                  </Button>
+                                </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payments">
+            <Card className="shadow-md border-border/50">
+              <CardHeader className="bg-secondary/20 border-b pb-4">
+                <CardTitle className="text-xl flex items-center gap-2"><History className="h-5 w-5 text-emerald-500" /> Payment Ledger</CardTitle>
+                <CardDescription>A record of all your enrolled class payments.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {loadingBookings ? (
+                   <div className="py-4"><Skeleton className="h-32 w-full rounded-xl" /></div>
+                ) : paymentHistory.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-4">
+                    <CreditCard className="mx-auto mb-4 h-16 w-16 opacity-30 text-emerald-500" />
+                    <h3 className="text-lg font-semibold text-foreground mb-2">No Payments Found</h3>
+                    <p>Your payment history is currently empty.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto mt-4 rounded-xl border">
+                    <table className="w-full text-sm text-left">
+                      <thead className="text-xs text-muted-foreground bg-secondary/50 uppercase border-b">
+                        <tr>
+                          <th className="px-6 py-4 font-medium">Date</th>
+                          <th className="px-6 py-4 font-medium">Tutor / Subject</th>
+                          <th className="px-6 py-4 font-medium">Plan Type</th>
+                          <th className="px-6 py-4 font-medium text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentHistory.map((payment: any) => (
+                          <tr key={payment._id} className="bg-card border-b last:border-0 hover:bg-secondary/20 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap font-medium text-foreground">
+                              {new Date(payment.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-foreground">{payment.tutorName}</div>
+                              <div className="text-muted-foreground text-xs">{payment.subject}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge variant="secondary" className="bg-primary/10 text-primary">{payment.planType}</Badge>
+                            </td>
+                            <td className="px-6 py-4 text-right font-bold text-emerald-600">
+                              ₹{payment.amountPaid}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Student Wallet & Referrals Tab */}
+          <TabsContent value="wallet">
+            {(() => {
+              const studentRefCode = studentStats?.referralCode || user?.referralCode || "";
+              const studentShareLink = `${window.location.origin}/register/student?ref=${studentRefCode}`;
+              const walletBal = studentStats?.walletBalance || 0;
+              const refStats = studentStats?.referralStats || { invitedCount: 0, completedCount: 0, earnings: 0 };
+              const walletHistory = studentStats?.walletHistory || [];
+
+              return (
+                <div className="space-y-6">
+                  {/* Hero Header Card */}
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-600 p-6 md:p-8 text-white shadow-lg">
+                    <div className="absolute -right-10 -bottom-10 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+                    <div className="absolute -left-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-xl" />
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div className="space-y-2 max-w-2xl">
+                        <span className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
+                          <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Student Rewards & Wallet
+                        </span>
+                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Give ₹200, Earn ₹500 Class Credits!</h2>
+                        <p className="text-white/95 text-sm md:text-base leading-relaxed">
+                          Invite friends to learn on Cuvasol. When your friend signs up with your referral code, <strong>they get ₹200 credited to their wallet</strong> immediately for booking classes. When they complete their first regular class, <strong>you get ₹500 added to your Student Wallet</strong>!
+                        </p>
+                      </div>
+                      <div className="shrink-0 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-inner">
+                        <Wallet className="h-14 w-14 text-white drop-shadow-md animate-bounce" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet Balance & Referral Details */}
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Available Wallet Card */}
+                    <Card className="border-none shadow-md bg-card/75 backdrop-blur-md flex flex-col justify-between">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Wallet className="h-5 w-5 text-amber-500" />
+                            Your Student Wallet
+                          </CardTitle>
+                          <Badge className="bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-none font-semibold text-xs">
+                            Active & Ready to Use
+                          </Badge>
+                        </div>
+                        <CardDescription>
+                          Use your wallet balance at checkout for instant discounts or free classes.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-emerald-500/10 border border-amber-500/20 text-center">
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                            Available Class Credits
+                          </span>
+                          <span className="text-4xl font-extrabold text-foreground tracking-tight">
+                            ₹{walletBal}
+                          </span>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Applied automatically or on-demand when booking 1-on-1, Group, or Monthly pack classes.
+                          </p>
+                        </div>
+
+                        <Button asChild className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold rounded-xl h-11 shadow-sm">
+                          <Link to="/tutors">
+                            <Search className="mr-2 h-4 w-4" /> Book a Class with Wallet Balance
+                          </Link>
+                        </Button>
+                      </CardContent>
+                    </Card>
+
+                    {/* Share Referral Link Card */}
+                    <Card className="border-none shadow-md bg-card/75 backdrop-blur-md">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Gift className="h-5 w-5 text-emerald-500" />
+                          Your Referral Link & Code
+                        </CardTitle>
+                        <CardDescription>
+                          Friends get ₹200 instantly on signup; you earn ₹500 on class completion.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border">
+                          <span className="text-sm font-semibold text-muted-foreground">Your Referral Code:</span>
+                          <span className="text-sm font-mono font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-lg tracking-wider border border-amber-500/20">
+                            {studentRefCode || "Generating..."}
+                          </span>
+                        </div>
+
+                        <div className="flex gap-2 items-center bg-secondary/30 p-2 rounded-xl border">
+                          <input
+                            type="text"
+                            readOnly
+                            value={studentShareLink}
+                            className="bg-transparent border-none outline-none text-xs flex-1 px-2 font-mono text-muted-foreground select-all"
+                          />
+                          <Button
+                            size="sm"
+                            disabled={!studentRefCode}
+                            onClick={() => {
+                              navigator.clipboard.writeText(studentShareLink);
+                              toast.success("Referral link copied to clipboard!");
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 shrink-0 rounded-lg h-9"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>Copy</span>
+                          </Button>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                          <a
+                            href={studentRefCode ? `https://api.whatsapp.com/send?text=${encodeURIComponent(
+                              `Hey! I'm learning with top tutors on Cuvasol. Register using my invite code: ${studentRefCode} to get ₹200 credited to your wallet instantly to book classes! Direct link: ${studentShareLink}`
+                            )}` : "#"}
+                            onClick={(e) => !studentRefCode && e.preventDefault()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white font-bold rounded-xl text-sm transition-all shadow-sm cursor-pointer ${!studentRefCode && 'opacity-50 cursor-not-allowed'}`}
+                          >
+                            <Share2 className="h-4 w-4" />
+                            Share on WhatsApp
+                          </a>
+                          <a
+                            href={studentRefCode ? `mailto:?subject=${encodeURIComponent(
+                              "Join me on Cuvasol Tutor — Get ₹200 Free Wallet Credits!"
+                            )}&body=${encodeURIComponent(
+                              `Hi there,\n\nI invite you to learn with expert tutors on Cuvasol! Use my referral code: ${studentRefCode} or direct link:\n${studentShareLink}\n\nYou'll get ₹200 in your student wallet instantly to book your classes!\n\nHappy learning!`
+                            )}` : "#"}
+                            onClick={(e) => !studentRefCode && e.preventDefault()}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer ${!studentRefCode && 'opacity-50 cursor-not-allowed'}`}
+                          >
+                            ✉ Email Invite
+                          </a>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Referral Stats Tracker (3 metric boxes) */}
+                  <Card className="border-none shadow-md bg-card/75 backdrop-blur-md">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-amber-500" />
+                        Referral Rewards Tracker
+                      </CardTitle>
+                      <CardDescription>
+                        Track friends who signed up with your link and completed classes.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
+                          <span className="block text-2xl font-black text-foreground">
+                            {refStats.invitedCount}
+                          </span>
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Friends Invited</span>
+                        </div>
+                        <div className="bg-secondary/20 p-4 rounded-xl border border-border/40 text-center">
+                          <span className="block text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                            {refStats.completedCount}
+                          </span>
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mt-1">Successful Referrals</span>
+                        </div>
+                        <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/20 text-center">
+                          <span className="block text-2xl font-black text-amber-600 dark:text-amber-400">
+                            ₹{refStats.earnings}
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block mt-1">Total Credits Earned</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Wallet Activity Ledger */}
+                  <Card className="shadow-md border-border/50">
+                    <CardHeader className="bg-secondary/20 border-b pb-4">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <History className="h-5 w-5 text-indigo-500" />
+                        Wallet Transaction Ledger
+                      </CardTitle>
+                      <CardDescription>
+                        Complete record of your referral credits and class booking debits.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {walletHistory.length === 0 ? (
+                        <div className="py-12 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed">
+                          <Wallet className="mx-auto mb-3 h-12 w-12 opacity-30 text-amber-500" />
+                          <h4 className="text-base font-semibold text-foreground mb-1">No Wallet Transactions Yet</h4>
+                          <p className="text-xs max-w-sm mx-auto">
+                            Share your referral code to earn ₹500 credits as soon as your friends complete their first regular class!
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border">
+                          <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-muted-foreground bg-secondary/50 uppercase border-b">
+                              <tr>
+                                <th className="px-6 py-4 font-medium">Date</th>
+                                <th className="px-6 py-4 font-medium">Type</th>
+                                <th className="px-6 py-4 font-medium">Description</th>
+                                <th className="px-6 py-4 font-medium text-right">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/50">
+                              {walletHistory.map((txn: any, idx: number) => {
+                                const isCredit = txn.type === 'credit';
+                                return (
+                                  <tr key={idx} className="hover:bg-secondary/20 transition-colors">
+                                    <td className="px-6 py-4 text-xs text-muted-foreground whitespace-nowrap">
+                                      {new Date(txn.date).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric"
+                                      })}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <Badge className={`border-none font-semibold text-[11px] ${
+                                        isCredit 
+                                          ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400' 
+                                          : 'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400'
+                                      }`}>
+                                        {isCredit ? (
+                                          <span className="flex items-center gap-1"><ArrowDownLeft className="h-3 w-3" /> Credit</span>
+                                        ) : (
+                                          <span className="flex items-center gap-1"><ArrowUpRight className="h-3 w-3" /> Debit</span>
+                                        )}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs font-medium text-foreground">
+                                      {txn.description}
+                                    </td>
+                                    <td className={`px-6 py-4 text-xs font-bold text-right whitespace-nowrap ${
+                                      isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                                    }`}>
+                                      {isCredit ? `+₹${txn.amount}` : `-₹${txn.amount}`}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Program Rules Card */}
+                  <Card className="border-none shadow-md bg-card/75 backdrop-blur-md overflow-hidden relative">
+                    <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-amber-500" />
+                    <CardHeader className="pb-3 pl-8">
+                      <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                        📋 How the Student Referral & Wallet Program Works
+                      </CardTitle>
+                      <CardDescription>
+                        Learn how to maximize your class savings through referrals.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pl-8 space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 space-y-1.5">
+                          <div className="h-6 w-6 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
+                            1
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">Share Your Code</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Send your referral link or unique code to classmates, friends, or family.
+                          </p>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 space-y-1.5">
+                          <div className="h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
+                            2
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">Friend Completes a Class</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            When your friend registers and completes their first regular class, you get <strong className="text-emerald-600 dark:text-emerald-400">₹500 in your wallet</strong>.
+                          </p>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-secondary/15 border border-border/30 space-y-1.5">
+                          <div className="h-6 w-6 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
+                            3
+                          </div>
+                          <h4 className="text-sm font-bold text-foreground">Book Free Classes</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            Use your wallet credits at checkout for instant discounts or 100% free classes across any subject!
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
+          </TabsContent>
           <TabsContent value="messages">
             <ChatPanel initialActiveUserId={activeChatUserId} />
           </TabsContent>
@@ -1159,15 +1611,29 @@ const StudentDashboard = () => {
           <TabsContent value="profile">
             <Card className="shadow-md border-border/50 max-w-2xl">
               <CardHeader className="bg-secondary/20 border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2"><User className="h-5 w-5 text-blue-500" /> Profile & Interest Settings</CardTitle>
-                <CardDescription>Update your personal info, class grade, and subject interests to receive matching verified tutor recommendations.</CardDescription>
+                <CardTitle className="text-xl flex items-center gap-2"><User className="h-5 w-5 text-blue-500" /> Profile Settings</CardTitle>
+                <CardDescription>Update your personal information.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <form onSubmit={handleProfileUpdate} className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-semibold">Full Name</Label>
+                    <Label htmlFor="name" className="text-sm font-semibold">
+                      {user?.student_or_parent === "Parent" ? "Parent's Full Name" : "Full Name"}
+                    </Label>
                     <Input id="name" value={profileName} onChange={(e) => setProfileName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))} className="bg-secondary/20 border-border/50" />
                   </div>
+                  {user?.student_or_parent === "Parent" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="studentName" className="text-sm font-semibold">Student's Full Name</Label>
+                      <Input
+                        id="studentName"
+                        value={profileStudentName}
+                        onChange={(e) => setProfileStudentName(capitalizeName(e.target.value.replace(/[^a-zA-Z\s'-]/g, '')))}
+                        className="bg-secondary/20 border-border/50"
+                        required
+                      />
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-semibold">Email Address <span className="text-xs font-normal text-muted-foreground">(Cannot be changed)</span></Label>
                     <Input id="email" value={String(user?.email || "")} disabled className="bg-secondary/50 opacity-70" />
@@ -1176,7 +1642,6 @@ const StudentDashboard = () => {
                     <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
                     <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} placeholder="+1 234 567 890" className="bg-secondary/20 border-border/50" />
                   </div>
-
                   {/* Class / Grade Selection */}
                   <div className="space-y-2">
                     <Label htmlFor="studentClass" className="text-sm font-semibold flex items-center justify-between">
@@ -1216,7 +1681,7 @@ const StudentDashboard = () => {
                             <button
                               type="button"
                               onClick={() => setProfileSubjectInterests(prev => prev.filter(s => s !== sub))}
-                              className="hover:text-destructive text-primary/70 transition-colors ml-0.5"
+                              className="hover:text-destructive text-primary/70 transition-colors ml-0.5 cursor-pointer"
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -1242,7 +1707,7 @@ const StudentDashboard = () => {
                                   setProfileSubjectInterests(prev => [...prev, sub]);
                                 }
                               }}
-                              className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                              className={`text-xs px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
                                 isSelected 
                                   ? "bg-primary text-primary-foreground border-primary shadow-sm font-semibold" 
                                   : "bg-background hover:bg-secondary text-muted-foreground border-border/60"
@@ -1304,7 +1769,6 @@ const StudentDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
-
                   <Button type="submit" disabled={isUpdatingProfile} className="w-full sm:w-auto shadow-md rounded-full px-8">
                     {isUpdatingProfile ? "Saving..." : <><Save className="mr-2 h-4 w-4"/> Save Profile & Recommendations</>}
                   </Button>
@@ -1409,6 +1873,29 @@ const StudentDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule Dialog */}
+      <RescheduleDialog
+        isOpen={isRescheduleDialogOpen}
+        onOpenChange={setIsRescheduleDialogOpen}
+        booking={reschedulingBooking}
+        userRole="Student"
+        userTimezone={studentTimezone}
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+        }}
+      />
+
+      {/* Decline Reschedule Dialog */}
+      <DeclineRescheduleDialog
+        isOpen={isDeclineDialogOpen}
+        onOpenChange={setIsDeclineDialogOpen}
+        booking={decliningBooking}
+        userRole="Student"
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+        }}
+      />
     </PageLayout>
   );
 };

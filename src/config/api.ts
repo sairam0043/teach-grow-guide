@@ -2,3 +2,4 @@ const rawUrl = import.meta.env.VITE_API_URL || "https://cuvasol-backend.vercel.a
 const API_URL = rawUrl.replace(/\/$/, "");
 
 export default API_URL;
+

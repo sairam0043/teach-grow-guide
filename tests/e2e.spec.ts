@@ -49,6 +49,9 @@ test.describe("Cuvasol Tutor - Basic E2E Tests", () => {
     await page.locator("button#studentClass").click();
     await page.locator("div[role='option']:has-text('Class 10')").click();
 
+    // Fill interested subject
+    await page.locator("input#interestedSubject").fill("Mathematics, Physics");
+
     await page.locator("input#password").fill("studentpass123");
     await page.locator("input#confirmPassword").fill("studentpass123");
 
@@ -90,7 +93,7 @@ test.describe("Cuvasol Tutor - Basic E2E Tests", () => {
     // Verify time slots render when day is selected
     const startTimeInput = page.locator("input[type='time']").first();
     await expect(startTimeInput).toBeVisible();
-    await expect(startTimeInput).toHaveValue("09:00");
+    await expect(startTimeInput).toHaveValue("05:00");
   });
 
   test("5. Authentication & Login flow test", async ({ page }) => {

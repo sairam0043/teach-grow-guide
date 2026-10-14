@@ -28,6 +28,57 @@ const uploadDoc = multer({
   }
 });
 
+const uploadChat = multer({
+  storage,
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
+  fileFilter: (req, file, cb) => {
+    const ext = file.originalname.toLowerCase().split('.').pop();
+    const blocked = ['exe', 'bat', 'cmd', 'sh', 'vbs', 'msi', 'com', 'scr', 'ps1', 'jar', 'apk'];
+    if (blocked.includes(ext)) {
+      return cb(new Error('Executable and script files are not permitted for security reasons.'));
+    }
+    cb(null, true);
+  }
+});
+
+function getFileTypeFromMimeAndName(mimeType, filename) {
+  if (!mimeType) mimeType = '';
+  if (!filename) filename = '';
+  const lowerName = filename.toLowerCase();
+
+  if (/^image\//i.test(mimeType) || /\.(jpeg|jpg|png|webp|gif|svg|bmp)$/i.test(lowerName)) {
+    return 'image';
+  }
+  if (mimeType === 'application/pdf' || lowerName.endsWith('.pdf')) {
+    return 'pdf';
+  }
+  if (
+    /word|document/i.test(mimeType) ||
+    /\.(doc|docx|odt|rtf|txt)$/i.test(lowerName)
+  ) {
+    return 'doc';
+  }
+  if (
+    /excel|spreadsheet|csv/i.test(mimeType) ||
+    /\.(xls|xlsx|csv|ods)$/i.test(lowerName)
+  ) {
+    return 'spreadsheet';
+  }
+  if (
+    /powerpoint|presentation/i.test(mimeType) ||
+    /\.(ppt|pptx|odp)$/i.test(lowerName)
+  ) {
+    return 'presentation';
+  }
+  if (
+    /zip|rar|tar|gzip|7z/i.test(mimeType) ||
+    /\.(zip|rar|7z|tar|gz)$/i.test(lowerName)
+  ) {
+    return 'archive';
+  }
+  return 'file';
+}
+
 // GET /api/upload/file/:id - serve uploaded files directly from MongoDB
 router.get('/file/:id', async (req, res) => {
   try {
@@ -108,7 +159,6 @@ router.post('/post-images', upload.array('images', 5), async (req, res) => {
   }
 });
 
-
 // POST /api/upload/document - single file for tutor verification credential (PDF or Image)
 router.post('/document', uploadDoc.single('document'), async (req, res) => {
   try {
@@ -137,10 +187,53 @@ router.post('/document', uploadDoc.single('document'), async (req, res) => {
   }
 });
 
+// POST /api/upload/chat-attachment - upload files/images/pdfs for chat messages
+router.post('/chat-attachment', uploadChat.array('files', 5), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files were uploaded.' });
+    }
+
+    const configuredBaseUrl = (process.env.BACKEND_URL || '').trim().replace(/\/$/, '');
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = (forwardedProto || req.protocol || 'http').split(',')[0].trim();
+    const inferredBaseUrl = `${protocol}://${req.get('host')}`;
+    const baseUrl = configuredBaseUrl || inferredBaseUrl;
+
+    const attachments = [];
+    for (const file of req.files) {
+      const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const newUpload = new Upload({
+        filename: `chat-${Date.now()}-${sanitizedName}`,
+        contentType: file.mimetype || 'application/octet-stream',
+        data: file.buffer
+      });
+      const saved = await newUpload.save();
+      const fileType = getFileTypeFromMimeAndName(file.mimetype, file.originalname);
+
+      attachments.push({
+        url: `${baseUrl}/api/upload/file/${saved._id}`,
+        fileId: saved._id,
+        filename: file.originalname,
+        fileType,
+        mimeType: file.mimetype || 'application/octet-stream',
+        size: file.size
+      });
+    }
+
+    res.json({ attachments });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to upload chat attachments', error: error.message });
+  }
+});
+
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'File size too large. Photo limit is 5MB, Resume/CV limit is 10MB.' });
+      return res.status(400).json({ message: 'File size too large. Maximum file limit is 15MB.' });
+    }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({ message: 'Maximum 5 files can be uploaded at a time.' });
     }
   }
   if (err.message) {

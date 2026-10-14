@@ -8,12 +8,19 @@ const bookingSchema = new mongoose.Schema({
   studentId: { type: String, required: true },
   studentName: { type: String, required: true },
   subject: { type: String, required: true },
+  topicToLearn: { type: String, trim: true, default: '' },
   status: { type: String, enum: ['pending', 'pending_payment', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'], default: 'confirmed' },
   planType: { type: String },
   amountPaid: { type: Number },
+  originalAmount: { type: Number },
+  walletUsed: { type: Number, default: 0 },
   isRated: { type: Boolean, default: false },
   meetingLink: { type: String },
   cancellationReason: { type: String },
+  cancelledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' },
+  cancelledAt: { type: Date },
+  adminComment: { type: String, default: '' },
+  completedAt: { type: Date },
   groupDetails: {
     isGroup: { type: Boolean, default: false },
     invitedEmails: [{
@@ -37,7 +44,18 @@ const bookingSchema = new mongoose.Schema({
     utcDate: { type: Date },
     meetingLink: { type: String },
     status: { type: String, enum: ['scheduled', 'completed', 'cancelled'], default: 'scheduled' }
-  }]
+  }],
+  rescheduleRequest: {
+    requestedTiming: { type: String },
+    requestedUtcTiming: { type: Date },
+    requestedBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' },
+    reason: { type: String },
+    requestedAt: { type: Date },
+    status: { type: String, enum: ['pending', 'approved', 'declined', ''], default: '' },
+    declinedReason: { type: String }
+  },
+  rescheduledAt: { type: Date },
+  rescheduledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' }
 }, { timestamps: true });
 
 const Booking = mongoose.model('Booking', bookingSchema);

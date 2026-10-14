@@ -114,7 +114,7 @@ const RegisterTutor = () => {
   const [hearAboutUs, setHearAboutUs] = useState("");
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
-    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
+    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '05:00', endTime: '23:00' }] }))
   );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
@@ -900,7 +900,7 @@ const RegisterTutor = () => {
                             className="w-fit text-xs h-7 gap-1"
                             onClick={() => {
                               const newAvail = [...availability];
-                              newAvail[i].slots.push({ startTime: '09:00', endTime: '17:00' });
+                              newAvail[i].slots.push({ startTime: '05:00', endTime: '23:00' });
                               setAvailability(newAvail);
                             }}
                           >

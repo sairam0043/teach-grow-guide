@@ -1,5 +1,6 @@
-import { useEffect, useState, Fragment } from "react";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Download, Mail } from "lucide-react";
+import { useEffect, useState, useRef, Fragment } from "react";
+import { Link } from "react-router-dom";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Phone, Tag, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -18,10 +19,55 @@ import { resolveAssetUrl } from "@/lib/assetUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { format, parse } from "date-fns";
-import { getTimeZoneAbbreviation } from "@/utils/timezone";
+import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
+import { getMeetingHref } from "@/utils/meeting";
+import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
+
+const CLASS_TAUGHT_OPTIONS = [
+  "Class 1 - 5 (Primary)",
+  "Class 6 - 8 (Middle School)",
+  "Class 9 - 10 (High School)",
+  "Class 11 - 12 (Senior Secondary)",
+  "College / University",
+  "Competitive Exams"
+];
+
+const BOARD_TAUGHT_OPTIONS = [
+  "CBSE",
+  "ICSE / ISC",
+  "State Board",
+  "IB (International Baccalaureate)",
+  "IGCSE / Cambridge",
+  "Other"
+];
+
+const ALL_SUBJECTS = [
+  "Mathematics", 
+  "Physics", 
+  "Chemistry", 
+  "Biology", 
+  "Coding / Computer Science", 
+  "English", 
+  "History", 
+  "Geography", 
+  "Economics & Finance", 
+  "Foreign Languages", 
+  "Malayalam",
+  "Music (Vocal/Instruments)", 
+  "Dance", 
+  "Fine Arts & Drawing", 
+  "Chess", 
+  "Yoga & Meditation", 
+  "Public Speaking & Debate", 
+  "Creative Writing", 
+  "Photography & Video", 
+  "Other"
+];
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -42,161 +88,40 @@ const AdminDashboard = () => {
   const [loadingCoursePayments, setLoadingCoursePayments] = useState(false);
   const [selectedTutorForDetail, setSelectedTutorForDetail] = useState<any | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedStudentForDetail, setSelectedStudentForDetail] = useState<any | null>(null);
+  const [isStudentDetailDialogOpen, setIsStudentDetailDialogOpen] = useState(false);
   const [selectedAssessmentPayment, setSelectedAssessmentPayment] = useState<any | null>(null);
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
   const [isSavingScores, setIsSavingScores] = useState(false);
+
+  // Edit Profile States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editPhoto, setEditPhoto] = useState("");
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const directPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editTimezone, setEditTimezone] = useState("Asia/Kolkata");
+  const [editCategory, setEditCategory] = useState("Academic");
+  const [editCity, setEditCity] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editGoogleMapsUrl, setEditGoogleMapsUrl] = useState("");
+  const [editMode, setEditMode] = useState("Online");
+  const [editQualification, setEditQualification] = useState("");
+  const [editExperience, setEditExperience] = useState<number | string>(0);
+  const [editBio, setEditBio] = useState("");
+  const [editSubjectRates, setEditSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
+  const [editClassesTaught, setEditClassesTaught] = useState<string[]>([]);
+  const [editBoardsTaught, setEditBoardsTaught] = useState<string[]>([]);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Rejection Dialog States
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectTutorId, setRejectTutorId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [isRejecting, setIsRejecting] = useState(false);
-  const downloadTutorsCSV = () => {
-    if (!approvedTutors || approvedTutors.length === 0) {
-      alert("No tutors available to download.");
-      return;
-    }
-
-    const headers = [
-      "Name",
-      "Email",
-      "Phone",
-      "Category",
-      "City",
-      "Pincode",
-      "Referral Source",
-      "Subjects",
-      "Boards",
-      "Classes",
-      "Status",
-      "Verified",
-      "Featured",
-      "Resume/CV",
-      "Joined Date",
-    ];
-
-    const escapeCSV = (value: any) => {
-      if (value === null || value === undefined) {
-        return "";
-      }
-
-      const text = Array.isArray(value)
-        ? value.join(", ")
-        : String(value);
-
-      return `"${text.replace(/"/g, '""')}"`;
-    };
-
-    const rows = approvedTutors.map((tutor) => [
-      tutor.name,
-      tutor.email,
-      tutor.phone,
-      tutor.category,
-      tutor.city,
-      tutor.pincode,
-      tutor.hearAboutUs,
-      tutor.subjects,
-      tutor.boardsTaught,
-      tutor.classesTaught,
-      "Active",
-      tutor.isVerified ? "Yes" : "No",
-      tutor.featured ? "Yes" : "No",
-      tutor.verificationDocument
-        ? resolveAssetUrl(tutor.verificationDocument)
-        : "",
-      tutor.createdAt
-        ? new Date(tutor.createdAt).toLocaleDateString()
-        : "",
-    ]);
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-      ...rows.map((row) => row.map(escapeCSV).join(",")),
-    ].join("\r\n");
-
-    const blob = new Blob(
-      ["\ufeff" + csvContent],
-      { type: "text/csv;charset=utf-8;" }
-    );
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `approved-tutors-${new Date()
-      .toISOString()
-      .split("T")[0]}.csv`;
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    URL.revokeObjectURL(url);
-  };
-
-
-  const downloadStudentsCSV = () => {
-    if (!students || students.length === 0) {
-      alert("No students available to download.");
-      return;
-    }
-
-    const headers = [
-      "Student ID",
-      "Full Name",
-      "Email",
-      "Contact",
-      "Class / Grade",
-      "Joined Date",
-    ];
-
-    const escapeCSV = (value: any) => {
-      if (value === null || value === undefined) {
-        return "";
-      }
-
-      const text = String(value);
-
-      return `"${text.replace(/"/g, '""')}"`;
-    };
-
-    const rows = students.map((student) => [
-      student._id || student.id,
-      student.full_name,
-      student.email,
-      student.phone,
-      student.student_class || student.studentClass,
-      student.createdAt
-        ? new Date(student.createdAt).toLocaleDateString()
-        : "",
-    ]);
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-      ...rows.map((row) => row.map(escapeCSV).join(",")),
-    ].join("\r\n");
-
-    const blob = new Blob(
-      ["\ufeff" + csvContent],
-      { type: "text/csv;charset=utf-8;" }
-    );
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `registered-students-${new Date()
-      .toISOString()
-      .split("T")[0]}.csv`;
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    URL.revokeObjectURL(url);
-  };
-
 
   // New States for Admin booking details and support messages
   const [activeTab, setActiveTab] = useState(() => {
@@ -217,12 +142,172 @@ const AdminDashboard = () => {
     return undefined;
   });
 
+  const [activeChatUser, setActiveChatUser] = useState<any | null>(() => {
+    const saved = sessionStorage.getItem("active_chat_user");
+    if (saved) {
+      try {
+        sessionStorage.removeItem("active_chat_user");
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<any | null>(null);
   const [isBookingDetailDialogOpen, setIsBookingDetailDialogOpen] = useState(false);
   const [verificationDemoTiming, setVerificationDemoTiming] = useState("");
   const [isBookingDemo, setIsBookingDemo] = useState(false);
+  const [reschedulingBooking, setReschedulingBooking] = useState<any | null>(null);
+  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
+  const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
+  const [bookingToComplete, setBookingToComplete] = useState<{
+    id: string;
+    tutorName: string;
+    timing?: string;
+    subject?: string;
+    existingComment?: string;
+  } | null>(null);
+  const [adminCompletionComment, setAdminCompletionComment] = useState("");
+  const [isCompletingBooking, setIsCompletingBooking] = useState(false);
+
+  // Referrals Leaderboard State
+  const [referralsLeaderboard, setReferralsLeaderboard] = useState<any[]>([]);
+  const [referralsStats, setReferralsStats] = useState<any>(null);
+  const [loadingReferrals, setLoadingReferrals] = useState(false);
+  const [referralSearch, setReferralSearch] = useState("");
+  const [referralRoleFilter, setReferralRoleFilter] = useState<"all" | "tutor" | "student">("all");
+  const [referralSortBy, setReferralSortBy] = useState<"successful" | "invited" | "earnings">("successful");
+  const [referralOnlyActive, setReferralOnlyActive] = useState(false);
+  const [selectedReferrerForDetail, setSelectedReferrerForDetail] = useState<any | null>(null);
+  const [isReferrerDetailDialogOpen, setIsReferrerDetailDialogOpen] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const fetchReferralsLeaderboard = async () => {
+    try {
+      setLoadingReferrals(true);
+      const res = await axios.get(`${API_URL}/dashboard/admin/referrals-leaderboard`);
+      setReferralsLeaderboard(res.data.leaderboard || []);
+      setReferralsStats(res.data.stats || null);
+    } catch (err) {
+      console.error("Failed to load referrals leaderboard:", err);
+    } finally {
+      setLoadingReferrals(false);
+    }
+  };
+
+  const handleCopyReferralCode = (code: string) => {
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    toast.success(`Referral code "${code}" copied!`);
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
+  const filteredAndSortedReferrals = referralsLeaderboard
+    .filter((r) => {
+      if (referralRoleFilter !== "all" && r.role !== referralRoleFilter) {
+        return false;
+      }
+      if (referralOnlyActive && (r.invitedCount || 0) === 0) {
+        return false;
+      }
+      if (referralSearch.trim() !== "") {
+        const query = referralSearch.toLowerCase().trim();
+        const matchesName = (r.name || "").toLowerCase().includes(query);
+        const matchesEmail = (r.email || "").toLowerCase().includes(query);
+        const matchesPhone = (r.phone || "").toLowerCase().includes(query);
+        const matchesCode = (r.referralCode || "").toLowerCase().includes(query);
+        const matchesCity = (r.city || "").toLowerCase().includes(query);
+        return matchesName || matchesEmail || matchesPhone || matchesCode || matchesCity;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (referralSortBy === "successful") {
+        if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+        if (b.invitedCount !== a.invitedCount) return b.invitedCount - a.invitedCount;
+        return (b.totalEarnings || 0) - (a.totalEarnings || 0);
+      } else if (referralSortBy === "invited") {
+        if (b.invitedCount !== a.invitedCount) return b.invitedCount - a.invitedCount;
+        if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+        return (b.totalEarnings || 0) - (a.totalEarnings || 0);
+      } else if (referralSortBy === "earnings") {
+        if ((b.totalEarnings || 0) !== (a.totalEarnings || 0)) return (b.totalEarnings || 0) - (a.totalEarnings || 0);
+        if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+        return b.invitedCount - a.invitedCount;
+      }
+      return 0;
+    });
+
+  const handleDownloadReferralsCSV = () => {
+    if (filteredAndSortedReferrals.length === 0) {
+      toast.error("No referral leaderboard data available to export");
+      return;
+    }
+
+    const headers = [
+      "Rank",
+      "Name",
+      "Role",
+      "Email",
+      "Phone",
+      "Referral Code",
+      "Total Invites (Sign-ups)",
+      "Successful Referrals (Completed Regular Class)",
+      "Conversion Rate (%)",
+      "Total Rewards Earned (INR)"
+    ];
+
+    const rows = filteredAndSortedReferrals.map((r, index) => {
+      const rank = index + 1;
+      const name = `"${(r.name || "").replace(/"/g, '""')}"`;
+      const role = r.role ? r.role.toUpperCase() : "STUDENT";
+      const email = `"${(r.email || "").replace(/"/g, '""')}"`;
+      const phone = `"\t${(r.phone || "").replace(/"/g, '""')}"`;
+      const code = `"${(r.referralCode || "").replace(/"/g, '""')}"`;
+      const invited = r.invitedCount ?? 0;
+      const completed = r.completedCount ?? 0;
+      const conversion = `${r.conversionRate ?? 0}%`;
+      const earnings = r.totalEarnings ?? 0;
+
+      return [rank, name, role, email, phone, code, invited, completed, conversion, earnings].join(",");
+    });
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `referrals_leaderboard_${referralRoleFilter}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Referrals leaderboard exported successfully!");
+  };
+
+  const handleSendReferralEmails = async () => {
+    if (!window.confirm("Send Referral Program introduction emails to ALL registered tutors?")) {
+      return;
+    }
+
+    try {
+      setIsSendingReferralEmails(true);
+      toast.loading("Sending referral program emails to all tutors...");
+      const res = await axios.post(`${API_URL}/dashboard/admin/send-referral-emails`, {});
+      toast.dismiss();
+      toast.success(`Referral email process completed! Sent: ${res.data.successCount}, Failed: ${res.data.failCount}`);
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.response?.data?.error || "Failed to send referral emails");
+    } finally {
+      setIsSendingReferralEmails(false);
+    }
+  };
 
   const handleSendProfileEmails = async () => {
     if (!window.confirm("Send Board, Class & Profile completion reminder emails to all members with incomplete profiles?")) {
@@ -242,9 +327,237 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDownloadTutorsCSV = () => {
+    if (tutors.length === 0) {
+      toast.error("No tutor data available to download");
+      return;
+    }
+
+    const headers = ["Name", "Phone Number", "Referral Code"];
+    const rows = tutors.map(t => {
+      const name = t.name || t.userId?.full_name || "";
+      const phone = t.phone || t.userId?.phone || "";
+      const code = t.referralCode || "";
+
+      const escapedName = `"${name.replace(/"/g, '""')}"`;
+      const escapedPhone = `"\t${phone.replace(/"/g, '""')}"`;
+      const escapedCode = `"${code.replace(/"/g, '""')}"`;
+
+      return [escapedName, escapedPhone, escapedCode].join(",");
+    });
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `tutors_referral_codes_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Tutors CSV downloaded successfully!");
+  };
+
+  const handleViewStudentDetail = (student: any) => {
+    setSelectedStudentForDetail(student);
+    setIsStudentDetailDialogOpen(true);
+  };
+
   const handleViewTutorDetail = (tutor: any) => {
     setSelectedTutorForDetail(tutor);
+    setIsEditingProfile(false);
+    setEditPhoto(tutor.photo || tutor.avatar || tutor.userId?.avatar || "");
+    setEditName(tutor.name || "");
+    setEditPhone(tutor.phone || "");
+    setEditTimezone(tutor.timezone || "Asia/Kolkata");
+    setEditCategory(tutor.category || "Academic");
+    setEditCity(tutor.city || "");
+    setEditAddress(tutor.address || "");
+    setEditGoogleMapsUrl(tutor.googleMapsUrl || "");
+    setEditMode(tutor.mode || "Online");
+    setEditQualification(tutor.qualification || "");
+    setEditExperience(tutor.experience ?? 0);
+    setEditBio(tutor.bio || "");
+    
+    const legacyRates = tutor.subjectRates && tutor.subjectRates.length > 0
+      ? tutor.subjectRates
+      : (tutor.subjects || []).map((sub: string) => ({ subject: sub, rate: tutor.hourlyRate || 300 }));
+    setEditSubjectRates(legacyRates);
+    
+    setEditClassesTaught(tutor.classesTaught || []);
+    setEditBoardsTaught(tutor.boardsTaught || []);
+    
     setIsDetailDialogOpen(true);
+  };
+
+  const handleUploadTutorPhoto = async (e: React.ChangeEvent<HTMLInputElement>, isDirectSave: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Photo file size must be less than 5MB");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("photo", file);
+
+    try {
+      setIsUploadingPhoto(true);
+      toast.loading("Uploading tutor profile picture...");
+      const uploadRes = await axios.post(`${API_URL}/upload/photo`, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      toast.dismiss();
+      const newPhotoUrl = uploadRes.data.url;
+      setEditPhoto(newPhotoUrl);
+
+      if (isDirectSave && selectedTutorForDetail) {
+        // Immediately save to backend when changed from view mode
+        await axios.put(`${API_URL}/tutors/${selectedTutorForDetail.id}/profile`, {
+          photo: newPhotoUrl
+        });
+        const userId = selectedTutorForDetail.userId?._id || selectedTutorForDetail.userId;
+        if (userId) {
+          await axios.put(`${API_URL}/auth/profile/${userId}`, {
+            avatar: newPhotoUrl,
+            photo: newPhotoUrl
+          });
+        }
+
+        setTutors(prev => prev.map(t => t.id === selectedTutorForDetail.id ? { 
+          ...t, 
+          photo: newPhotoUrl, 
+          avatar: newPhotoUrl,
+          userId: t.userId ? (typeof t.userId === 'object' ? { ...t.userId, avatar: newPhotoUrl } : t.userId) : t.userId
+        } : t));
+        setSelectedTutorForDetail(prev => prev ? { 
+          ...prev, 
+          photo: newPhotoUrl, 
+          avatar: newPhotoUrl,
+          userId: prev.userId ? (typeof prev.userId === 'object' ? { ...prev.userId, avatar: newPhotoUrl } : prev.userId) : prev.userId
+        } : null);
+        toast.success("Tutor profile picture updated successfully!");
+      } else {
+        toast.success("Profile photo uploaded! Click 'Save Changes' to apply.");
+      }
+    } catch (err: any) {
+      toast.dismiss();
+      console.error("Photo upload failed:", err);
+      toast.error(err.response?.data?.message || "Failed to upload profile picture");
+    } finally {
+      setIsUploadingPhoto(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleMessageTutor = (tutor: any) => {
+    if (!tutor) return;
+    const tutorUserId = tutor?.userId?._id 
+      ? tutor.userId._id.toString() 
+      : (typeof tutor?.userId === "string" 
+          ? tutor.userId 
+          : (tutor?.userId?.id || (tutor?.userId ? tutor.userId.toString() : null)));
+
+    if (!tutorUserId) {
+      toast.error(`User account not found for tutor ${tutor.name || ""}.`);
+      return;
+    }
+
+    const chatUserData = {
+      id: tutorUserId,
+      full_name: tutor.name || tutor.userId?.full_name || "Tutor",
+      email: tutor.email || tutor.userId?.email || "",
+      role: "tutor",
+      avatar: tutor.photo || tutor.avatar || tutor.userId?.avatar || "",
+      tutorProfileId: tutor.id || tutor._id?.toString() || null
+    };
+
+    sessionStorage.setItem("active_chat_user_id", tutorUserId);
+    sessionStorage.setItem("active_chat_user", JSON.stringify(chatUserData));
+    setActiveChatUserId(tutorUserId);
+    setActiveChatUser(chatUserData);
+    setActiveTab("messages");
+    setIsDetailDialogOpen(false);
+    toast.success(`Opening conversation with tutor ${tutor.name || "Tutor"}`);
+  };
+
+  const handleSaveTutorProfile = async () => {
+    if (!selectedTutorForDetail) return;
+    
+    if (!editName.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+    
+    try {
+      setIsSavingProfile(true);
+      
+      const userId = selectedTutorForDetail.userId?._id || selectedTutorForDetail.userId;
+      if (!userId) {
+        toast.error("User ID associated with tutor not found.");
+        setIsSavingProfile(false);
+        return;
+      }
+      
+      // Update User collection
+      await axios.put(`${API_URL}/auth/profile/${userId}`, {
+        full_name: editName.trim(),
+        phone: editPhone.trim(),
+        timezone: editTimezone,
+        avatar: editPhoto
+      });
+      
+      // Update Tutor collection
+      const payload = {
+        photo: editPhoto,
+        bio: editBio,
+        qualification: editQualification,
+        experience: Number(editExperience),
+        address: editAddress,
+        googleMapsUrl: editGoogleMapsUrl,
+        mode: editMode,
+        category: editCategory,
+        subjectRates: editSubjectRates,
+        classesTaught: editClassesTaught,
+        boardsTaught: editBoardsTaught,
+        timezone: editTimezone,
+        city: editCity
+      };
+      
+      const res = await axios.put(`${API_URL}/tutors/${selectedTutorForDetail.id}/profile`, payload);
+      
+      toast.success("Tutor profile updated successfully!");
+      
+      // Update local state in the list
+      setTutors(prev => prev.map(t => t.id === selectedTutorForDetail.id ? { 
+        ...t, 
+        ...res.data, 
+        name: editName.trim(), 
+        phone: editPhone.trim(), 
+        photo: editPhoto,
+        avatar: editPhoto,
+        email: selectedTutorForDetail.email 
+      } : t));
+      
+      // Update selected tutor detail in modal
+      setSelectedTutorForDetail({ 
+        ...selectedTutorForDetail, 
+        ...res.data, 
+        name: editName.trim(), 
+        phone: editPhone.trim(),
+        photo: editPhoto,
+        avatar: editPhoto
+      });
+      
+      setIsEditingProfile(false);
+    } catch (error: any) {
+      console.error("Error saving tutor profile:", error);
+      toast.error(error.response?.data?.message || "Failed to update tutor profile");
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handleViewBookingDetail = (booking: any) => {
@@ -266,7 +579,7 @@ const AdminDashboard = () => {
       toast.error("Please select a date and time for the demo class.");
       return;
     }
-
+    
     const d = new Date(verificationDemoTiming);
     if (d < new Date()) {
       toast.error("You cannot book a demo class in the past.");
@@ -347,10 +660,11 @@ const AdminDashboard = () => {
       const bookingsRes = await axios.get(`${API_URL}/dashboard/admin/bookings`);
       setBookings(bookingsRes.data);
       dispatch(fetchAdminStats());
-
-      // Fetch payouts and course payments in the background
+      
+      // Fetch payouts, course payments, and referrals leaderboard in the background
       fetchPayouts();
       fetchCoursePayments();
+      fetchReferralsLeaderboard();
     } catch (err) {
       toast.error("Failed to load dashboard data");
     } finally {
@@ -361,16 +675,19 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchTutors();
     dispatch(fetchAdminStats());
+    fetchReferralsLeaderboard();
   }, [dispatch]);
 
   // Poll for unread support messages
   useEffect(() => {
     if (!user?.id) return;
-
+    
     const fetchUnreadCount = async () => {
       if (document.hidden) return;
       try {
-        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`);
+        const res = await axios.get(`${API_URL}/messages/inbox/${user.id}`, {
+          headers: { 'x-skip-network-alert': 'true' }
+        });
         const total = res.data.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
         setUnreadMessagesCount(total);
       } catch (err) {
@@ -379,7 +696,7 @@ const AdminDashboard = () => {
     };
 
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 12000);
+    const interval = setInterval(fetchUnreadCount, 25000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -442,6 +759,120 @@ const AdminDashboard = () => {
   const verificationDemos = bookings.filter((b) => b.subject === "Verification Demo Class");
 
   const totalPlatformRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
+
+  const downloadTutorsCSV = () => {
+    if (!approvedTutors || approvedTutors.length === 0) {
+      toast.error("No tutors available to download.");
+      return;
+    }
+
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Category",
+      "City",
+      "Pincode",
+      "Referral Source",
+      "Subjects",
+      "Boards",
+      "Classes",
+      "Status",
+      "Verified",
+      "Featured",
+      "Joined Date",
+    ];
+
+    const escapeCSV = (value: any) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      const text = Array.isArray(value) ? value.join(", ") : String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const rows = approvedTutors.map((tutor) => [
+      tutor.name,
+      tutor.email,
+      tutor.phone,
+      tutor.category,
+      tutor.city,
+      tutor.pincode,
+      tutor.hearAboutUs,
+      tutor.subjects,
+      tutor.boardsTaught,
+      tutor.classesTaught,
+      tutor.status,
+      tutor.isVerified ? "Yes" : "No",
+      tutor.isFeatured ? "Yes" : "No",
+      tutor.createdAt ? new Date(tutor.createdAt).toLocaleDateString() : "",
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) => row.map(escapeCSV).join(",")),
+    ].join("\r\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `approved_tutors_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Tutors CSV downloaded successfully!");
+  };
+
+  const downloadStudentsCSV = () => {
+    if (!students || students.length === 0) {
+      toast.error("No students available to download.");
+      return;
+    }
+
+    const headers = [
+      "Student ID",
+      "Full Name",
+      "Email",
+      "Contact",
+      "Class / Grade",
+      "Joined Date",
+    ];
+
+    const escapeCSV = (value: any) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      const text = String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const rows = students.map((student) => [
+      student._id || student.id,
+      student.full_name,
+      student.email,
+      student.phone,
+      student.student_class || student.studentClass,
+      student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "",
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) => row.map(escapeCSV).join(",")),
+    ].join("\r\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `registered_students_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Students CSV downloaded successfully!");
+  };
 
   const handleApproval = async (tutorId: string, status: "approved" | "rejected") => {
     if (status === "rejected") {
@@ -516,9 +947,27 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleUpdateBookingStatus = async (bookingId: string, status: string) => {
+  const handleDeleteStudent = async (studentId: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete student "${name}" and their associated booking/payment history? This action cannot be undone.`)) {
+      return;
+    }
     try {
-      await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { status });
+      await axios.delete(`${API_URL}/dashboard/admin/students/${studentId}`);
+      toast.success(`Student "${name}" deleted successfully.`);
+      fetchTutors();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete student account");
+    }
+  };
+
+  const handleUpdateBookingStatus = async (bookingId: string, status: string, cancellationReason?: string, adminComment?: string) => {
+    try {
+      await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { 
+        status,
+        cancellationReason: cancellationReason || (status === 'cancelled' ? 'Cancelled by Admin' : undefined),
+        cancelledBy: status === 'cancelled' || status === 'rejected' ? 'Admin' : undefined,
+        adminComment
+      });
       toast.success(`Booking status updated to ${status} successfully.`);
       fetchTutors();
     } catch (err: any) {
@@ -559,19 +1008,51 @@ const AdminDashboard = () => {
             <p className="text-base text-muted-foreground mt-1.5">Manage platform operations, verify tutor credentials, and track ledger analytics.</p>
           </div>
           <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
-            <Button
-              onClick={handleSendProfileEmails}
-              disabled={isSendingProfileEmails}
-              variant="default"
+            <Button 
+              asChild
+              className="h-10 gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+            >
+              <Link to="/dashboard/hr">
+                <Landmark className="h-4 w-4" />
+                HR Payouts Portal
+                <ArrowUpRight className="h-3.5 w-3.5 opacity-80" />
+              </Link>
+            </Button>
+            <Button 
+              onClick={handleSendProfileEmails} 
+              disabled={isSendingProfileEmails} 
+              variant="default" 
               className="h-10 gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
             >
               <Mail className={`h-4 w-4 ${isSendingProfileEmails ? 'animate-bounce' : ''}`} />
               Send Board & Class Reminder Emails
             </Button>
-            <Button
-              onClick={fetchTutors}
-              disabled={loading}
-              variant="outline"
+            <Button 
+              onClick={handleSendReferralEmails} 
+              disabled={isSendingReferralEmails} 
+              variant="default" 
+              className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+            >
+              <Sparkles className={`h-4 w-4 ${isSendingReferralEmails ? 'animate-bounce' : ''}`} />
+              Send Referral Program Emails
+            </Button>
+            <Button 
+              onClick={handleDownloadTutorsCSV} 
+              disabled={loading || tutors.length === 0}
+              variant="outline" 
+              className="h-10 gap-2 border-indigo-200/60 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-900/40 dark:hover:bg-indigo-950/20 transition-all duration-300 rounded-lg shadow-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <Activity className="h-4 w-4 animate-spin text-indigo-500" />
+              ) : (
+                <FileText className="h-4 w-4 text-indigo-500" />
+              )}
+              {loading ? "Loading Tutors..." : "Download Tutors CSV"}
+            </Button>
+            <Button 
+              onClick={fetchTutors} 
+              disabled={loading} 
+              variant="outline" 
               className="h-10 gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-lg shadow-sm"
             >
               <Activity className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -580,23 +1061,28 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5 mb-10">
           {[
-            { icon: Clock, label: "Pending Approvals", value: adminStats?.pendingApprovals || pendingTutors.length, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-900/20" },
-            { icon: Users, label: "Active Tutors", value: adminStats?.activeTutors || approvedTutors.length, color: "text-sky-500", bg: "bg-sky-50 dark:bg-sky-950/20 border border-sky-200/40 dark:border-sky-900/20" },
-            { icon: BookOpen, label: "Total Bookings", value: adminStats?.totalBookings || bookings.length, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/20 border border-violet-200/40 dark:border-violet-900/20" },
-            { icon: DollarSign, label: "Total Revenue", value: `₹${totalPlatformRevenue}`, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/40 dark:border-emerald-900/20" },
+            { icon: Clock, label: "Pending Approvals", value: adminStats?.pendingApprovals || pendingTutors.length, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/40 dark:border-amber-900/20", tab: "approvals" },
+            { icon: Users, label: "Active Tutors", value: adminStats?.activeTutors || approvedTutors.length, color: "text-sky-500", bg: "bg-sky-50 dark:bg-sky-950/20 border border-sky-200/40 dark:border-sky-900/20", tab: "tutors" },
+            { icon: GraduationCap, label: "Total Students", value: adminStats?.totalStudents !== undefined ? adminStats.totalStudents : students.length, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200/40 dark:border-indigo-900/20", tab: "students" },
+            { icon: BookOpen, label: "Total Bookings", value: adminStats?.totalBookings || bookings.length, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/20 border border-violet-200/40 dark:border-violet-900/20", tab: "bookings" },
+            { icon: DollarSign, label: "Total Revenue", value: `₹${totalPlatformRevenue}`, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/40 dark:border-emerald-900/20", tab: "payments" },
           ].map((stat) => (
-            <Card key={stat.label} className="border border-border/50 shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-300 bg-card/60 backdrop-blur-md">
+            <Card
+              key={stat.label}
+              onClick={() => setActiveTab(stat.tab)}
+              className="border border-border/50 shadow-md hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] transition-all duration-300 bg-card/60 backdrop-blur-md cursor-pointer hover:border-primary/40 hover:bg-card/90 group"
+            >
               <CardContent className="flex items-center gap-5 p-6">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg}`}>
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${stat.bg} group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
                   <stat.icon className={`h-7 w-7 ${stat.color}`} />
                 </div>
                 <div>
                   {statsLoading ? (
                     <Skeleton className="h-8 w-16 mb-1" />
                   ) : (
-                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight group-hover:text-primary transition-colors">
                       {String(stat.value)}
                     </p>
                   )}
@@ -610,7 +1096,7 @@ const AdminDashboard = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/40 p-1 rounded-xl shadow-sm border mb-4 h-auto justify-start w-full overflow-x-auto whitespace-nowrap">
             <TabsTrigger value="approvals" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">
-              Tutor Approvals
+              Tutor Approvals 
               {pendingTutors.length > 0 && (
                 <Badge variant="destructive" className="ml-2 rounded-full px-2 py-0.5 text-[10px] bg-rose-500 text-white font-extrabold border-none">
                   {pendingTutors.length}
@@ -631,6 +1117,15 @@ const AdminDashboard = () => {
             <TabsTrigger value="payments" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payments</TabsTrigger>
             <TabsTrigger value="platform-courses" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Platform Courses</TabsTrigger>
             <TabsTrigger value="payouts" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Tutor Payouts</TabsTrigger>
+            <TabsTrigger value="referrals" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              <Trophy className="h-4 w-4 text-amber-500" />
+              Referrals Leaderboard
+              {referralsStats?.totalCompleted > 0 && (
+                <Badge className="ml-1 rounded-full px-2 py-0.5 text-[10px] bg-emerald-500 text-white font-extrabold border-none">
+                  {referralsStats.totalCompleted}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="geo-analytics" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Geo Analytics</TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
               Messages
@@ -720,10 +1215,10 @@ const AdminDashboard = () => {
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-full border border-primary/10 shadow-sm overflow-hidden shrink-0 bg-muted flex items-center justify-center">
                                   {tutor.photo || tutor.avatar ? (
-                                    <img
-                                      src={resolveAssetUrl(tutor.photo || tutor.avatar)}
-                                      alt={tutor.name}
-                                      className="h-full w-full object-cover"
+                                    <img 
+                                      src={resolveAssetUrl(tutor.photo || tutor.avatar)} 
+                                      alt={tutor.name} 
+                                      className="h-full w-full object-cover" 
                                       onError={(e: any) => {
                                         e.target.onerror = null;
                                         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name || "T")}&background=random`;
@@ -764,9 +1259,9 @@ const AdminDashboard = () => {
                             <TableCell className="text-sm font-medium">{tutor.experience} yrs</TableCell>
                             <TableCell>
                               {tutor.verificationDocument ? (
-                                <a
-                                  href={resolveAssetUrl(tutor.verificationDocument)}
-                                  target="_blank"
+                                <a 
+                                  href={resolveAssetUrl(tutor.verificationDocument)} 
+                                  target="_blank" 
                                   rel="noopener noreferrer"
                                   className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:hover:bg-indigo-950/50 py-1.5 px-3 rounded-lg border border-indigo-100 dark:border-indigo-900/20 inline-flex items-center gap-1 transition-all"
                                 >
@@ -781,25 +1276,37 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2.5">
-                                <Button
-                                  size="sm"
-                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow-emerald-500/20 transition-all duration-300 hover:-translate-y-0.5 rounded-lg h-9 px-3"
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg h-9 px-3 transition-all duration-200 font-semibold text-xs gap-1" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMessageTutor(tutor);
+                                  }}
+                                  title={`Send a direct message to ${tutor.name || 'tutor'}`}
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" /> Message
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow-emerald-500/20 transition-all duration-300 hover:-translate-y-0.5 rounded-lg h-9 px-3" 
                                   onClick={() => handleApproval(tutor.id, "approved")}
                                 >
                                   <CheckCircle className="mr-1.5 h-4 w-4" /> Approve
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 rounded-lg h-9 px-3 transition-all duration-200"
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
                                   onClick={() => handleApproval(tutor.id, "rejected")}
                                 >
                                   <XCircle className="mr-1.5 h-4 w-4" /> Reject
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200"
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
                                   onClick={() => handleDeleteTutor(tutor.id, tutor.name)}
                                 >
                                   <Trash2 className="mr-1.5 h-4 w-4" /> Delete
@@ -844,32 +1351,23 @@ const AdminDashboard = () => {
                       </button>
                     )}
                   </div>
-                  {/*<div className="text-xs text-muted-foreground font-medium self-end sm:self-center">
-                    Showing <strong className="text-foreground">{filteredApprovedTutors.length}</strong> of {approvedTutors.length} tutors
-                  </div>
-                </div>*/}
-
                   <div className="flex items-center gap-3 self-end sm:self-center">
-
                     <div className="text-xs text-muted-foreground font-medium">
-                      Showing{" "}
-                      <strong className="text-foreground">
-                        {filteredApprovedTutors.length}
-                      </strong>{" "}
-                      of {approvedTutors.length} tutors
+                      Showing <strong className="text-foreground">{filteredApprovedTutors.length}</strong> of {approvedTutors.length} tutors
                     </div>
-
                     <Button
+                      variant="outline"
+                      size="sm"
                       onClick={downloadTutorsCSV}
                       disabled={approvedTutors.length === 0}
-                      className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="rounded-xl text-xs font-semibold border-border hover:bg-secondary flex items-center gap-1.5"
                     >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download Tutors
+                      <Download className="h-3.5 w-3.5 text-blue-600" />
+                      Export CSV
                     </Button>
-
                   </div>
                 </div>
+
                 {loading ? (
                   <div className="space-y-4 py-4">
                     <Skeleton className="h-12 w-full rounded-lg" />
@@ -900,6 +1398,7 @@ const AdminDashboard = () => {
                           <TableHead className="font-bold h-12">Category</TableHead>
                           <TableHead className="font-bold h-12">City</TableHead>
                           <TableHead className="font-bold h-12">Referral Source</TableHead>
+                          <TableHead className="font-bold h-12">Referrals (Completed/Invited)</TableHead>
                           <TableHead className="font-bold h-12">Subjects/Boards/Classes</TableHead>
                           <TableHead className="font-bold h-12">Status</TableHead>
                           <TableHead className="font-bold h-12">Resume / CV</TableHead>
@@ -916,10 +1415,10 @@ const AdminDashboard = () => {
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-full border border-primary/10 shadow-sm overflow-hidden shrink-0 bg-muted flex items-center justify-center">
                                   {tutor.photo || tutor.avatar ? (
-                                    <img
-                                      src={resolveAssetUrl(tutor.photo || tutor.avatar)}
-                                      alt={tutor.name}
-                                      className="h-full w-full object-cover"
+                                    <img 
+                                      src={resolveAssetUrl(tutor.photo || tutor.avatar)} 
+                                      alt={tutor.name} 
+                                      className="h-full w-full object-cover" 
                                       onError={(e: any) => {
                                         e.target.onerror = null;
                                         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name || "T")}&background=random`;
@@ -943,27 +1442,39 @@ const AdminDashboard = () => {
                               {tutor.pincode && <span className="text-xs text-muted-foreground block font-normal">{tutor.pincode}</span>}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={tutor.hearAboutUs || "–"}>{tutor.hearAboutUs || "–"}</TableCell>
-                            <TableCell className="max-w-[180px] text-sm">
-                              <div className="font-semibold text-foreground truncate" title={tutor.subjects?.join(", ")}>{tutor.subjects?.join(", ") || "–"}</div>
-                              {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
-                                <div className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium truncate mt-0.5" title={`Boards: ${tutor.boardsTaught.join(", ")}`}>
-                                  📋 {tutor.boardsTaught.join(", ")}
-                                </div>
-                              )}
-                              {tutor.classesTaught && tutor.classesTaught.length > 0 && (
-                                <div className="text-[11px] text-primary font-medium truncate mt-0.5" title={`Classes: ${tutor.classesTaught.join(", ")}`}>
-                                  🎓 {tutor.classesTaught.join(", ")}
-                                </div>
-                              )}
+                            <TableCell className="text-sm text-foreground">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                  {tutor.referralsCompleted ?? 0} <span className="text-[10px] text-muted-foreground font-normal">/ {tutor.referralsInvited ?? 0}</span>
+                                </span>
+                                {(tutor.referralsEarnings ?? 0) > 0 && (
+                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-500 font-semibold">
+                                    ₹{tutor.referralsEarnings} earned
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
+                             <TableCell className="max-w-[180px] text-sm">
+                               <div className="font-semibold text-foreground truncate" title={tutor.subjects?.join(", ")}>{tutor.subjects?.join(", ") || "–"}</div>
+                               {tutor.boardsTaught && tutor.boardsTaught.length > 0 && (
+                                 <div className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium truncate mt-0.5" title={`Boards: ${tutor.boardsTaught.join(", ")}`}>
+                                   📋 {tutor.boardsTaught.join(", ")}
+                                 </div>
+                               )}
+                               {tutor.classesTaught && tutor.classesTaught.length > 0 && (
+                                 <div className="text-[11px] text-primary font-medium truncate mt-0.5" title={`Classes: ${tutor.classesTaught.join(", ")}`}>
+                                   🎓 {tutor.classesTaught.join(", ")}
+                                 </div>
+                               )}
+                             </TableCell>
                             <TableCell>
                               <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/30 text-xs font-semibold">Active</Badge>
                             </TableCell>
                             <TableCell>
                               {tutor.verificationDocument ? (
-                                <a
-                                  href={resolveAssetUrl(tutor.verificationDocument)}
-                                  target="_blank"
+                                <a 
+                                  href={resolveAssetUrl(tutor.verificationDocument)} 
+                                  target="_blank" 
                                   rel="noopener noreferrer"
                                   className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:hover:bg-indigo-950/50 py-1.5 px-3 rounded-lg border border-indigo-100 dark:border-indigo-900/20 inline-flex items-center gap-1 transition-all"
                                 >
@@ -994,40 +1505,54 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2.5">
-                                <Button
-                                  size="sm"
-                                  variant={tutor.isVerified ? "outline" : "default"}
-                                  className={`rounded-lg h-9 px-3 transition-all duration-300 hover:-translate-y-0.5 ${tutor.isVerified
-                                    ? "border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20"
-                                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-blue-500/20"
-                                    }`}
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg h-9 px-3 transition-all duration-200 font-semibold text-xs gap-1" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMessageTutor(tutor);
+                                  }}
+                                  title={`Send a direct message to ${tutor.name || 'tutor'}`}
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" /> Message
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant={tutor.isVerified ? "outline" : "default"} 
+                                  className={`rounded-lg h-9 px-3 transition-all duration-300 hover:-translate-y-0.5 ${
+                                    tutor.isVerified 
+                                      ? "border-blue-500/50 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20" 
+                                      : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-blue-500/20"
+                                  }`} 
                                   onClick={() => toggleVerified(tutor)}
                                 >
                                   {tutor.isVerified ? "Remove Badge" : "Give Verified"}
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant={tutor.featured ? "outline" : "default"}
-                                  className={`rounded-lg h-9 px-3 transition-all duration-300 hover:-translate-y-0.5 ${tutor.featured
-                                    ? "border-amber-500/50 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-                                    : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-indigo-500/20"
-                                    }`}
+                                <Button 
+                                  size="sm" 
+                                  variant={tutor.featured ? "outline" : "default"} 
+                                  className={`rounded-lg h-9 px-3 transition-all duration-300 hover:-translate-y-0.5 ${
+                                    tutor.featured 
+                                      ? "border-amber-500/50 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20" 
+                                      : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-indigo-500/20"
+                                  }`} 
                                   onClick={() => toggleFeatured(tutor)}
                                 >
                                   {tutor.featured ? "Remove Featured" : "Make Featured"}
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 rounded-lg h-9 px-3 transition-all duration-200"
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
                                   onClick={() => handleApproval(tutor.id, "rejected")}
                                 >
                                   <XCircle className="mr-1.5 h-4 w-4" /> Disapprove
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200"
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
                                   onClick={() => handleDeleteTutor(tutor.id, tutor.name)}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -1047,45 +1572,50 @@ const AdminDashboard = () => {
           <TabsContent value="students">
             <Card className="shadow-md border-border/50">
               <CardHeader className="bg-secondary/20 border-b pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-
-                  <div>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                      <Users className="h-5 w-5 text-indigo-500" />
-                      Registered Students
-                    </CardTitle>
-
-                    <CardDescription>
-                      View all students on the platform.
-                    </CardDescription>
-                  </div>
-
-                  <Button
-                    onClick={downloadStudentsCSV}
-                    disabled={students.length === 0}
-                    className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Students
-                  </Button>
-
-                </div>
+                <CardTitle className="text-xl flex items-center gap-2"><Users className="h-5 w-5 text-indigo-500" /> Registered Students</CardTitle>
+                <CardDescription>View all students on the platform.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="mb-4 relative max-w-sm">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search students by name..."
-                    value={studentSearch}
-                    onChange={(e) => setStudentSearch(e.target.value)}
-                    className="pl-9 rounded-lg"
-                    disabled={loading}
-                  />
+                <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                  <div className="relative max-w-sm flex-1">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search students by name..."
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      className="pl-9 rounded-lg"
+                      disabled={loading}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadStudentsCSV}
+                    disabled={students.length === 0}
+                    className="rounded-xl text-xs font-semibold border-border hover:bg-secondary flex items-center gap-1.5 self-end sm:self-center"
+                  >
+                    <Download className="h-3.5 w-3.5 text-indigo-600" />
+                    Export CSV
+                  </Button>
                 </div>
                 {(() => {
-                  const filteredStudents = students.filter(student =>
-                    (student.full_name || "").toLowerCase().includes(studentSearch.toLowerCase())
-                  );
+                  const filteredStudents = [...students]
+                    .sort((a, b) => {
+                      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                      return timeB - timeA;
+                    })
+                    .filter(student => {
+                      const query = studentSearch.toLowerCase().trim();
+                      if (!query) return true;
+                      const name = (student.full_name || "").toLowerCase();
+                      const email = (student.email || "").toLowerCase();
+                      const phone = (student.phone || "").toLowerCase();
+                      const refCode = (student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode || "").toLowerCase();
+                      const referrerName = (student.referrerName || student.referralInfo?.referrer?.name || "").toLowerCase();
+                      const referrerCode = (student.referrerCode || student.referralInfo?.referrer?.referralCode || "").toLowerCase();
+                      return name.includes(query) || email.includes(query) || phone.includes(query) || refCode.includes(query) || referrerName.includes(query) || referrerCode.includes(query);
+                    });
 
                   if (loading) {
                     return (
@@ -1112,7 +1642,7 @@ const AdminDashboard = () => {
                       <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed mt-4">
                         <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
                         <h3 className="text-lg font-semibold text-foreground mb-2">No Match Found</h3>
-                        <p>No students match the name "{studentSearch}".</p>
+                        <p>No students match the search "{studentSearch}".</p>
                       </div>
                     );
                   }
@@ -1127,18 +1657,73 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Email</TableHead>
                             <TableHead className="font-medium h-12">Contact</TableHead>
                             <TableHead className="font-medium h-12">Class / Grade</TableHead>
+                            <TableHead className="font-medium h-12">Source</TableHead>
+                            <TableHead className="font-medium h-12">Referral Code & Referrer</TableHead>
                             <TableHead className="font-medium h-12 text-right">Joined</TableHead>
+                            <TableHead className="font-medium h-12 text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {filteredStudents.map((student) => (
                             <TableRow key={student._id || student.id} className="hover:bg-secondary/10 transition-colors">
                               <TableCell className="font-mono text-xs text-muted-foreground">{String(student._id || student.id).slice(-8)}</TableCell>
-                              <TableCell className="font-semibold text-foreground">{student.full_name || "–"}</TableCell>
+                              <TableCell 
+                                className="font-semibold text-foreground cursor-pointer hover:underline hover:text-primary transition-all" 
+                                onClick={() => handleViewStudentDetail(student)} 
+                                title="Click to view student details"
+                              >
+                                {student.full_name || "–"}
+                              </TableCell>
                               <TableCell>{student.email || "–"}</TableCell>
                               <TableCell>{student.phone || "–"}</TableCell>
-                              <TableCell><Badge variant="outline" className="font-normal bg-secondary/20">{student.student_class || student.studentClass || "–"}</Badge></TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <Badge variant="outline" className="font-normal bg-secondary/20 block w-fit">{student.student_class || student.studentClass || "–"}</Badge>
+                                  {(student.interested_subject || student.interestedSubject || student.subject) && (
+                                    <span className="text-[11px] text-muted-foreground block truncate max-w-[140px]" title={student.interested_subject || student.interestedSubject || student.subject}>
+                                      📚 {student.interested_subject || student.interestedSubject || student.subject}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
+                              <TableCell>
+                                {(() => {
+                                  const usedCode = student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode;
+                                  const referrer = student.referralInfo?.referrer;
+                                  const referrerName = student.referrerName || referrer?.name;
+                                  const referrerRole = student.referrerRole || referrer?.role;
+                                  
+                                  if (usedCode || referrerName) {
+                                    return (
+                                      <div className="space-y-1">
+                                        <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 text-[11px] font-mono font-bold flex items-center gap-1 w-fit">
+                                          <Gift className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                                          {usedCode || referrer?.referralCode || "Referred"}
+                                        </Badge>
+                                        {referrerName && (
+                                          <span className="text-[11px] text-muted-foreground block truncate max-w-[150px]" title={`Referred by ${referrerName}${referrerRole ? ` (${referrerRole})` : ''}`}>
+                                            by <strong className="text-foreground/90 font-medium">{referrerName}</strong> {referrerRole && <span className="text-[10px] text-muted-foreground capitalize">({referrerRole})</span>}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return <span className="text-muted-foreground text-xs">Direct</span>;
+                                })()}
+                              </TableCell>
                               <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-right">
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 rounded-lg h-9 px-3 transition-all duration-200" 
+                                  onClick={() => handleDeleteStudent(student._id || student.id, student.full_name || "Student")}
+                                  title="Delete student account"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1197,13 +1782,30 @@ const AdminDashboard = () => {
                               {demo.timing}
                             </TableCell>
                             <TableCell className="text-center">
-                              <Badge variant="outline" className={`px-2.5 py-1 border-none font-bold text-xs ${demo.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                demo.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                  demo.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-red-100 text-red-700'
+                              <div>
+                                <Badge variant="outline" className={`px-2.5 py-1 border-none font-bold text-xs ${
+                                  demo.status === 'confirmed' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' :
+                                  demo.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' :
+                                  demo.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                                  demo.status === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' :
+                                  'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
                                 }`}>
-                                {demo.status.toUpperCase()}
-                              </Badge>
+                                  {demo.status === 'cancelled' ? `CANCELLED${demo.cancelledBy ? ` (${demo.cancelledBy.toUpperCase()})` : ''}` :
+                                   demo.status === 'rejected' ? `DECLINED (TUTOR)` :
+                                   demo.status.toUpperCase()}
+                                </Badge>
+                                {demo.cancellationReason && (
+                                  <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px] truncate mx-auto italic" title={`Reason: ${demo.cancellationReason}`}>
+                                    "{demo.cancellationReason}"
+                                  </p>
+                                )}
+                                {demo.status === 'completed' && demo.adminComment && (
+                                  <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1 max-w-[220px] truncate mx-auto italic flex items-center justify-center gap-1" title={`Admin Note: ${demo.adminComment}`}>
+                                    <MessageSquare className="h-3 w-3 shrink-0" />
+                                    <span>"{demo.adminComment}"</span>
+                                  </p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center">
                               {['confirmed', 'pending'].includes(demo.status) ? (
@@ -1213,7 +1815,7 @@ const AdminDashboard = () => {
                                   asChild
                                 >
                                   <a
-                                    href={demo.meetingLink || `https://meet.jit.si/cuvasol-tutor-verification-${demo._id}`}
+                                    href={getMeetingHref(demo.meetingLink, demo._id, "Admin Moderator", "", "Verification Demo Class")}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
@@ -1226,13 +1828,35 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2">
-                                {demo.status === 'confirmed' && (
+                                {['pending', 'confirmed'].includes(demo.status) && (
                                   <Button
                                     size="sm"
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg"
-                                    onClick={() => handleUpdateBookingStatus(demo._id, 'completed')}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg text-xs flex items-center gap-1 shadow-xs"
+                                    onClick={() => {
+                                      setBookingToComplete({
+                                        id: demo._id,
+                                        tutorName: demo.tutorName || "Unknown Tutor",
+                                        timing: demo.timing,
+                                        subject: demo.subject,
+                                        existingComment: demo.adminComment || ""
+                                      });
+                                      setAdminCompletionComment(demo.adminComment || "");
+                                    }}
                                   >
-                                    Mark Completed
+                                    <CheckCircle className="h-3.5 w-3.5" /> Completed
+                                  </Button>
+                                )}
+                                {['pending', 'confirmed', 'rejected'].includes(demo.status) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-primary border-primary/30 hover:bg-primary/5 font-bold h-9 px-3 rounded-lg text-xs"
+                                    onClick={() => {
+                                      setReschedulingBooking(demo);
+                                      setIsRescheduleDialogOpen(true);
+                                    }}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
                                   </Button>
                                 )}
                                 {['pending', 'confirmed'].includes(demo.status) && (
@@ -1304,8 +1928,8 @@ const AdminDashboard = () => {
                       </TableHeader>
                       <TableBody>
                         {studentBookings.map((booking) => (
-                          <TableRow
-                            key={booking._id}
+                          <TableRow 
+                            key={booking._id} 
                             className="hover:bg-secondary/10 transition-colors cursor-pointer"
                             onClick={() => handleViewBookingDetail(booking)}
                           >
@@ -1314,24 +1938,54 @@ const AdminDashboard = () => {
                             <TableCell>{booking.studentName || "Anonymous"}</TableCell>
                             <TableCell className="text-sm">{booking.timing}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={`border-none ${booking.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700' :
-                                booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                  booking.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                                    'bg-secondary text-secondary-foreground'
+                              <div className="space-y-1">
+                                <Badge variant="outline" className={`border-none font-semibold ${
+                                  booking.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300' :
+                                  booking.status === 'confirmed' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' :
+                                  booking.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' :
+                                  booking.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                                  booking.status === 'rejected' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' :
+                                  'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
                                 }`}>
-                                {booking.status.toUpperCase()}
-                              </Badge>
+                                  {booking.status === 'cancelled' ? `Cancelled (${booking.cancelledBy || 'Student'})` :
+                                   booking.status === 'rejected' ? `Declined (${booking.cancelledBy || 'Tutor'})` :
+                                   booking.status.toUpperCase()}
+                                </Badge>
+                                {booking.cancellationReason && (
+                                  <p 
+                                    className="text-[11px] text-muted-foreground truncate max-w-[220px] italic flex items-center gap-1 cursor-help"
+                                    title={`Reason: ${booking.cancellationReason}`}
+                                  >
+                                    <span className="font-medium text-foreground/70">Reason:</span> "{booking.cancellationReason}"
+                                  </p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 font-semibold text-xs rounded-lg"
-                                onClick={() => handleViewBookingDetail(booking)}
-                              >
-                                View Details
-                              </Button>
+                              <div className="flex justify-end gap-1.5">
+                                {['pending', 'confirmed', 'enrolled', 'rejected'].includes(booking.status) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 font-semibold text-xs rounded-lg text-primary border-primary/30 hover:bg-primary/5"
+                                    onClick={() => {
+                                      setReschedulingBooking(booking);
+                                      setIsRescheduleDialogOpen(true);
+                                    }}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 font-semibold text-xs rounded-lg"
+                                  onClick={() => handleViewBookingDetail(booking)}
+                                >
+                                  View Details
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1402,7 +2056,7 @@ const AdminDashboard = () => {
                 <CardDescription>Monitor direct course payments and assessment registrations separate from tutor payouts.</CardDescription>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
-
+                
                 {/* Course stats block */}
                 {(() => {
                   const completedPayments = coursePayments.filter(p => p.status === 'completed');
@@ -1461,27 +2115,29 @@ const AdminDashboard = () => {
                             <TableCell className="font-semibold text-foreground text-sm">{payment.studentName}</TableCell>
                             <TableCell className="text-sm">{payment.studentEmail}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={`font-bold ${payment.purchaseType === 'full_course'
-                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                : 'bg-teal-50 border-teal-200 text-teal-700'
-                                }`}>
+                              <Badge variant="outline" className={`font-bold ${
+                                payment.purchaseType === 'full_course' 
+                                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                                  : 'bg-teal-50 border-teal-200 text-teal-700'
+                              }`}>
                                 {payment.purchaseType === 'full_course' ? 'Full Course' : 'Assessment'}
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <Badge className={`font-bold border-none ${payment.status === 'completed'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : payment.status === 'failed'
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : 'bg-secondary text-secondary-foreground'
-                                }`}>
+                              <Badge className={`font-bold border-none ${
+                                payment.status === 'completed' 
+                                  ? 'bg-emerald-100 text-emerald-700' 
+                                  : payment.status === 'failed'
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-secondary text-secondary-foreground'
+                              }`}>
                                 {payment.status.toUpperCase().replace('_', ' ')}
                               </Badge>
                             </TableCell>
                             <TableCell>
                               {payment.purchaseType === 'assessment' && payment.status === 'completed' ? (
                                 payment.assessmentAttempted ? (
-                                  <Badge
+                                  <Badge 
                                     className="bg-teal-600 hover:bg-teal-700 text-white font-bold cursor-pointer text-[10px]"
                                     onClick={() => handleViewAnswers(payment)}
                                     title="Click to view answers"
@@ -1538,10 +2194,20 @@ const AdminDashboard = () => {
           <TabsContent value="payouts">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
-                  <CreditCard className="h-5 w-5 text-emerald-500" /> Tutor Payouts & Ledger Audit
-                </CardTitle>
-                <CardDescription>Track tutor hourly rate changes, completed sessions, and calculated payouts (gross vs net payouts minus 10% platform commission).</CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                      <CreditCard className="h-5 w-5 text-emerald-500" /> Tutor Payouts & Ledger Audit
+                    </CardTitle>
+                    <CardDescription>Track tutor hourly rate changes, completed sessions, and calculated payouts (gross vs net payouts minus 10% platform commission).</CardDescription>
+                  </div>
+                  <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 gap-2 shrink-0 rounded-lg shadow-sm">
+                    <Link to="/dashboard/hr">
+                      <Landmark className="h-4 w-4" /> Open Dedicated HR Payouts Portal
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 {loadingPayouts ? (
@@ -1614,14 +2280,25 @@ const AdminDashboard = () => {
                                   <TableCell className="text-right font-medium text-emerald-600">₹{tutorPayout.totalCommission}</TableCell>
                                   <TableCell className="text-right font-bold text-indigo-500">₹{tutorPayout.totalPayout}</TableCell>
                                   <TableCell className="text-right px-6">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setExpandedTutorId(isExpanded ? null : tutorPayout.tutorId)}
-                                      className="font-semibold h-8"
-                                    >
-                                      {isExpanded ? "Hide Logs" : "Audit Details"}
-                                    </Button>
+                                    <div className="flex justify-end items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleMessageTutor({ userId: tutorPayout.userId, name: tutorPayout.tutorName })}
+                                        className="font-semibold h-8 text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 gap-1"
+                                        title={`Message tutor ${tutorPayout.tutorName}`}
+                                      >
+                                        <MessageSquare className="h-3.5 w-3.5" /> Message
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setExpandedTutorId(isExpanded ? null : tutorPayout.tutorId)}
+                                        className="font-semibold h-8"
+                                      >
+                                        {isExpanded ? "Hide Logs" : "Audit Details"}
+                                      </Button>
+                                    </div>
                                   </TableCell>
                                 </TableRow>
 
@@ -1647,10 +2324,11 @@ const AdminDashboard = () => {
                                                     <button
                                                       key={sub}
                                                       onClick={() => setSelectedPayoutSubject(prev => ({ ...prev, [tutorPayout.tutorId]: sub }))}
-                                                      className={`px-3 py-1 text-xs font-bold rounded-full transition-all duration-200 border ${activeSubject === sub
-                                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                                        : "bg-secondary text-muted-foreground hover:bg-secondary/80 border-transparent"
-                                                        }`}
+                                                      className={`px-3 py-1 text-xs font-bold rounded-full transition-all duration-200 border ${
+                                                        activeSubject === sub 
+                                                          ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                                                          : "bg-secondary text-muted-foreground hover:bg-secondary/80 border-transparent"
+                                                      }`}
                                                     >
                                                       {sub}
                                                     </button>
@@ -1788,7 +2466,7 @@ const AdminDashboard = () => {
                                 <Cell key={`cell-${index}`} fill={entry.color} />
                               ))}
                             </Pie>
-                            <Tooltip
+                            <Tooltip 
                               formatter={(value: any) => [`${value} registrations`, 'Count']}
                               contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                             />
@@ -1801,7 +2479,7 @@ const AdminDashboard = () => {
                           <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Tutors</span>
                         </div>
                       </div>
-
+                      
                       <div className="w-full sm:w-[45%] space-y-3">
                         <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Zones Summary</h4>
                         {pieData.map((d, index) => {
@@ -1853,21 +2531,21 @@ const AdminDashboard = () => {
                         >
                           <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.15} />
                           <XAxis type="number" hide />
-                          <YAxis
-                            dataKey="name"
-                            type="category"
+                          <YAxis 
+                            dataKey="name" 
+                            type="category" 
                             width={100}
                             axisLine={false}
                             tickLine={false}
                             tick={{ fill: 'hsl(var(--foreground))', fontSize: 11, fontWeight: 500 }}
                           />
-                          <Tooltip
+                          <Tooltip 
                             formatter={(value: any) => [`${value} registrations`, 'Tutors']}
                             contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                           />
-                          <Bar
-                            dataKey="count"
-                            fill="#0ea5e9"
+                          <Bar 
+                            dataKey="count" 
+                            fill="#0ea5e9" 
                             radius={[0, 4, 4, 0]}
                             barSize={15}
                           >
@@ -1929,13 +2607,619 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
+          {/* Referrals Leaderboard Tab */}
+          <TabsContent value="referrals" className="space-y-8">
+            {/* Top KPI Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1: Successful Referrals */}
+              <Card className="shadow-md border border-border/50 bg-card/70 backdrop-blur-md relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-emerald-500/20 transition-all" />
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Successful Referrals</span>
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <Trophy className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                      {loadingReferrals ? <Skeleton className="h-9 w-20" /> : referralsStats?.totalCompleted ?? 0}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-bold px-1.5 py-0.5">
+                        <CheckCircle className="h-3 w-3 mr-1" /> +₹500 / completion
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 2: Total Invites */}
+              <Card className="shadow-md border border-border/50 bg-card/70 backdrop-blur-md relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-blue-500/20 transition-all" />
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Invites / Sign-ups</span>
+                    <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      <Users className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                      {loadingReferrals ? <Skeleton className="h-9 w-20" /> : referralsStats?.totalInvited ?? 0}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">
+                      Across {referralsStats?.activeReferrersCount ?? 0} active referrers
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 3: Conversion Rate */}
+              <Card className="shadow-md border border-border/50 bg-card/70 backdrop-blur-md relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-indigo-500/20 transition-all" />
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Conversion Rate</span>
+                    <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                      <TrendingUp className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                      {loadingReferrals ? <Skeleton className="h-9 w-20" /> : `${referralsStats?.platformConversionRate ?? 0}%`}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">
+                      Tutors: {referralsStats?.tutorStats?.conversionRate ?? 0}% | Students: {referralsStats?.studentStats?.conversionRate ?? 0}%
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 4: Total Rewards Distributed */}
+              <Card className="shadow-md border border-border/50 bg-card/70 backdrop-blur-md relative overflow-hidden group hover:shadow-lg transition-all duration-300">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl -mr-6 -mt-6 group-hover:bg-amber-500/20 transition-all" />
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Referral Rewards</span>
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                      <DollarSign className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-3xl font-extrabold text-foreground tracking-tight">
+                      {loadingReferrals ? <Skeleton className="h-9 w-20" /> : `₹${(referralsStats?.totalRewardsDistributed ?? 0).toLocaleString()}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 font-medium">
+                      Tutors: ₹{(referralsStats?.tutorStats?.totalEarnings ?? 0).toLocaleString()} | Students: ₹{(referralsStats?.studentStats?.totalEarnings ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Main Leaderboard Card */}
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-b pb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                      <Trophy className="h-5 w-5 text-amber-500" /> Referrals Performance Leaderboard
+                    </CardTitle>
+                    <CardDescription className="mt-0.5">
+                      Ranked list of all referrers from most successful referrals to least.
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchReferralsLeaderboard}
+                      disabled={loadingReferrals}
+                      className="rounded-lg h-9 font-semibold text-xs gap-1.5"
+                    >
+                      <Activity className={`h-4 w-4 ${loadingReferrals ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadReferralsCSV}
+                      disabled={loadingReferrals || filteredAndSortedReferrals.length === 0}
+                      className="rounded-lg h-9 font-semibold text-xs gap-1.5"
+                    >
+                      <Download className="h-4 w-4 text-emerald-500" />
+                      Export CSV
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleSendReferralEmails}
+                      disabled={isSendingReferralEmails}
+                      className="rounded-lg h-9 font-semibold text-xs gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-sm"
+                    >
+                      <Sparkles className={`h-4 w-4 ${isSendingReferralEmails ? 'animate-bounce' : ''}`} />
+                      Send Referral Emails
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Segmented View Switcher (All / Tutors List / Students List) */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-border/40 mt-4">
+                  <div className="flex items-center gap-1.5 bg-secondary/60 p-1.5 rounded-xl border border-border/60 max-w-fit flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setReferralRoleFilter("all")}
+                      className={`rounded-lg h-8 px-3.5 text-xs font-semibold transition-all cursor-pointer ${
+                        referralRoleFilter === "all"
+                          ? "bg-primary text-primary-foreground shadow-sm font-bold"
+                          : "text-foreground/75 hover:text-foreground hover:bg-card/90"
+                      }`}
+                    >
+                      All Referrers ({referralsLeaderboard.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReferralRoleFilter("tutor")}
+                      className={`rounded-lg h-8 px-3.5 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        referralRoleFilter === "tutor"
+                          ? "bg-primary text-primary-foreground shadow-sm font-bold"
+                          : "text-foreground/75 hover:text-foreground hover:bg-card/90"
+                      }`}
+                    >
+                      <Award className={`h-3.5 w-3.5 ${referralRoleFilter === "tutor" ? "text-primary-foreground" : "text-primary"}`} />
+                      Tutors List ({referralsLeaderboard.filter(r => r.role === 'tutor').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReferralRoleFilter("student")}
+                      className={`rounded-lg h-8 px-3.5 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        referralRoleFilter === "student"
+                          ? "bg-purple-600 text-white shadow-sm font-bold"
+                          : "text-foreground/75 hover:text-foreground hover:bg-card/90"
+                      }`}
+                    >
+                      <GraduationCap className={`h-3.5 w-3.5 ${referralRoleFilter === "student" ? "text-white" : "text-purple-500"}`} />
+                      Students List ({referralsLeaderboard.filter(r => r.role === 'student').length})
+                    </button>
+                  </div>
+
+                  {/* Right side controls: Search & Sort selector */}
+                  <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                    <div className="relative min-w-[220px] w-full sm:w-auto">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search name, code, phone..."
+                        value={referralSearch}
+                        onChange={(e) => setReferralSearch(e.target.value)}
+                        className="pl-9 h-9 text-xs rounded-lg bg-background text-foreground border-border/80"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Select value={referralSortBy} onValueChange={(val: any) => setReferralSortBy(val)}>
+                        <SelectTrigger className="h-9 text-xs w-[180px] rounded-lg bg-background text-foreground border-border/80 font-medium">
+                          <SelectValue placeholder="Sort By" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="successful">Most Successful (Class Done)</SelectItem>
+                          <SelectItem value="invited">Most Total Invites</SelectItem>
+                          <SelectItem value="earnings">Highest Total Earnings</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setReferralOnlyActive(!referralOnlyActive)}
+                      className={`h-9 px-3 text-xs font-semibold rounded-lg shrink-0 border transition-all flex items-center cursor-pointer ${
+                        referralOnlyActive
+                          ? "border-primary/50 text-primary bg-primary/10 hover:bg-primary/20"
+                          : "border-border/80 text-foreground/80 bg-background hover:bg-card hover:text-foreground"
+                      }`}
+                      title="Toggle between showing everyone or only referrers with at least 1 invite"
+                    >
+                      <UserCheck className={`h-3.5 w-3.5 mr-1 ${referralOnlyActive ? "text-primary" : "text-muted-foreground"}`} />
+                      {referralOnlyActive ? "Active (>0 Invites)" : "All Members"}
+                    </button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-6">
+                {loadingReferrals ? (
+                  <div className="space-y-3 py-4">
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                  </div>
+                ) : filteredAndSortedReferrals.length === 0 ? (
+                  <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed mt-2">
+                    <Trophy className="mx-auto mb-4 h-16 w-16 opacity-30 text-amber-500" />
+                    <h3 className="text-lg font-semibold text-foreground mb-1">No Referrals Found</h3>
+                    <p className="text-sm max-w-md mx-auto">
+                      {referralSearch
+                        ? `No results matched "${referralSearch}". Try a different search term or clear the filter.`
+                        : referralOnlyActive
+                        ? "No referrers currently have active invite sign-ups."
+                        : "No referrers registered in this category."}
+                    </p>
+                    {referralSearch && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setReferralSearch("")}
+                        className="mt-4 rounded-lg text-xs"
+                      >
+                        Clear Search Filter
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border shadow-sm overflow-x-auto bg-card">
+                    <Table>
+                      <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold border-b border-border/40">
+                        <TableRow>
+                          <TableHead className="font-bold h-12 w-16 text-center">Rank</TableHead>
+                          <TableHead className="font-bold h-12 min-w-[220px]">Referrer Profile</TableHead>
+                          <TableHead className="font-bold h-12">Role</TableHead>
+                          <TableHead className="font-bold h-12">Referral Code</TableHead>
+                          <TableHead className="font-bold h-12 text-center">Total Invites</TableHead>
+                          <TableHead className="font-bold h-12">Successful Referrals</TableHead>
+                          <TableHead className="font-bold h-12">Conversion</TableHead>
+                          <TableHead className="font-bold h-12 text-right">Total Rewards</TableHead>
+                          <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredAndSortedReferrals.map((referrer, index) => {
+                          const rank = index + 1;
+                          const hasCompletions = (referrer.completedCount || 0) > 0;
+                          const hasInvites = (referrer.invitedCount || 0) > 0;
+
+                          return (
+                            <TableRow
+                              key={`${referrer.role}-${referrer.id}`}
+                              className={`hover:bg-secondary/15 transition-colors border-b border-border/40 ${
+                                rank === 1 && hasCompletions ? "bg-amber-500/5" : ""
+                              }`}
+                            >
+                              {/* Rank Badge */}
+                              <TableCell className="text-center font-bold py-3">
+                                {rank === 1 && hasCompletions ? (
+                                  <Badge className="bg-amber-500 hover:bg-amber-600 text-white font-black px-2 py-0.5 text-xs shadow-md shadow-amber-500/20">
+                                    🏆 #1
+                                  </Badge>
+                                ) : rank === 2 && hasCompletions ? (
+                                  <Badge className="bg-slate-400 hover:bg-slate-500 text-white font-black px-2 py-0.5 text-xs shadow-md">
+                                    🥈 #2
+                                  </Badge>
+                                ) : rank === 3 && hasCompletions ? (
+                                  <Badge className="bg-amber-700 hover:bg-amber-800 text-white font-black px-2 py-0.5 text-xs shadow-md">
+                                    🥉 #3
+                                  </Badge>
+                                ) : (
+                                  <span className="font-mono text-xs text-muted-foreground font-semibold">
+                                    #{rank}
+                                  </span>
+                                )}
+                              </TableCell>
+
+                              {/* Referrer Profile */}
+                              <TableCell className="py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-10 w-10 rounded-full border border-primary/10 shadow-sm overflow-hidden shrink-0 bg-muted flex items-center justify-center">
+                                    {referrer.avatar ? (
+                                      <img
+                                        src={resolveAssetUrl(referrer.avatar)}
+                                        alt={referrer.name}
+                                        className="h-full w-full object-cover"
+                                        onError={(e: any) => {
+                                          e.target.onerror = null;
+                                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(referrer.name || "U")}&background=random`;
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="font-bold text-sm text-primary uppercase">
+                                        {(referrer.name || "U").charAt(0)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-semibold text-foreground leading-tight text-sm truncate capitalize">
+                                      {referrer.name || "–"}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                      {referrer.email || referrer.phone || "No contact info"}
+                                    </span>
+                                    {referrer.city && referrer.city !== "Remote" && (
+                                      <span className="text-[10px] text-muted-foreground/80 flex items-center gap-0.5 mt-0.5">
+                                        <MapPin className="h-2.5 w-2.5" /> {referrer.city}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+
+                              {/* Role */}
+                              <TableCell>
+                                {referrer.role === "tutor" ? (
+                                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
+                                    Tutor
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 text-xs font-semibold">
+                                    Student
+                                  </Badge>
+                                )}
+                              </TableCell>
+
+                              {/* Referral Code with One-Click Copy */}
+                              <TableCell>
+                                {referrer.referralCode ? (
+                                  <button
+                                    onClick={() => handleCopyReferralCode(referrer.referralCode)}
+                                    className="group flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/50 hover:bg-secondary border border-border/50 text-xs font-mono font-bold tracking-wider text-foreground transition-all"
+                                    title="Click to copy referral code"
+                                  >
+                                    <span>{referrer.referralCode}</span>
+                                    {copiedCode === referrer.referralCode ? (
+                                      <Check className="h-3 w-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="h-3 w-3 text-muted-foreground group-hover:text-foreground opacity-60 group-hover:opacity-100 transition-opacity" />
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">–</span>
+                                )}
+                              </TableCell>
+
+                              {/* Total Invites */}
+                              <TableCell className="text-center font-bold text-foreground text-sm">
+                                <span className={hasInvites ? "text-foreground font-extrabold" : "text-muted-foreground font-normal"}>
+                                  {referrer.invitedCount ?? 0}
+                                </span>
+                              </TableCell>
+
+                              {/* Successful Referrals (Class Completed) */}
+                              <TableCell>
+                                <div className="flex flex-col items-start gap-1">
+                                  <Badge
+                                    className={`text-xs font-bold px-2.5 py-0.5 flex items-center gap-1 border ${
+                                      hasCompletions
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                        : "bg-secondary/40 text-muted-foreground border-transparent font-normal"
+                                    }`}
+                                  >
+                                    {hasCompletions && <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+                                    {referrer.completedCount ?? 0} Successful
+                                  </Badge>
+                                  {referrer.pendingCount > 0 && (
+                                    <span className="text-[10px] text-muted-foreground font-medium pl-0.5">
+                                      {referrer.pendingCount} in progress / registered
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+
+                              {/* Conversion Rate */}
+                              <TableCell>
+                                <div className="space-y-1 w-24">
+                                  <div className="flex justify-between items-center text-xs">
+                                    <span className="font-bold text-foreground">{referrer.conversionRate ?? 0}%</span>
+                                  </div>
+                                  <div className="w-full bg-secondary/80 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                      style={{ width: `${Math.min(referrer.conversionRate ?? 0, 100)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </TableCell>
+
+                              {/* Total Rewards */}
+                              <TableCell className="text-right">
+                                <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
+                                  ₹{(referrer.totalEarnings ?? 0).toLocaleString()}
+                                </span>
+                              </TableCell>
+
+                              {/* Actions */}
+                              <TableCell className="text-right px-6">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedReferrerForDetail(referrer);
+                                    setIsReferrerDetailDialogOpen(true);
+                                  }}
+                                  className="h-8 text-xs font-semibold rounded-lg hover:bg-primary/10 hover:text-primary transition-colors gap-1.5"
+                                  title="View list of all students referred by this user"
+                                >
+                                  <Eye className="h-3.5 w-3.5 text-primary" />
+                                  View ({referrer.invitedCount ?? 0})
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="messages">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-0">
-              <ChatPanel initialActiveUserId={activeChatUserId} />
+              <ChatPanel initialActiveUserId={activeChatUserId} initialActiveUser={activeChatUser} />
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Referrer Details & Referred Students Modal */}
+      <Dialog open={isReferrerDetailDialogOpen} onOpenChange={setIsReferrerDetailDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
+              <Trophy className="h-5 w-5 text-amber-500" /> Referred Students Breakdown
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+              Complete history of students referred by this member and their class completion progress.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedReferrerForDetail && (
+            <div className="space-y-6 pt-2">
+              {/* Referrer Header Banner */}
+              <div className="p-4 rounded-xl bg-secondary/40 border border-border/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full border shadow-sm overflow-hidden shrink-0 bg-muted flex items-center justify-center font-bold text-lg text-primary uppercase">
+                    {selectedReferrerForDetail.avatar ? (
+                      <img
+                        src={resolveAssetUrl(selectedReferrerForDetail.avatar)}
+                        alt={selectedReferrerForDetail.name}
+                        className="h-full w-full object-cover"
+                        onError={(e: any) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedReferrerForDetail.name || "U")}&background=random`;
+                        }}
+                      />
+                    ) : (
+                      (selectedReferrerForDetail.name || "U").charAt(0)
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-foreground text-base capitalize">{selectedReferrerForDetail.name}</h4>
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                        {selectedReferrerForDetail.role}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {selectedReferrerForDetail.email} {selectedReferrerForDetail.phone ? `• ${selectedReferrerForDetail.phone}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {selectedReferrerForDetail.userId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 font-semibold text-xs gap-1.5 h-8"
+                      onClick={() => {
+                        sessionStorage.setItem("active_chat_user_id", selectedReferrerForDetail.userId);
+                        setActiveChatUserId(selectedReferrerForDetail.userId);
+                        setActiveTab("messages");
+                        setIsReferrerDetailDialogOpen(false);
+                        toast.success(`Opening chat thread with ${selectedReferrerForDetail.name}`);
+                      }}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> Message {selectedReferrerForDetail.role === "tutor" ? "Tutor" : "Student"}
+                    </Button>
+                  )}
+                  <div className="text-right">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">Referral Code</span>
+                    <span className="font-mono font-bold text-sm text-foreground">{selectedReferrerForDetail.referralCode || "–"}</span>
+                  </div>
+                  <div className="text-right pl-3 border-l border-border/50">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">Total Earned</span>
+                    <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400">
+                      ₹{(selectedReferrerForDetail.totalEarnings || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Referred Students Table */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-primary" />
+                    Referred Students ({selectedReferrerForDetail.referredStudents?.length || 0})
+                  </h5>
+                  <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-bold">
+                    {selectedReferrerForDetail.completedCount || 0} Qualified (Completed Class)
+                  </Badge>
+                </div>
+
+                {(!selectedReferrerForDetail.referredStudents || selectedReferrerForDetail.referredStudents.length === 0) ? (
+                  <div className="py-12 text-center text-muted-foreground bg-secondary/10 rounded-xl border border-dashed">
+                    <Users className="mx-auto mb-2 h-10 w-10 opacity-30 text-muted-foreground" />
+                    <p className="text-sm font-semibold">No students have signed up with this referral code yet.</p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border shadow-sm overflow-hidden bg-card">
+                    <Table>
+                      <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold">
+                        <TableRow>
+                          <TableHead className="font-bold h-10">Student</TableHead>
+                          <TableHead className="font-bold h-10">Class / Grade</TableHead>
+                          <TableHead className="font-bold h-10">Signed Up</TableHead>
+                          <TableHead className="font-bold h-10">Status</TableHead>
+                          <TableHead className="font-bold h-10 text-right">Completed Classes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedReferrerForDetail.referredStudents.map((st: any) => (
+                          <TableRow key={st.id} className="hover:bg-secondary/10 text-xs">
+                            <TableCell className="py-2.5">
+                              <div className="font-semibold text-foreground capitalize">{st.name}</div>
+                              <div className="text-[11px] text-muted-foreground">{st.email || st.phone || "–"}</div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="bg-secondary/20 text-[10px] font-medium">
+                                {st.studentClass || "–"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {st.registeredAt ? new Date(st.registeredAt).toLocaleDateString() : "–"}
+                            </TableCell>
+                            <TableCell>
+                              {st.status === "completed" ? (
+                                <Badge className="bg-emerald-500 text-white font-bold text-[10px] gap-1 px-2 py-0.5">
+                                  <CheckCircle className="h-3 w-3" /> Class Done (₹500 Rewarded)
+                                </Badge>
+                              ) : st.status === "enrolled" ? (
+                                <Badge className="bg-blue-500 text-white font-bold text-[10px] gap-1 px-2 py-0.5">
+                                  <Clock className="h-3 w-3" /> Enrolled / Active
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal">
+                                  Registered (No Class Yet)
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-foreground">
+                              {st.completedClassesCount ?? 0}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4 border-t mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsReferrerDetailDialogOpen(false)}
+              className="rounded-lg h-9 px-4 text-xs font-semibold"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Rejection Reason Modal */}
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
@@ -2000,25 +3284,388 @@ const AdminDashboard = () => {
           </DialogHeader>
 
           {selectedTutorForDetail && (
+            isEditingProfile ? (
+              <div className="space-y-6 py-4">
+                {/* Profile Photo Uploader */}
+                <div className="p-4 rounded-xl border bg-secondary/10 border-border/50 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="relative group shrink-0">
+                    <div className="h-20 w-20 rounded-full border-2 border-primary/30 shadow-md overflow-hidden bg-muted flex items-center justify-center">
+                      {editPhoto ? (
+                        <img 
+                          src={resolveAssetUrl(editPhoto)} 
+                          alt="Tutor Avatar" 
+                          className="h-full w-full object-cover" 
+                          onError={(e: any) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || "T")}&background=random&size=200`;
+                          }}
+                        />
+                      ) : (
+                        <span className="font-bold text-3xl text-primary uppercase">
+                          {(editName || "T").charAt(0)}
+                        </span>
+                      )}
+                    </div>
+                    {isUploadingPhoto && (
+                      <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center text-white">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 flex-1 text-center sm:text-left">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Profile Picture</label>
+                    <p className="text-xs text-muted-foreground">Upload a professional photo for this tutor (JPG, PNG, WebP up to 5MB).</p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 justify-center sm:justify-start">
+                      <input 
+                        type="file" 
+                        ref={photoInputRef} 
+                        onChange={(e) => handleUploadTutorPhoto(e, false)} 
+                        accept="image/jpeg,image/png,image/webp,image/gif" 
+                        className="hidden" 
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs font-semibold gap-1.5 bg-background shadow-sm hover:bg-primary hover:text-primary-foreground transition-all"
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={isUploadingPhoto}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {editPhoto ? "Change Photo" : "Upload Photo"}
+                      </Button>
+                      {editPhoto && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setEditPhoto("")}
+                          disabled={isUploadingPhoto}
+                        >
+                          Remove Photo
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profile fields: Name, Phone, Timezone */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Full Name</label>
+                    <Input 
+                      value={editName} 
+                      onChange={(e) => setEditName(e.target.value)} 
+                      placeholder="Tutor's Full Name"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</label>
+                    <Input 
+                      value={editPhone} 
+                      onChange={(e) => setEditPhone(e.target.value)} 
+                      placeholder="Phone number"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Timezone</label>
+                    <Select value={editTimezone} onValueChange={setEditTimezone}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Timezone" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {COMMON_TIMEZONES.map((tz) => (
+                          <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Category</label>
+                    <Select value={editCategory} onValueChange={(val) => {
+                      setEditCategory(val);
+                    }}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Academic">Academic</SelectItem>
+                        <SelectItem value="Extracurricular">Extracurricular</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">City</label>
+                    <Input 
+                      value={editCity} 
+                      onChange={(e) => setEditCity(e.target.value)} 
+                      placeholder="City"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Address (Offline Classroom)</label>
+                    <Input 
+                      value={editAddress} 
+                      onChange={(e) => setEditAddress(e.target.value)} 
+                      placeholder="Full Address"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Google Maps URL</label>
+                    <Input 
+                      value={editGoogleMapsUrl} 
+                      onChange={(e) => setEditGoogleMapsUrl(e.target.value)} 
+                      placeholder="https://maps.google.com/..."
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Mode</label>
+                    <Select value={editMode} onValueChange={setEditMode}>
+                      <SelectTrigger className="bg-background text-sm font-semibold">
+                        <SelectValue placeholder="Select Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Online">Online</SelectItem>
+                        <SelectItem value="Offline">Offline</SelectItem>
+                        <SelectItem value="Both">Online & Offline</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Highest Qualification</label>
+                    <Input 
+                      value={editQualification} 
+                      onChange={(e) => setEditQualification(e.target.value)} 
+                      placeholder="Degree, e.g. B.Tech CS"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Experience (Years)</label>
+                    <Input 
+                      type="number"
+                      value={editExperience} 
+                      onChange={(e) => setEditExperience(e.target.value)} 
+                      placeholder="Years"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Professional Bio</label>
+                  <Textarea 
+                    value={editBio} 
+                    onChange={(e) => setEditBio(e.target.value)} 
+                    placeholder="Tell students about your qualifications and teaching methodology..."
+                    rows={4}
+                    className="bg-background text-sm leading-relaxed"
+                  />
+                </div>
+
+                {/* Classes Taught */}
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Classes / Grade Levels Taught</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {CLASS_TAUGHT_OPTIONS.map((c) => {
+                      const isChecked = editClassesTaught.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setEditClassesTaught(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                            isChecked
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-background text-foreground border-border hover:bg-secondary/40"
+                          }`}
+                        >
+                          <span className="truncate">{c}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Boards Taught */}
+                {(editCategory === "Academic") && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Educational Boards Taught</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {BOARD_TAUGHT_OPTIONS.map((b) => {
+                        const isChecked = editBoardsTaught.includes(b);
+                        return (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() => setEditBoardsTaught(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b])}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                              isChecked
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                : "bg-background text-foreground border-border hover:bg-secondary/40"
+                            }`}
+                          >
+                            <span className="truncate">{b}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Subjects & Rates */}
+                <div className="space-y-2 border-t pt-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Subjects & Hourly Rates</label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      className="text-xs h-8 border-primary/20 text-primary hover:bg-primary/5 font-semibold"
+                      onClick={() => setEditSubjectRates(prev => [...prev, { subject: "", rate: 300 }])}
+                    >
+                      + Add Subject
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2 mt-2">
+                    {editSubjectRates.map((sr, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <Select 
+                          value={sr.subject} 
+                          onValueChange={(val) => {
+                            setEditSubjectRates(prev => prev.map((item, i) => i === idx ? { ...item, subject: val } : item));
+                          }}
+                        >
+                          <SelectTrigger className="flex-1 bg-background text-sm">
+                            <SelectValue placeholder="Select Subject" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {ALL_SUBJECTS.map((sub) => (
+                              <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <div className="flex items-center border rounded-lg bg-background px-3 w-32">
+                          <span className="text-muted-foreground text-sm font-semibold">₹</span>
+                          <Input 
+                            type="number"
+                            value={sr.rate}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setEditSubjectRates(prev => prev.map((item, i) => i === idx ? { ...item, rate: val } : item));
+                            }}
+                            className="border-0 shadow-none focus-visible:ring-0 text-right h-9 text-sm font-bold p-1 pr-0"
+                            placeholder="Rate"
+                          />
+                          <span className="text-muted-foreground text-xs font-normal ml-1">/hr</span>
+                        </div>
+
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-muted-foreground hover:text-destructive h-9 w-9"
+                          onClick={() => setEditSubjectRates(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    {editSubjectRates.length === 0 && (
+                      <div className="p-4 rounded-xl border border-dashed text-center text-xs text-muted-foreground italic">
+                        No subjects added. Tutors must teach at least one subject.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Edit Actions Footer */}
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-border/40">
+                  <Button 
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setIsEditingProfile(false)}
+                    disabled={isSavingProfile}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="button"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    onClick={handleSaveTutorProfile}
+                    disabled={isSavingProfile}
+                  >
+                    {isSavingProfile ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-6 py-4">
               {/* Header profile info */}
               <div className="flex flex-col sm:flex-row gap-5 items-start sm:items-center p-4 rounded-xl bg-secondary/10 border border-border/40">
-                <div className="h-20 w-20 rounded-full border-2 border-primary/20 shadow-md overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                  {selectedTutorForDetail.photo || selectedTutorForDetail.avatar ? (
-                    <img
-                      src={resolveAssetUrl(selectedTutorForDetail.photo || selectedTutorForDetail.avatar)}
-                      alt={selectedTutorForDetail.name}
-                      className="h-full w-full object-cover"
-                      onError={(e: any) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedTutorForDetail.name || "T")}&background=random&size=200`;
-                      }}
-                    />
-                  ) : (
-                    <span className="font-bold text-3xl text-primary uppercase">
-                      {(selectedTutorForDetail.name || "T").charAt(0)}
-                    </span>
-                  )}
+                <div className="relative group shrink-0">
+                  <div className="h-20 w-20 rounded-full border-2 border-primary/20 shadow-md overflow-hidden bg-muted flex items-center justify-center">
+                    {selectedTutorForDetail.photo || selectedTutorForDetail.avatar ? (
+                      <img 
+                        src={resolveAssetUrl(selectedTutorForDetail.photo || selectedTutorForDetail.avatar)} 
+                        alt={selectedTutorForDetail.name} 
+                        className="h-full w-full object-cover" 
+                        onError={(e: any) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedTutorForDetail.name || "T")}&background=random&size=200`;
+                        }}
+                      />
+                    ) : (
+                      <span className="font-bold text-3xl text-primary uppercase">
+                        {(selectedTutorForDetail.name || "T").charAt(0)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 1-Click Change Photo Button */}
+                  <input 
+                    type="file" 
+                    ref={directPhotoInputRef} 
+                    onChange={(e) => handleUploadTutorPhoto(e, true)} 
+                    accept="image/jpeg,image/png,image/webp,image/gif" 
+                    className="hidden" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => directPhotoInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground hover:bg-primary/90 p-1.5 rounded-full shadow-md border-2 border-background transition-transform hover:scale-110"
+                    title="Change tutor profile picture"
+                  >
+                    {isUploadingPhoto ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                 </div>
                 <div className="flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -2034,7 +3681,7 @@ const AdminDashboard = () => {
                     {selectedTutorForDetail.city || "Remote"}
                     {selectedTutorForDetail.pincode ? ` - ${selectedTutorForDetail.pincode}` : ""}
                   </p>
-
+                  
                   {/* Reviews rating */}
                   <div className="flex items-center gap-1 text-sm pt-1">
                     <Star className="h-4 w-4 fill-warning text-warning" />
@@ -2042,9 +3689,17 @@ const AdminDashboard = () => {
                     <span className="text-muted-foreground">({selectedTutorForDetail.reviewCount ?? 0} reviews)</span>
                   </div>
                 </div>
+
+                <Button
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm hover:shadow-indigo-500/20 shrink-0 self-start sm:self-center"
+                  onClick={() => handleMessageTutor(selectedTutorForDetail)}
+                >
+                  <MessageSquare className="h-4 w-4" /> Message Tutor
+                </Button>
               </div>
 
-              {/* Contact Information */}
+               {/* Contact Information */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-card p-4 rounded-xl border">
                 <div>
                   <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
@@ -2166,7 +3821,7 @@ const AdminDashboard = () => {
                 )}
               </div>
 
-              {/* Classroom Location (Offline/Hybrid) */}
+               {/* Classroom Location (Offline/Hybrid) */}
               {(selectedTutorForDetail.mode?.toLowerCase() === "offline" || selectedTutorForDetail.mode?.toLowerCase() === "both") && selectedTutorForDetail.address && (
                 <div className="space-y-2">
                   <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Classroom Location (Offline)</h4>
@@ -2188,9 +3843,9 @@ const AdminDashboard = () => {
                     </div>
 
                     {selectedTutorForDetail.googleMapsUrl && (
-                      <a
-                        href={selectedTutorForDetail.googleMapsUrl}
-                        target="_blank"
+                      <a 
+                        href={selectedTutorForDetail.googleMapsUrl} 
+                        target="_blank" 
                         rel="noopener noreferrer"
                         className="text-xs font-semibold text-rose-500 hover:underline inline-flex items-center gap-1"
                       >
@@ -2213,9 +3868,9 @@ const AdminDashboard = () => {
                         <p className="text-[10px] text-muted-foreground mt-0.5">Uploaded resume or CV (PDF/Image)</p>
                       </div>
                     </div>
-                    <a
-                      href={resolveAssetUrl(selectedTutorForDetail.verificationDocument)}
-                      target="_blank"
+                    <a 
+                      href={resolveAssetUrl(selectedTutorForDetail.verificationDocument)} 
+                      target="_blank" 
                       rel="noopener noreferrer"
                       className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 py-2 px-4 rounded-lg border border-indigo-200 dark:border-indigo-900/30 transition-colors"
                     >
@@ -2239,7 +3894,7 @@ const AdminDashboard = () => {
                 </p>
 
                 {/* Tutor Availability Info */}
-                {((selectedTutorForDetail.availability && selectedTutorForDetail.availability.length > 0) ||
+                {((selectedTutorForDetail.availability && selectedTutorForDetail.availability.length > 0) || 
                   (selectedTutorForDetail.availableTimings && selectedTutorForDetail.availableTimings.length > 0)) ? (
                   <div className="mt-3 p-4 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/10 dark:bg-amber-950/5 space-y-2">
                     <div className="flex items-center justify-between flex-wrap gap-2">
@@ -2256,7 +3911,7 @@ const AdminDashboard = () => {
                         {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
                           const rawSlots = selectedTutorForDetail.availability.filter((a: any) => a.day === day);
                           if (rawSlots.length === 0) return null;
-
+                          
                           // Deduplicate slots to prevent displaying the exact same timings
                           const seen = new Set<string>();
                           const daySlots = rawSlots.filter((slot: any) => {
@@ -2298,15 +3953,15 @@ const AdminDashboard = () => {
                     <label htmlFor="demo-datetime" className="text-[10px] font-bold text-muted-foreground uppercase">
                       Select Date & Time
                     </label>
-                    <Input
+                    <Input 
                       id="demo-datetime"
-                      type="datetime-local"
-                      className="bg-background shadow-sm h-9 text-xs"
+                      type="datetime-local" 
+                      className="bg-background shadow-sm h-9 text-xs" 
                       value={verificationDemoTiming}
                       onChange={(e) => setVerificationDemoTiming(e.target.value)}
                     />
                   </div>
-                  <Button
+                  <Button 
                     type="button"
                     onClick={handleBookVerificationDemo}
                     disabled={isBookingDemo}
@@ -2321,8 +3976,8 @@ const AdminDashboard = () => {
               <div className="flex flex-wrap gap-2.5 justify-end pt-4 border-t border-border/40">
                 {selectedTutorForDetail.status === "pending" ? (
                   <>
-                    <Button
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    <Button 
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold" 
                       onClick={() => {
                         handleApproval(selectedTutorForDetail.id, "approved");
                         setIsDetailDialogOpen(false);
@@ -2330,9 +3985,9 @@ const AdminDashboard = () => {
                     >
                       <CheckCircle className="mr-1.5 h-4 w-4" /> Approve Tutor
                     </Button>
-                    <Button
+                    <Button 
                       variant="outline"
-                      className="text-rose-600 hover:bg-rose-50 border-rose-200 font-bold"
+                      className="text-rose-600 hover:bg-rose-50 border-rose-200 font-bold" 
                       onClick={() => {
                         handleApproval(selectedTutorForDetail.id, "rejected");
                         setIsDetailDialogOpen(false);
@@ -2344,9 +3999,9 @@ const AdminDashboard = () => {
                 ) : (
                   <>
                     {selectedTutorForDetail.status === "approved" && (
-                      <Button
+                      <Button 
                         variant="outline"
-                        className="text-rose-600 hover:bg-rose-50 border-rose-200 font-bold"
+                        className="text-rose-600 hover:bg-rose-50 border-rose-200 font-bold" 
                         onClick={() => {
                           handleApproval(selectedTutorForDetail.id, "rejected");
                           setIsDetailDialogOpen(false);
@@ -2355,12 +4010,13 @@ const AdminDashboard = () => {
                         <XCircle className="mr-1.5 h-4 w-4" /> Disapprove Tutor
                       </Button>
                     )}
-                    <Button
-                      variant={selectedTutorForDetail.featured ? "outline" : "default"}
-                      className={`font-bold ${selectedTutorForDetail.featured
-                        ? "border-amber-500/50 text-amber-600 hover:bg-amber-50"
-                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                        }`}
+                    <Button 
+                      variant={selectedTutorForDetail.featured ? "outline" : "default"} 
+                      className={`font-bold ${
+                        selectedTutorForDetail.featured 
+                          ? "border-amber-500/50 text-amber-600 hover:bg-amber-50" 
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      }`}
                       onClick={() => {
                         toggleFeatured(selectedTutorForDetail);
                         // Update modal state instantly to reflect UI feature changes
@@ -2371,27 +4027,268 @@ const AdminDashboard = () => {
                       {selectedTutorForDetail.featured ? "Remove Featured" : "Make Featured"}
                     </Button>
                   </>
-                )}
-                <Button
-                  variant={selectedTutorForDetail.isVerified ? "outline" : "default"}
-                  className={`font-bold ${selectedTutorForDetail.isVerified
-                    ? "border-blue-500/50 text-blue-600 hover:bg-blue-50"
-                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-blue-500/20"
-                    }`}
-                  onClick={() => {
-                    toggleVerified(selectedTutorForDetail);
-                    setSelectedTutorForDetail((prev: any) => prev ? { ...prev, isVerified: !prev.isVerified } : null);
-                  }}
-                >
-                  <CheckCircle className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.isVerified ? "fill-blue-500 text-white" : ""}`} />
-                  {selectedTutorForDetail.isVerified ? "Remove Verified" : "Give Verified"}
-                </Button>
-                <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
-                  Close
-                </Button>
+                 )}
+                 <Button 
+                   variant={selectedTutorForDetail.isVerified ? "outline" : "default"} 
+                   className={`font-bold ${
+                     selectedTutorForDetail.isVerified 
+                       ? "border-blue-500/50 text-blue-600 hover:bg-blue-50" 
+                       : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-blue-500/20"
+                   }`}
+                   onClick={() => {
+                     toggleVerified(selectedTutorForDetail);
+                     setSelectedTutorForDetail((prev: any) => prev ? { ...prev, isVerified: !prev.isVerified } : null);
+                   }}
+                 >
+                   <CheckCircle className={`mr-1.5 h-4 w-4 ${selectedTutorForDetail.isVerified ? "fill-blue-500 text-white" : ""}`} />
+                   {selectedTutorForDetail.isVerified ? "Remove Verified" : "Give Verified"}
+                 </Button>
+                 <Button 
+                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm hover:shadow-indigo-500/20"
+                   onClick={() => handleMessageTutor(selectedTutorForDetail)}
+                 >
+                   <MessageSquare className="h-4 w-4" /> Message Tutor
+                 </Button>
+                 <Button 
+                   variant="outline"
+                   className="border-primary/20 text-primary hover:bg-primary/5 font-bold"
+                   onClick={() => setIsEditingProfile(true)}
+                 >
+                   Edit Profile
+                 </Button>
+                 <Button variant="ghost" onClick={() => setIsDetailDialogOpen(false)}>
+                   Close
+                 </Button>
+              </div>
+            </div>
+            )
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Details Modal */}
+      <Dialog open={isStudentDetailDialogOpen} onOpenChange={setIsStudentDetailDialogOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <GraduationCap className="h-6 w-6 text-indigo-500" /> Student Profile
+            </DialogTitle>
+            <DialogDescription>
+              View detailed registration information for this student account.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStudentForDetail && (
+            <div className="space-y-6 py-4">
+              {/* Header profile section with Avatar */}
+              <div className="flex items-center gap-4 pb-4 border-b">
+                <div className="h-16 w-16 rounded-full border shadow-sm overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                  {selectedStudentForDetail.avatar ? (
+                    <img 
+                      src={resolveAssetUrl(selectedStudentForDetail.avatar)} 
+                      alt={selectedStudentForDetail.full_name} 
+                      className="h-full w-full object-cover" 
+                      onError={(e: any) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentForDetail.full_name || "S")}&background=random&size=200`;
+                      }}
+                    />
+                  ) : (
+                    <span className="font-bold text-2xl text-indigo-500 uppercase">
+                      {(selectedStudentForDetail.full_name || "S").charAt(0)}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-foreground leading-tight">
+                    {selectedStudentForDetail.full_name}
+                  </h3>
+                  <Badge variant="outline" className="mt-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200">
+                    {selectedStudentForDetail.student_or_parent || "Student"}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* General details grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
+                  <span className="text-sm font-semibold text-foreground break-all">{selectedStudentForDetail.email || "–"}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
+                  <span className="text-sm font-semibold text-foreground">{selectedStudentForDetail.phone || "–"}</span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Class / Grade</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    <Badge variant="outline" className="bg-secondary/20">{selectedStudentForDetail.student_class || selectedStudentForDetail.studentClass || "–"}</Badge>
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Interested Subject(s)</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject ? (
+                      <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                        {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject}
+                      </Badge>
+                    ) : (
+                      "–"
+                    )}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Time Zone</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {selectedStudentForDetail.timezone ? `${getTimeZoneAbbreviation(selectedStudentForDetail.timezone)} (${selectedStudentForDetail.timezone})` : 'IST (Asia/Kolkata)'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Conditional section if Parent was registered */}
+              {selectedStudentForDetail.student_or_parent === "Parent" && selectedStudentForDetail.student_name && (
+                <div className="space-y-1 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
+                  <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Child (Student) Name</span>
+                  <span className="text-sm font-bold text-foreground">{selectedStudentForDetail.student_name}</span>
+                </div>
+              )}
+
+              {/* Referral Source */}
+              <div className="space-y-1 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> How they heard about us
+                </span>
+                <span className="text-sm font-bold text-foreground">
+                  {selectedStudentForDetail.heard_about_us || selectedStudentForDetail.heardAboutUs || "Not specified / Existing User"}
+                </span>
+              </div>
+
+              {/* Referral Code & Attribution */}
+              {(() => {
+                const refInfo = selectedStudentForDetail.referralInfo;
+                const usedCode = selectedStudentForDetail.usedReferralCode || refInfo?.usedReferralCode || selectedStudentForDetail.marketingRefCode;
+                const referrer = refInfo?.referrer;
+                const referrerName = selectedStudentForDetail.referrerName || referrer?.name;
+                const referrerRole = selectedStudentForDetail.referrerRole || referrer?.role;
+                const referrerEmail = selectedStudentForDetail.referrerEmail || referrer?.email;
+                const referrerPhone = referrer?.phone;
+                const hasReferral = Boolean(usedCode || referrerName || selectedStudentForDetail.referredBy);
+
+                return (
+                  <div className={`space-y-2.5 p-3.5 rounded-xl border transition-all ${
+                    hasReferral 
+                      ? "bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-purple-500/5 border-purple-500/30 dark:border-purple-500/20 shadow-sm" 
+                      : "bg-secondary/15 border-border/60"
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                        hasReferral ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground"
+                      }`}>
+                        <Gift className="h-3.5 w-3.5" /> Referral Code & Attribution
+                      </span>
+                      {hasReferral ? (
+                        <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-mono text-[10px] px-2 py-0.5 shadow-sm">
+                          Referred Signup
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground border-border">
+                          Direct Signup
+                        </Badge>
+                      )}
+                    </div>
+
+                    {hasReferral ? (
+                      <div className="space-y-2 pt-0.5">
+                        {/* Referral code applied */}
+                        <div className="flex items-center justify-between bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Referral Code Used</span>
+                            <span className="text-xs text-muted-foreground">Code submitted at signup</span>
+                          </div>
+                          <span className="font-mono font-bold text-sm tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-md border border-purple-200 dark:border-purple-800 shadow-sm select-all">
+                            {usedCode || (referrer?.referralCode) || "APPLIED"}
+                          </span>
+                        </div>
+
+                        {/* Whom they used / Referrer details */}
+                        <div className="bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40 space-y-1.5">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">
+                            Referred By (Owner of Code)
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                              {referrerName || "Referred User"}
+                            </span>
+                            {referrerRole && (
+                              <Badge variant="outline" className={`text-[10px] font-bold capitalize ${
+                                referrerRole === 'tutor' 
+                                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200' 
+                                  : referrerRole === 'student' 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200' 
+                                  : 'bg-purple-50 text-purple-600 border-purple-200'
+                              }`}>
+                                {referrerRole === 'tutor' ? '👨‍🏫 Tutor' : referrerRole === 'student' ? '🎓 Student' : '📢 Affiliate'}
+                              </Badge>
+                            )}
+                          </div>
+
+                          {(referrerEmail || referrerPhone || referrer?.referralCode) && (
+                            <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t border-border/40">
+                              {referrerEmail && (
+                                <span className="flex items-center gap-1">
+                                  <Mail className="h-3 w-3 text-muted-foreground" /> {referrerEmail}
+                                </span>
+                              )}
+                              {referrerPhone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3 text-muted-foreground" /> {referrerPhone}
+                                </span>
+                              )}
+                              {referrer?.referralCode && (
+                                <span className="flex items-center gap-1 font-mono text-[11px]">
+                                  <Tag className="h-3 w-3 text-muted-foreground" /> {referrer.referralCode}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground py-0.5">
+                        No referral code was used during registration (direct sign up).
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Dates / Metadata */}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">
+                <div>
+                  <span>Joined Date:</span>
+                  <span className="block font-medium text-foreground mt-0.5">
+                    {selectedStudentForDetail.createdAt ? new Date(selectedStudentForDetail.createdAt).toLocaleString() : "Not available"}
+                  </span>
+                </div>
+                <div>
+                  <span>User ID:</span>
+                  <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all">
+                    {selectedStudentForDetail._id || selectedStudentForDetail.id || "–"}
+                  </span>
+                </div>
               </div>
             </div>
           )}
+
+          <div className="flex justify-end pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsStudentDetailDialogOpen(false)}
+              className="rounded-lg h-10 px-4 hover:bg-secondary/20 hover:text-foreground"
+            >
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2477,10 +4374,11 @@ const AdminDashboard = () => {
                         </div>
 
                         <div className="grid gap-1.5 text-xs pl-7">
-                          <div className={`p-2 rounded-lg flex items-center justify-between ${isCorrect
-                            ? "bg-emerald-500/5 text-emerald-800 dark:text-emerald-300 border border-emerald-500/10"
-                            : "bg-rose-500/5 text-rose-800 dark:text-rose-300 border border-rose-500/10"
-                            }`}>
+                          <div className={`p-2 rounded-lg flex items-center justify-between ${
+                            isCorrect 
+                              ? "bg-emerald-500/5 text-emerald-800 dark:text-emerald-300 border border-emerald-500/10" 
+                              : "bg-rose-500/5 text-rose-800 dark:text-rose-300 border border-rose-500/10"
+                          }`}>
                             <span className="leading-snug">
                               <strong>Student's Answer:</strong> {studentAns || "No answer submitted"}
                             </span>
@@ -2567,7 +4465,7 @@ const AdminDashboard = () => {
 
               {/* Action */}
               <div className="flex justify-end gap-2.5 pt-4 border-t">
-                <Button
+                <Button 
                   disabled={isSavingScores}
                   variant="outline"
                   onClick={handleSaveScores}
@@ -2581,7 +4479,7 @@ const AdminDashboard = () => {
                   ) : "Save Score Updates"}
                 </Button>
                 {!selectedAssessmentPayment.shortlisted && (
-                  <Button
+                  <Button 
                     className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 rounded-lg px-4 shadow-sm"
                     onClick={() => {
                       handleShortlist(selectedAssessmentPayment._id);
@@ -2621,254 +4519,506 @@ const AdminDashboard = () => {
             const tutorResumeDoc = selectedBookingForDetail.tutorVerificationDocument || tutorObj?.verificationDocument;
 
             return (
-              <div className="space-y-6 py-4">
-                {/* Core metadata stats grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-secondary/15 border border-border/40">
-                  <div>
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Booking ID</span>
-                    <span className="text-xs font-mono font-bold text-foreground mt-0.5 block">
-                      {selectedBookingForDetail._id}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Status</span>
-                    <Badge variant="outline" className={`mt-0.5 border-none font-bold text-[10px] ${selectedBookingForDetail.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700' :
-                      selectedBookingForDetail.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                        selectedBookingForDetail.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                          selectedBookingForDetail.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                            'bg-red-100 text-red-700'
-                      }`}>
-                      {selectedBookingForDetail.status.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Subject</span>
-                    <span className="text-sm font-semibold text-foreground mt-0.5 block truncate" title={selectedBookingForDetail.subject}>
-                      {selectedBookingForDetail.subject}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Plan Type</span>
-                    <Badge variant="secondary" className="mt-0.5 text-xs bg-primary/10 text-primary hover:bg-primary/20">
-                      {selectedBookingForDetail.planType || "Demo Session"}
-                    </Badge>
-                  </div>
+            <div className="space-y-6 py-4">
+              {/* Core metadata stats grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-secondary/15 border border-border/40">
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Booking ID</span>
+                  <span className="text-xs font-mono font-bold text-foreground mt-0.5 block">
+                    {selectedBookingForDetail._id}
+                  </span>
                 </div>
-
-                {/* Timing and Financials Info */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-card border">
-                    <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Date & Timing</span>
-                    <span className="text-sm font-semibold text-foreground mt-1 flex items-center gap-1.5">
-                      <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
-                    </span>
-                  </div>
-                  <div className="p-4 rounded-xl bg-card border">
-                    <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Amount Paid (Gross)</span>
-                    <span className="text-lg font-bold text-emerald-600 mt-0.5 block">
-                      ₹{selectedBookingForDetail.amountPaid || 0}
-                    </span>
-                  </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Status</span>
+                  <Badge variant="outline" className={`mt-0.5 border-none font-bold text-[10px] ${
+                    selectedBookingForDetail.status === 'enrolled' ? 'bg-indigo-100 text-indigo-700' :
+                    selectedBookingForDetail.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                    selectedBookingForDetail.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                    selectedBookingForDetail.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {selectedBookingForDetail.status.toUpperCase()}
+                  </Badge>
                 </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Subject</span>
+                  <span className="text-sm font-semibold text-foreground mt-0.5 block truncate" title={selectedBookingForDetail.subject}>
+                    {selectedBookingForDetail.subject}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Plan Type</span>
+                  <Badge variant="secondary" className="mt-0.5 text-xs bg-primary/10 text-primary hover:bg-primary/20">
+                    {selectedBookingForDetail.planType || "Demo Session"}
+                  </Badge>
+                </div>
+              </div>
 
-                {/* Participant Profiles: Tutor and Student Side-by-Side */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* Tutor Card */}
-                  <div className="p-4 rounded-xl bg-card border flex flex-col justify-between space-y-4">
-                    <div className="space-y-2">
-                      <span className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-wider block">Tutor Information</span>
-                      <h4 className="font-bold text-sm text-foreground">{selectedBookingForDetail.tutorName}</h4>
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.tutorEmail || "N/A"}</p>
-                        <p><strong>Phone:</strong> {selectedBookingForDetail.tutorPhone || "N/A"}</p>
-                        {tutorResumeDoc ? (
-                          <p className="pt-0.5 flex items-center gap-1">
-                            <strong className="text-muted-foreground">Resume:</strong>{" "}
-                            <a
-                              href={resolveAssetUrl(tutorResumeDoc)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-bold text-indigo-600 hover:text-indigo-700 hover:underline inline-flex items-center gap-1"
-                            >
-                              <FileText className="h-3.5 w-3.5" /> View Resume
-                            </a>
-                          </p>
-                        ) : (
-                          <p className="pt-0.5"><strong>Resume:</strong> <span className="italic">Not uploaded</span></p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      {selectedBookingForDetail.tutorUserId ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 gap-1.5 h-9 font-semibold text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50/50"
-                          onClick={() => {
-                            sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.tutorUserId);
-                            setActiveChatUserId(selectedBookingForDetail.tutorUserId);
-                            setActiveTab("messages");
-                            setIsBookingDetailDialogOpen(false);
-                            toast.success(`Opening chat thread with tutor ${selectedBookingForDetail.tutorName}`);
-                          }}
-                        >
-                          <MessageSquare className="h-4 w-4" /> Message Tutor
-                        </Button>
-                      ) : (
-                        <Button size="sm" variant="outline" className="flex-1 h-9 text-xs" disabled>
-                          No Tutor Chat Available
-                        </Button>
-                      )}
-                      {tutorResumeDoc && (
-                        <a
-                          href={resolveAssetUrl(tutorResumeDoc)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-1.5 h-9 px-3 font-semibold text-xs rounded-md border border-indigo-200 bg-indigo-50/80 text-indigo-600 hover:bg-indigo-100 transition-colors shrink-0"
-                        >
-                          <FileText className="h-4 w-4" /> View Resume
-                        </a>
-                      )}
-                    </div>
-                  </div>
+              {selectedBookingForDetail.topicToLearn && (
+                <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50">
+                  <span className="text-[10px] text-purple-900 dark:text-purple-300 font-bold uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                    <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    Student's Requested Topics to Learn
+                  </span>
+                  <p className="text-xs text-foreground font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                    {selectedBookingForDetail.topicToLearn}
+                  </p>
+                </div>
+              )}
 
-                  {/* Student Card */}
-                  <div className="p-4 rounded-xl bg-card border flex flex-col justify-between space-y-4">
-                    <div className="space-y-2">
-                      <span className="text-[10px] text-sky-600 font-extrabold uppercase tracking-wider block">Student Information</span>
-                      <h4 className="font-bold text-sm text-foreground">{selectedBookingForDetail.studentName}</h4>
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.studentEmail || "N/A"}</p>
-                        <p><strong>Phone:</strong> {selectedBookingForDetail.studentPhone || "N/A"}</p>
-                      </div>
+              {/* Timing and Financials Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-card border">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Date & Timing</span>
+                      <span className="text-sm font-semibold text-foreground mt-1 flex items-center gap-1.5">
+                        <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
+                      </span>
                     </div>
-                    {selectedBookingForDetail.studentId ? (
+                    {['pending', 'confirmed', 'enrolled', 'rejected'].includes(selectedBookingForDetail.status) && (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="w-full gap-1.5 h-9 font-semibold text-xs border-sky-200 text-sky-600 hover:bg-sky-50/50"
+                        className="h-7 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/5 gap-1"
                         onClick={() => {
-                          sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.studentId);
-                          setActiveChatUserId(selectedBookingForDetail.studentId);
-                          setActiveTab("messages");
-                          setIsBookingDetailDialogOpen(false);
-                          toast.success(`Opening chat thread with student ${selectedBookingForDetail.studentName}`);
+                          setReschedulingBooking(selectedBookingForDetail);
+                          setIsRescheduleDialogOpen(true);
                         }}
                       >
-                        <MessageSquare className="h-4 w-4" /> Message Student
+                        <Clock className="h-3 w-3" /> Reschedule
                       </Button>
-                    ) : (
-                      <Button size="sm" variant="outline" className="w-full h-9 text-xs" disabled>
-                        No Student Chat Available
+                    )}
+                    {['pending', 'confirmed'].includes(selectedBookingForDetail.status) && selectedBookingForDetail.subject === "Verification Demo Class" && (
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                        onClick={() => {
+                          setBookingToComplete({
+                            id: selectedBookingForDetail._id,
+                            tutorName: selectedBookingForDetail.tutorName || "Unknown Tutor",
+                            timing: selectedBookingForDetail.timing,
+                            subject: selectedBookingForDetail.subject,
+                            existingComment: selectedBookingForDetail.adminComment || ""
+                          });
+                          setAdminCompletionComment(selectedBookingForDetail.adminComment || "");
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3" /> Completed
                       </Button>
                     )}
                   </div>
                 </div>
-
-                {/* Classroom Meeting Room Link details */}
-                <div className="space-y-3">
-                  <span className="text-xs font-bold text-foreground uppercase tracking-wider block">Live Session Classrooms</span>
-
-                  {selectedBookingForDetail.sessions && selectedBookingForDetail.sessions.length > 0 ? (
-                    /* Package session calendar logs */
-                    <div className="border rounded-xl overflow-hidden bg-card shadow-inner max-h-60 overflow-y-auto divide-y divide-border/40">
-                      {selectedBookingForDetail.sessions.map((session: any, sIdx: number) => {
-                        const sessMeetLink = session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${selectedBookingForDetail._id}-session-${sIdx + 1}`;
-                        return (
-                          <div key={sIdx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-card hover:bg-secondary/5 transition-colors gap-3">
-                            <div className="flex items-center gap-3">
-                              <span className="h-7 w-7 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
-                                #{sIdx + 1}
-                              </span>
-                              <div>
-                                <p className="font-bold text-xs text-foreground">{session.date}</p>
-                                <p className="text-[11px] text-muted-foreground mt-0.5">Time: {session.time}</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
-                              <Badge variant="outline" className={`px-2 py-0.5 border-none text-[9px] uppercase font-bold tracking-wider ${session.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                  'bg-blue-100 text-blue-700'
-                                }`}>
-                                {session.status}
-                              </Badge>
-
-                              {session.status !== 'cancelled' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 text-xs font-bold bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
-                                  asChild
-                                >
-                                  <a
-                                    href={`${sessMeetLink}#config.prejoinPageEnabled=false&userInfo.displayName="Admin%20Moderator"`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <Video className="h-3.5 w-3.5 mr-1" /> Join Jitsi Room
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    /* Standard / Demo class Jitsi Meet links */
-                    <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl mt-0.5">🎥</span>
-                        <div>
-                          <p className="text-xs font-bold text-foreground">Jitsi Meet Classroom Room</p>
-                          <p className="text-[10px] text-muted-foreground mt-1 max-w-sm">
-                            This is a dynamic secure video conference room. You can join the room as a moderator helper to support the live session.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
-                        <Button
-                          size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 px-4 text-xs shadow-sm"
-                          asChild
-                        >
-                          <a
-                            href={`${selectedBookingForDetail.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${selectedBookingForDetail._id}`}#config.prejoinPageEnabled=false&userInfo.displayName="Admin%20Moderator"`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Video className="h-3.5 w-3.5 mr-1.5" /> Join Room
-                          </a>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-9 px-3 text-xs"
-                          onClick={() => {
-                            const link = selectedBookingForDetail.meetingLink || `https://meet.jit.si/cuvasol-tutor-demo-${selectedBookingForDetail._id}`;
-                            navigator.clipboard.writeText(link);
-                            toast.success("Meeting link copied to clipboard!");
-                          }}
-                        >
-                          Copy Link
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Modal footer controls */}
-                <div className="flex justify-end pt-4 border-t border-border/40">
-                  <Button variant="ghost" onClick={() => setIsBookingDetailDialogOpen(false)}>
-                    Close
-                  </Button>
+                <div className="p-4 rounded-xl bg-card border">
+                  <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Amount Paid (Gross)</span>
+                  <span className="text-lg font-bold text-emerald-600 mt-0.5 block">
+                    ₹{selectedBookingForDetail.amountPaid || 0}
+                  </span>
                 </div>
               </div>
+
+              {/* Reschedule Request Audit Banner */}
+              {selectedBookingForDetail.rescheduleRequest && selectedBookingForDetail.rescheduleRequest.status && (
+                <div className={`p-4 rounded-xl border space-y-2 shadow-sm ${
+                  selectedBookingForDetail.rescheduleRequest.status === 'pending'
+                    ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50'
+                    : selectedBookingForDetail.rescheduleRequest.status === 'approved'
+                    ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50'
+                    : 'bg-rose-50/80 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50'
+                }`}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-primary" />
+                      Reschedule Record ({selectedBookingForDetail.rescheduleRequest.requestedBy || 'User'})
+                    </span>
+                    <Badge variant="outline" className="text-[10px] font-bold uppercase">
+                      {selectedBookingForDetail.rescheduleRequest.status}
+                    </Badge>
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p><strong>Proposed/Rescheduled Timing:</strong> {selectedBookingForDetail.rescheduleRequest.requestedTiming}</p>
+                    {selectedBookingForDetail.rescheduleRequest.reason && (
+                      <p className="text-muted-foreground italic">"{selectedBookingForDetail.rescheduleRequest.reason}"</p>
+                    )}
+                    {selectedBookingForDetail.rescheduledAt && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Rescheduled At: {new Date(selectedBookingForDetail.rescheduledAt).toLocaleString()} by {selectedBookingForDetail.rescheduledBy || 'Admin'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Cancellation & Rejection Audit Banner */}
+              {(selectedBookingForDetail.status === 'cancelled' || selectedBookingForDetail.status === 'rejected') && (
+                <div className="p-4 rounded-xl bg-red-50/80 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 space-y-3 shadow-sm">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300 flex items-center justify-center font-bold shrink-0">
+                        <XCircle className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-red-950 dark:text-red-100">
+                          {selectedBookingForDetail.status === 'rejected' ? 'Demo Request Declined' : 'Class Booking Cancelled'}
+                        </h4>
+                        <p className="text-xs text-red-700 dark:text-red-300/90">
+                          Cancelled / Declined By: <span className="font-bold underline text-red-950 dark:text-red-100">
+                            {selectedBookingForDetail.cancelledBy === 'Tutor' ? `Tutor (${selectedBookingForDetail.tutorName})` :
+                             selectedBookingForDetail.cancelledBy === 'Admin' ? 'Admin / Platform Manager' :
+                             `Student (${selectedBookingForDetail.studentName || 'Student'})`}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    {selectedBookingForDetail.cancelledAt && (
+                      <span className="text-[11px] font-mono text-red-700 dark:text-red-300 bg-white/80 dark:bg-red-900/40 px-2.5 py-1 rounded-md border border-red-200 dark:border-red-800/40 font-medium">
+                        {new Date(selectedBookingForDetail.cancelledAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="bg-white/90 dark:bg-card/80 p-3 rounded-lg border border-red-100 dark:border-red-900/40">
+                    <span className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400 tracking-wider block mb-1">
+                      Reason for Cancellation / Rejection
+                    </span>
+                    <p className="text-sm font-semibold text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedBookingForDetail.cancellationReason || "No specific reason provided."}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Participant Profiles: Tutor and Student Side-by-Side */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Tutor Card */}
+                <div className="p-4 rounded-xl bg-card border flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <span className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-wider block">Tutor Information</span>
+                    <h4 className="font-bold text-sm text-foreground">{selectedBookingForDetail.tutorName}</h4>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.tutorEmail || "N/A"}</p>
+                      <p><strong>Phone:</strong> {selectedBookingForDetail.tutorPhone || "N/A"}</p>
+                      {tutorResumeDoc ? (
+                        <p className="pt-0.5 flex items-center gap-1">
+                          <strong className="text-muted-foreground">Resume:</strong>{" "}
+                          <a
+                            href={resolveAssetUrl(tutorResumeDoc)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bold text-indigo-600 hover:text-indigo-700 hover:underline inline-flex items-center gap-1"
+                          >
+                            <FileText className="h-3.5 w-3.5" /> View Resume
+                          </a>
+                        </p>
+                      ) : (
+                        <p className="pt-0.5"><strong>Resume:</strong> <span className="italic">Not uploaded</span></p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {selectedBookingForDetail.tutorUserId ? (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1 gap-1.5 h-9 font-semibold text-xs border-indigo-200 text-indigo-600 hover:bg-indigo-50/50"
+                        onClick={() => {
+                          const tutorData = {
+                            id: selectedBookingForDetail.tutorUserId,
+                            full_name: selectedBookingForDetail.tutorName || "Tutor",
+                            email: selectedBookingForDetail.tutorEmail || "",
+                            role: "tutor",
+                            avatar: selectedBookingForDetail.tutorPhoto || "",
+                            tutorProfileId: selectedBookingForDetail.tutorId
+                          };
+                          sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.tutorUserId);
+                          sessionStorage.setItem("active_chat_user", JSON.stringify(tutorData));
+                          setActiveChatUserId(selectedBookingForDetail.tutorUserId);
+                          setActiveChatUser(tutorData);
+                          setActiveTab("messages");
+                          setIsBookingDetailDialogOpen(false);
+                          toast.success(`Opening chat thread with tutor ${selectedBookingForDetail.tutorName}`);
+                        }}
+                      >
+                        <MessageSquare className="h-4 w-4" /> Message Tutor
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" className="flex-1 h-9 text-xs" disabled>
+                        No Tutor Chat Available
+                      </Button>
+                    )}
+                    {tutorResumeDoc && (
+                      <a
+                        href={resolveAssetUrl(tutorResumeDoc)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 h-9 px-3 font-semibold text-xs rounded-md border border-indigo-200 bg-indigo-50/80 text-indigo-600 hover:bg-indigo-100 transition-colors shrink-0"
+                      >
+                        <FileText className="h-4 w-4" /> View Resume
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Student Card */}
+                <div className="p-4 rounded-xl bg-card border flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <span className="text-[10px] text-sky-600 font-extrabold uppercase tracking-wider block">Student Information</span>
+                    <h4 className="font-bold text-sm text-foreground">{selectedBookingForDetail.studentName}</h4>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="truncate"><strong>Email:</strong> {selectedBookingForDetail.studentEmail || "N/A"}</p>
+                      <p><strong>Phone:</strong> {selectedBookingForDetail.studentPhone || "N/A"}</p>
+                      <p><strong>Class:</strong> {selectedBookingForDetail.studentClass || "N/A"}</p>
+                      <p><strong>Parent Name:</strong> {selectedBookingForDetail.parentName || "N/A"}</p>
+                      <p className="truncate"><strong>Subject:</strong> {selectedBookingForDetail.subject || "N/A"}</p>
+                    </div>
+                  </div>
+                  {selectedBookingForDetail.studentId ? (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full gap-1.5 h-9 font-semibold text-xs border-sky-200 text-sky-600 hover:bg-sky-50/50"
+                      onClick={() => {
+                        const studentData = {
+                          id: selectedBookingForDetail.studentId,
+                          full_name: selectedBookingForDetail.studentName || "Student",
+                          email: selectedBookingForDetail.studentEmail || "",
+                          role: "student",
+                          avatar: ""
+                        };
+                        sessionStorage.setItem("active_chat_user_id", selectedBookingForDetail.studentId);
+                        sessionStorage.setItem("active_chat_user", JSON.stringify(studentData));
+                        setActiveChatUserId(selectedBookingForDetail.studentId);
+                        setActiveChatUser(studentData);
+                        setActiveTab("messages");
+                        setIsBookingDetailDialogOpen(false);
+                        toast.success(`Opening chat thread with student ${selectedBookingForDetail.studentName}`);
+                      }}
+                    >
+                      <MessageSquare className="h-4 w-4" /> Message Student
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="w-full h-9 text-xs" disabled>
+                      No Student Chat Available
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Classroom Meeting Room Link details */}
+              <div className="space-y-3">
+                <span className="text-xs font-bold text-foreground uppercase tracking-wider block">Live Session Classrooms</span>
+                
+                {selectedBookingForDetail.sessions && selectedBookingForDetail.sessions.length > 0 ? (
+                  /* Package session calendar logs */
+                  <div className="border rounded-xl overflow-hidden bg-card shadow-inner max-h-60 overflow-y-auto divide-y divide-border/40">
+                    {selectedBookingForDetail.sessions.map((session: any, sIdx: number) => {
+                      const sessMeetLink = session.meetingLink || `https://meet.jit.si/cuvasol-tutor-class-${selectedBookingForDetail._id}-session-${sIdx + 1}`;
+                      return (
+                        <div key={sIdx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-card hover:bg-secondary/5 transition-colors gap-3">
+                          <div className="flex items-center gap-3">
+                            <span className="h-7 w-7 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
+                              #{sIdx + 1}
+                            </span>
+                            <div>
+                              <p className="font-bold text-xs text-foreground">{session.date}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">Time: {session.time}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+                            <Badge variant="outline" className={`px-2 py-0.5 border-none text-[9px] uppercase font-bold tracking-wider ${
+                              session.status === 'completed' ? 'bg-green-100 text-green-700' :
+                              session.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {session.status}
+                            </Badge>
+                            
+                            {session.status !== 'cancelled' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs font-bold bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                                asChild
+                              >
+                                <a 
+                                  href={getMeetingHref(sessMeetLink, '', "Admin Moderator", '')}
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                >
+                                  <Video className="h-3.5 w-3.5 mr-1" /> {sessMeetLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Jitsi Room'}
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Standard / Demo class Meet links */
+                  <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl mt-0.5">🎥</span>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">
+                          {selectedBookingForDetail.meetingLink?.includes('meet.google.com') 
+                            ? 'Google Meet Classroom' 
+                            : 'Jitsi Meet Classroom'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1 max-w-sm">
+                          This is a dynamic secure video conference room. You can join the room as a moderator helper to support the live session.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 px-4 text-xs shadow-sm"
+                        asChild
+                      >
+                        <a 
+                          href={getMeetingHref(selectedBookingForDetail.meetingLink, selectedBookingForDetail._id, "Admin Moderator", '', selectedBookingForDetail.subject)}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <Video className="h-3.5 w-3.5 mr-1.5" /> Join Room
+                        </a>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 px-3 text-xs"
+                        onClick={() => {
+                          const link = getMeetingHref(selectedBookingForDetail.meetingLink, selectedBookingForDetail._id, "Admin Moderator", '', selectedBookingForDetail.subject);
+                          navigator.clipboard.writeText(link);
+                          toast.success("Meeting link copied to clipboard!");
+                        }}
+                      >
+                        Copy Link
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal footer controls */}
+              <div className="flex justify-end pt-4 border-t border-border/40">
+                <Button variant="ghost" onClick={() => setIsBookingDetailDialogOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
             );
           })()}
         </DialogContent>
       </Dialog>
+      {/* Complete Booking Confirmation Modal with Admin Comment */}
+      <Dialog
+        open={bookingToComplete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBookingToComplete(null);
+            setAdminCompletionComment("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[480px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-blue-600">
+              <CheckCircle className="h-5 w-5" /> Mark Demo as Completed
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              Mark the verification demo for <strong className="text-foreground">{bookingToComplete?.tutorName}</strong> as completed.
+              {bookingToComplete?.timing && (
+                <span className="block mt-0.5 text-xs text-muted-foreground">
+                  Scheduled Time: <strong className="text-foreground">{bookingToComplete.timing}</strong>
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-completion-comment" className="text-xs font-semibold flex items-center justify-between">
+                <span>Admin Comment / Feedback</span>
+                <span className="text-[11px] text-muted-foreground font-normal">(Optional)</span>
+              </Label>
+              <Textarea
+                id="admin-completion-comment"
+                placeholder="e.g. Tutor attended demo session via direct link. Good communication, subject expertise verified, profile approved..."
+                value={adminCompletionComment}
+                onChange={(e) => setAdminCompletionComment(e.target.value)}
+                rows={3}
+                className="text-xs resize-none rounded-lg"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                This comment will be saved to the verification demo record for reference.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-border/40">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setBookingToComplete(null);
+                setAdminCompletionComment("");
+              }}
+              disabled={isCompletingBooking}
+              className="rounded-lg h-9 px-4 hover:bg-secondary/20 font-semibold text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (bookingToComplete) {
+                  try {
+                    setIsCompletingBooking(true);
+                    await handleUpdateBookingStatus(
+                      bookingToComplete.id,
+                      'completed',
+                      undefined,
+                      adminCompletionComment.trim()
+                    );
+                    setBookingToComplete(null);
+                    setAdminCompletionComment("");
+                  } finally {
+                    setIsCompletingBooking(false);
+                  }
+                }
+              }}
+              disabled={isCompletingBooking}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-9 px-4 shadow-md font-semibold text-xs flex items-center gap-1.5"
+            >
+              {isCompletingBooking ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3.5 w-3.5" /> Mark Completed
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Dialog */}
+      <RescheduleDialog
+        isOpen={isRescheduleDialogOpen}
+        onOpenChange={setIsRescheduleDialogOpen}
+        booking={reschedulingBooking}
+        userRole="Admin"
+        onSuccess={(updatedBooking) => {
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
+          if (selectedBookingForDetail && selectedBookingForDetail._id === updatedBooking._id) {
+            setSelectedBookingForDetail((prev: any) => ({ ...prev, ...updatedBooking }));
+          }
+          fetchTutors();
+        }}
+      />
     </PageLayout>
   );
 };

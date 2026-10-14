@@ -18,7 +18,7 @@ const Header = () => {
   const navigate = useNavigate();
   const { user, role, signOut } = useAuth();
 
-  const dashboardPath = role === "admin" ? "/dashboard/admin" : role === "tutor" ? "/dashboard/tutor" : "/dashboard/student";
+  const dashboardPath = role === "admin" ? "/dashboard/admin" : role === "hr" ? "/dashboard/hr" : role === "tutor" ? "/dashboard/tutor" : "/dashboard/student";
 
   const handleSignOut = async () => {
     await signOut();
