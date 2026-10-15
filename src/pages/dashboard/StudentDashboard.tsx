@@ -691,7 +691,7 @@ const StudentDashboard = () => {
                                               asChild
                                             >
                                               <a
-                                                href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, profileName, user?.email || '')}
+                                                href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, profileName, user?.email || '', cls.subject, cls.tutorGoogleMeetLink)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                               >
@@ -835,7 +835,7 @@ const StudentDashboard = () => {
                                     asChild
                                   >
                                     <a
-                                       href={getMeetingHref(cls.meetingLink, cls._id, profileName, user?.email || '')}
+                                       href={getMeetingHref(cls.meetingLink, cls._id, profileName, user?.email || '', cls.subject, cls.tutorGoogleMeetLink)}
                                        target="_blank"
                                       rel="noopener noreferrer"
                                     >
@@ -1198,7 +1198,7 @@ const StudentDashboard = () => {
                                      asChild
                                    >
                                      <a
-                                       href={getMeetingHref(booking.meetingLink, booking._id, profileName, user?.email || '', booking.subject)}
+                                       href={getMeetingHref(booking.meetingLink, booking._id, profileName, user?.email || '', booking.subject, booking.tutorGoogleMeetLink)}
                                        target="_blank"
                                        rel="noopener noreferrer"
                                      >

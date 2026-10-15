@@ -1215,7 +1215,7 @@ const TutorDashboard = () => {
                                     asChild
                                   >
                                     <a
-                                      href={getMeetingHref(booking.meetingLink, booking._id, name, user?.email || '', booking.subject)}
+                                      href={getMeetingHref(booking.meetingLink, booking._id, name, user?.email || '', booking.subject, profileData.googleMeetLink || tutorProfile?.googleMeetLink)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                     >
@@ -1371,7 +1371,7 @@ const TutorDashboard = () => {
                                                     asChild
                                                   >
                                                     <a
-                                                      href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, name, user?.email || '')}
+                                                      href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, name, user?.email || '', cls.subject, profileData.googleMeetLink || tutorProfile?.googleMeetLink)}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
                                                     >
@@ -1501,7 +1501,7 @@ const TutorDashboard = () => {
                                   asChild
                                 >
                                   <a
-                                    href={getMeetingHref(cls.meetingLink, cls._id, name, user?.email || '')}
+                                    href={getMeetingHref(cls.meetingLink, cls._id, name, user?.email || '', cls.subject, profileData.googleMeetLink || tutorProfile?.googleMeetLink)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >

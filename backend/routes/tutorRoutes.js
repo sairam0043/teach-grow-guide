@@ -878,15 +878,20 @@ router.post('/:id/book-class', async (req, res) => {
 // Get student's bookings for a specific tutor
 router.get('/:id/bookings/student/:studentId', async (req, res) => {
   try {
-    const bookings = await Booking.find({ tutorId: req.params.id, studentId: req.params.studentId }).populate('tutorId', 'address googleMapsUrl mode city');
+    const bookings = await Booking.find({ tutorId: req.params.id, studentId: req.params.studentId }).populate('tutorId', 'address googleMapsUrl googleMeetLink mode city');
     const formatted = bookings.map(b => {
       const obj = b.toObject();
       if (b.tutorId) {
         obj.tutorAddress = b.tutorId.address;
         obj.tutorGoogleMapsUrl = b.tutorId.googleMapsUrl;
+        obj.tutorGoogleMeetLink = b.tutorId.googleMeetLink;
         obj.tutorMode = b.tutorId.mode;
         obj.tutorCity = b.tutorId.city;
         obj.tutorId = b.tutorId._id.toString();
+
+        if (b.tutorId.googleMeetLink && b.tutorId.googleMeetLink.trim() && obj.subject !== 'Verification Demo Class') {
+          obj.meetingLink = b.tutorId.googleMeetLink.trim();
+        }
       }
       return obj;
     });
@@ -908,6 +913,19 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     
     const oldStatus = booking.status;
     booking.status = status;
+
+    // When confirmed, ensure booking uses tutor's personal Google Meet link if configured
+    if (status === 'confirmed' && booking.subject !== 'Verification Demo Class') {
+      try {
+        const tutor = await Tutor.findById(booking.tutorId);
+        if (tutor && tutor.googleMeetLink && tutor.googleMeetLink.trim()) {
+          booking.meetingLink = tutor.googleMeetLink.trim();
+        }
+      } catch (err) {
+        console.warn('Could not sync tutor meet link on booking confirm:', err.message);
+      }
+    }
+
     if (cancellationReason !== undefined) {
       booking.cancellationReason = cancellationReason;
     }
@@ -1691,6 +1709,35 @@ router.put('/:id/admin', async (req, res) => {
 
     const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    // Sync updated Google Meet link to tutor's active bookings
+    if (googleMeetLink !== undefined && updateData.googleMeetLink) {
+      try {
+        const directLink = updateData.googleMeetLink;
+        await Booking.updateMany(
+          {
+            tutorId: tutor._id,
+            subject: { $ne: 'Verification Demo Class' },
+            status: { $in: ['pending', 'confirmed', 'enrolled'] }
+          },
+          { $set: { meetingLink: directLink } }
+        );
+        const enrolledBookings = await Booking.find({
+          tutorId: tutor._id,
+          subject: { $ne: 'Verification Demo Class' },
+          status: 'enrolled',
+          'sessions.0': { $exists: true }
+        });
+        for (const b of enrolledBookings) {
+          if (b.sessions && Array.isArray(b.sessions)) {
+            b.sessions = b.sessions.map(s => ({ ...s, meetingLink: directLink }));
+            await b.save();
+          }
+        }
+      } catch (syncErr) {
+        console.error('Failed to sync updated Google Meet link to bookings (admin):', syncErr);
+      }
+    }
     
     // If tutor is approved, send email
     if (status === 'approved' && tutor.userId && tutor.userId.email) {
@@ -1875,6 +1922,36 @@ router.put('/:id/profile', async (req, res) => {
     if (timezone !== undefined) currentTutor.timezone = timezone;
 
     await currentTutor.save();
+
+    // Sync updated Google Meet link to tutor's active bookings
+    if (googleMeetLink !== undefined && currentTutor.googleMeetLink && currentTutor.googleMeetLink.trim()) {
+      try {
+        const directLink = currentTutor.googleMeetLink.trim();
+        await Booking.updateMany(
+          {
+            tutorId: currentTutor._id,
+            subject: { $ne: 'Verification Demo Class' },
+            status: { $in: ['pending', 'confirmed', 'enrolled'] }
+          },
+          { $set: { meetingLink: directLink } }
+        );
+        const enrolledBookings = await Booking.find({
+          tutorId: currentTutor._id,
+          subject: { $ne: 'Verification Demo Class' },
+          status: 'enrolled',
+          'sessions.0': { $exists: true }
+        });
+        for (const b of enrolledBookings) {
+          if (b.sessions && Array.isArray(b.sessions)) {
+            b.sessions = b.sessions.map(s => ({ ...s, meetingLink: directLink }));
+            await b.save();
+          }
+        }
+      } catch (syncErr) {
+        console.error('Failed to sync updated Google Meet link to bookings (tutor profile):', syncErr);
+      }
+    }
+
     const tutor = await currentTutor.populate('userId', 'email phone avatar');
     
     const obj = tutor.toObject();

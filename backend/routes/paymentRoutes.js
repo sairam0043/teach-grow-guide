@@ -182,9 +182,9 @@ router.post('/verify-payment', async (req, res) => {
     // Preserve database-calculated amountPaid, never trust the client parameter
     booking.amountPaid = booking.amountPaid || 0;
 
-    // 2. Generate Classroom Link if not already created
-    if (!booking.meetingLink) {
-      const tutor = await Tutor.findById(booking.tutorId);
+    // 2. Generate Classroom Link if not already created or if currently using Jitsi fallback
+    const tutor = await Tutor.findById(booking.tutorId);
+    if (!booking.meetingLink || (booking.meetingLink.includes('meet.jit.si') && tutor && tutor.googleMeetLink)) {
       booking.meetingLink = await generateMeetingLinkForBooking({
         tutor,
         studentId: booking.studentId,
@@ -192,6 +192,14 @@ router.post('/verify-payment', async (req, res) => {
         timing: booking.timing,
         utcTiming: booking.utcTiming,
         fallbackJitsiPrefix: `cuvasol-tutor-class-${booking._id}`
+      });
+    }
+    if (booking.sessions && booking.sessions.length > 0 && tutor && tutor.googleMeetLink && tutor.googleMeetLink.trim()) {
+      booking.sessions = booking.sessions.map(s => {
+        if (!s.meetingLink || s.meetingLink.includes('meet.jit.si')) {
+          s.meetingLink = tutor.googleMeetLink.trim();
+        }
+        return s;
       });
     }
     
