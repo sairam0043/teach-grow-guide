@@ -13,9 +13,16 @@ export const getMeetingHref = (
   fallbackId: string,
   displayName: string,
   email: string,
-  subject?: string
+  subject?: string,
+  tutorGoogleMeetLink?: string
 ): string => {
-  let finalLink = meetingLink;
+  let finalLink = (meetingLink || "").trim();
+
+  // If the tutor has configured a direct personal Google Meet link, prioritize it for non-admin verification demo classes
+  if (subject !== "Verification Demo Class" && tutorGoogleMeetLink && tutorGoogleMeetLink.trim()) {
+    finalLink = tutorGoogleMeetLink.trim();
+  }
+
   if (!finalLink) {
     if (subject === "Verification Demo Class") {
       const code = Array.from(fallbackId || "").map(c => String.fromCharCode(97 + (c.charCodeAt(0) % 26))).join("").slice(0, 10);
@@ -26,6 +33,9 @@ export const getMeetingHref = (
   }
 
   if (finalLink.includes("meet.google.com")) {
+    if (!/^https?:\/\//i.test(finalLink)) {
+      finalLink = `https://${finalLink}`;
+    }
     return finalLink;
   }
 

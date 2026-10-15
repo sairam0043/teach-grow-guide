@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
+import AdminConversationViewer from "@/components/chat/AdminConversationViewer";
 import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
@@ -1130,6 +1131,10 @@ const AdminDashboard = () => {
               )}
             </TabsTrigger>
             <TabsTrigger value="geo-analytics" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Geo Analytics</TabsTrigger>
+            <TabsTrigger value="conversations" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              <Shield className="h-4 w-4 text-indigo-500" />
+              Student & Tutor Conversations
+            </TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
               Messages
               {unreadMessagesCount > 0 && (
@@ -3054,6 +3059,12 @@ const AdminDashboard = () => {
                   </div>
                 )}
               </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="conversations">
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-6">
+              <AdminConversationViewer />
             </Card>
           </TabsContent>
 

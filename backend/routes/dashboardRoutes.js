@@ -459,8 +459,25 @@ router.put('/tutor/:tutorId/timings', async (req, res) => {
 router.get('/tutor/:tutorId/bookings', async (req, res) => {
   try {
     const tutorObjId = req.params.tutorId;
+    const tutor = await Tutor.findById(tutorObjId).select('googleMeetLink');
     const bookings = await Booking.find({ tutorId: tutorObjId }).sort({ createdAt: -1 });
-    res.json(bookings);
+
+    const formatted = bookings.map(b => {
+      const obj = b.toObject();
+      if (tutor && tutor.googleMeetLink && tutor.googleMeetLink.trim() && obj.subject !== 'Verification Demo Class') {
+        let directLink = tutor.googleMeetLink.trim();
+        if (!/^https?:\/\//i.test(directLink)) {
+          directLink = `https://${directLink}`;
+        }
+        obj.meetingLink = directLink;
+        if (obj.sessions && Array.isArray(obj.sessions)) {
+          obj.sessions = obj.sessions.map(s => ({ ...s, meetingLink: directLink }));
+        }
+      }
+      return obj;
+    });
+
+    res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -554,6 +571,19 @@ router.get('/student/:studentId/bookings', async (req, res) => {
         obj.tutorCity = b.tutorId.city;
         obj.tutorTimezone = b.tutorId.timezone;
         obj.tutorId = b.tutorId._id.toString();
+
+        let directLink = (b.tutorId.googleMeetLink || '').trim();
+        if (directLink && !/^https?:\/\//i.test(directLink)) {
+          directLink = `https://${directLink}`;
+        }
+        obj.tutorGoogleMeetLink = directLink;
+
+        if (directLink && obj.subject !== 'Verification Demo Class') {
+          obj.meetingLink = directLink;
+          if (obj.sessions && Array.isArray(obj.sessions)) {
+            obj.sessions = obj.sessions.map(s => ({ ...s, meetingLink: directLink }));
+          }
+        }
       }
       return obj;
     });
