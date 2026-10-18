@@ -32,6 +32,7 @@ import NotFound from "./pages/NotFound";
 import ApproveBooking from "./pages/ApproveBooking";
 import TutorWelcome from "./pages/TutorWelcome";
 import GoogleCallback from "./pages/GoogleCallback";
+import CustomServiceChatbot from "@/components/CustomServiceChatbot";
 
 const queryClient = new QueryClient();
 
@@ -195,6 +196,7 @@ const App = () => {
             <Route path="/google-callback" element={<GoogleCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <CustomServiceChatbot />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

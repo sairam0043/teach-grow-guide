@@ -2,9 +2,9 @@ import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
-import { 
-  Shield, MessageSquare, Search, User, ExternalLink, Calendar, 
-  FileText, Download, Eye, Clock, GraduationCap, CheckCircle2, 
+import {
+  Shield, MessageSquare, Search, User, ExternalLink, Calendar,
+  FileText, Download, Eye, Clock, GraduationCap, CheckCircle2,
   RefreshCw, Users, ShieldAlert, Sparkles, Filter
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -172,7 +172,7 @@ const AdminConversationViewer = () => {
       </div>
 
       {/* Main Split Panel */}
-      <div className="grid grid-cols-1 grid-rows-2 lg:grid-rows-1 lg:grid-cols-12 gap-6 h-[750px] min-h-[620px] max-h-[750px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[620px] max-h-[750px]">
         {/* Left: Conversations Directory */}
         <div className="lg:col-span-5 flex min-h-0 flex-col rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
           <div className="p-4 border-b bg-secondary/20 flex flex-col gap-3">
@@ -196,7 +196,7 @@ const AdminConversationViewer = () => {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-border/40">
+          <div className="flex-1 overflow-y-auto divide-y divide-border/40">
             {loading ? (
               <div className="p-4 space-y-4">
                 {[1, 2, 3, 4].map((i) => (
@@ -224,9 +224,8 @@ const AdminConversationViewer = () => {
                   <button
                     key={conv.id}
                     onClick={() => setSelectedConversation(conv)}
-                    className={`w-full text-left p-3.5 transition-all flex flex-col gap-2 hover:bg-secondary/40 ${
-                      isSelected ? "bg-indigo-50/70 dark:bg-indigo-950/30 border-l-4 border-indigo-600" : ""
-                    }`}
+                    className={`w-full text-left p-3.5 transition-all flex flex-col gap-2 hover:bg-secondary/40 ${isSelected ? "bg-indigo-50/70 dark:bg-indigo-950/30 border-l-4 border-indigo-600" : ""
+                      }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       {/* Tutor Info */}
@@ -291,7 +290,8 @@ const AdminConversationViewer = () => {
         </div>
 
         {/* Right: Full Chat Transcript */}
-        <div className="lg:col-span-7 flex min-h-0 flex-col rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
+
+        <div className="lg:col-span-7 flex flex-col h-[500px] lg:h-[750px] min-h-0 rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm">
           {selectedConversation ? (
             <>
               {/* Transcript Header */}
@@ -334,7 +334,12 @@ const AdminConversationViewer = () => {
               </div>
 
               {/* Chat Messages Body */}
-              <div ref={chatContainerRef} className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4 bg-secondary/5">
+
+              <div
+                ref={chatContainerRef}
+                className="flex-1 min-h-0 overflow-y-scroll admin-scrollbar p-4 space-y-4 bg-secondary/5"
+              >
+
                 {loadingChat ? (
                   <div className="space-y-4 py-8">
                     {[1, 2, 3].map((i) => (
@@ -362,11 +367,10 @@ const AdminConversationViewer = () => {
                           <span className="font-bold text-foreground">{senderName}</span>
                           <Badge
                             variant="outline"
-                            className={`text-[9px] px-1 py-0 h-4 border-none font-bold ${
-                              isTutor
-                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                                : "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300"
-                            }`}
+                            className={`text-[9px] px-1 py-0 h-4 border-none font-bold ${isTutor
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              : "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300"
+                              }`}
                           >
                             {senderRole}
                           </Badge>
@@ -375,11 +379,10 @@ const AdminConversationViewer = () => {
                         </div>
 
                         <div
-                          className={`max-w-[85%] rounded-2xl p-3.5 shadow-sm text-sm ${
-                            isTutor
-                              ? "bg-emerald-500/10 border border-emerald-500/20 text-foreground rounded-tl-none"
-                              : "bg-indigo-600 text-white rounded-tr-none"
-                          }`}
+                          className={`max-w-[85%] rounded-2xl p-3.5 shadow-sm text-sm ${isTutor
+                            ? "bg-emerald-500/10 border border-emerald-500/20 text-foreground rounded-tl-none"
+                            : "bg-indigo-600 text-white rounded-tr-none"
+                            }`}
                         >
                           {msg.text && (
                             <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
@@ -393,11 +396,10 @@ const AdminConversationViewer = () => {
                                 return (
                                   <div
                                     key={aIdx}
-                                    className={`p-2 rounded-xl flex items-center justify-between gap-3 text-xs ${
-                                      isTutor
-                                        ? "bg-card border border-border"
-                                        : "bg-indigo-700/80 text-white border border-indigo-500/40"
-                                    }`}
+                                    className={`p-2 rounded-xl flex items-center justify-between gap-3 text-xs ${isTutor
+                                      ? "bg-card border border-border"
+                                      : "bg-indigo-700/80 text-white border border-indigo-500/40"
+                                      }`}
                                   >
                                     <div className="flex items-center gap-2 truncate">
                                       {isImg ? (
@@ -422,11 +424,10 @@ const AdminConversationViewer = () => {
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       download={att.filename}
-                                      className={`p-1.5 rounded-lg transition-colors ${
-                                        isTutor
-                                          ? "hover:bg-secondary text-primary"
-                                          : "hover:bg-indigo-600 text-white"
-                                      }`}
+                                      className={`p-1.5 rounded-lg transition-colors ${isTutor
+                                        ? "hover:bg-secondary text-primary"
+                                        : "hover:bg-indigo-600 text-white"
+                                        }`}
                                       title="Open attachment"
                                     >
                                       <Download className="h-4 w-4" />

@@ -13,6 +13,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const visitorRoutes = require('./routes/visitorRoutes');
+const customServiceRoutes = require('./routes/CustomServiceRequest');
 
 const app = express();
 
@@ -144,6 +145,8 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/visitors', visitorRoutes);
+app.use('/api/custom-service', customServiceRoutes);
+app.use('/api/custom-service-request', customServiceRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'cuvasol-backend' });

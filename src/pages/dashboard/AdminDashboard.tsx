@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 import AdminConversationViewer from "@/components/chat/AdminConversationViewer";
+import CustomServiceRequestsViewer from "@/components/admin/CustomServiceRequestsViewer";
 import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
@@ -1142,6 +1143,10 @@ const AdminDashboard = () => {
                   {unreadMessagesCount}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="custom-services" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-blue-500" />
+              Chatbot Service Requests
             </TabsTrigger>
           </TabsList>
 
@@ -3072,6 +3077,10 @@ const AdminDashboard = () => {
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-0">
               <ChatPanel initialActiveUserId={activeChatUserId} initialActiveUser={activeChatUser} />
             </Card>
+          </TabsContent>
+
+          <TabsContent value="custom-services">
+            <CustomServiceRequestsViewer />
           </TabsContent>
         </Tabs>
       </div>
