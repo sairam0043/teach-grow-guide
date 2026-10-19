@@ -90,6 +90,13 @@ ${urls.map(route => `  <url>
   const outputPath = path.resolve(process.cwd(), 'public', 'sitemap.xml');
   fs.writeFileSync(outputPath, xmlContent, 'utf8');
   console.log(`Sitemap written successfully to: ${outputPath} (Total routes: ${urls.length})`);
+
+  const distDir = path.resolve(process.cwd(), 'dist');
+  if (fs.existsSync(distDir)) {
+    const distPath = path.resolve(distDir, 'sitemap.xml');
+    fs.writeFileSync(distPath, xmlContent, 'utf8');
+    console.log(`Sitemap written successfully to: ${distPath}`);
+  }
 }
 
 generateSitemap();
