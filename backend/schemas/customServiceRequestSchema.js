@@ -20,6 +20,12 @@ const customServiceRequestSchema = new mongoose.Schema(
       lowercase: true,
       maxlength: 254,
     },
+    phone: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: 30,
+    },
     message: {
       type: String,
       required: true,

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, Fragment } from "react";
+import { useEffect, useState, useRef, Fragment, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Phone, Tag, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -29,6 +29,7 @@ import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
 import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
+import { getSpellingSuggestion } from "@/utils/spellingSuggestion";
 
 const CLASS_TAUGHT_OPTIONS = [
   "Class 1 - 5 (Primary)",
@@ -757,6 +758,23 @@ const AdminDashboard = () => {
   };
 
   const filteredPendingTutors = pendingTutors.filter((t) => matchesTutorSearch(t, pendingTutorSearch));
+  const adminCandidateDictionary = useMemo(() => {
+    const subjects = Array.from(new Set(tutors.flatMap((t: any) => t.subjects || []).filter(Boolean))) as string[];
+    const cities = Array.from(new Set(tutors.map((t: any) => t.city).filter(Boolean))) as string[];
+    const names = tutors.map((t: any) => t.name || t.full_name).filter(Boolean) as string[];
+    return { subjects, cities, names };
+  }, [tutors]);
+
+  const approvedTutorSearchSuggestion = useMemo(() => {
+    if (!approvedTutorSearch || approvedTutorSearch.trim().length < 3) return null;
+    return getSpellingSuggestion(approvedTutorSearch, adminCandidateDictionary);
+  }, [approvedTutorSearch, adminCandidateDictionary]);
+
+  const pendingTutorSearchSuggestion = useMemo(() => {
+    if (!pendingTutorSearch || pendingTutorSearch.trim().length < 3) return null;
+    return getSpellingSuggestion(pendingTutorSearch, adminCandidateDictionary);
+  }, [pendingTutorSearch, adminCandidateDictionary]);
+
   const filteredApprovedTutors = approvedTutors.filter((t) => matchesTutorSearch(t, approvedTutorSearch));
 
   const enrolledBookings = bookings.filter((b) => (b.status === "enrolled" || b.status === "completed") && (b.amountPaid || 0) > 0);
@@ -1177,6 +1195,20 @@ const AdminDashboard = () => {
                         ✕
                       </button>
                     )}
+                    {pendingTutorSearchSuggestion && (
+                      <div className="mt-2 text-xs flex items-center gap-1.5 text-muted-foreground animate-in fade-in">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span>Are you searching for </span>
+                        <button
+                          type="button"
+                          onClick={() => setPendingTutorSearch(pendingTutorSearchSuggestion.correctedText)}
+                          className="font-bold underline text-blue-600 dark:text-blue-400 hover:text-blue-700"
+                        >
+                          {pendingTutorSearchSuggestion.suggestedWord}
+                        </button>
+                        <span>?</span>
+                      </div>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground font-medium self-end sm:self-center">
                     Showing <strong className="text-foreground">{filteredPendingTutors.length}</strong> of {pendingTutors.length} pending
@@ -1199,7 +1231,21 @@ const AdminDashboard = () => {
                   <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
                     <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
                     <h3 className="text-lg font-bold text-foreground mb-1">No Matching Applications</h3>
-                    <p className="text-sm text-muted-foreground mb-4">No pending applications matched "{pendingTutorSearch}".</p>
+                    <p className="text-sm text-muted-foreground mb-2">No pending applications matched "{pendingTutorSearch}".</p>
+                    {pendingTutorSearchSuggestion && (
+                      <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-3 flex items-center justify-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        Are you searching for{" "}
+                        <button
+                          type="button"
+                          onClick={() => setPendingTutorSearch(pendingTutorSearchSuggestion.correctedText)}
+                          className="font-bold underline hover:text-blue-700"
+                        >
+                          {pendingTutorSearchSuggestion.suggestedWord}
+                        </button>
+                        ?
+                      </p>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setPendingTutorSearch("")} className="rounded-lg">
                       Clear Search Filter
                     </Button>
@@ -1363,6 +1409,20 @@ const AdminDashboard = () => {
                         ✕
                       </button>
                     )}
+                    {approvedTutorSearchSuggestion && (
+                      <div className="mt-2 text-xs flex items-center gap-1.5 text-muted-foreground animate-in fade-in">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span>Are you searching for </span>
+                        <button
+                          type="button"
+                          onClick={() => setApprovedTutorSearch(approvedTutorSearchSuggestion.correctedText)}
+                          className="font-bold underline text-blue-600 dark:text-blue-400 hover:text-blue-700"
+                        >
+                          {approvedTutorSearchSuggestion.suggestedWord}
+                        </button>
+                        <span>?</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 self-end sm:self-center">
                     <div className="text-xs text-muted-foreground font-medium">
@@ -1397,7 +1457,21 @@ const AdminDashboard = () => {
                   <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
                     <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
                     <h3 className="text-lg font-bold text-foreground mb-1">No Matching Tutors Found</h3>
-                    <p className="text-sm text-muted-foreground mb-4">No tutors matched "{approvedTutorSearch}".</p>
+                    <p className="text-sm text-muted-foreground mb-2">No tutors matched "{approvedTutorSearch}".</p>
+                    {approvedTutorSearchSuggestion && (
+                      <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-3 flex items-center justify-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        Are you searching for{" "}
+                        <button
+                          type="button"
+                          onClick={() => setApprovedTutorSearch(approvedTutorSearchSuggestion.correctedText)}
+                          className="font-bold underline hover:text-blue-700"
+                        >
+                          {approvedTutorSearchSuggestion.suggestedWord}
+                        </button>
+                        ?
+                      </p>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setApprovedTutorSearch("")} className="rounded-lg">
                       Clear Search Filter
                     </Button>
