@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Wallet, Gift, Sparkles, Copy, ArrowUpRight, ArrowDownLeft, Check, Share2, CheckCircle2, Plus, X, GraduationCap, Award, ShieldCheck, ArrowRight, BadgeCheck, MessageSquare } from "lucide-react";
+import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Wallet, Gift, Sparkles, Copy, ArrowUpRight, ArrowDownLeft, Check, Share2, CheckCircle2, Plus, X, GraduationCap, Award, ShieldCheck, ArrowRight, BadgeCheck, MessageSquare, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -164,6 +164,7 @@ const StudentDashboard = () => {
   // Recommended Tutors States
   const [allTutors, setAllTutors] = useState<any[]>([]);
   const [loadingTutors, setLoadingTutors] = useState<boolean>(true);
+  const [recommendationSortBy, setRecommendationSortBy] = useState<"match" | "price-asc" | "price-desc">("match");
 
   useEffect(() => {
     if (user) {
@@ -195,6 +196,36 @@ const StudentDashboard = () => {
 
   // MANDATORY REQUIREMENT: ONLY VERIFIED TUTORS (isVerified === true)
   const verifiedTutors = (Array.isArray(allTutors) ? allTutors : []).filter(t => t && t.isVerified === true);
+
+  // Helper to determine tutor effective hourly price for sorting & display
+  const getTutorPrice = (tutor: any): number => {
+    const rates = (Array.isArray(tutor?.subjectRates) ? tutor.subjectRates : [])
+      .map((sr: any) => Number(sr?.rate))
+      .filter((r: number) => !isNaN(r) && r > 0);
+    if (rates.length > 0) {
+      return Math.min(...rates);
+    }
+    const hr = Number(tutor?.hourlyRate);
+    if (!isNaN(hr) && hr > 0) {
+      return hr;
+    }
+    return 300;
+  };
+
+  const getTutorPriceDisplay = (tutor: any) => {
+    const rates = (Array.isArray(tutor?.subjectRates) ? tutor.subjectRates : [])
+      .map((sr: any) => Number(sr?.rate))
+      .filter((r: number) => !isNaN(r) && r > 0);
+    if (rates.length > 1) {
+      const min = Math.min(...rates);
+      const max = Math.max(...rates);
+      if (min !== max) {
+        return `₹${min} - ₹${max}`;
+      }
+      return `₹${min}`;
+    }
+    return `₹${getTutorPrice(tutor)}`;
+  };
 
   // Recommendation Scoring Logic based on Student Class & Subject Interests
   const recommendedTutors = verifiedTutors.map(tutor => {
@@ -261,7 +292,24 @@ const StudentDashboard = () => {
         matchReasons: []
       };
     }
-  }).sort((a, b) => b.score - a.score);
+  }).sort((a, b) => {
+    if (recommendationSortBy === "price-asc") {
+      const diff = getTutorPrice(a.tutor) - getTutorPrice(b.tutor);
+      if (diff !== 0) return diff;
+      return b.score - a.score;
+    }
+    if (recommendationSortBy === "price-desc") {
+      const diff = getTutorPrice(b.tutor) - getTutorPrice(a.tutor);
+      if (diff !== 0) return diff;
+      return b.score - a.score;
+    }
+    // Default: Sort by recommendation match score (highest score first)
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    // Secondary tie-breaker: Lowest price first
+    return getTutorPrice(a.tutor) - getTutorPrice(b.tutor);
+  });
 
   const timezonesList = studentTimezone && !COMMON_TIMEZONES.includes(studentTimezone)
     ? [studentTimezone, ...COMMON_TIMEZONES]
@@ -876,13 +924,58 @@ const StudentDashboard = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 font-bold px-3 py-1.5 flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                  {/* Price & Recommendation Sorting */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1 shrink-0">
+                      <ArrowUpDown className="h-3.5 w-3.5 text-primary" /> Sort:
+                    </span>
+                    <Select
+                      value={recommendationSortBy}
+                      onValueChange={(val: "match" | "price-asc" | "price-desc") => setRecommendationSortBy(val)}
+                    >
+                      <SelectTrigger className="w-[190px] h-9 text-xs font-medium rounded-xl bg-background border-border/80 shadow-sm hover:border-primary/50 transition-colors">
+                        <SelectValue placeholder="Sort tutors" />
+                      </SelectTrigger>
+                      <SelectContent align="end" className="rounded-xl shadow-lg border-border">
+                        <SelectItem value="match" className="text-xs font-medium cursor-pointer">
+                          ✨ Best Match (Default)
+                        </SelectItem>
+                        <SelectItem value="price-asc" className="text-xs font-medium cursor-pointer">
+                          📈 Price: Low to High
+                        </SelectItem>
+                        <SelectItem value="price-desc" className="text-xs font-medium cursor-pointer">
+                          📉 Price: High to Low
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 font-bold px-3 py-1.5 flex items-center gap-1.5 shrink-0">
                     <ShieldCheck className="h-4 w-4 text-emerald-600" />
                     Verified Tutors Only
                   </Badge>
                 </div>
               </div>
+
+              {recommendationSortBy !== "match" && (
+                <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-2 text-xs">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <ArrowUpDown className="h-3.5 w-3.5 text-primary" />
+                    <span>
+                      Sorting tutors by: <strong className="text-foreground">{recommendationSortBy === "price-asc" ? "Price: Low to High" : "Price: High to Low"}</strong>
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRecommendationSortBy("match")}
+                    className="h-6 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10 rounded-md font-semibold"
+                  >
+                    Reset to Best Match <X className="h-3 w-3 ml-1" />
+                  </Button>
+                </div>
+              )}
 
               {loadingTutors ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1007,7 +1100,9 @@ const StudentDashboard = () => {
                             {/* Pricing */}
                             <div className="pt-2 flex items-baseline justify-between">
                               <div>
-                                <span className="text-2xl font-extrabold text-foreground tracking-tight">₹{tutor.hourlyRate || 300}</span>
+                                <span className="text-2xl font-extrabold text-foreground tracking-tight">
+                                  {getTutorPriceDisplay(tutor)}
+                                </span>
                                 <span className="text-xs text-muted-foreground font-normal"> / hour</span>
                               </div>
                             </div>

@@ -6,6 +6,7 @@ import {
   Search,
   RefreshCw,
   Mail,
+  Phone,
   User,
   Clock,
   CheckCircle2,
@@ -30,6 +31,7 @@ export interface CustomServiceRequestItem {
   category: "Student" | "Tutor";
   name: string;
   email: string;
+  phone?: string;
   message: string;
   status: "New" | "Contacted" | "Resolved";
   createdAt: string;
@@ -94,8 +96,9 @@ export default function CustomServiceRequestsViewer() {
       const q = searchQuery.toLowerCase().trim();
       const matchName = (item.name || "").toLowerCase().includes(q);
       const matchEmail = (item.email || "").toLowerCase().includes(q);
+      const matchPhone = (item.phone || "").toLowerCase().includes(q);
       const matchMessage = (item.message || "").toLowerCase().includes(q);
-      return matchName || matchEmail || matchMessage;
+      return matchName || matchEmail || matchPhone || matchMessage;
     }
     return true;
   });
@@ -189,7 +192,7 @@ export default function CustomServiceRequestsViewer() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name, email, or message..."
+                placeholder="Search by name, email, phone, or message..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9 text-xs rounded-xl bg-background"
@@ -268,28 +271,45 @@ export default function CustomServiceRequestsViewer() {
                       <td className="p-3.5">
                         <Badge
                           variant="outline"
-                          className={`text-[10px] px-2 py-0.5 border-none font-bold ${
-                            item.category === "Student"
+                          className={`text-[10px] px-2 py-0.5 border-none font-bold ${item.category === "Student"
                               ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
                               : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                          }`}
+                            }`}
                         >
                           {item.category === "Student" ? "🎓 Student" : "👩‍🏫 Tutor"}
                         </Badge>
                       </td>
 
                       <td className="p-3.5">
-                        <div className="font-bold text-foreground">{item.name}</div>
-                        <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <Mail className="h-3 w-3" />
+                        <div className="font-bold text-foreground text-sm">{item.name}</div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                          <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
                           <a
                             href={`mailto:${item.email}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="hover:underline text-primary"
+                            className="hover:underline text-primary truncate max-w-[200px]"
                           >
                             {item.email}
                           </a>
                         </div>
+                        {item.phone ? (
+                          <div className="text-[11px] text-foreground font-semibold flex items-center gap-1.5 mt-1.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-md w-fit border border-emerald-500/20">
+                            <Phone className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                            <a
+                              href={`tel:${item.phone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:underline tracking-tight"
+                              title="Click to call"
+                            >
+                              {item.phone}
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-muted-foreground/60 flex items-center gap-1 mt-1 italic">
+                            <Phone className="h-2.5 w-2.5 opacity-40 shrink-0" />
+                            <span>No phone provided</span>
+                          </div>
+                        )}
                       </td>
 
                       <td className="p-3.5 max-w-xs truncate text-muted-foreground">
@@ -309,13 +329,12 @@ export default function CustomServiceRequestsViewer() {
                           onValueChange={(val: any) => handleUpdateStatus(item._id, val)}
                         >
                           <SelectTrigger
-                            className={`h-7 px-2 text-[10px] font-bold rounded-lg border-none w-auto ${
-                              item.status === "New"
+                            className={`h-7 px-2 text-[10px] font-bold rounded-lg border-none w-auto ${item.status === "New"
                                 ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
                                 : item.status === "Contacted"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
-                                : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                            }`}
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
+                                  : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              }`}
                           >
                             <SelectValue />
                           </SelectTrigger>
@@ -354,11 +373,10 @@ export default function CustomServiceRequestsViewer() {
               <div className="flex items-center justify-between">
                 <Badge
                   variant="outline"
-                  className={`text-[10px] px-2 py-0.5 border-none font-bold ${
-                    selectedRequest.category === "Student"
+                  className={`text-[10px] px-2 py-0.5 border-none font-bold ${selectedRequest.category === "Student"
                       ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
                       : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                  }`}
+                    }`}
                 >
                   {selectedRequest.category} Inquirer
                 </Badge>
@@ -370,15 +388,40 @@ export default function CustomServiceRequestsViewer() {
               <DialogTitle className="text-lg font-bold text-foreground mt-2">
                 {selectedRequest.name}
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
+              <div className="space-y-2 mt-2">
                 <a
                   href={`mailto:${selectedRequest.email}?subject=Regarding your Cuvasol Custom Service Request`}
-                  className="text-primary hover:underline flex items-center gap-1.5 mt-1"
+                  className="text-primary hover:underline flex items-center gap-2 text-xs"
                 >
-                  <Mail className="h-3.5 w-3.5" />
-                  {selectedRequest.email}
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  <span>{selectedRequest.email}</span>
                 </a>
-              </DialogDescription>
+                {selectedRequest.phone ? (
+                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                    <a
+                      href={`tel:${selectedRequest.phone}`}
+                      className="text-foreground hover:underline flex items-center gap-1.5 text-xs font-semibold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 px-2.5 py-1 rounded-lg"
+                      title="Click to call"
+                    >
+                      <Phone className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>{selectedRequest.phone}</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${selectedRequest.phone.replace(/[^0-9]/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-2.5 py-1 rounded-lg hover:bg-emerald-500/25 flex items-center gap-1 font-medium border border-emerald-500/20"
+                    >
+                      WhatsApp
+                    </a>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground/60 flex items-center gap-1.5 text-xs italic">
+                    <Phone className="h-3.5 w-3.5 opacity-40 shrink-0" />
+                    <span>No phone number provided</span>
+                  </div>
+                )}
+              </div>
             </DialogHeader>
 
             <div className="space-y-4 pt-2">
@@ -402,13 +445,12 @@ export default function CustomServiceRequestsViewer() {
                       variant={selectedRequest.status === status ? "default" : "outline"}
                       disabled={updatingId === selectedRequest._id}
                       onClick={() => handleUpdateStatus(selectedRequest._id, status)}
-                      className={`h-7 px-2.5 text-xs rounded-lg ${
-                        selectedRequest.status === status && status === "Resolved"
+                      className={`h-7 px-2.5 text-xs rounded-lg ${selectedRequest.status === status && status === "Resolved"
                           ? "bg-emerald-600 hover:bg-emerald-700"
                           : selectedRequest.status === status && status === "New"
-                          ? "bg-amber-600 hover:bg-amber-700"
-                          : ""
-                      }`}
+                            ? "bg-amber-600 hover:bg-amber-700"
+                            : ""
+                        }`}
                     >
                       {status}
                     </Button>
@@ -416,7 +458,20 @@ export default function CustomServiceRequestsViewer() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-2 flex-wrap">
+                {selectedRequest.phone && (
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-8 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  >
+                    <a href={`tel:${selectedRequest.phone}`}>
+                      <Phone className="h-3.5 w-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400" />
+                      Call Phone
+                    </a>
+                  </Button>
+                )}
                 <Button
                   asChild
                   size="sm"
