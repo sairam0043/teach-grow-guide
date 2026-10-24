@@ -22,7 +22,13 @@ type ChatMessage = {
   text: string;
 };
 
-type Step = "category" | "name" | "email" | "message" | "done";
+type Step =
+  | "category"
+  | "name"
+  | "email"
+  | "phone"
+  | "message"
+  | "done";
 
 export default function CustomServiceChatbot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,6 +36,7 @@ export default function CustomServiceChatbot() {
   const [category, setCategory] = useState<Category | "">("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -51,7 +58,10 @@ export default function CustomServiceChatbot() {
 
   // Focus input when step changes to text entry
   useEffect(() => {
-    if (isOpen && (step === "name" || step === "email" || step === "message")) {
+    if (
+      isOpen &&
+      ["name", "email", "phone", "message"].includes(step)
+    ) {
       setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [step, isOpen]);
@@ -81,6 +91,7 @@ export default function CustomServiceChatbot() {
     setCategory("");
     setName("");
     setEmail("");
+    setPhone("");
     setMessage("");
     setInput("");
     setErrorMessage(null);
@@ -111,6 +122,7 @@ export default function CustomServiceChatbot() {
         category,
         name,
         email,
+        phone,
         message: msgText,
       });
 
@@ -134,13 +146,18 @@ export default function CustomServiceChatbot() {
     }
   };
 
+
   const handleSend = async () => {
     const value = input.trim();
+
     if (!value || sending || step === "done") return;
 
     if (step === "name") {
       if (value.length < 2) {
-        addMessage("bot", "Please enter a valid full name (at least 2 characters).");
+        addMessage(
+          "bot",
+          "Please enter a valid full name (at least 2 characters)."
+        );
         return;
       }
 
@@ -154,16 +171,35 @@ export default function CustomServiceChatbot() {
 
     if (step === "email") {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        addMessage("bot", "Please enter a valid email address (e.g. name@example.com).");
+        addMessage("bot", "Please enter a valid email address.");
         return;
       }
 
       setEmail(value);
       addMessage("user", value);
       setInput("");
+      addMessage("bot", "Please enter your phone number, including your country code if applicable:");
+      setStep("phone");
+      return;
+    }
+
+    if (step === "phone") {
+      const normalizedPhone = value.replace(/[\s()-]/g, "");
+
+      if (!/^\+?[0-9]{7,15}$/.test(normalizedPhone)) {
+        addMessage(
+          "bot",
+          "Please enter a valid phone number with 7–15 digits. You can include a + country code."
+        );
+        return;
+      }
+
+      setPhone(normalizedPhone);
+      addMessage("user", value);
+      setInput("");
       addMessage(
         "bot",
-        "Got it! Please tell us about the custom service you need:"
+        "Thank you! Now please describe the custom service you need:"
       );
       setStep("message");
       return;
@@ -171,7 +207,10 @@ export default function CustomServiceChatbot() {
 
     if (step === "message") {
       if (value.length < 5) {
-        addMessage("bot", "Please provide a little more detail (at least 5 characters).");
+        addMessage(
+          "bot",
+          "Please provide a little more detail (at least 5 characters)."
+        );
         return;
       }
 
@@ -181,6 +220,7 @@ export default function CustomServiceChatbot() {
       await submitCustomService(value);
     }
   };
+
 
   return (
     <div className="fixed bottom-5 right-5 z-[9999] font-sans">
@@ -239,16 +279,14 @@ export default function CustomServiceChatbot() {
             {messages.map((item) => (
               <div
                 key={item.id}
-                className={`flex ${
-                  item.sender === "user" ? "justify-end" : "justify-start"
-                }`}
+                className={`flex ${item.sender === "user" ? "justify-end" : "justify-start"
+                  }`}
               >
                 <div
-                  className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-xs ${
-                    item.sender === "user"
-                      ? "bg-blue-600 text-white rounded-tr-none"
-                      : "border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-tl-none"
-                  }`}
+                  className={`max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-xs ${item.sender === "user"
+                    ? "bg-blue-600 text-white rounded-tr-none"
+                    : "border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-tl-none"
+                    }`}
                 >
                   {item.text}
                 </div>
@@ -341,10 +379,18 @@ export default function CustomServiceChatbot() {
                   step === "name"
                     ? "Enter your full name..."
                     : step === "email"
-                    ? "Enter your email address..."
-                    : "Describe the custom service you need..."
+                      ? "Enter your email address..."
+                      : step === "phone"
+                        ? "Enter your phone number..."
+                        : "Describe the custom service you need..."
                 }
-                type={step === "email" ? "email" : "text"}
+                type={
+                  step === "email"
+                    ? "email"
+                    : step === "phone"
+                      ? "tel"
+                      : "text"
+                }
                 disabled={sending}
                 className="min-w-0 flex-1 rounded-full border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-blue-600 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-gray-900 transition"
               />

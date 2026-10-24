@@ -5,7 +5,7 @@ const CustomServiceRequest = require("../schemas/customServiceRequestSchema");
 // POST / - Create a new custom service request
 router.post("/", async (req, res) => {
     try {
-        const { category, name, email, message } = req.body;
+        const { category, name, email, phone, message } = req.body;
 
         if (
             !["Student", "Tutor"].includes(category) ||
@@ -21,6 +21,7 @@ router.post("/", async (req, res) => {
 
         const cleanName = name.trim();
         const cleanEmail = email.trim().toLowerCase();
+        const cleanPhone = typeof phone === "string" ? phone.trim().slice(0, 30) : "";
         const cleanMessage = message.trim();
 
         if (
@@ -40,6 +41,7 @@ router.post("/", async (req, res) => {
             category,
             name: cleanName,
             email: cleanEmail,
+            phone: cleanPhone,
             message: cleanMessage,
         });
 
