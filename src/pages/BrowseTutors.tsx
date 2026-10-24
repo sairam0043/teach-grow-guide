@@ -18,6 +18,7 @@ import { useSearchParams } from "react-router-dom";
 import TutorCard from "@/components/tutors/TutorCard";
 import type { Tutor } from "@/data/mockTutors";
 import { CLASS_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
+import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import API_URL from "@/config/api";
 
 const normalize = (value?: string | null) => (value || "").trim().toLowerCase();
@@ -111,6 +112,7 @@ const BrowseTutors = () => {
     return sessionStorage.getItem("tutor_class") || "all";
   });
   const [subject, setSubject] = useState<string>(() => sessionStorage.getItem("tutor_subject") || "all");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(() => sessionStorage.getItem("tutor_language") || "all");
   const [mode, setMode] = useState<string>(() => sessionStorage.getItem("tutor_mode") || "all");
   const [city, setCity] = useState<string>(() => sessionStorage.getItem("tutor_city") || "all");
   const [day, setDay] = useState(() => sessionStorage.getItem("tutor_day") || "all");
@@ -175,6 +177,7 @@ const BrowseTutors = () => {
     sessionStorage.setItem("tutor_category", category);
     sessionStorage.setItem("tutor_class", selectedClass);
     sessionStorage.setItem("tutor_subject", subject);
+    sessionStorage.setItem("tutor_language", selectedLanguage);
     sessionStorage.setItem("tutor_mode", mode);
     sessionStorage.setItem("tutor_city", city);
     sessionStorage.setItem("tutor_day", day);
@@ -182,7 +185,7 @@ const BrowseTutors = () => {
     sessionStorage.setItem("tutor_sort_by", sortBy);
     sessionStorage.setItem("tutor_show_filters", String(showFilters));
     sessionStorage.setItem("tutor_show_map", String(showMap));
-  }, [search, category, selectedClass, subject, mode, city, day, time, sortBy, showFilters, showMap]);
+  }, [search, category, selectedClass, subject, selectedLanguage, mode, city, day, time, sortBy, showFilters, showMap]);
 
   const handleCategoryChange = (val: string) => {
     setCategory(val);
@@ -263,6 +266,19 @@ const BrowseTutors = () => {
     return Array.from(classSet);
   }, [tutors]);
 
+  const allLanguages = useMemo(() => {
+    const langSet = new Set<string>();
+    PREFERRED_LANGUAGE_OPTIONS.forEach((l) => langSet.add(l));
+    tutors.forEach((tutor) => {
+      (tutor.languages || []).forEach((l) => {
+        if (l && typeof l === "string" && l.trim()) {
+          langSet.add(l.trim());
+        }
+      });
+    });
+    return Array.from(langSet).sort((a, b) => a.localeCompare(b));
+  }, [tutors]);
+
   useEffect(() => {
     if (subject !== "all" && !allSubjects.some((s) => standardizeSubject(s) === standardizeSubject(subject))) {
       setSubject("all");
@@ -279,6 +295,7 @@ const BrowseTutors = () => {
             t.subjects?.some((s) => normalize(s).includes(q)) ||
             t.classesTaught?.some((c) => normalize(c).includes(q)) ||
             t.boardsTaught?.some((b) => normalize(b).includes(q)) ||
+            t.languages?.some((l) => normalize(l).includes(q)) ||
             normalize(t.city).includes(q)
           );
         }
@@ -313,6 +330,11 @@ const BrowseTutors = () => {
         if (selectedSubject === "all") return true;
         const targetStd = standardizeSubject(subject);
         return (t.subjects || []).some((s) => standardizeSubject(s) === targetStd);
+      })
+      .filter((t) => {
+        if (selectedLanguage === "all") return true;
+        const target = normalize(selectedLanguage);
+        return (t.languages || []).some((l) => normalize(l) === target);
       })
       .filter((t) => {
         if (selectedMode === "all") return true;
@@ -353,13 +375,14 @@ const BrowseTutors = () => {
       }
       return (a.name || "").localeCompare(b.name || "");
     });
-  }, [search, selectedCategory, selectedClass, selectedSubject, selectedMode, selectedCity, day, time, sortBy, tutors]);
+  }, [search, selectedCategory, selectedClass, selectedSubject, selectedLanguage, selectedMode, selectedCity, day, time, sortBy, tutors]);
 
   const clearFilters = () => {
     setSearch("");
     setCategory("all");
     setSelectedClass("all");
     setSubject("all");
+    setSelectedLanguage("all");
     setMode("all");
     setCity("all");
     setDay("all");
@@ -368,7 +391,7 @@ const BrowseTutors = () => {
     setSearchParams({});
   };
 
-  const hasFilters = search || category !== "all" || selectedClass !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "price-asc";
+  const hasFilters = search || category !== "all" || selectedClass !== "all" || subject !== "all" || selectedLanguage !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "price-asc";
 
   return (
     <PageLayout>
@@ -484,6 +507,23 @@ const BrowseTutors = () => {
                   </div>
 
                   <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Language to Speak</label>
+                    <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Language" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">All Languages</SelectItem>
+                        {allLanguages.map((l) => (
+                          <SelectItem key={l} value={l}>
+                            {l}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Day</label>
                     <Select value={day} onValueChange={setDay}>
                       <SelectTrigger className="w-full">
@@ -592,6 +632,18 @@ const BrowseTutors = () => {
                 <SelectItem value="all">All Classes</SelectItem>
                 {allClasses.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Language" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[260px]">
+                <SelectItem value="all">All Languages</SelectItem>
+                {allLanguages.map((l) => (
+                  <SelectItem key={l} value={l}>{l}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -376,6 +376,7 @@ router.post('/register', async (req, res) => {
       let parsedClassesTaught = [];
       let parsedBoardsTaught = [];
       let parsedWorkExperience = [];
+      let parsedLanguages = [];
       try {
         if (typeof tutorData.classesTaught === 'string') {
           parsedClassesTaught = JSON.parse(tutorData.classesTaught);
@@ -391,6 +392,15 @@ router.post('/register', async (req, res) => {
           parsedWorkExperience = JSON.parse(tutorData.workExperience);
         } else if (Array.isArray(tutorData.workExperience)) {
           parsedWorkExperience = tutorData.workExperience;
+        }
+        if (typeof tutorData.languages === 'string') {
+          parsedLanguages = JSON.parse(tutorData.languages);
+        } else if (Array.isArray(tutorData.languages)) {
+          parsedLanguages = tutorData.languages;
+        } else if (typeof tutorData.preferredLanguages === 'string') {
+          parsedLanguages = JSON.parse(tutorData.preferredLanguages);
+        } else if (Array.isArray(tutorData.preferredLanguages)) {
+          parsedLanguages = tutorData.preferredLanguages;
         }
       } catch (err) { }
 
@@ -412,6 +422,7 @@ router.post('/register', async (req, res) => {
         bio: tutorData.bio || '',
         hourlyRate: Number(tutorData.hourlyRate) || 500,
         subjects: parsedSubjects,
+        languages: parsedLanguages,
         classesTaught: parsedClassesTaught,
         boardsTaught: parsedBoardsTaught,
         workExperience: parsedWorkExperience,
@@ -782,19 +793,33 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone, timezone, student_class, studentClass, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, avatar, photo } = req.body;
+    const { full_name, email, phone, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, heard_about_us, heardAboutUs, avatar, photo } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (full_name) user.full_name = full_name;
+    if (email && email.trim() !== '' && email.trim().toLowerCase() !== (user.email || '').toLowerCase()) {
+      const emailLower = email.trim().toLowerCase();
+      const existing = await User.findOne({ email: emailLower, _id: { $ne: user._id } });
+      if (existing) {
+        return res.status(400).json({ message: 'Another user with this email address already exists' });
+      }
+      user.email = emailLower;
+    }
     if (phone !== undefined) user.phone = phone;
     if (timezone !== undefined) user.timezone = timezone;
     if (avatar !== undefined || photo !== undefined) user.avatar = avatar || photo;
     if (student_class !== undefined || studentClass !== undefined) {
       user.student_class = student_class || studentClass;
     }
+    if (student_or_parent !== undefined || studentOrParent !== undefined) {
+      user.student_or_parent = student_or_parent || studentOrParent;
+    }
     if (student_name !== undefined || studentName !== undefined) {
       user.student_name = student_name || studentName;
+    }
+    if (heard_about_us !== undefined || heardAboutUs !== undefined) {
+      user.heard_about_us = heard_about_us || heardAboutUs;
     }
 
     if (interested_subject !== undefined || interestedSubject !== undefined || subject !== undefined) {

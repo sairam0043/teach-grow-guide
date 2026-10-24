@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, Fragment } from "react";
 import { Link } from "react-router-dom";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Phone, Tag, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2, ExternalLink } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Phone, Tag, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2, ExternalLink, Languages, PlusCircle, Pencil } from "lucide-react";
+import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
@@ -71,6 +72,32 @@ const ALL_SUBJECTS = [
   "Other"
 ];
 
+const STUDENT_CLASS_OPTIONS = [
+  "Class 1",
+  "Class 2",
+  "Class 3",
+  "Class 4",
+  "Class 5",
+  "Class 6",
+  "Class 7",
+  "Class 8",
+  "Class 9",
+  "Class 10",
+  "Class 11",
+  "Class 12",
+  "College / University",
+  "Other"
+];
+
+const STUDENT_HEARD_ABOUT_US_OPTIONS = [
+  "Google Search",
+  "Social Media (Instagram, Facebook, LinkedIn)",
+  "Friend / Family Referral",
+  "Advertisement / Flyer",
+  "School / College",
+  "Other"
+];
+
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useAuth();
@@ -92,6 +119,17 @@ const AdminDashboard = () => {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [selectedStudentForDetail, setSelectedStudentForDetail] = useState<any | null>(null);
   const [isStudentDetailDialogOpen, setIsStudentDetailDialogOpen] = useState(false);
+  const [isEditingStudentProfile, setIsEditingStudentProfile] = useState(false);
+  const [editStudentName, setEditStudentName] = useState("");
+  const [editStudentEmail, setEditStudentEmail] = useState("");
+  const [editStudentPhone, setEditStudentPhone] = useState("");
+  const [editStudentClass, setEditStudentClass] = useState("");
+  const [editStudentOrParent, setEditStudentOrParent] = useState("Student");
+  const [editStudentChildName, setEditStudentChildName] = useState("");
+  const [editStudentInterestedSubject, setEditStudentInterestedSubject] = useState("");
+  const [editStudentTimezone, setEditStudentTimezone] = useState("Asia/Kolkata");
+  const [editStudentHeardAboutUs, setEditStudentHeardAboutUs] = useState("");
+  const [isSavingStudentProfile, setIsSavingStudentProfile] = useState(false);
   const [selectedAssessmentPayment, setSelectedAssessmentPayment] = useState<any | null>(null);
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
@@ -118,6 +156,8 @@ const AdminDashboard = () => {
   const [editSubjectRates, setEditSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
   const [editClassesTaught, setEditClassesTaught] = useState<string[]>([]);
   const [editBoardsTaught, setEditBoardsTaught] = useState<string[]>([]);
+  const [editLanguages, setEditLanguages] = useState<string[]>([]);
+  const [editOtherLanguageText, setEditOtherLanguageText] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Rejection Dialog States
@@ -364,7 +404,66 @@ const AdminDashboard = () => {
 
   const handleViewStudentDetail = (student: any) => {
     setSelectedStudentForDetail(student);
+    setIsEditingStudentProfile(false);
+    setEditStudentName(student.full_name || "");
+    setEditStudentEmail(student.email || "");
+    setEditStudentPhone(student.phone || "");
+    setEditStudentClass(student.student_class || student.studentClass || "");
+    setEditStudentOrParent(student.student_or_parent || "Student");
+    setEditStudentChildName(student.student_name || "");
+    setEditStudentInterestedSubject(student.interested_subject || student.interestedSubject || student.subject || "");
+    setEditStudentTimezone(student.timezone || "Asia/Kolkata");
+    setEditStudentHeardAboutUs(student.heard_about_us || student.heardAboutUs || "");
     setIsStudentDetailDialogOpen(true);
+  };
+
+  const handleSaveStudentDetail = async () => {
+    if (!selectedStudentForDetail) return;
+    const studentId = selectedStudentForDetail._id || selectedStudentForDetail.id;
+    if (!studentId) return;
+
+    if (!editStudentName.trim()) {
+      toast.error("Full name is required");
+      return;
+    }
+
+    if (!editStudentEmail.trim()) {
+      toast.error("Email address is required");
+      return;
+    }
+
+    setIsSavingStudentProfile(true);
+    try {
+      const payload = {
+        full_name: editStudentName.trim(),
+        email: editStudentEmail.trim().toLowerCase(),
+        phone: editStudentPhone.trim(),
+        student_class: editStudentClass,
+        student_or_parent: editStudentOrParent,
+        student_name: editStudentOrParent === "Parent" ? editStudentChildName.trim() : "",
+        interested_subject: editStudentInterestedSubject.trim(),
+        timezone: editStudentTimezone,
+        heard_about_us: editStudentHeardAboutUs
+      };
+
+      const res = await axios.put(`${API_URL}/dashboard/admin/students/${studentId}`, payload);
+      const updatedStudent = res.data.student || { ...selectedStudentForDetail, ...payload };
+
+      toast.success("Student profile updated successfully!");
+
+      // Update list state
+      setStudents(prev => prev.map(s => ((s._id && s._id === studentId) || s.id === studentId) ? { ...s, ...updatedStudent } : s));
+
+      // Update selected student detail state
+      setSelectedStudentForDetail((prev: any) => prev ? { ...prev, ...updatedStudent } : null);
+
+      setIsEditingStudentProfile(false);
+    } catch (err: any) {
+      console.error("Error updating student profile:", err);
+      toast.error(err.response?.data?.message || err.message || "Failed to update student profile");
+    } finally {
+      setIsSavingStudentProfile(false);
+    }
   };
 
   const handleViewTutorDetail = (tutor: any) => {
@@ -391,6 +490,8 @@ const AdminDashboard = () => {
     
     setEditClassesTaught(tutor.classesTaught || []);
     setEditBoardsTaught(tutor.boardsTaught || []);
+    setEditLanguages(tutor.languages || []);
+    setEditOtherLanguageText("");
     
     setIsDetailDialogOpen(true);
   };
@@ -527,6 +628,7 @@ const AdminDashboard = () => {
         subjectRates: editSubjectRates,
         classesTaught: editClassesTaught,
         boardsTaught: editBoardsTaught,
+        languages: editLanguages,
         timezone: editTimezone,
         city: editCity
       };
@@ -3568,6 +3670,93 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
+                {/* Preferred Languages to Speak */}
+                <div className="space-y-3 border-t pt-4">
+                  <div>
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block flex items-center gap-1">
+                      <Languages className="h-3.5 w-3.5 text-primary" /> Preferred Languages to Speak
+                    </label>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Languages the tutor is comfortable speaking & teaching in.</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {PREFERRED_LANGUAGE_OPTIONS.map((lang) => {
+                      const isChecked = editLanguages.includes(lang);
+                      return (
+                        <button
+                          key={lang}
+                          type="button"
+                          onClick={() => setEditLanguages(prev => prev.includes(lang) ? prev.filter(l => l !== lang) : [...prev, lang])}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                            isChecked
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-background text-foreground border-border hover:bg-secondary/40"
+                          }`}
+                        >
+                          <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground/60"}`}>
+                            {isChecked && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                          </div>
+                          <span className="truncate">{lang}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 items-center pt-1">
+                    <Input
+                      placeholder="Add another language..."
+                      value={editOtherLanguageText}
+                      onChange={(e) => setEditOtherLanguageText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const trimmed = editOtherLanguageText.trim();
+                          if (trimmed) {
+                            const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+                            if (!editLanguages.includes(formatted)) {
+                              setEditLanguages(prev => [...prev, formatted]);
+                            }
+                            setEditOtherLanguageText("");
+                          }
+                        }
+                      }}
+                      className="h-8 text-xs bg-background"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        const trimmed = editOtherLanguageText.trim();
+                        if (trimmed) {
+                          const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+                          if (!editLanguages.includes(formatted)) {
+                            setEditLanguages(prev => [...prev, formatted]);
+                          }
+                          setEditOtherLanguageText("");
+                        }
+                      }}
+                      className="h-8 text-xs shrink-0"
+                    >
+                      <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
+                    </Button>
+                  </div>
+                  {editLanguages.filter(l => !PREFERRED_LANGUAGE_OPTIONS.includes(l as any)).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {editLanguages.filter(l => !PREFERRED_LANGUAGE_OPTIONS.includes(l as any)).map(lang => (
+                        <Badge key={lang} variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20 flex items-center gap-1">
+                          {lang}
+                          <button
+                            type="button"
+                            onClick={() => setEditLanguages(prev => prev.filter(l => l !== lang))}
+                            className="hover:text-destructive transition-colors ml-1"
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Subjects & Rates */}
                 <div className="space-y-2 border-t pt-4">
                   <div className="flex justify-between items-center">
@@ -3825,6 +4014,31 @@ const AdminDashboard = () => {
                     </span>
                   )}
                 </div>
+              </div>
+
+              {/* Preferred Languages to Speak */}
+              <div className="space-y-1.5">
+                <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block flex items-center gap-1">
+                  <Languages className="h-3.5 w-3.5 text-primary" /> Preferred Languages to Speak
+                </span>
+                {selectedTutorForDetail.languages && selectedTutorForDetail.languages.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2 bg-secondary/15 p-3 rounded-lg border border-border/30">
+                    <span className="text-sm font-semibold text-primary mr-1">
+                      {selectedTutorForDetail.languages.join(" · ")}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedTutorForDetail.languages.map((lang: string) => (
+                        <Badge key={lang} variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
+                          {lang}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic bg-secondary/15 p-3 rounded-lg border border-border/30 block">
+                    Not specified
+                  </span>
+                )}
               </div>
 
               {/* Subjects and Rates */}
@@ -4130,228 +4344,411 @@ const AdminDashboard = () => {
       </Dialog>
 
       {/* Student Details Modal */}
-      <Dialog open={isStudentDetailDialogOpen} onOpenChange={setIsStudentDetailDialogOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <Dialog 
+        open={isStudentDetailDialogOpen} 
+        onOpenChange={(open) => {
+          setIsStudentDetailDialogOpen(open);
+          if (!open) setIsEditingStudentProfile(false);
+        }}
+      >
+        <DialogContent className={`${isEditingStudentProfile ? "sm:max-w-lg" : "sm:max-w-md"} max-h-[90vh] overflow-y-auto transition-all`}>
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-              <GraduationCap className="h-6 w-6 text-indigo-500" /> Student Profile
+            <DialogTitle className="text-2xl font-bold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <GraduationCap className="h-6 w-6 text-indigo-500" /> 
+                {isEditingStudentProfile ? "Edit Student Details" : "Student Profile"}
+              </span>
+              {!isEditingStudentProfile && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditingStudentProfile(true)}
+                  className="rounded-lg h-8 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 gap-1.5 shadow-sm"
+                >
+                  <Pencil className="h-3 w-3" /> Edit Details
+                </Button>
+              )}
             </DialogTitle>
             <DialogDescription>
-              View detailed registration information for this student account.
+              {isEditingStudentProfile 
+                ? "Update student registration credentials, contact details, and grade level."
+                : "View detailed registration information for this student account."
+              }
             </DialogDescription>
           </DialogHeader>
 
           {selectedStudentForDetail && (
-            <div className="space-y-6 py-4">
-              {/* Header profile section with Avatar */}
-              <div className="flex items-center gap-4 pb-4 border-b">
-                <div className="h-16 w-16 rounded-full border shadow-sm overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                  {selectedStudentForDetail.avatar ? (
-                    <img 
-                      src={resolveAssetUrl(selectedStudentForDetail.avatar)} 
-                      alt={selectedStudentForDetail.full_name} 
-                      className="h-full w-full object-cover" 
-                      onError={(e: any) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentForDetail.full_name || "S")}&background=random&size=200`;
-                      }}
+            isEditingStudentProfile ? (
+              <div className="space-y-4 py-2">
+                <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/40 rounded-xl text-xs text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-2">
+                  <Pencil className="h-4 w-4 shrink-0 text-indigo-600" />
+                  <span>Editing registration details for <strong>{selectedStudentForDetail.full_name}</strong>. Changes apply across active classes.</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs font-bold text-foreground">Full Name *</Label>
+                    <Input
+                      value={editStudentName}
+                      onChange={(e) => setEditStudentName(e.target.value)}
+                      placeholder="e.g. Abhiram Kumar"
+                      className="h-9 text-xs sm:text-sm bg-background font-semibold"
                     />
-                  ) : (
-                    <span className="font-bold text-2xl text-indigo-500 uppercase">
-                      {(selectedStudentForDetail.full_name || "S").charAt(0)}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-foreground leading-tight">
-                    {selectedStudentForDetail.full_name}
-                  </h3>
-                  <Badge variant="outline" className="mt-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200">
-                    {selectedStudentForDetail.student_or_parent || "Student"}
-                  </Badge>
-                </div>
-              </div>
+                  </div>
 
-              {/* General details grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
-                  <span className="text-sm font-semibold text-foreground break-all">{selectedStudentForDetail.email || "–"}</span>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
-                  <span className="text-sm font-semibold text-foreground">{selectedStudentForDetail.phone || "–"}</span>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Class / Grade</span>
-                  <span className="text-sm font-semibold text-foreground">
-                    <Badge variant="outline" className="bg-secondary/20">{selectedStudentForDetail.student_class || selectedStudentForDetail.studentClass || "–"}</Badge>
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Interested Subject(s)</span>
-                  <span className="text-sm font-semibold text-foreground">
-                    {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject ? (
-                      <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
-                        {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject}
-                      </Badge>
-                    ) : (
-                      "–"
-                    )}
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Time Zone</span>
-                  <span className="text-sm font-semibold text-foreground">
-                    {selectedStudentForDetail.timezone ? `${getTimeZoneAbbreviation(selectedStudentForDetail.timezone)} (${selectedStudentForDetail.timezone})` : 'IST (Asia/Kolkata)'}
-                  </span>
-                </div>
-              </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Account Type</Label>
+                    <Select value={editStudentOrParent} onValueChange={setEditStudentOrParent}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Student">Student</SelectItem>
+                        <SelectItem value="Parent">Parent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              {/* Conditional section if Parent was registered */}
-              {selectedStudentForDetail.student_or_parent === "Parent" && selectedStudentForDetail.student_name && (
-                <div className="space-y-1 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
-                  <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Child (Student) Name</span>
-                  <span className="text-sm font-bold text-foreground">{selectedStudentForDetail.student_name}</span>
-                </div>
-              )}
-
-              {/* Referral Source */}
-              <div className="space-y-1 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" /> How they heard about us
-                </span>
-                <span className="text-sm font-bold text-foreground">
-                  {selectedStudentForDetail.heard_about_us || selectedStudentForDetail.heardAboutUs || "Not specified / Existing User"}
-                </span>
-              </div>
-
-              {/* Referral Code & Attribution */}
-              {(() => {
-                const refInfo = selectedStudentForDetail.referralInfo;
-                const usedCode = selectedStudentForDetail.usedReferralCode || refInfo?.usedReferralCode || selectedStudentForDetail.marketingRefCode;
-                const referrer = refInfo?.referrer;
-                const referrerName = selectedStudentForDetail.referrerName || referrer?.name;
-                const referrerRole = selectedStudentForDetail.referrerRole || referrer?.role;
-                const referrerEmail = selectedStudentForDetail.referrerEmail || referrer?.email;
-                const referrerPhone = referrer?.phone;
-                const hasReferral = Boolean(usedCode || referrerName || selectedStudentForDetail.referredBy);
-
-                return (
-                  <div className={`space-y-2.5 p-3.5 rounded-xl border transition-all ${
-                    hasReferral 
-                      ? "bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-purple-500/5 border-purple-500/30 dark:border-purple-500/20 shadow-sm" 
-                      : "bg-secondary/15 border-border/60"
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                        hasReferral ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground"
-                      }`}>
-                        <Gift className="h-3.5 w-3.5" /> Referral Code & Attribution
-                      </span>
-                      {hasReferral ? (
-                        <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-mono text-[10px] px-2 py-0.5 shadow-sm">
-                          Referred Signup
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground border-border">
-                          Direct Signup
-                        </Badge>
-                      )}
+                  {editStudentOrParent === "Parent" && (
+                    <div className="space-y-1 animate-in fade-in duration-150">
+                      <Label className="text-xs font-bold text-foreground">Child (Student) Name</Label>
+                      <Input
+                        value={editStudentChildName}
+                        onChange={(e) => setEditStudentChildName(e.target.value)}
+                        placeholder="Child's full name"
+                        className="h-9 text-xs sm:text-sm bg-background font-semibold"
+                      />
                     </div>
+                  )}
 
-                    {hasReferral ? (
-                      <div className="space-y-2 pt-0.5">
-                        {/* Referral code applied */}
-                        <div className="flex items-center justify-between bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40">
-                          <div className="space-y-0.5">
-                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Referral Code Used</span>
-                            <span className="text-xs text-muted-foreground">Code submitted at signup</span>
-                          </div>
-                          <span className="font-mono font-bold text-sm tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-md border border-purple-200 dark:border-purple-800 shadow-sm select-all">
-                            {usedCode || (referrer?.referralCode) || "APPLIED"}
-                          </span>
-                        </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Email Address *</Label>
+                    <Input
+                      type="email"
+                      value={editStudentEmail}
+                      onChange={(e) => setEditStudentEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      className="h-9 text-xs sm:text-sm bg-background"
+                    />
+                  </div>
 
-                        {/* Whom they used / Referrer details */}
-                        <div className="bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40 space-y-1.5">
-                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">
-                            Referred By (Owner of Code)
-                          </span>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                              {referrerName || "Referred User"}
-                            </span>
-                            {referrerRole && (
-                              <Badge variant="outline" className={`text-[10px] font-bold capitalize ${
-                                referrerRole === 'tutor' 
-                                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200' 
-                                  : referrerRole === 'student' 
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200' 
-                                  : 'bg-purple-50 text-purple-600 border-purple-200'
-                              }`}>
-                                {referrerRole === 'tutor' ? '👨‍🏫 Tutor' : referrerRole === 'student' ? '🎓 Student' : '📢 Affiliate'}
-                              </Badge>
-                            )}
-                          </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Phone Number</Label>
+                    <Input
+                      type="tel"
+                      value={editStudentPhone}
+                      onChange={(e) => setEditStudentPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))}
+                      placeholder="+91 9876543210"
+                      className="h-9 text-xs sm:text-sm bg-background font-semibold"
+                    />
+                  </div>
 
-                          {(referrerEmail || referrerPhone || referrer?.referralCode) && (
-                            <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t border-border/40">
-                              {referrerEmail && (
-                                <span className="flex items-center gap-1">
-                                  <Mail className="h-3 w-3 text-muted-foreground" /> {referrerEmail}
-                                </span>
-                              )}
-                              {referrerPhone && (
-                                <span className="flex items-center gap-1">
-                                  <Phone className="h-3 w-3 text-muted-foreground" /> {referrerPhone}
-                                </span>
-                              )}
-                              {referrer?.referralCode && (
-                                <span className="flex items-center gap-1 font-mono text-[11px]">
-                                  <Tag className="h-3 w-3 text-muted-foreground" /> {referrer.referralCode}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Class / Grade</Label>
+                    <Select value={editStudentClass} onValueChange={setEditStudentClass}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select class" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {STUDENT_CLASS_OPTIONS.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Interested Subject</Label>
+                    <Select value={editStudentInterestedSubject} onValueChange={setEditStudentInterestedSubject}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select subject" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {ALL_SUBJECTS.map((sub) => (
+                          <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs font-bold text-foreground">Time Zone</Label>
+                    <Select value={editStudentTimezone} onValueChange={setEditStudentTimezone}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {COMMON_TIMEZONES.map((tz) => (
+                          <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs font-bold text-foreground">How they heard about us</Label>
+                    <Select value={editStudentHeardAboutUs} onValueChange={setEditStudentHeardAboutUs}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select source" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {STUDENT_HEARD_ABOUT_US_OPTIONS.map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsEditingStudentProfile(false)}
+                    disabled={isSavingStudentProfile}
+                    className="h-9 text-xs font-semibold"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSaveStudentDetail}
+                    disabled={isSavingStudentProfile}
+                    className="h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-sm"
+                  >
+                    {isSavingStudentProfile ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                      </>
                     ) : (
-                      <div className="text-xs text-muted-foreground py-0.5">
-                        No referral code was used during registration (direct sign up).
-                      </div>
+                      <>
+                        <Check className="h-3.5 w-3.5" /> Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6 py-4">
+                {/* Header profile section with Avatar */}
+                <div className="flex items-center gap-4 pb-4 border-b">
+                  <div className="h-16 w-16 rounded-full border shadow-sm overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                    {selectedStudentForDetail.avatar ? (
+                      <img 
+                        src={resolveAssetUrl(selectedStudentForDetail.avatar)} 
+                        alt={selectedStudentForDetail.full_name} 
+                        className="h-full w-full object-cover" 
+                        onError={(e: any) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentForDetail.full_name || "S")}&background=random&size=200`;
+                        }}
+                      />
+                    ) : (
+                      <span className="font-bold text-2xl text-indigo-500 uppercase">
+                        {(selectedStudentForDetail.full_name || "S").charAt(0)}
+                      </span>
                     )}
                   </div>
-                );
-              })()}
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground leading-tight">
+                      {selectedStudentForDetail.full_name}
+                    </h3>
+                    <Badge variant="outline" className="mt-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200">
+                      {selectedStudentForDetail.student_or_parent || "Student"}
+                    </Badge>
+                  </div>
+                </div>
 
-              {/* Dates / Metadata */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">
-                <div>
-                  <span>Joined Date:</span>
-                  <span className="block font-medium text-foreground mt-0.5">
-                    {selectedStudentForDetail.createdAt ? new Date(selectedStudentForDetail.createdAt).toLocaleString() : "Not available"}
+                {/* General details grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
+                    <span className="text-sm font-semibold text-foreground break-all">{selectedStudentForDetail.email || "–"}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
+                    <span className="text-sm font-semibold text-foreground">{selectedStudentForDetail.phone || "–"}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Class / Grade</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      <Badge variant="outline" className="bg-secondary/20">{selectedStudentForDetail.student_class || selectedStudentForDetail.studentClass || "–"}</Badge>
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Interested Subject(s)</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject ? (
+                        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                          {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject}
+                        </Badge>
+                      ) : (
+                        "–"
+                      )}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Time Zone</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {selectedStudentForDetail.timezone ? `${getTimeZoneAbbreviation(selectedStudentForDetail.timezone)} (${selectedStudentForDetail.timezone})` : 'IST (Asia/Kolkata)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Conditional section if Parent was registered */}
+                {selectedStudentForDetail.student_or_parent === "Parent" && selectedStudentForDetail.student_name && (
+                  <div className="space-y-1 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
+                    <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Child (Student) Name</span>
+                    <span className="text-sm font-bold text-foreground">{selectedStudentForDetail.student_name}</span>
+                  </div>
+                )}
+
+                {/* Referral Source */}
+                <div className="space-y-1 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> How they heard about us
+                  </span>
+                  <span className="text-sm font-bold text-foreground">
+                    {selectedStudentForDetail.heard_about_us || selectedStudentForDetail.heardAboutUs || "Not specified / Existing User"}
                   </span>
                 </div>
-                <div>
-                  <span>User ID:</span>
-                  <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all">
-                    {selectedStudentForDetail._id || selectedStudentForDetail.id || "–"}
-                  </span>
+
+                {/* Referral Code & Attribution */}
+                {(() => {
+                  const refInfo = selectedStudentForDetail.referralInfo;
+                  const usedCode = selectedStudentForDetail.usedReferralCode || refInfo?.usedReferralCode || selectedStudentForDetail.marketingRefCode;
+                  const referrer = refInfo?.referrer;
+                  const referrerName = selectedStudentForDetail.referrerName || referrer?.name;
+                  const referrerRole = selectedStudentForDetail.referrerRole || referrer?.role;
+                  const referrerEmail = selectedStudentForDetail.referrerEmail || referrer?.email;
+                  const referrerPhone = referrer?.phone;
+                  const hasReferral = Boolean(usedCode || referrerName || selectedStudentForDetail.referredBy);
+
+                  return (
+                    <div className={`space-y-2.5 p-3.5 rounded-xl border transition-all ${
+                      hasReferral 
+                        ? "bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-purple-500/5 border-purple-500/30 dark:border-purple-500/20 shadow-sm" 
+                        : "bg-secondary/15 border-border/60"
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                          hasReferral ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground"
+                        }`}>
+                          <Gift className="h-3.5 w-3.5" /> Referral Code & Attribution
+                        </span>
+                        {hasReferral ? (
+                          <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-mono text-[10px] px-2 py-0.5 shadow-sm">
+                            Referred Signup
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground border-border">
+                            Direct Signup
+                          </Badge>
+                        )}
+                      </div>
+
+                      {hasReferral ? (
+                        <div className="space-y-2 pt-0.5">
+                          {/* Referral code applied */}
+                          <div className="flex items-center justify-between bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Referral Code Used</span>
+                              <span className="text-xs text-muted-foreground">Code submitted at signup</span>
+                            </div>
+                            <span className="font-mono font-bold text-sm tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-md border border-purple-200 dark:border-purple-800 shadow-sm select-all">
+                              {usedCode || (referrer?.referralCode) || "APPLIED"}
+                            </span>
+                          </div>
+
+                          {/* Whom they used / Referrer details */}
+                          <div className="bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40 space-y-1.5">
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">
+                              Referred By (Owner of Code)
+                            </span>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                                {referrerName || "Referred User"}
+                              </span>
+                              {referrerRole && (
+                                <Badge variant="outline" className={`text-[10px] font-bold capitalize ${
+                                  referrerRole === 'tutor' 
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200' 
+                                    : referrerRole === 'student' 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200' 
+                                    : 'bg-purple-50 text-purple-600 border-purple-200'
+                                }`}>
+                                  {referrerRole === 'tutor' ? '👨‍🏫 Tutor' : referrerRole === 'student' ? '🎓 Student' : '📢 Affiliate'}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {(referrerEmail || referrerPhone || referrer?.referralCode) && (
+                              <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t border-border/40">
+                                {referrerEmail && (
+                                  <span className="flex items-center gap-1">
+                                    <Mail className="h-3 w-3 text-muted-foreground" /> {referrerEmail}
+                                  </span>
+                                )}
+                                {referrerPhone && (
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3 text-muted-foreground" /> {referrerPhone}
+                                  </span>
+                                )}
+                                {referrer?.referralCode && (
+                                  <span className="flex items-center gap-1 font-mono text-[11px]">
+                                    <Tag className="h-3 w-3 text-muted-foreground" /> {referrer.referralCode}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground py-0.5">
+                          No referral code was used during registration (direct sign up).
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Dates / Metadata */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">
+                  <div>
+                    <span>Joined Date:</span>
+                    <span className="block font-medium text-foreground mt-0.5">
+                      {selectedStudentForDetail.createdAt ? new Date(selectedStudentForDetail.createdAt).toLocaleString() : "Not available"}
+                    </span>
+                  </div>
+                  <div>
+                    <span>User ID:</span>
+                    <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all">
+                      {selectedStudentForDetail._id || selectedStudentForDetail.id || "–"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsEditingStudentProfile(true)}
+                    className="rounded-lg h-9 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 gap-1.5 shadow-sm"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit Details
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsStudentDetailDialogOpen(false)}
+                    className="rounded-lg h-9 px-4 text-xs hover:bg-secondary/20 hover:text-foreground"
+                  >
+                    Close
+                  </Button>
                 </div>
               </div>
-            </div>
+            )
           )}
-
-          <div className="flex justify-end pt-2 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsStudentDetailDialogOpen(false)}
-              className="rounded-lg h-10 px-4 hover:bg-secondary/20 hover:text-foreground"
-            >
-              Close
-            </Button>
-          </div>
         </DialogContent>
       </Dialog>
 

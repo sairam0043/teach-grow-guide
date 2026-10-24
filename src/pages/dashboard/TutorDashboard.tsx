@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
+import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -529,6 +530,9 @@ const TutorDashboard = () => {
   const [subjectRates, setSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [otherLanguageText, setOtherLanguageText] = useState("");
+  const [customLanguages, setCustomLanguages] = useState<string[]>([]);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectRate, setNewSubjectRate] = useState(300);
   const [customSubjectInput, setCustomSubjectInput] = useState(false);
@@ -545,6 +549,30 @@ const TutorDashboard = () => {
   const [newExpCompany, setNewExpCompany] = useState("");
   const [newExpDuration, setNewExpDuration] = useState("");
   const [newExpDescription, setNewExpDescription] = useState("");
+
+  const toggleLanguage = (lang: string) => {
+    setSelectedLanguages((prev) =>
+      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
+    );
+  };
+
+  const handleAddOtherLanguage = () => {
+    const trimmed = otherLanguageText.trim();
+    if (!trimmed) return;
+    const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    if (!selectedLanguages.includes(formatted)) {
+      setSelectedLanguages((prev) => [...prev, formatted]);
+    }
+    if (!customLanguages.includes(formatted)) {
+      setCustomLanguages((prev) => [...prev, formatted]);
+    }
+    setOtherLanguageText("");
+  };
+
+  const handleRemoveCustomLanguage = (lang: string) => {
+    setSelectedLanguages((prev) => prev.filter((l) => l !== lang));
+    setCustomLanguages((prev) => prev.filter((l) => l !== lang));
+  };
 
   // Payment Details Form State
   const [paymentForm, setPaymentForm] = useState({
@@ -615,6 +643,13 @@ const TutorDashboard = () => {
           setWorkExperience(res.data.workExperience || []);
           setSelectedClasses(res.data.classesTaught || []);
           setSelectedBoards(res.data.boardsTaught || []);
+          setSelectedLanguages(res.data.languages || []);
+          if (res.data.languages && Array.isArray(res.data.languages)) {
+            const custom = res.data.languages.filter(
+              (l: string) => !PREFERRED_LANGUAGE_OPTIONS.includes(l as any)
+            );
+            setCustomLanguages(custom);
+          }
           const legacyRates = res.data.subjectRates && res.data.subjectRates.length > 0
             ? res.data.subjectRates
             : (res.data.subjects || []).map((sub: string) => ({ subject: sub, rate: res.data.hourlyRate || 300 }));
@@ -851,6 +886,7 @@ const TutorDashboard = () => {
         subjectRates,
         classesTaught: selectedClasses,
         boardsTaught: selectedBoards,
+        languages: selectedLanguages,
         photo: uploadedPhotoUrl,
         verificationDocument: uploadedDocUrl,
         timezone: tutorTimezone,
@@ -2197,6 +2233,92 @@ const TutorDashboard = () => {
                               );
                             })}
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Preferred Languages to Speak Section */}
+                      <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                            <Languages className="h-4 w-4 text-primary" />
+                            Preferred Languages to Speak
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Select all languages you are comfortable teaching in.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                          {PREFERRED_LANGUAGE_OPTIONS.map((lang) => {
+                            const isChecked = selectedLanguages.includes(lang);
+                            return (
+                              <button
+                                key={lang}
+                                type="button"
+                                onClick={() => toggleLanguage(lang)}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${isChecked
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                  : "bg-background text-foreground border-border hover:bg-secondary/40"
+                                  }`}
+                              >
+                                <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground/60"}`}>
+                                  {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                </div>
+                                <span className="truncate">{lang}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Other languages */}
+                        <div className="space-y-2 pt-3 border-t border-border/40">
+                          <Label className="text-xs font-bold text-foreground block">
+                            Other languages
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Enter another language (optional)"
+                              value={otherLanguageText}
+                              onChange={(e) => setOtherLanguageText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleAddOtherLanguage();
+                                }
+                              }}
+                              className="h-9 text-xs sm:text-sm bg-background"
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={handleAddOtherLanguage}
+                              className="h-9 text-xs font-semibold shrink-0"
+                            >
+                              <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
+                            </Button>
+                          </div>
+
+                          {customLanguages.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {customLanguages.map((lang) => (
+                                <Badge
+                                  key={lang}
+                                  variant="secondary"
+                                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-primary/10 text-primary border border-primary/20"
+                                >
+                                  <span>{lang}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveCustomLanguage(lang)}
+                                    className="hover:text-destructive transition-colors ml-0.5"
+                                    title="Remove"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 

@@ -1688,7 +1688,7 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
 // Admin can update approval status, featured flag, and verification badge status
 router.put('/:id/admin', async (req, res) => {
   try {
-    const { status, featured, rejectionReason, isVerified, googleMeetLink } = req.body;
+    const { status, featured, rejectionReason, isVerified, googleMeetLink, languages } = req.body;
     const updateData = {};
     if (status) {
       updateData.status = status;
@@ -1705,6 +1705,19 @@ router.put('/:id/admin', async (req, res) => {
         link = `https://${link}`;
       }
       updateData.googleMeetLink = link;
+    }
+    if (languages !== undefined) {
+      let parsedLangs = [];
+      if (typeof languages === 'string') {
+        try {
+          parsedLangs = JSON.parse(languages);
+        } catch (e) {
+          parsedLangs = languages.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(languages)) {
+        parsedLangs = languages;
+      }
+      updateData.languages = parsedLangs;
     }
 
     const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
@@ -1841,7 +1854,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, googleMeetLink, timezone, classesTaught, boardsTaught, workExperience, mode } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, googleMeetLink, timezone, classesTaught, boardsTaught, workExperience, mode, languages } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -1870,6 +1883,19 @@ router.put('/:id/profile', async (req, res) => {
     if (classesTaught !== undefined) currentTutor.classesTaught = classesTaught;
     if (boardsTaught !== undefined) currentTutor.boardsTaught = boardsTaught;
     if (workExperience !== undefined) currentTutor.workExperience = workExperience;
+    if (languages !== undefined) {
+      let parsedLangs = [];
+      if (typeof languages === 'string') {
+        try {
+          parsedLangs = JSON.parse(languages);
+        } catch (e) {
+          parsedLangs = languages.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(languages)) {
+        parsedLangs = languages;
+      }
+      currentTutor.languages = parsedLangs;
+    }
     if (googleMapsUrl !== undefined) {
       const { expandGoogleMapsUrl } = require('../utils/urlHelper');
       currentTutor.googleMapsUrl = await expandGoogleMapsUrl(googleMapsUrl);

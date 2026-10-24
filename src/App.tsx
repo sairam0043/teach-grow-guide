@@ -161,6 +161,7 @@ const App = () => {
               element={<Navigate to="/" replace />} 
             />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Terms />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register/student" element={<RegisterStudent />} />
             <Route path="/register/tutor" element={<RegisterTutor />} />
