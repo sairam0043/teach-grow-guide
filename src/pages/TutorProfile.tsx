@@ -1104,7 +1104,9 @@ const TutorProfile = () => {
                 <div className="flex flex-wrap items-center gap-3 mb-1">
                   <h1 className="text-3xl font-bold text-foreground capitalize">{tutor.name}</h1>
                   {tutor.isVerified && (
-                    <CheckCircle className="h-6 w-6 fill-blue-500 text-white shrink-0" title="Verified Tutor" />
+                    <span title="Verified Tutor">
+                      <CheckCircle className="h-6 w-6 fill-blue-500 text-white shrink-0" aria-label="Verified Tutor" />
+                    </span>
                   )}
                   <Popover>
                     <PopoverTrigger asChild>
