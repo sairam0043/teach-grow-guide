@@ -26,6 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import ChatPanel from "@/components/chat/ChatPanel";
 import AdminConversationViewer from "@/components/chat/AdminConversationViewer";
 import CustomServiceRequestsViewer from "@/components/admin/CustomServiceRequestsViewer";
+import AdminAvailabilityManager from "@/components/admin/AdminAvailabilityManager";
 import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
@@ -1236,6 +1237,10 @@ const AdminDashboard = () => {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="admin-availability" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              <Calendar className="h-4 w-4 text-blue-500" />
+              Admin Availability & Meet Link
+            </TabsTrigger>
             <TabsTrigger value="tutors" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">All Tutors</TabsTrigger>
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Students</TabsTrigger>
             <TabsTrigger value="bookings" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Bookings</TabsTrigger>
@@ -1927,10 +1932,22 @@ const AdminDashboard = () => {
           <TabsContent value="verification-demos">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
-                  <Video className="h-5 w-5 text-blue-500" /> Tutor Verification Demos
-                </CardTitle>
-                <CardDescription>Monitor and join scheduled mock classes for tutor profile verification.</CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                      <Video className="h-5 w-5 text-blue-500" /> Tutor Verification Demos
+                    </CardTitle>
+                    <CardDescription>Monitor and join scheduled mock classes for tutor profile verification.</CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab("admin-availability")}
+                    className="bg-blue-50/60 hover:bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900 text-xs font-semibold gap-1.5 shadow-xs shrink-0 self-start sm:self-center"
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Manage Admin Availability & Meet Link
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 {loading ? (
@@ -2080,6 +2097,23 @@ const AdminDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="admin-availability">
+            <AdminAvailabilityManager
+              onRefreshBookings={fetchTutors}
+              verificationDemos={verificationDemos}
+              onCompleteBooking={(demo) => {
+                setBookingToComplete({
+                  id: demo._id,
+                  tutorName: demo.tutorName || "Unknown Tutor",
+                  timing: demo.timing,
+                  subject: demo.subject,
+                  existingComment: demo.adminComment || ""
+                });
+                setAdminCompletionComment(demo.adminComment || "");
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="bookings">

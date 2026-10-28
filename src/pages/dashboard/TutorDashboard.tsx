@@ -29,6 +29,7 @@ import ChatPanel from "@/components/chat/ChatPanel";
 import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
 import { RescheduleDialog, DeclineRescheduleDialog } from "@/components/booking/RescheduleDialog";
+import TutorVerificationBooking from "@/components/tutor/TutorVerificationBooking";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -963,9 +964,18 @@ const TutorDashboard = () => {
         {tutorProfile?.status === "pending" && (
           <Alert variant="destructive" className="mb-8 border-amber-500/50 bg-amber-500/10 text-slate-900 dark:text-slate-100 shadow-sm rounded-xl">
             <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            <AlertTitle className="font-bold text-lg text-slate-900 dark:text-white">Account Pending Approval</AlertTitle>
+            <AlertTitle className="font-bold text-lg text-slate-900 dark:text-white flex items-center justify-between flex-wrap gap-2">
+              <span>Account Pending Approval</span>
+              <Button
+                size="sm"
+                onClick={() => setActiveTab("verification")}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-8 px-3 rounded-lg shadow-sm gap-1.5"
+              >
+                <Calendar className="h-3.5 w-3.5" /> Book Verification Slot with Admin
+              </Button>
+            </AlertTitle>
             <AlertDescription className="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-200 font-medium">
-              Your tutor profile is under review by our admin team. Once approved, you will be publicly listed on the platform and students will be able to book your slots.
+              Your tutor profile is under review by our admin team. You can book your preferred verification demo slot with the platform administrator to fast-track your profile verification and activation!
             </AlertDescription>
           </Alert>
         )}
@@ -1064,6 +1074,20 @@ const TutorDashboard = () => {
             <TabsTrigger value="schedule" className="rounded-lg px-6 py-2.5 shrink-0">Class Schedule</TabsTrigger>
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0">Students</TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg px-6 py-2.5 shrink-0">Availability</TabsTrigger>
+            <TabsTrigger 
+              value="verification" 
+              className={`rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 ${
+                !tutorProfile?.isVerified 
+                  ? "bg-blue-50/70 text-blue-700 font-bold border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800" 
+                  : ""
+              }`}
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              Verification
+              {!tutorProfile?.isVerified && (
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping ml-1" />
+              )}
+            </TabsTrigger>
             <TabsTrigger value="earnings" className="rounded-lg px-6 py-2.5 shrink-0">My Earnings</TabsTrigger>
             <TabsTrigger value="payment" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
               <CreditCard className="h-4 w-4 text-emerald-600" />
@@ -1681,6 +1705,20 @@ const TutorDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="verification">
+            <TutorVerificationBooking
+              tutorProfile={tutorProfile}
+              onBookingUpdated={() => {
+                const tutorId = tutorProfile?.id || tutorProfile?._id;
+                if (tutorId) {
+                  axios.get(`${API_URL}/dashboard/tutor/${tutorId}/bookings`)
+                    .then(res => setBookings(res.data.bookings || []))
+                    .catch(() => {});
+                }
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="earnings">
