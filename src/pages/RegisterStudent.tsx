@@ -150,9 +150,28 @@ const RegisterStudent = () => {
     return () => clearTimeout(timer);
   }, [resendCountdown]);
 
+  const queryParams = new URLSearchParams(location.search);
+  const redirectUrl = queryParams.get("redirect");
+
   useEffect(() => {
     if (user) {
       if (role === "student") {
+        const pending = sessionStorage.getItem("pending_booking");
+        if (pending) {
+          try {
+            const { tutorId } = JSON.parse(pending);
+            if (tutorId) {
+              navigate(`/tutors/${tutorId}`);
+              return;
+            }
+          } catch (e) {
+            console.error("Error parsing pending booking:", e);
+          }
+        }
+        if (redirectUrl && !redirectUrl.includes("login")) {
+          navigate(redirectUrl);
+          return;
+        }
         navigate("/dashboard/student");
       } else if (role === "tutor") {
         navigate("/dashboard/tutor");
@@ -160,10 +179,7 @@ const RegisterStudent = () => {
         navigate("/dashboard/admin");
       }
     }
-  }, [user, role, navigate]);
-
-  const queryParams = new URLSearchParams(location.search);
-  const redirectUrl = queryParams.get("redirect");
+  }, [user, role, navigate, redirectUrl]);
 
   const handleSendOtp = async () => {
     setSendingOtp(true);
@@ -251,7 +267,18 @@ const RegisterStudent = () => {
 
     toast.success("Account created successfully!");
     setRegistering(false);
-    setShowOtpModal(false);
+    const pending = sessionStorage.getItem("pending_booking");
+    if (pending) {
+      try {
+        const { tutorId } = JSON.parse(pending);
+        if (tutorId) {
+          navigate(`/tutors/${tutorId}`);
+          return;
+        }
+      } catch (e) {
+        console.error("Error parsing pending booking:", e);
+      }
+    }
     navigate(redirectUrl && !redirectUrl.includes("login") ? redirectUrl : "/dashboard/student");
   };
   return (

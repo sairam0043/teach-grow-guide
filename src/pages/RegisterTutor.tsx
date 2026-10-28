@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { Eye, EyeOff, Calendar, Clock, PlusCircle, Check, GraduationCap, Award, Briefcase, Trash2, Video, ExternalLink } from "lucide-react";
+import { Eye, EyeOff, Calendar, Clock, PlusCircle, Check, GraduationCap, Award, Briefcase, Trash2, Video, ExternalLink, Languages } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleLogin } from "@react-oauth/google";
+import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -120,6 +121,9 @@ const RegisterTutor = () => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
+  const [otherLanguageText, setOtherLanguageText] = useState("");
+  const [customLanguages, setCustomLanguages] = useState<string[]>([]);
 
   useEffect(() => {
     return () => {
@@ -209,6 +213,30 @@ const RegisterTutor = () => {
     setSelectedBoards(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]);
   };
 
+  const toggleLanguage = (lang: string) => {
+    setSelectedLanguages((prev) =>
+      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
+    );
+  };
+
+  const handleAddOtherLanguage = () => {
+    const trimmed = otherLanguageText.trim();
+    if (!trimmed) return;
+    const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    if (!selectedLanguages.includes(formatted)) {
+      setSelectedLanguages((prev) => [...prev, formatted]);
+    }
+    if (!customLanguages.includes(formatted)) {
+      setCustomLanguages((prev) => [...prev, formatted]);
+    }
+    setOtherLanguageText("");
+  };
+
+  const handleRemoveCustomLanguage = (lang: string) => {
+    setSelectedLanguages((prev) => prev.filter((l) => l !== lang));
+    setCustomLanguages((prev) => prev.filter((l) => l !== lang));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!category || !teachingMode) {
@@ -223,6 +251,11 @@ const RegisterTutor = () => {
 
     if (category === "Academic" && selectedBoards.length === 0) {
       toast.error("Please select at least one educational board you teach.");
+      return;
+    }
+
+    if (selectedLanguages.length === 0) {
+      toast.error("Please select at least one preferred language to speak.");
       return;
     }
 
@@ -326,6 +359,8 @@ const RegisterTutor = () => {
       timezone,
       category: category.toLowerCase(),
       subjects: JSON.stringify(finalSubjects),
+      languages: JSON.stringify(selectedLanguages),
+      preferredLanguages: JSON.stringify(selectedLanguages),
       classesTaught: JSON.stringify(selectedClasses),
       boardsTaught: JSON.stringify(selectedBoards),
       subjectRates: JSON.stringify(finalSubjectRates),
@@ -523,6 +558,93 @@ const RegisterTutor = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Preferred Languages to Speak Section */}
+              <div className="space-y-4 border rounded-xl p-4 bg-secondary/5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                    <Languages className="h-4 w-4 text-primary" />
+                    Preferred Languages to Speak <span className="text-destructive">*</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Select all languages you are comfortable teaching in.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                  {PREFERRED_LANGUAGE_OPTIONS.map((lang) => {
+                    const isChecked = selectedLanguages.includes(lang);
+                    return (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => toggleLanguage(lang)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs sm:text-sm font-semibold transition-all text-left ${
+                          isChecked
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-background text-foreground border-border hover:bg-secondary/40"
+                        }`}
+                      >
+                        <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground/60"}`}>
+                          {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                        </div>
+                        <span className="truncate">{lang}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Other languages */}
+                <div className="space-y-2 pt-3 border-t border-border/40">
+                  <Label className="text-xs font-bold text-foreground block">
+                    Other languages
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter another language (optional)"
+                      value={otherLanguageText}
+                      onChange={(e) => setOtherLanguageText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddOtherLanguage();
+                        }
+                      }}
+                      className="h-9 text-xs sm:text-sm bg-background"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAddOtherLanguage}
+                      className="h-9 text-xs font-semibold shrink-0"
+                    >
+                      <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
+                    </Button>
+                  </div>
+
+                  {customLanguages.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {customLanguages.map((lang) => (
+                        <Badge
+                          key={lang}
+                          variant="secondary"
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-primary/10 text-primary border border-primary/20"
+                        >
+                          <span>{lang}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCustomLanguage(lang)}
+                            className="hover:text-destructive transition-colors ml-0.5"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Work Experience Section */}

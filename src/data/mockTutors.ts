@@ -33,6 +33,7 @@ export interface Tutor {
   isVerified?: boolean;
   googleMapsUrl?: string;
   googleMeetLink?: string;
+  languages?: string[];
 }
 
 export const mockTutors: Tutor[] = [
@@ -47,6 +48,7 @@ export const mockTutors: Tutor[] = [
     bio: "Passionate mathematics educator with 8 years of experience preparing students for competitive exams. I believe every student can excel with the right guidance and practice.",
     category: "Academic",
     subjects: ["Mathematics", "Physics"],
+    languages: ["English", "Telugu"],
     mode: "Both",
     city: "Delhi",
     rating: 4.9,

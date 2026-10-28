@@ -24,6 +24,7 @@ const tutorSchema = new mongoose.Schema({
   googleMeetLink: { type: String, default: "" },
   bio: { type: String },
   subjects: [{ type: String }],
+  languages: [{ type: String }],
   classesTaught: [{ type: String }],
   boardsTaught: [{ type: String }],
   hourlyRate: { type: Number, required: true, default: 300 },

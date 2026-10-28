@@ -4,8 +4,13 @@ declare global {
   }
 }
 
+<<<<<<< HEAD
 import { useParams, Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen } from "lucide-react";
+=======
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen, Languages, ArrowRight, UserPlus } from "lucide-react";
+>>>>>>> origin/main
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { format, getDay, addMinutes, parse, startOfDay, addDays } from "date-fns";
@@ -59,6 +64,53 @@ const TutorProfile = () => {
   const [tutorPosts, setTutorPosts] = useState<any[]>([]);
   const [selectedImageModal, setSelectedImageModal] = useState<string | null>(null);
   const [demoTopics, setDemoTopics] = useState<string>("");
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingAuthSlot, setPendingAuthSlot] = useState<string | null>(null);
+
+  const handleSelectSlot = (slotTime: string) => {
+    setSelectedSlot(slotTime);
+    if (!user) {
+      sessionStorage.setItem("pending_booking", JSON.stringify({
+        tutorId: id,
+        date: date ? date.toISOString() : null,
+        subject: selectedSubject,
+        slot: slotTime,
+        plan: selectedPlan,
+        demoTopics: demoTopics.trim()
+      }));
+      setPendingAuthSlot(slotTime);
+      setShowAuthModal(true);
+      return;
+    }
+  };
+
+  const handleRedirectToStudentRegister = () => {
+    sessionStorage.setItem("pending_booking", JSON.stringify({
+      tutorId: id,
+      date: date ? date.toISOString() : null,
+      subject: selectedSubject,
+      slot: pendingAuthSlot || selectedSlot,
+      plan: selectedPlan,
+      demoTopics: demoTopics.trim()
+    }));
+    setShowAuthModal(false);
+    window.scrollTo(0, 0);
+    navigate(`/register/student?redirect=${encodeURIComponent(window.location.pathname)}`);
+  };
+
+  const handleRedirectToLogin = () => {
+    sessionStorage.setItem("pending_booking", JSON.stringify({
+      tutorId: id,
+      date: date ? date.toISOString() : null,
+      subject: selectedSubject,
+      slot: pendingAuthSlot || selectedSlot,
+      plan: selectedPlan,
+      demoTopics: demoTopics.trim()
+    }));
+    setShowAuthModal(false);
+    window.scrollTo(0, 0);
+    navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+  };
 
   useEffect(() => {
     if (id) {
@@ -542,54 +594,16 @@ const TutorProfile = () => {
     }
 
     if (!user) {
-      toast.error(
-        <div className="flex flex-col gap-2 w-full text-left">
-          <span className="font-semibold text-sm text-foreground">
-            Please log in to book a demo slot.
-          </span>
-          <div className="flex gap-2 mt-1">
-            <button
-              onClick={() => {
-                toast.dismiss();
-                sessionStorage.setItem("pending_booking", JSON.stringify({
-                  tutorId: id,
-                  date: date ? date.toISOString() : null,
-                  subject: selectedSubject,
-                  slot: selectedSlot,
-                  plan: selectedPlan,
-                  demoTopics: demoTopics.trim()
-                }));
-                window.scrollTo(0, 0);
-                navigate("/login");
-              }}
-              className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
-            >
-              Log In
-            </button>
-            <button
-              onClick={() => {
-                toast.dismiss();
-                sessionStorage.setItem("pending_booking", JSON.stringify({
-                  tutorId: id,
-                  date: date ? date.toISOString() : null,
-                  subject: selectedSubject,
-                  slot: selectedSlot,
-                  plan: selectedPlan,
-                  demoTopics: demoTopics.trim()
-                }));
-                window.scrollTo(0, 0);
-                navigate("/register/student");
-              }}
-              className="bg-secondary text-secondary-foreground border text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-secondary/80 transition-colors shadow-sm"
-            >
-              Sign Up
-            </button>
-          </div>
-        </div>,
-        {
-          duration: 10000,
-        }
-      );
+      sessionStorage.setItem("pending_booking", JSON.stringify({
+        tutorId: id,
+        date: date ? date.toISOString() : null,
+        subject: selectedSubject,
+        slot: selectedSlot,
+        plan: selectedPlan,
+        demoTopics: demoTopics.trim()
+      }));
+      setPendingAuthSlot(selectedSlot);
+      setShowAuthModal(true);
       return;
     }
 
@@ -1166,6 +1180,12 @@ const TutorProfile = () => {
                   </Popover>
                 </div>
                 <p className="mb-2 text-muted-foreground">{tutor.qualification}</p>
+                {tutor.languages && tutor.languages.length > 0 && (
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-primary mb-2.5">
+                    <Languages className="h-4 w-4 shrink-0 text-primary" />
+                    <span>{tutor.languages.join(" · ")}</span>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   {tutor.rating > 0 && (
                     <span className="flex items-center gap-1">
@@ -1339,6 +1359,25 @@ const TutorProfile = () => {
                     {tutor.boardsTaught.map((board: string) => (
                       <Badge key={board} variant="outline" className="px-3 py-1 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/50">
                         {board}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {tutor.languages && tutor.languages.length > 0 && (
+              <Card className="border-border/60 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Languages className="h-5 w-5 text-indigo-500" /> Preferred Languages to Speak
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {tutor.languages.map((lang: string) => (
+                      <Badge key={lang} variant="outline" className="px-3 py-1 text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/50">
+                        {lang}
                       </Badge>
                     ))}
                   </div>
@@ -1991,7 +2030,7 @@ const TutorProfile = () => {
                                   return (
                                     <button
                                       key={i}
-                                      onClick={() => setSelectedSlot(slot.studentDisplayTime)}
+                                      onClick={() => handleSelectSlot(slot.studentDisplayTime)}
                                       disabled={isSlotDisabled}
                                       className={`w-full flex justify-between items-center rounded-lg border p-3 text-left text-sm transition-colors ${selectedSlot === slot.studentDisplayTime
                                         ? "border-primary bg-primary/5 text-foreground"
@@ -2556,6 +2595,99 @@ const TutorProfile = () => {
                 className="max-h-[85vh] w-auto object-contain rounded-lg shadow-2xl"
               />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auth / Student Registration Required Dialog Modal */}
+      <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl bg-card">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-br from-primary/20 via-primary/10 to-transparent p-6 pb-4 border-b border-border/40">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0">
+                <GraduationCap className="h-6 w-6" />
+              </div>
+              <div className="space-y-0.5">
+                <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
+                  Student Account Required
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Create a free student account to confirm your demo class.
+                </DialogDescription>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 pt-4 space-y-4">
+            {/* Session Preview Box */}
+            <div className="rounded-xl border border-border/70 bg-secondary/30 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                  Demo Session Details
+                </span>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold">
+                  100% Free Demo
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Tutor</span>
+                  <span className="font-bold text-foreground truncate block">{tutor?.name || "Tutor"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Subject</span>
+                  <span className="font-bold text-foreground truncate block">{selectedSubject || "Demo Subject"}</span>
+                </div>
+                <div className="col-span-2 pt-1 border-t border-border/40">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Selected Slot</span>
+                  <div className="flex items-center gap-1.5 font-bold text-primary mt-0.5">
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    <span>
+                      {isValidDate(date) ? format(date as Date, "EEEE, MMMM d, yyyy") : "Selected Date"} at {pendingAuthSlot || selectedSlot || "Selected Timing"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-1 border-t border-border/40">
+                <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span>Your chosen time slot will be automatically saved and ready when you finish registering!</span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="space-y-2 pt-2">
+              <Button
+                onClick={handleRedirectToStudentRegister}
+                className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 flex items-center justify-center gap-2 shadow-md transition-all text-sm"
+              >
+                <UserPlus className="h-4 w-4" />
+                Continue to Student Registration
+                <ArrowRight className="h-4 w-4 ml-0.5" />
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAuthModal(false)}
+                className="w-full h-10 rounded-xl font-semibold border-border/80 hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </Button>
+            </div>
+
+            <p className="text-center text-xs text-muted-foreground pt-1">
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={handleRedirectToLogin}
+                className="text-primary font-bold hover:underline"
+              >
+                Log In
+              </button>
+            </p>
           </div>
         </DialogContent>
       </Dialog>

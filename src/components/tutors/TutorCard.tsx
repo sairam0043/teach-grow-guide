@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2, Scale, Check } from "lucide-react";
+import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2, Scale, Check, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
@@ -131,6 +131,13 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
                 <span className="truncate">{tutor.classesTaught.join(", ")}</span>
               </div>
             )}
+          </div>
+        )}
+
+        {tutor.languages && tutor.languages.length > 0 && (
+          <div className="mb-3 flex items-center gap-1.5 text-xs text-primary font-medium" title={`Languages: ${tutor.languages.join(", ")}`}>
+            <Languages className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="truncate">{tutor.languages.join(" · ")}</span>
           </div>
         )}
 

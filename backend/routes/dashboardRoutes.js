@@ -341,6 +341,105 @@ router.get('/admin/students', async (req, res) => {
   }
 });
 
+// PUT /api/dashboard/admin/students/:id
+router.put('/admin/students/:id', async (req, res) => {
+  try {
+    const studentId = req.params.id;
+    const student = await User.findOne({ _id: studentId, role: 'student' });
+    if (!student) {
+      return res.status(404).json({ message: 'Student account not found' });
+    }
+
+    const {
+      full_name,
+      email,
+      phone,
+      student_class,
+      student_or_parent,
+      student_name,
+      interested_subject,
+      subject_interests,
+      heard_about_us,
+      timezone
+    } = req.body;
+
+    // Email uniqueness check if changed
+    if (email && email.trim() !== '' && email.trim().toLowerCase() !== (student.email || '').toLowerCase()) {
+      const emailLower = email.trim().toLowerCase();
+      const existing = await User.findOne({ email: emailLower, _id: { $ne: student._id } });
+      if (existing) {
+        return res.status(400).json({ message: 'Another user with this email address already exists' });
+      }
+      student.email = emailLower;
+    }
+
+    if (phone !== undefined) {
+      student.phone = phone.trim();
+    }
+
+    if (full_name !== undefined && full_name.trim() !== '') {
+      student.full_name = full_name.trim();
+    }
+
+    if (student_class !== undefined) {
+      student.student_class = student_class;
+    }
+
+    if (student_or_parent !== undefined) {
+      student.student_or_parent = student_or_parent;
+    }
+
+    if (student_name !== undefined) {
+      student.student_name = student_name.trim();
+    }
+
+    if (interested_subject !== undefined) {
+      student.interested_subject = interested_subject.trim();
+    }
+
+    if (subject_interests !== undefined) {
+      if (Array.isArray(subject_interests)) {
+        student.subject_interests = subject_interests;
+      } else if (typeof subject_interests === 'string') {
+        student.subject_interests = subject_interests.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
+    if (heard_about_us !== undefined) {
+      student.heard_about_us = heard_about_us;
+    }
+
+    if (timezone !== undefined) {
+      student.timezone = timezone;
+    }
+
+    await student.save();
+
+    // Sync updated name/email/phone across active student bookings
+    try {
+      const bookingUpdates = {};
+      if (student.full_name) bookingUpdates.studentName = student.full_name;
+      if (student.email) bookingUpdates.studentEmail = student.email;
+      if (student.phone) bookingUpdates.studentPhone = student.phone;
+      if (Object.keys(bookingUpdates).length > 0) {
+        await Booking.updateMany(
+          { studentId: student._id.toString() },
+          { $set: bookingUpdates }
+        );
+      }
+    } catch (bErr) {
+      console.warn('[Sync Bookings Warning]:', bErr.message);
+    }
+
+    res.json({
+      message: 'Student profile updated successfully',
+      student: student.toObject()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/dashboard/admin/students/:id
 router.delete('/admin/students/:id', async (req, res) => {
   try {
