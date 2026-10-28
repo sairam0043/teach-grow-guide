@@ -415,6 +415,84 @@ const sendBankDetailsReminderEmail = async ({
   });
 };
 
+const sendVerificationSlotBookedEmail = async ({
+  tutorName,
+  tutorEmail,
+  timing,
+  googleMeetLink,
+  instructions,
+  isForAdmin = false
+}) => {
+  const subject = isForAdmin
+    ? `📅 New Tutor Verification Demo Booked: ${tutorName} (${timing})`
+    : `✅ Tutor Profile Verification Scheduled with Admin (${timing})`;
+
+  const recipient = isForAdmin
+    ? (process.env.ADMIN_EMAIL || 'support@cuvasol.com')
+    : tutorEmail;
+
+  if (!recipient) return;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${subject}</title>
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+        .header { background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); padding: 30px 25px; text-align: center; color: #ffffff; }
+        .content { padding: 30px 25px; color: #334155; font-size: 15px; line-height: 1.6; }
+        .card { background-color: #f1f5f9; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #2563eb; }
+        .btn { display: inline-block; background-color: #059669; color: #ffffff; font-weight: 700; text-decoration: none; padding: 12px 24px; border-radius: 8px; margin: 15px 0; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; color: #94a3b8; background-color: #f8fafc; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin:0;font-size:22px;color:#ffffff;">Verification Session Scheduled</h1>
+          <p style="margin:5px 0 0;font-size:14px;color:#ffffff;opacity:0.9;">Cuvasol Tutor Platform</p>
+        </div>
+        <div class="content">
+          <p>Hello <b>${isForAdmin ? 'Administrator' : tutorName}</b>,</p>
+          <p>${isForAdmin 
+            ? `Tutor <b>${tutorName}</b> has booked a profile verification demo session with the administrator.` 
+            : `Your verification demo session with our administrator has been successfully booked.`}</p>
+          <div class="card">
+            <p style="margin:0 0 8px 0;"><strong>🗓 Date & Time:</strong> ${timing}</p>
+            <p style="margin:0 0 8px 0;"><strong>👤 Tutor:</strong> ${tutorName}</p>
+            ${googleMeetLink ? `<p style="margin:0 0 8px 0;"><strong>🎥 Google Meet Link:</strong> <a href="${googleMeetLink}" style="color:#2563eb;word-break:break-all;">${googleMeetLink}</a></p>` : ''}
+            ${instructions ? `<p style="margin:0;"><strong>📝 Notes:</strong> ${instructions}</p>` : ''}
+          </div>
+          ${googleMeetLink ? `
+          <div style="text-align: center;">
+            <a href="${googleMeetLink}" class="btn" style="color: #ffffff;">Join Google Meet Room</a>
+          </div>` : ''}
+          <p style="font-size: 13px; color: #64748b; margin-top: 20px;">
+            Please be available 5 minutes prior to the scheduled time with your government ID and degree certificates.
+          </p>
+        </div>
+        <div class="footer">
+          <p style="margin:0;">© ${new Date().getFullYear()} Cuvasol Tutor. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    return await sendEmail({
+      to: recipient,
+      subject,
+      html
+    });
+  } catch (err) {
+    console.error(`[emailService] Failed to send verification email to ${recipient}:`, err.message);
+  }
+};
+
 module.exports = {
   getTransporter,
   sendEmail,
@@ -422,5 +500,7 @@ module.exports = {
   sendReferralIntroEmail,
   sendPayoutReceiptEmail,
   sendBankDetailsReminderEmail,
+  sendVerificationSlotBookedEmail,
 };
+
 

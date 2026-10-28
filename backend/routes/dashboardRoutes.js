@@ -5,7 +5,9 @@ const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
 const Booking = require('../schemas/bookingSchema');
 const CoursePayment = require('../schemas/coursePaymentSchema');
+const AdminAvailability = require('../schemas/adminAvailabilitySchema');
 const { syncStudentWalletAndReferrals } = require('../utils/referralWalletHelper');
+const { sendVerificationSlotBookedEmail } = require('../utils/emailService');
 
 // /api/dashboard/admin
 router.get('/admin', async (req, res) => {
@@ -1434,6 +1436,375 @@ router.get('/admin/referrals-leaderboard', async (req, res) => {
   }
 });
 
+// ==========================================
+// ADMIN AVAILABILITY & TUTOR VERIFICATION ROUTES
+// ==========================================
+
+const sanitizeGoogleMeetLink = (link) => {
+  if (!link) return '';
+  let cleaned = link.trim();
+  if (cleaned && !/^https?:\/\//i.test(cleaned)) {
+    cleaned = `https://${cleaned}`;
+  }
+  return cleaned;
+};
+
+// GET /api/dashboard/admin/availability - Fetch admin availability settings
+router.get('/admin/availability', async (req, res) => {
+  try {
+    let availability = await AdminAvailability.findOne();
+    if (!availability) {
+      availability = new AdminAvailability();
+      await availability.save();
+    }
+    res.json({ success: true, availability });
+  } catch (err) {
+    console.error('[Admin Availability] Fetch error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/dashboard/admin/availability - Update admin availability settings
+router.put('/admin/availability', async (req, res) => {
+  try {
+    const {
+      googleMeetLink,
+      timezone,
+      slotDurationMinutes,
+      bufferMinutes,
+      daysAhead,
+      instructions,
+      weeklySchedule,
+      isActive
+    } = req.body;
+
+    const updateData = {};
+    if (googleMeetLink !== undefined) updateData.googleMeetLink = sanitizeGoogleMeetLink(googleMeetLink);
+    if (timezone !== undefined) updateData.timezone = timezone;
+    if (slotDurationMinutes !== undefined) updateData.slotDurationMinutes = Number(slotDurationMinutes) || 30;
+    if (bufferMinutes !== undefined) updateData.bufferMinutes = Number(bufferMinutes) || 0;
+    if (daysAhead !== undefined) updateData.daysAhead = Number(daysAhead) || 14;
+    if (instructions !== undefined) updateData.instructions = instructions;
+    if (weeklySchedule !== undefined) updateData.weeklySchedule = weeklySchedule;
+    if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+
+    let availability = await AdminAvailability.findOneAndUpdate(
+      {},
+      { $set: updateData },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Admin availability and Google Meet settings saved successfully.',
+      availability
+    });
+  } catch (err) {
+    console.error('[Admin Availability] Update error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/dashboard/admin/availability/slots - Get calculated available verification slots for tutors
+router.get('/admin/availability/slots', async (req, res) => {
+  try {
+    let availability = await AdminAvailability.findOne();
+    if (!availability) {
+      availability = new AdminAvailability();
+      await availability.save();
+    }
+
+    if (!availability.isActive) {
+      return res.json({
+        success: true,
+        isActive: false,
+        message: 'Admin verification bookings are currently unavailable.',
+        googleMeetLink: availability.googleMeetLink,
+        availableDates: []
+      });
+    }
+
+    const tz = availability.timezone || 'Asia/Kolkata';
+    const slotDuration = availability.slotDurationMinutes || 30;
+    const daysAhead = Math.min(Math.max(availability.daysAhead || 14, 3), 30);
+
+    // Fetch existing active verification demo bookings to filter out already-booked slots
+    const existingBookings = await Booking.find({
+      subject: 'Verification Demo Class',
+      status: { $in: ['pending', 'confirmed', 'enrolled'] }
+    }).select('timing utcTiming');
+
+    const formatTime12h = (hour, min) => {
+      const h = hour % 12 || 12;
+      const ampm = hour < 12 ? 'AM' : 'PM';
+      const m = min.toString().padStart(2, '0');
+      return `${h}:${m} ${ampm}`;
+    };
+
+    const availableDates = [];
+    const now = new Date();
+    const minBookingTime = new Date(now.getTime() + 60 * 60 * 1000);
+
+    for (let i = 0; i < daysAhead; i++) {
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + i);
+
+      const formatterDate = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        weekday: 'long'
+      });
+      const parts = formatterDate.formatToParts(targetDate);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const dayNum = parts.find(p => p.type === 'day')?.value;
+      const weekday = parts.find(p => p.type === 'weekday')?.value;
+      const dateStr = `${year}-${month}-${dayNum}`;
+
+      const daySchedule = (availability.weeklySchedule || []).find(d => d.day === weekday);
+      if (!daySchedule || !daySchedule.isEnabled || !daySchedule.timeSlots || daySchedule.timeSlots.length === 0) {
+        continue;
+      }
+
+      const slotsForDay = [];
+
+      for (const window of daySchedule.timeSlots) {
+        if (!window.startTime || !window.endTime) continue;
+        const [startHour, startMin] = window.startTime.split(':').map(Number);
+        const [endHour, endMin] = window.endTime.split(':').map(Number);
+
+        let currentMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+
+        while (currentMinutes + slotDuration <= endMinutes) {
+          const slotStartH = Math.floor(currentMinutes / 60);
+          const slotStartM = currentMinutes % 60;
+          const slotEndMinutes = currentMinutes + slotDuration;
+          const slotEndH = Math.floor(slotEndMinutes / 60);
+          const slotEndM = slotEndMinutes % 60;
+
+          const startStr = `${slotStartH.toString().padStart(2, '0')}:${slotStartM.toString().padStart(2, '0')}`;
+          const endStr = `${slotEndH.toString().padStart(2, '0')}:${slotEndM.toString().padStart(2, '0')}`;
+          const displayTime = `${formatTime12h(slotStartH, slotStartM)} - ${formatTime12h(slotEndH, slotEndM)}`;
+
+          const tempDate = new Date(`${dateStr}T${startStr}:00`);
+          const displayDate = targetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: tz });
+          const displayTimingStr = `${displayDate} at ${formatTime12h(slotStartH, slotStartM)}`;
+
+          const isPast = tempDate <= minBookingTime;
+
+          let isBooked = false;
+          if (!isPast) {
+            isBooked = existingBookings.some(b => {
+              if (b.utcTiming && Math.abs(new Date(b.utcTiming).getTime() - tempDate.getTime()) < slotDuration * 60 * 1000) {
+                return true;
+              }
+              if (b.timing && b.timing.includes(dateStr) && b.timing.includes(formatTime12h(slotStartH, slotStartM))) {
+                return true;
+              }
+              if (b.timing === displayTimingStr) {
+                return true;
+              }
+              return false;
+            });
+          }
+
+          slotsForDay.push({
+            id: `${dateStr}_${startStr}`,
+            date: dateStr,
+            startTime: startStr,
+            endTime: endStr,
+            displayTime,
+            displayTimingStr,
+            utcTiming: tempDate.toISOString(),
+            isAvailable: !isPast && !isBooked,
+            isPast,
+            isBooked
+          });
+
+          currentMinutes += slotDuration;
+        }
+      }
+
+      if (slotsForDay.length > 0) {
+        availableDates.push({
+          date: dateStr,
+          dayName: weekday,
+          formattedDate: targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz }),
+          fullDateText: targetDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: tz }),
+          slots: slotsForDay
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      isActive: true,
+      googleMeetLink: availability.googleMeetLink,
+      timezone: tz,
+      slotDurationMinutes: slotDuration,
+      instructions: availability.instructions,
+      availableDates
+    });
+  } catch (err) {
+    console.error('[Admin Availability Slots] Calculation error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/dashboard/tutor/book-verification-slot - Tutor books an admin verification slot
+router.post('/tutor/book-verification-slot', async (req, res) => {
+  try {
+    const { tutorId, timing, utcTiming, topicToLearn, notes } = req.body;
+
+    if (!tutorId) return res.status(400).json({ success: false, message: 'Tutor ID is required.' });
+    if (!timing) return res.status(400).json({ success: false, message: 'Preferred timing is required.' });
+
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) return res.status(404).json({ success: false, message: 'Tutor not found.' });
+
+    // Check if tutor already has an active verification demo
+    const existingDemo = await Booking.findOne({
+      tutorId: tutor._id,
+      subject: 'Verification Demo Class',
+      status: { $in: ['pending', 'confirmed'] }
+    });
+    if (existingDemo) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have an active verification demo scheduled. Please reschedule or cancel the existing one before booking a new slot.',
+        existingBooking: existingDemo
+      });
+    }
+
+    const slotDate = utcTiming ? new Date(utcTiming) : new Date();
+    if (slotDate < new Date()) {
+      return res.status(400).json({ success: false, message: 'Cannot book a verification slot in the past.' });
+    }
+
+    let adminAvail = await AdminAvailability.findOne();
+    if (!adminAvail) {
+      adminAvail = new AdminAvailability();
+      await adminAvail.save();
+    }
+
+    const meetingLink = adminAvail.googleMeetLink && adminAvail.googleMeetLink.trim()
+      ? adminAvail.googleMeetLink.trim()
+      : 'https://meet.google.com/cuvasol-admin-verify';
+
+    const newBooking = new Booking({
+      tutorId: tutor._id,
+      tutorName: tutor.name,
+      timing,
+      utcTiming: slotDate,
+      subject: 'Verification Demo Class',
+      studentId: 'admin',
+      studentName: 'Platform Administrator',
+      topicToLearn: notes || topicToLearn || 'Tutor Profile Verification',
+      status: 'confirmed',
+      meetingLink
+    });
+
+    await newBooking.save();
+
+    try {
+      const tutorUser = await User.findById(tutor.userId);
+      const tutorEmail = tutorUser?.email;
+      if (tutorEmail) {
+        await sendVerificationSlotBookedEmail({
+          tutorName: tutor.name,
+          tutorEmail,
+          timing,
+          googleMeetLink: meetingLink,
+          instructions: adminAvail.instructions,
+          isForAdmin: false
+        });
+      }
+      await sendVerificationSlotBookedEmail({
+        tutorName: tutor.name,
+        tutorEmail: tutorEmail || '',
+        timing,
+        googleMeetLink: meetingLink,
+        instructions: notes || '',
+        isForAdmin: true
+      });
+    } catch (mailErr) {
+      console.error('[Verification Booking] Error sending email notification:', mailErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification demo slot booked successfully!',
+      booking: newBooking
+    });
+  } catch (err) {
+    console.error('[Book Verification Slot] Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/dashboard/tutor/:tutorId/verification-booking - Get tutor's current verification booking
+router.get('/tutor/:tutorId/verification-booking', async (req, res) => {
+  try {
+    const { tutorId } = req.params;
+    const tutor = await Tutor.findById(tutorId);
+    if (!tutor) return res.status(404).json({ success: false, message: 'Tutor not found.' });
+
+    const booking = await Booking.findOne({
+      tutorId: tutor._id,
+      subject: 'Verification Demo Class'
+    }).sort({ createdAt: -1 });
+
+    let adminAvail = await AdminAvailability.findOne();
+
+    res.json({
+      success: true,
+      booking,
+      isVerified: Boolean(tutor.isVerified),
+      tutorStatus: tutor.status,
+      googleMeetLink: adminAvail?.googleMeetLink || (booking?.meetingLink || ''),
+      instructions: adminAvail?.instructions || ''
+    });
+  } catch (err) {
+    console.error('[Get Tutor Verification Booking] Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/dashboard/tutor/cancel-verification-slot - Cancel a verification demo
+router.post('/tutor/cancel-verification-slot', async (req, res) => {
+  try {
+    const { tutorId, bookingId, reason } = req.body;
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      tutorId,
+      subject: 'Verification Demo Class'
+    });
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Verification booking not found.' });
+    }
+
+    booking.status = 'cancelled';
+    booking.cancelledBy = 'Tutor';
+    booking.cancelledAt = new Date();
+    booking.cancellationReason = reason || 'Cancelled by tutor to reschedule';
+    await booking.save();
+
+    res.json({
+      success: true,
+      message: 'Verification demo booking cancelled. You may now choose another preferred slot.',
+      booking
+    });
+  } catch (err) {
+    console.error('[Cancel Verification Booking] Error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
+
 
 
