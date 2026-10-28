@@ -426,13 +426,13 @@ export const AdminAvailabilityManager: React.FC<AdminAvailabilityManagerProps> =
                   value={availability.timezone}
                   onValueChange={(val) => setAvailability(prev => ({ ...prev, timezone: val }))}
                 >
-                  <SelectTrigger className="h-10 text-xs bg-background">
+                  <SelectTrigger className="h-10 text-xs bg-background text-black">
                     <SelectValue placeholder="Select Timezone" />
                   </SelectTrigger>
                   <SelectContent className="max-h-64">
                     {COMMON_TIMEZONES.map(tz => (
-                      <SelectItem key={tz.value} value={tz.value} className="text-xs">
-                        {tz.label}
+                      <SelectItem key={tz} value={tz} className="text-xs text-black">
+                        {tz}
                       </SelectItem>
                     ))}
                   </SelectContent>

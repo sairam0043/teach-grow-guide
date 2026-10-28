@@ -4,7 +4,7 @@ declare global {
   }
 }
 
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,16 @@ const TutorProfile = () => {
   const { id } = useParams();
   const { user, role } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const navigationState = location.state;
+  const returnToRecommendations =
+    navigationState !== null &&
+    typeof navigationState === "object" &&
+    "returnTo" in navigationState &&
+    navigationState.returnTo === "/dashboard/student" &&
+    "returnTab" in navigationState &&
+    navigationState.returnTab === "recommendations";
   const selectPack = searchParams.get("selectPack") === "true";
   const [tutor, setTutor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1054,7 +1063,16 @@ const TutorProfile = () => {
       )}
       <div className="container py-8">
         <Button variant="ghost" asChild className="mb-6">
-          <Link to="/tutors"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Tutors</Link>
+          <Link
+            to={returnToRecommendations ? "/dashboard/student" : "/tutors"}
+            onClick={() => {
+              if (returnToRecommendations) {
+                sessionStorage.setItem("student_dashboard_tab", "recommendations");
+              }
+            }}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> {returnToRecommendations ? "Back to Recommendations" : "Back to Tutors"}
+          </Link>
         </Button>
 
         <div className="grid gap-8 lg:grid-cols-3">

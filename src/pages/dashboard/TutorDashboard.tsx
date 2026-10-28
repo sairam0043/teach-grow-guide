@@ -928,7 +928,7 @@ const TutorDashboard = () => {
         {tutorProfile?.status === "pending" && (
           <Alert variant="destructive" className="mb-8 border-amber-500/50 bg-amber-500/10 text-slate-900 dark:text-slate-100 shadow-sm rounded-xl">
             <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            <AlertTitle className="font-bold text-lg text-slate-900 dark:text-white flex items-center justify-between flex-wrap gap-2">
+            <AlertTitle className="font-bold text-lg text-red-900 dark:text-red-300 flex items-center justify-between flex-wrap gap-2">
               <span>Account Pending Approval</span>
               <Button
                 size="sm"
@@ -938,7 +938,7 @@ const TutorDashboard = () => {
                 <Calendar className="h-3.5 w-3.5" /> Book Verification Slot with Admin
               </Button>
             </AlertTitle>
-            <AlertDescription className="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-200 font-medium">
+            <AlertDescription className="mt-2 text-sm leading-relaxed text-black font-bold">
               Your tutor profile is under review by our admin team. You can book your preferred verification demo slot with the platform administrator to fast-track your profile verification and activation!
             </AlertDescription>
           </Alert>
