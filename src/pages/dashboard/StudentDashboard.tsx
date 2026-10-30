@@ -1127,7 +1127,11 @@ const StudentDashboard = () => {
                               size="sm"
                               className="w-full shadow-sm rounded-xl font-bold text-xs bg-primary hover:bg-primary/90"
                             >
-                              <Link to={`/tutors/${tutor._id || tutor.id}`}>
+                              <Link
+                                to={`/tutors/${tutor._id || tutor.id}`}
+                                state={{ returnTo: "/dashboard/student", returnTab: "recommendations" }}
+                                onClick={() => sessionStorage.setItem("student_dashboard_tab", "recommendations")}
+                              >
                                 Book Demo
                               </Link>
                             </Button>
@@ -1154,7 +1158,11 @@ const StudentDashboard = () => {
                                 variant="outline"
                                 className="w-full rounded-xl text-xs font-semibold border-border"
                               >
-                                <Link to={`/tutors/${tutor._id || tutor.id}`}>
+                                <Link
+                                  to={`/tutors/${tutor._id || tutor.id}`}
+                                  state={{ returnTo: "/dashboard/student", returnTab: "recommendations" }}
+                                  onClick={() => sessionStorage.setItem("student_dashboard_tab", "recommendations")}
+                                >
                                   View Profile
                                 </Link>
                               </Button>

@@ -127,6 +127,20 @@ const generateMeetingLinkForBooking = async ({
 }) => {
   const isAdminDemo = studentId === 'admin' || subject === 'Verification Demo Class';
 
+  // If it's a verification demo and admin configured their Google Meet link in Admin Availability, use it
+  if (isAdminDemo) {
+    try {
+      const AdminAvailability = require('../schemas/adminAvailabilitySchema');
+      const adminAvail = await AdminAvailability.findOne({ isActive: true });
+      if (adminAvail && adminAvail.googleMeetLink && adminAvail.googleMeetLink.trim()) {
+        console.log(`[GoogleMeetService] Using saved Admin Google Meet link: ${adminAvail.googleMeetLink}`);
+        return adminAvail.googleMeetLink.trim();
+      }
+    } catch (err) {
+      console.warn(`[GoogleMeetService] Error checking AdminAvailability:`, err.message);
+    }
+  }
+
   // If it's a verification demo and the admin Google OAuth refresh token is configured, use admin calendar
   if (isAdminDemo && process.env.ADMIN_GOOGLE_REFRESH_TOKEN) {
     try {
