@@ -8,11 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import PageLayout from "@/components/layout/PageLayout";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import axios from "axios";
 import API_URL from "@/config/api";
 
 const AIFutureSkills = () => {
   const { user } = useAuth();
+  const { currentCurrency, formatPrice } = useCurrency();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -362,7 +364,7 @@ const AIFutureSkills = () => {
                       <span className="text-xs text-muted-foreground block leading-tight">Evaluate coding and AI skills before shortlisting</span>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="font-extrabold text-xl block text-teal-600">₹100</span>
+                      <span className="font-extrabold text-xl block text-teal-600">{formatPrice(100)}</span>
                       <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground block">one-time</span>
                     </div>
                   </div>
@@ -373,8 +375,8 @@ const AIFutureSkills = () => {
                       Two-Step Enrollment Process:
                     </h5>
                     <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
-                      <li>Pay ₹100 and complete the skills assessment.</li>
-                      <li>Selected students will receive an email invitation to enroll in the full course (₹1,500).</li>
+                      <li>Pay {formatPrice(100)} and complete the skills assessment.</li>
+                      <li>Selected students will receive an email invitation to enroll in the full course ({formatPrice(1500)}).</li>
                     </ol>
                   </div>
                 </div>
@@ -414,7 +416,7 @@ const AIFutureSkills = () => {
                   <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 text-center space-y-3">
                     <Sparkles className="mx-auto h-8 w-8 text-indigo-600 animate-pulse" />
                     <p className="text-sm font-bold text-indigo-800 dark:text-indigo-300">Congratulations!</p>
-                    <p className="text-xs text-muted-foreground leading-normal">You have been shortlisted for the AI Future Skills Program. Please proceed to the enrollment page to complete the ₹1,500 course fee payment.</p>
+                    <p className="text-xs text-muted-foreground leading-normal">You have been shortlisted for the AI Future Skills Program. Please proceed to the enrollment page to complete the {formatPrice(1500)} course fee payment.</p>
                     <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 rounded-xl shadow-md transition-all duration-300 hover:scale-[1.02]" asChild>
                       <Link to="/ai-program/enroll">Enroll in Full Course</Link>
                     </Button>
@@ -423,7 +425,7 @@ const AIFutureSkills = () => {
                   <div className="bg-teal-500/10 border border-teal-500/20 rounded-2xl p-4 text-center space-y-2">
                     <Check className="mx-auto h-8 w-8 text-teal-600" />
                     <p className="text-sm font-bold text-teal-800 dark:text-teal-300">Assessment Registered</p>
-                    <p className="text-xs text-muted-foreground leading-normal">Your ₹100 assessment payment is verified. Admins will review your score and update shortlisting results shortly.</p>
+                    <p className="text-xs text-muted-foreground leading-normal">Your {formatPrice(100)} assessment payment is verified. Admins will review your score and update shortlisting results shortly.</p>
                   </div>
                 ) : (
                   <Button
@@ -437,7 +439,7 @@ const AIFutureSkills = () => {
                         Initiating Order...
                       </span>
                     ) : (
-                      "Register for Assessment - ₹100"
+                      `Register for Assessment - ${formatPrice(100)}`
                     )}
                   </Button>
                 )}

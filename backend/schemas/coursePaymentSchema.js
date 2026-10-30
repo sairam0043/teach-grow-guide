@@ -6,6 +6,8 @@ const coursePaymentSchema = new mongoose.Schema({
   studentEmail: { type: String, required: true },
   purchaseType: { type: String, enum: ['assessment', 'full_course'], required: true },
   amountPaid: { type: Number, required: true },
+  currency: { type: String, default: 'INR' },
+  foreignAmount: { type: Number },
   status: { type: String, enum: ['pending_payment', 'completed', 'failed'], default: 'pending_payment' },
   razorpayOrderId: { type: String },
   razorpayPaymentId: { type: String },

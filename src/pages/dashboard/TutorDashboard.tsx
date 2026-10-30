@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, ShieldAlert, ArrowRight, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSelector, useDispatch } from "react-redux";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 import { fetchTutorStats, updateTutorAvailability } from "@/redux/slices/dashboardSlice";
 import { updateUser } from "@/redux/slices/authSlice";
 import { RootState, AppDispatch } from "@/redux/store";
@@ -895,10 +897,21 @@ const TutorDashboard = () => {
 
       console.log("[DEBUG] handleProfileUpdate: payload=", payload);
 
+      let cleanPhone = profilePhone.trim();
+      if (cleanPhone) {
+        const parsed = parsePhoneString(cleanPhone);
+        const phoneCheck = validatePhoneInput(parsed.dialCode, parsed.nationalNumber);
+        if (!phoneCheck.isValid) {
+          toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+          return;
+        }
+        cleanPhone = phoneCheck.fullPhone;
+      }
+
       const [authRes, tutorRes] = await Promise.all([
         axios.put(`${API_URL}/auth/profile/${user.id}`, {
           full_name: profileName,
-          phone: profilePhone,
+          phone: cleanPhone,
           timezone: tutorTimezone
         }),
         axios.put(`${API_URL}/tutors/${tutorProfile.id}/profile`, payload)
@@ -945,7 +958,22 @@ const TutorDashboard = () => {
       <div className="container py-10 max-w-7xl">
         <div className="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Hello, {name}</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Hello, {name}</h1>
+              {tutorProfile && (
+                tutorProfile.isVerified ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm">
+                    <CheckCircle className="h-3.5 w-3.5 fill-blue-500 text-white" />
+                    Verified Educator
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 shadow-sm">
+                    <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
+                    Not Verified Yet
+                  </span>
+                )
+              )}
+            </div>
             <p className="text-lg text-muted-foreground mt-1">Manage your teaching schedule, students, and profile.</p>
           </div>
           {tutorProfile?.status === "approved" && (
@@ -959,6 +987,89 @@ const TutorDashboard = () => {
             </Button>
           )}
         </div>
+
+        {/* Verification Banner for Unverified Tutors */}
+        {!tutorProfile?.isVerified && tutorProfile?.status !== "rejected" && (
+          <div className="mb-8 relative overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-orange-500/10 backdrop-blur-sm p-5 sm:p-6 shadow-md transition-all">
+            <div className="absolute -top-12 -right-12 h-36 w-36 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-orange-500/10 blur-2xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+              <div className="flex items-start gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20 ring-4 ring-amber-500/10">
+                  <ShieldAlert className="h-6 w-6" />
+                </div>
+
+                <div className="space-y-1.5 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-bold text-base sm:text-lg text-foreground tracking-tight flex items-center gap-1.5">
+                      Your Profile is Not Verified Yet
+                    </h3>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      Get Verified
+                    </span>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    You do not have the <strong className="text-foreground font-semibold">Verified Tutor Badge</strong> yet. Verified educators appear at the top of search results, display a verified checkmark on cards, and receive up to <strong className="text-foreground font-semibold">3x more student demo bookings</strong>.
+                  </p>
+
+                  {/* Verification Checklist */}
+                  <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`h-4 w-4 rounded-full flex items-center justify-center text-[10px] ${tutorProfile?.verificationDocument ? 'bg-emerald-500 text-white font-bold' : 'bg-muted border text-muted-foreground'}`}>
+                        {tutorProfile?.verificationDocument ? '✓' : '1'}
+                      </div>
+                      <span className={tutorProfile?.verificationDocument ? 'text-foreground font-medium' : ''}>
+                        Resume/CV Document {tutorProfile?.verificationDocument ? '(Uploaded)' : '(Required)'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <div className={`h-4 w-4 rounded-full flex items-center justify-center text-[10px] ${tutorProfile?.photo ? 'bg-emerald-500 text-white font-bold' : 'bg-muted border text-muted-foreground'}`}>
+                        {tutorProfile?.photo ? '✓' : '2'}
+                      </div>
+                      <span className={tutorProfile?.photo ? 'text-foreground font-medium' : ''}>
+                        Profile Photo {tutorProfile?.photo ? '(Added)' : '(Recommended)'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-4 w-4 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold flex items-center justify-center text-[10px] border border-amber-500/40">
+                        3
+                      </div>
+                      <span className="text-foreground font-medium">
+                        Verification Demo Class with Admin
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full lg:w-auto shrink-0 justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-amber-500/20">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActiveTab("profile")}
+                  className="w-full sm:w-auto border-amber-500/30 hover:bg-amber-500/10 text-foreground font-semibold text-xs rounded-xl h-9 gap-1.5 shadow-sm"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                  Update Profile Details
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setActiveTab("messages")}
+                  className="w-full sm:w-auto bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl h-9 gap-1.5 shadow-md shadow-amber-600/20"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Request Demo Verification
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {tutorProfile?.status === "pending" && (
           <Alert variant="destructive" className="mb-8 border-amber-500/50 bg-amber-500/10 text-slate-900 dark:text-slate-100 shadow-sm rounded-xl">
@@ -1032,7 +1143,7 @@ const TutorDashboard = () => {
             { icon: Clock, label: "Demo Requests", value: tutorStats?.demoRequests || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
             { icon: Users, label: "Active Students", value: uniqueStudents.length, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30", tab: "students" },
             { icon: Calendar, label: "Upcoming Classes", value: enrolledClasses.length, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30", tab: "schedule" },
-            { icon: DollarSign, label: "Total Earnings", value: `₹${enrolledClasses.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "earnings" },
+            { icon: DollarSign, label: "Total Earnings", value: `₹${enrolledClasses.reduce((acc, curr) => acc + (curr.baseInrAmount || curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "earnings" },
           ].map((stat) => (
             <Card
               key={stat.label}
@@ -1718,8 +1829,15 @@ const TutorDashboard = () => {
                               <div className="font-semibold text-foreground">{cls.studentName}</div>
                               <div className="text-muted-foreground text-xs">{cls.subject}</div>
                             </td>
-                            <td className="px-6 py-4 text-right font-bold text-emerald-600 text-lg">
-                              +₹{cls.amountPaid}
+                            <td className="px-6 py-4 text-right">
+                              <div className="font-bold text-emerald-600 text-lg">
+                                +₹{cls.baseInrAmount || cls.amountPaid}
+                              </div>
+                              {cls.currency && cls.currency !== 'INR' && (
+                                <div className="text-[11px] text-muted-foreground font-normal">
+                                  Paid {cls.currency} {cls.foreignAmount || cls.amountPaid} (Intl)
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -1914,6 +2032,29 @@ const TutorDashboard = () => {
                   <div className="lg:col-span-1 border rounded-xl p-5 bg-secondary/10 self-start shadow-sm">
                     <h4 className="font-semibold mb-4 text-foreground border-b pb-2">Account Overview</h4>
 
+                    {/* Verification Status Badge Card */}
+                    <div className="mb-5 p-3.5 rounded-xl border flex items-center justify-between gap-3 shadow-sm bg-card border-border/60">
+                      <div>
+                        <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Verification Badge</div>
+                        <div className="text-sm font-bold text-foreground mt-0.5 flex items-center gap-1.5">
+                          {tutorProfile?.isVerified ? (
+                            <>
+                              <CheckCircle className="h-4 w-4 fill-blue-500 text-white" />
+                              <span className="text-blue-600 dark:text-blue-400">Verified Educator</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldAlert className="h-4 w-4 text-amber-500" />
+                              <span className="text-amber-600 dark:text-amber-400">Not Verified Yet</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant={tutorProfile?.isVerified ? "default" : "outline"} className={tutorProfile?.isVerified ? "bg-blue-600 hover:bg-blue-700 text-white text-[10px]" : "border-amber-500/40 text-amber-600 dark:text-amber-400 text-[10px]"}>
+                        {tutorProfile?.isVerified ? "Verified" : "Pending Demo"}
+                      </Badge>
+                    </div>
+
                     {/* Profile Photo Display and Upload */}
                     <div className="flex flex-col items-center mb-6 pb-6 border-b">
                       <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-background shadow-md bg-secondary/30">
@@ -2056,16 +2197,13 @@ const TutorDashboard = () => {
                             required
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
-                          <Input
-                            id="phone"
-                            value={profilePhone}
-                            onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))}
-                            placeholder="+1 234 567 890"
-                            className="bg-secondary/20 border-border/50 shadow-sm"
-                          />
-                        </div>
+                        <InternationalPhoneInput
+                          id="phone"
+                          label="Phone Number"
+                          required={false}
+                          value={profilePhone}
+                          onChange={(fullPhone) => setProfilePhone(fullPhone)}
+                        />
                       </div>
 
                       <div className="space-y-2">

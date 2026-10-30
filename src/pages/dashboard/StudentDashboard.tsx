@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 
 const POPULAR_SUBJECTS = [
   "Mathematics",
@@ -39,6 +41,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PageLayout from "@/components/layout/PageLayout";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchStudentStats } from "@/redux/slices/dashboardSlice";
 import { updateUser } from "@/redux/slices/authSlice";
@@ -443,12 +446,22 @@ const StudentDashboard = () => {
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id) return;
+    let cleanPhone = profilePhone.trim();
+    if (cleanPhone) {
+      const parsed = parsePhoneString(cleanPhone);
+      const phoneCheck = validatePhoneInput(parsed.dialCode, parsed.nationalNumber);
+      if (!phoneCheck.isValid) {
+        toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+        return;
+      }
+      cleanPhone = phoneCheck.fullPhone;
+    }
+
     setIsUpdatingProfile(true);
     try {
       const response = await axios.put(`${API_URL}/auth/profile/${user.id}`, { 
         full_name: profileName, 
-        phone: profilePhone,
+        phone: cleanPhone,
         student_class: profileStudentClass,
         student_name: user?.student_or_parent === "Parent" ? profileStudentName : undefined,
         interested_subject: profileInterestedSubject,
@@ -1733,10 +1746,13 @@ const StudentDashboard = () => {
                     <Label htmlFor="email" className="text-sm font-semibold">Email Address <span className="text-xs font-normal text-muted-foreground">(Cannot be changed)</span></Label>
                     <Input id="email" value={String(user?.email || "")} disabled className="bg-secondary/50 opacity-70" />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
-                    <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} placeholder="+1 234 567 890" className="bg-secondary/20 border-border/50" />
-                  </div>
+                  <InternationalPhoneInput
+                    id="phone"
+                    label="Phone Number"
+                    required={false}
+                    value={profilePhone}
+                    onChange={(fullPhone) => setProfilePhone(fullPhone)}
+                  />
                   {/* Class / Grade Selection */}
                   <div className="space-y-2">
                     <Label htmlFor="studentClass" className="text-sm font-semibold flex items-center justify-between">

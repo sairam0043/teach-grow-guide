@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import InternetConnectionAlert from "@/components/InternetConnectionAlert";
 import Index from "./pages/Index";
@@ -145,64 +146,66 @@ const App = () => {
             <ScrollToTop />
             <TrackPageViews />
             <AuthProvider>
-              <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/tutors" element={<BrowseTutors />} />
-            <Route path="/tutors/:id" element={<TutorProfile />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/ai-program" element={<Navigate to="/" replace />} />
-            <Route 
-              path="/ai-program/enroll" 
-              element={<Navigate to="/" replace />} 
-            />
-            <Route 
-              path="/ai-program/take-assessment/:paymentId" 
-              element={<Navigate to="/" replace />} 
-            />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/privacy" element={<Terms />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register/student" element={<RegisterStudent />} />
-            <Route path="/register/tutor" element={<RegisterTutor />} />
-            <Route
-              path="/dashboard/student"
-              element={<ProtectedRoute allowedRoles={["student"]}><StudentDashboard /></ProtectedRoute>}
-            />
-            <Route
-              path="/recently-viewed"
-              element={<ProtectedRoute allowedRoles={["student"]}><RecentlyViewed /></ProtectedRoute>}
-            />
-            <Route
-              path="/dashboard/tutor"
-              element={<ProtectedRoute allowedRoles={["tutor"]}><TutorDashboard /></ProtectedRoute>}
-            />
-            <Route
-              path="/tutor/welcome"
-              element={<ProtectedRoute allowedRoles={["tutor"]}><TutorWelcome /></ProtectedRoute>}
-            />
-            <Route
-              path="/dashboard/admin"
-              element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>}
-            />
-            <Route
-              path="/dashboard/hr"
-              element={<ProtectedRoute allowedRoles={["admin", "hr"]}><HRDashboard /></ProtectedRoute>}
-            />
-            <Route
-              path="/hr/payouts"
-              element={<ProtectedRoute allowedRoles={["admin", "hr"]}><HRDashboard /></ProtectedRoute>}
-            />
-            <Route path="/approve-booking/:bookingId" element={<ApproveBooking />} />
-            <Route path="/google-callback" element={<GoogleCallback />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <CustomServiceChatbot />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+              <CurrencyProvider>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/tutors" element={<BrowseTutors />} />
+                  <Route path="/tutors/:id" element={<TutorProfile />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/ai-program" element={<Navigate to="/" replace />} />
+                  <Route 
+                    path="/ai-program/enroll" 
+                    element={<Navigate to="/" replace />} 
+                  />
+                  <Route 
+                    path="/ai-program/take-assessment/:paymentId" 
+                    element={<Navigate to="/" replace />} 
+                  />
+                  <Route path="/terms" element={<Terms />} />
+                  <Route path="/privacy" element={<Terms />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register/student" element={<RegisterStudent />} />
+                  <Route path="/register/tutor" element={<RegisterTutor />} />
+                  <Route
+                    path="/dashboard/student"
+                    element={<ProtectedRoute allowedRoles={["student"]}><StudentDashboard /></ProtectedRoute>}
+                  />
+                  <Route
+                    path="/recently-viewed"
+                    element={<ProtectedRoute allowedRoles={["student"]}><RecentlyViewed /></ProtectedRoute>}
+                  />
+                  <Route
+                    path="/dashboard/tutor"
+                    element={<ProtectedRoute allowedRoles={["tutor"]}><TutorDashboard /></ProtectedRoute>}
+                  />
+                  <Route
+                    path="/tutor/welcome"
+                    element={<ProtectedRoute allowedRoles={["tutor"]}><TutorWelcome /></ProtectedRoute>}
+                  />
+                  <Route
+                    path="/dashboard/admin"
+                    element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>}
+                  />
+                  <Route
+                    path="/dashboard/hr"
+                    element={<ProtectedRoute allowedRoles={["admin", "hr"]}><HRDashboard /></ProtectedRoute>}
+                  />
+                  <Route
+                    path="/hr/payouts"
+                    element={<ProtectedRoute allowedRoles={["admin", "hr"]}><HRDashboard /></ProtectedRoute>}
+                  />
+                  <Route path="/approve-booking/:bookingId" element={<ApproveBooking />} />
+                  <Route path="/google-callback" element={<GoogleCallback />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+                <CustomServiceChatbot />
+              </CurrencyProvider>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 };
 

@@ -6,6 +6,7 @@ const Tutor = require('../schemas/tutorSchema');
 const Booking = require('../schemas/bookingSchema');
 const CoursePayment = require('../schemas/coursePaymentSchema');
 const { syncStudentWalletAndReferrals } = require('../utils/referralWalletHelper');
+const { validateAndNormalizePhone } = require('../utils/phoneValidator');
 
 // /api/dashboard/admin
 router.get('/admin', async (req, res) => {
@@ -371,7 +372,13 @@ router.put('/admin/students/:id', async (req, res) => {
       student.email = emailLower;
     }
 
-    if (phone !== undefined) {
+    if (phone !== undefined && phone !== null && phone.toString().trim() !== '') {
+      const phoneCheck = validateAndNormalizePhone(phone);
+      if (!phoneCheck.valid) {
+        return res.status(400).json({ message: phoneCheck.error || 'Please enter a valid mobile number.' });
+      }
+      student.phone = phoneCheck.normalized;
+    } else if (phone !== undefined) {
       student.phone = phone.trim();
     }
 

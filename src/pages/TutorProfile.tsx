@@ -23,6 +23,7 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "@/components/ui/sonner";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import { 
@@ -724,13 +725,15 @@ const TutorProfile = () => {
             orderId: orderData.orderId,
             bookingId: booking._id,
             amount: orderData.amount,
+            currency: orderData.currency || currentCurrency,
+            currencySymbol: currencyInfo.symbol,
             keyId: orderData.keyId,
             tutorName: tutor.name,
             subject: selectedSubject,
             timing: formattedTiming,
             planType: selectedPlan.type,
-            price: booking.amountPaid,
-            originalPrice: selectedPlan.price,
+            price: orderData.foreignAmount || booking.foreignAmount || booking.amountPaid,
+            originalPrice: booking.originalAmount || selectedPlan.price,
             walletDiscount: booking.walletUsed || 0
           });
           setIsProcessingPayment(false);
@@ -1643,7 +1646,7 @@ const TutorProfile = () => {
                     <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 text-center">
                       <p className="font-medium text-green-800 dark:text-green-300 mb-2">You are officially enrolled in {tutor.name}'s classes!</p>
                       <p className="text-sm text-green-600/80 dark:text-green-400/80">
-                        Plan: {enrolledBooking.planType} (₹{enrolledBooking.amountPaid}{enrolledBooking.planType.includes('Pack') ? '/month' : '/hr'})
+                        Plan: {enrolledBooking.planType} ({enrolledBooking.currency && enrolledBooking.currency !== 'INR' ? `${enrolledBooking.currency} ${enrolledBooking.foreignAmount || enrolledBooking.amountPaid}` : `₹${enrolledBooking.amountPaid}`}{enrolledBooking.planType.includes('Pack') ? '/month' : '/hr'})
                       </p>
                       <p className="text-sm text-green-600/80 dark:text-green-400/80 mt-1">
                         Timing: {enrolledBooking.timing}
@@ -1762,7 +1765,7 @@ const TutorProfile = () => {
                                 </div>
                                 <div className="text-right shrink-0">
                                   <span className="font-extrabold text-sm block">
-                                    {plan.price === 0 ? "Free" : `₹${plan.price}`}
+                                    {plan.price === 0 ? "Free Demo" : formatPrice(plan.price)}
                                   </span>
                                   <span className={`text-[9px] uppercase font-bold tracking-wider ${selectedPlan?.type === plan.type ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
                                     {plan.price === 0 ? "" : plan.isPack ? "/month" : "/hr"}
@@ -2112,7 +2115,7 @@ const TutorProfile = () => {
                                 Apply Student Wallet Credits
                               </label>
                               <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-xs font-bold">
-                                Available: ₹{studentWalletBalance}
+                                Available: {formatPrice(studentWalletBalance)}
                               </Badge>
                             </div>
 
@@ -2124,16 +2127,16 @@ const TutorProfile = () => {
                                 <div className="text-[11px] space-y-1 pt-1 border-t border-amber-500/20 text-muted-foreground">
                                   <div className="flex justify-between">
                                     <span>Plan Price:</span>
-                                    <span className="font-semibold text-foreground">₹{origPrice}</span>
+                                    <span className="font-semibold text-foreground">{formatPrice(origPrice)}</span>
                                   </div>
                                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
                                     <span>Wallet Credit Applied:</span>
-                                    <span>-₹{discount}</span>
+                                    <span>-{formatPrice(discount)}</span>
                                   </div>
                                   <div className="flex justify-between font-bold text-foreground text-xs pt-1 border-t border-amber-500/20">
                                     <span>Net Payable:</span>
                                     <span className="text-amber-600 dark:text-amber-400">
-                                      {net === 0 ? "🎉 FREE (₹0)" : `₹${net}`}
+                                      {net === 0 ? "🎉 FREE (₹0)" : formatPrice(net)}
                                     </span>
                                   </div>
                                 </div>
@@ -2205,9 +2208,9 @@ const TutorProfile = () => {
                                           return "🎉 Pay ₹0 with Wallet & Enroll Now";
                                         }
                                         if (discount > 0) {
-                                          return `Book Class & Pay ₹${net} (₹${discount} from Wallet)`;
+                                          return `Book Class & Pay ${formatPrice(net)} (${formatPrice(discount)} from Wallet)`;
                                         }
-                                        return `Book Class & Pay ₹${origPrice}`;
+                                        return `Book Class & Pay ${formatPrice(origPrice)}`;
                                       })()
                                   )
                                 : "Select Pricing & Booking option"
@@ -2227,7 +2230,7 @@ const TutorProfile = () => {
                         {!selectedExisting && (
                           <p className="text-center text-xs text-muted-foreground mt-2">
                             {selectedPlan
-                              ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ₹${selectedPlan.price}${selectedPlan.isPack ? ' (Monthly Pack)' : '/hr'}`)
+                              ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ${formatPrice(selectedPlan.price)}${selectedPlan.isPack ? ' (Monthly Pack)' : '/hr'}`)
                               : "Select Pricing & Booking option"}
                           </p>
                         )}
@@ -2264,7 +2267,7 @@ const TutorProfile = () => {
               <h3 className="text-2xl font-bold tracking-tight">Cuvasol Payments</h3>
               <div className="mt-4 flex items-baseline justify-between border-t border-white/10 pt-4">
                 <span className="text-sm text-indigo-100">Amount to Pay</span>
-                <span className="text-3xl font-extrabold text-white">₹{sandboxOrder.price}</span>
+                <span className="text-3xl font-extrabold text-white">{sandboxOrder.currency && sandboxOrder.currency !== "INR" ? `${sandboxOrder.currencySymbol || sandboxOrder.currency} ${sandboxOrder.price}` : `₹${sandboxOrder.price}`}</span>
               </div>
             </div>
 
@@ -2292,7 +2295,7 @@ const TutorProfile = () => {
                 {sandboxOrder.walletDiscount > 0 && (
                   <div className="flex justify-between text-emerald-400 font-semibold">
                     <span>Wallet Credit Applied:</span>
-                    <span>-₹{sandboxOrder.walletDiscount}</span>
+                    <span>-{formatPrice(sandboxOrder.walletDiscount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between border-t border-slate-800/80 pt-2 text-[10px] text-slate-500">

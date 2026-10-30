@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import axios from "axios";
 import API_URL from "@/config/api";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 
 const CLASS_OPTIONS = [
   "Class 1",
@@ -198,6 +200,13 @@ const RegisterStudent = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const parsedPhone = parsePhoneString(phone);
+    const phoneCheck = validatePhoneInput(parsedPhone.dialCode, parsedPhone.nationalNumber);
+    if (!phoneCheck.isValid) {
+      toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+      return;
+    }
+
     const finalClass = studentClass === "Other" ? customClass.trim() : studentClass;
     if (!finalClass) {
       toast.error("Please select or specify your class / grade.");
@@ -245,9 +254,13 @@ const RegisterStudent = () => {
     const finalClass = studentClass === "Other" ? customClass.trim() : studentClass;
     const finalHeardAboutUs = heardAboutUs === "Other" ? customHeardAboutUs.trim() : heardAboutUs;
 
+    const parsedPhone = parsePhoneString(phone);
+    const phoneCheck = validatePhoneInput(parsedPhone.dialCode, parsedPhone.nationalNumber);
+    const finalPhone = phoneCheck.fullPhone || phone;
+
     const { error } = await signUp(email, password, {
       full_name: name,
-      phone,
+      phone: finalPhone,
       student_class: finalClass,
       student_or_parent: studentOrParent,
       student_name: studentOrParent === "Parent" ? studentName.trim() : "",
@@ -450,10 +463,13 @@ const RegisterStudent = () => {
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" type="email" required maxLength={255} value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} />
-                </div>
+                <InternationalPhoneInput
+                  id="phone"
+                  label="Mobile Number"
+                  required
+                  value={phone}
+                  onChange={(fullPhone) => setPhone(fullPhone)}
+                />
                 <div className="space-y-2">
                   <Label htmlFor="studentOrParent">Are you a Student or Parent?</Label>
                   <Select

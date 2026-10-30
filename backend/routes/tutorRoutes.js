@@ -6,6 +6,7 @@ const Post = require('../schemas/postSchema');
 const nodemailer = require('nodemailer');
 const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
 const { rewardReferrerOnClassCompletion, refundWalletOnBookingCancel } = require('../utils/referralWalletHelper');
+const { SUPPORTED_CURRENCIES, convertInrToCurrency } = require('../utils/pricingService');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -642,7 +643,7 @@ router.post('/:id/book-verification-demo', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet, topicToLearn } = req.body;
+    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet, topicToLearn, currency: requestedCurrency } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -707,10 +708,11 @@ router.post('/:id/book-class', async (req, res) => {
 
     const isGroup = otherStudentsEmails && otherStudentsEmails.length > 0;
     
-    // Securely calculate price on the backend
+    // Securely calculate base price on the backend
     const calculatedPrice = calculatePlanPrice(tutor, subject, planType);
+    const bookingCurrency = requestedCurrency && SUPPORTED_CURRENCIES[requestedCurrency] ? requestedCurrency : 'INR';
     
-    // Handle Student Wallet deduction
+    // Handle Student Wallet deduction (wallet is maintained in INR base)
     let walletDiscount = 0;
     let fullyPaidByWallet = false;
     let studentUser = null;
@@ -728,7 +730,10 @@ router.post('/:id/book-class', async (req, res) => {
       }
     }
 
-    const netPayable = Math.max(0, calculatedPrice - walletDiscount);
+    const netPayableInr = Math.max(0, calculatedPrice - walletDiscount);
+    const localizedPrice = convertInrToCurrency(calculatedPrice, bookingCurrency);
+    const netPayableLocalized = convertInrToCurrency(netPayableInr, bookingCurrency);
+    const exchangeMultiplier = SUPPORTED_CURRENCIES[bookingCurrency]?.exchangeMultiplier || 1.0;
 
     if (fullyPaidByWallet && studentUser) {
       // Deduct full amount from student wallet immediately
@@ -755,8 +760,12 @@ router.post('/:id/book-class', async (req, res) => {
       studentName: studentName || "Anonymous",
       status: isGroup ? 'pending' : (fullyPaidByWallet ? 'enrolled' : 'pending_payment'),
       planType,
-      amountPaid: fullyPaidByWallet ? calculatedPrice : netPayable,
-      originalAmount: calculatedPrice,
+      currency: bookingCurrency,
+      baseInrAmount: calculatedPrice,
+      foreignAmount: bookingCurrency !== 'INR' ? (fullyPaidByWallet ? 0 : netPayableLocalized) : undefined,
+      exchangeRateApplied: exchangeMultiplier,
+      amountPaid: bookingCurrency !== 'INR' ? (fullyPaidByWallet ? 0 : netPayableLocalized) : (fullyPaidByWallet ? calculatedPrice : netPayableInr),
+      originalAmount: bookingCurrency !== 'INR' ? localizedPrice : calculatedPrice,
       walletUsed: walletDiscount,
       groupDetails: isGroup ? {
         isGroup: true,

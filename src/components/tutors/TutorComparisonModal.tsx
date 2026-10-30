@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
 import { resolveAssetUrl } from "@/lib/assetUrl";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface TutorComparisonModalProps {
   isOpen: boolean;
@@ -21,6 +22,8 @@ export default function TutorComparisonModal({
   onRemoveTutor,
   onClearAll,
 }: TutorComparisonModalProps) {
+  const { formatPrice } = useCurrency();
+
   if (tutors.length === 0) return null;
 
   // Helpers to calculate rates
@@ -32,11 +35,11 @@ export default function TutorComparisonModal({
 
   const getRateDisplay = (tutor: Tutor): string => {
     const rates = (tutor as any).subjectRates?.map((sr: any) => sr.rate) || [];
-    if (rates.length === 0) return `₹${tutor.hourlyRate || 500}/hr`;
+    if (rates.length === 0) return `${formatPrice(tutor.hourlyRate || 500)}/hr`;
     const minRate = Math.min(...rates);
     const maxRate = Math.max(...rates);
-    if (minRate === maxRate) return `₹${minRate}/hr`;
-    return `₹${minRate} - ₹${maxRate}/hr`;
+    if (minRate === maxRate) return `${formatPrice(minRate)}/hr`;
+    return `${formatPrice(minRate)} - ${formatPrice(maxRate)}/hr`;
   };
 
   // Find max experience and min price to highlight best attributes
@@ -169,7 +172,7 @@ export default function TutorComparisonModal({
                           {subjectRates.map((sr: any, idx: number) => (
                             <div key={idx} className="flex justify-between gap-1 text-[10px] border-b border-dashed border-border/50 py-0.5">
                               <span className="truncate">{sr.subject}:</span>
-                              <span className="font-semibold text-foreground">₹{sr.rate}</span>
+                              <span className="font-semibold text-foreground">{formatPrice(sr.rate)}</span>
                             </div>
                           ))}
                         </div>

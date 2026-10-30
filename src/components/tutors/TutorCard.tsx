@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
 import { resolveAssetUrl } from "@/lib/assetUrl";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface TutorCardProps {
   tutor: Tutor;
@@ -12,6 +13,8 @@ interface TutorCardProps {
 }
 
 const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProps) => {
+  const { formatPrice } = useCurrency();
+
   const photoSrc =
     resolveAssetUrl(tutor.photo) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random&size=400`;
@@ -20,20 +23,20 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
     // If tutor has subjectRates array, extract values
     const rates = (tutor as any).subjectRates?.map((sr: any) => sr.rate) || [];
     if (rates.length === 0) {
-      return `₹${tutor.hourlyRate || 500}`;
+      return formatPrice(tutor.hourlyRate || 500);
     }
     const minRate = Math.min(...rates);
     const maxRate = Math.max(...rates);
     if (minRate === maxRate) {
-      return `₹${minRate}`;
+      return formatPrice(minRate);
     }
-    return `₹${minRate} - ₹${maxRate}`;
+    return `${formatPrice(minRate)} - ${formatPrice(maxRate)}`;
   };
 
   const getMonthlyPackRate = () => {
     const rates = (tutor as any).subjectRates?.map((sr: any) => sr.rate) || [];
     const baseRate = rates.length > 0 ? Math.min(...rates) : (tutor.hourlyRate || 300);
-    return Math.round(baseRate * 12 * 0.70);
+    return formatPrice(Math.round(baseRate * 12 * 0.70));
   };
 
   return (
@@ -189,7 +192,7 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
             className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition-all duration-300 flex items-center justify-center gap-1.5 border-0 cursor-pointer text-xs sm:text-sm"
           >
             <Link to={`/tutors/${tutor.id}?selectPack=true`}>
-              <span>✨</span> 30% OFF - Monthly Pack (₹{getMonthlyPackRate()}/mo)
+              <span>✨</span> 30% OFF - Monthly Pack ({getMonthlyPackRate()}/mo)
             </Link>
           </Button>
         </div>

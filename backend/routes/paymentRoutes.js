@@ -7,6 +7,7 @@ const Tutor = require('../schemas/tutorSchema');
 const User = require('../schemas/userSchema');
 const CoursePayment = require('../schemas/coursePaymentSchema');
 const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
+const { SUPPORTED_CURRENCIES, convertInrToCurrency } = require('../utils/pricingService');
 
 const router = express.Router();
 
@@ -90,17 +91,20 @@ router.post('/create-order', async (req, res) => {
       return res.status(404).json({ message: 'Booking not found' });
     }
 
-    // Securely use the amount stored in the database instead of trusting the client
-    const secureAmount = booking.amountPaid || 0;
+    // Securely use the amount and currency stored in the database
+    const bookingCurrency = booking.currency || 'INR';
+    const secureAmount = (bookingCurrency !== 'INR' && booking.foreignAmount !== undefined)
+      ? booking.foreignAmount
+      : (booking.amountPaid || 0);
     
-    // Razorpay amount is in paise (₹1 = 100 paise)
-    const amountInPaise = Math.round(secureAmount * 100);
+    // Razorpay amount is in smallest sub-units (paise/cents/fils)
+    const amountInSubUnits = Math.round(secureAmount * 100);
 
     if (isRazorpayConfigured && razorpayInstance) {
-      console.log(`[Payments] Razorpay credentials detected. Creating order via Razorpay API for ₹${secureAmount}...`);
+      console.log(`[Payments] Razorpay credentials detected. Creating order via Razorpay API for ${bookingCurrency} ${secureAmount}...`);
       const options = {
-        amount: amountInPaise,
-        currency: 'INR',
+        amount: amountInSubUnits,
+        currency: bookingCurrency,
         receipt: `receipt_${bookingId}`,
       };
       
@@ -112,18 +116,20 @@ router.post('/create-order', async (req, res) => {
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
+        foreignAmount: secureAmount,
         booking
       });
     } else {
-      console.log(`[Payments] Razorpay not configured. Falling back to Sandbox Mock mode for ₹${secureAmount}.`);
+      console.log(`[Payments] Razorpay not configured. Falling back to Sandbox Mock mode for ${bookingCurrency} ${secureAmount}.`);
       const mockOrderId = `order_mock_${crypto.randomBytes(8).toString('hex')}`;
       console.log(`[Payments] Generated mock order ID: ${mockOrderId}`);
       return res.json({
         isSandbox: true,
         keyId: 'rzp_test_dummySandboxKey123',
         orderId: mockOrderId,
-        amount: amountInPaise,
-        currency: 'INR',
+        amount: amountInSubUnits,
+        currency: bookingCurrency,
+        foreignAmount: secureAmount,
         booking
       });
     }

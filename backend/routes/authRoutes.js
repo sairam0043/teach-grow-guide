@@ -35,6 +35,7 @@ const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
 const SignupOtp = require('../schemas/signupOtpSchema');
 const bcrypt = require('bcryptjs');
+const { validateAndNormalizePhone, getPhoneCandidates } = require('../utils/phoneValidator');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const { OAuth2Client } = require('google-auth-library');
@@ -223,12 +224,24 @@ router.post('/register', async (req, res) => {
   try {
     const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, heard_about_us, heardAboutUs, referredBy, otp, ...tutorData } = req.body;
 
+    // Validate phone number (Supports India & International mobile numbers)
+    const phoneCheck = validateAndNormalizePhone(phone);
+    if (!phoneCheck.valid) {
+      return res.status(400).json({ message: phoneCheck.error || 'Please enter a valid mobile number.' });
+    }
+    const cleanPhone = phoneCheck.normalized;
+
     // Check if user exists by email or phone
-    const phoneQuery = phone ? { phone } : null;
-    const checkQuery = phoneQuery ? { $or: [{ email }, phoneQuery] } : { email };
-    let user = await User.findOne(checkQuery);
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    const phoneCandidates = getPhoneCandidates(cleanPhone);
+    let user = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { phone: { $in: phoneCandidates } }
+      ]
+    });
     if (user) {
-      if (user.email === email) {
+      if ((user.email || '').toLowerCase() === normalizedEmail) {
         return res.status(400).json({ message: 'User with this email already exists' });
       } else {
         return res.status(400).json({ message: 'User with this phone number already exists' });
@@ -313,7 +326,7 @@ router.post('/register', async (req, res) => {
       email, 
       password: hashedPassword, 
       full_name, 
-      phone, 
+      phone: cleanPhone, 
       student_class: student_class || studentClass,
       student_or_parent: student_or_parent || studentOrParent || 'Student',
       student_name: student_name || studentName,
@@ -806,7 +819,15 @@ router.put('/profile/:id', async (req, res) => {
       }
       user.email = emailLower;
     }
-    if (phone !== undefined) user.phone = phone;
+    if (phone !== undefined && phone !== null && phone.toString().trim() !== '') {
+      const phoneCheck = validateAndNormalizePhone(phone);
+      if (!phoneCheck.valid) {
+        return res.status(400).json({ message: phoneCheck.error || 'Please enter a valid mobile number.' });
+      }
+      user.phone = phoneCheck.normalized;
+    } else if (phone !== undefined) {
+      user.phone = phone;
+    }
     if (timezone !== undefined) user.timezone = timezone;
     if (avatar !== undefined || photo !== undefined) user.avatar = avatar || photo;
     if (student_class !== undefined || studentClass !== undefined) {

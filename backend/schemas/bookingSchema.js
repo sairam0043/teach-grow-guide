@@ -13,6 +13,12 @@ const bookingSchema = new mongoose.Schema({
   planType: { type: String },
   amountPaid: { type: Number },
   originalAmount: { type: Number },
+  currency: { type: String, default: 'INR' },
+  foreignAmount: { type: Number },
+  exchangeRateApplied: { type: Number, default: 1.0 },
+  baseInrAmount: { type: Number },
+  razorpayOrderId: { type: String },
+  razorpayPaymentId: { type: String },
   walletUsed: { type: Number, default: 0 },
   isRated: { type: Boolean, default: false },
   meetingLink: { type: String },
@@ -61,4 +67,3 @@ const bookingSchema = new mongoose.Schema({
 const Booking = mongoose.model('Booking', bookingSchema);
 
 module.exports = Booking;
-

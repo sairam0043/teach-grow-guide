@@ -18,6 +18,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import API_URL from "@/config/api";
 import { detectUserTimeZone, COMMON_TIMEZONES } from "@/utils/timezone";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 
 export const CLASS_TAUGHT_OPTIONS = [
   "Class 1 - 5 (Primary)",
@@ -239,6 +241,14 @@ const RegisterTutor = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const parsedPhone = parsePhoneString(phone);
+    const phoneCheck = validatePhoneInput(parsedPhone.dialCode, parsedPhone.nationalNumber);
+    if (!phoneCheck.isValid) {
+      toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+      return;
+    }
+
     if (!category || !teachingMode) {
       toast.error("Please select category and teaching mode.");
       return;
@@ -352,9 +362,11 @@ const RegisterTutor = () => {
       }
     }
 
+    const finalPhone = phoneCheck.fullPhone || phone;
+
     const { error } = await signUp(email, password, {
       full_name: name,
-      phone,
+      phone: finalPhone,
       role: "tutor",
       timezone,
       category: category.toLowerCase(),
@@ -428,10 +440,13 @@ const RegisterTutor = () => {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} />
-                </div>
+                <InternationalPhoneInput
+                  id="phone"
+                  label="Phone Number"
+                  required
+                  value={phone}
+                  onChange={(fullPhone) => setPhone(fullPhone)}
+                />
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
                   <Input id="city" required maxLength={100} value={city} onChange={(e) => setCity(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))} />

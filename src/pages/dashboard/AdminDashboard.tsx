@@ -23,6 +23,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 import ChatPanel from "@/components/chat/ChatPanel";
 import AdminConversationViewer from "@/components/chat/AdminConversationViewer";
 import CustomServiceRequestsViewer from "@/components/admin/CustomServiceRequestsViewer";
@@ -433,12 +435,23 @@ const AdminDashboard = () => {
       return;
     }
 
+    let cleanPhone = editStudentPhone.trim();
+    if (cleanPhone) {
+      const parsed = parsePhoneString(cleanPhone);
+      const phoneCheck = validatePhoneInput(parsed.dialCode, parsed.nationalNumber);
+      if (!phoneCheck.isValid) {
+        toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+        return;
+      }
+      cleanPhone = phoneCheck.fullPhone;
+    }
+
     setIsSavingStudentProfile(true);
     try {
       const payload = {
         full_name: editStudentName.trim(),
         email: editStudentEmail.trim().toLowerCase(),
-        phone: editStudentPhone.trim(),
+        phone: cleanPhone,
         student_class: editStudentClass,
         student_or_parent: editStudentOrParent,
         student_name: editStudentOrParent === "Parent" ? editStudentChildName.trim() : "",
@@ -4507,16 +4520,13 @@ const AdminDashboard = () => {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-foreground">Phone Number</Label>
-                    <Input
-                      type="tel"
-                      value={editStudentPhone}
-                      onChange={(e) => setEditStudentPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))}
-                      placeholder="+91 9876543210"
-                      className="h-9 text-xs sm:text-sm bg-background font-semibold"
-                    />
-                  </div>
+                  <InternationalPhoneInput
+                    id="editStudentPhone"
+                    label="Phone Number"
+                    required={false}
+                    value={editStudentPhone}
+                    onChange={(fullPhone) => setEditStudentPhone(fullPhone)}
+                  />
 
                   <div className="space-y-1">
                     <Label className="text-xs font-bold text-foreground">Class / Grade</Label>
