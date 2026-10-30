@@ -33,26 +33,26 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ mode = 'desk
         <Button
           variant="outline"
           size="sm"
-          className={`h-9 gap-1.5 border-border/80 font-medium transition-all hover:bg-secondary/80 ${
+          className={`h-9 gap-1.5 border-border/80 font-medium transition-all text-foreground hover:text-foreground hover:bg-secondary focus:text-foreground focus-visible:ring-1 focus-visible:ring-primary active:bg-secondary/90 ${
             mode === 'mobile' ? 'w-full justify-between' : 'px-2.5'
           }`}
           title="Select display currency"
         >
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 text-foreground">
             <span className="text-base leading-none select-none">{currencyInfo.flag}</span>
-            <span className="text-xs font-semibold">{currencyInfo.code}</span>
-            <span className="text-xs text-muted-foreground font-normal">({currencyInfo.symbol})</span>
+            <span className="text-xs font-semibold text-foreground">{currencyInfo.code}</span>
+            <span className="text-xs text-foreground/75 font-normal">({currencyInfo.symbol})</span>
           </span>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+          <ChevronDown className="h-3.5 w-3.5 text-foreground/70 transition-transform" />
         </Button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         align={mode === 'mobile' ? 'center' : 'end'}
-        className="w-72 p-2 shadow-xl border-border/80 max-h-96 overflow-hidden flex flex-col z-50"
+        className="w-72 p-2 shadow-xl border-border/80 max-h-96 overflow-hidden flex flex-col z-50 bg-popover text-popover-foreground"
       >
         <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-          <Globe className="h-3.5 w-3.5" /> Select Country & Currency
+          <Globe className="h-3.5 w-3.5 text-primary" /> Select Country & Currency
         </DropdownMenuLabel>
 
         {/* Search filter inside dropdown */}
@@ -62,7 +62,7 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ mode = 'desk
             placeholder="Search currency or country..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="h-8 pl-8 text-xs bg-secondary/50 border-input"
+            className="h-8 pl-8 text-xs bg-secondary/50 border-input text-foreground placeholder:text-muted-foreground"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           />
@@ -78,7 +78,9 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ mode = 'desk
                 key={c.code}
                 onClick={() => setCurrency(c.code)}
                 className={`flex items-center justify-between px-2.5 py-2 cursor-pointer rounded-md text-xs transition-colors ${
-                  isSelected ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-secondary'
+                  isSelected
+                    ? 'bg-primary/10 text-primary font-semibold'
+                    : 'text-foreground hover:bg-secondary hover:text-foreground focus:bg-secondary focus:text-foreground'
                 }`}
               >
                 <div className="flex items-center gap-2.5 truncate">
@@ -109,4 +111,3 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ mode = 'desk
 };
 
 export default CurrencySelector;
-
