@@ -13,6 +13,10 @@ interface AppUser {
   student_class?: string;
   student_name?: string;
   student_or_parent?: string;
+  interested_subject?: string;
+  subject_interests?: string[];
+  referralCode?: string;
+  timezone?: string;
   role?: AppRole;
   user_metadata: Record<string, any>;
 }
@@ -24,7 +28,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, meta: Record<string, string>) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  googleSignIn: (idToken: string, role?: string, action?: 'login' | 'signup') => Promise<{ error: Error | null }>;
+  googleSignIn: (idToken: string, role?: string, action?: 'login' | 'signup', meta?: { referredBy?: string; timezone?: string }) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -51,6 +55,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       student_class: authUser.student_class,
       student_name: authUser.student_name,
       student_or_parent: authUser.student_or_parent,
+      interested_subject: authUser.interested_subject,
+      subject_interests: authUser.subject_interests,
+      referralCode: authUser.referralCode || (authUser as any).referral_code,
+      timezone: authUser.timezone,
       role: authUser.role,
       user_metadata: { full_name: authUser.full_name, ...authUser }
     };
@@ -85,9 +93,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const googleSignIn = async (idToken: string, role?: string, action: 'login' | 'signup' = 'login') => {
+  const googleSignIn = async (idToken: string, role?: string, action: 'login' | 'signup' = 'login', meta?: { referredBy?: string; timezone?: string }) => {
     try {
-      const resultAction = await dispatch(googleLogin({ idToken, role, action }));
+      const savedRef = meta?.referredBy || (typeof window !== 'undefined' ? sessionStorage.getItem('student_referral_code') || undefined : undefined);
+      const resultAction = await dispatch(googleLogin({ idToken, role, action, referredBy: savedRef, timezone: meta?.timezone }));
       if (googleLogin.fulfilled.match(resultAction)) {
         return { error: null };
       } else {

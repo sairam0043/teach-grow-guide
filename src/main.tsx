@@ -4,6 +4,7 @@ import { store } from "./redux/store";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { HelmetProvider } from "react-helmet-async";
 import App from "./App.tsx";
+import ErrorBoundary from "./components/ErrorBoundary";
 import "./index.css";
 // Registers the axios interceptors that attach the login token to API calls.
 // Imported for its side effect, before anything renders.
@@ -15,7 +16,9 @@ createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <HelmetProvider>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </HelmetProvider>
     </GoogleOAuthProvider>
   </Provider>

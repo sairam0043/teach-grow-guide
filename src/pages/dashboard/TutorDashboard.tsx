@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, Landmark, MessageSquare } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, ShieldAlert, ArrowRight, Landmark, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages } from "lucide-react";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
+import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import TutorPayoutProfileForm from "@/components/payouts/TutorPayoutProfileForm";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +18,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSelector, useDispatch } from "react-redux";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 import { fetchTutorStats, updateTutorAvailability } from "@/redux/slices/dashboardSlice";
 import { updateUser } from "@/redux/slices/authSlice";
 import { RootState, AppDispatch } from "@/redux/store";
@@ -29,6 +32,7 @@ import ChatPanel from "@/components/chat/ChatPanel";
 import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionDateTime } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
 import { RescheduleDialog, DeclineRescheduleDialog } from "@/components/booking/RescheduleDialog";
+import TutorVerificationBooking from "@/components/tutor/TutorVerificationBooking";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -370,9 +374,151 @@ const TutorDashboard = () => {
     }
   }, [activeTab]);
 
+  // Posts management states
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [postTitle, setPostTitle] = useState("");
+  const [postCaption, setPostCaption] = useState("");
+  const [selectedPostImages, setSelectedPostImages] = useState<File[]>([]);
+  const [postImagePreviews, setPostImagePreviews] = useState<string[]>([]);
+  const [isPublishingPost, setIsPublishingPost] = useState(false);
+
+  const fetchTutorPosts = async (tutorId: string) => {
+    if (!tutorId) return;
+    setLoadingPosts(true);
+    try {
+      const res = await axios.get(`${API_URL}/tutors/${tutorId}/posts`);
+      setPosts(res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch tutor posts", err);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const handlePostImagesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (selectedPostImages.length + files.length > 5) {
+      toast.error(`Maximum 5 images allowed per post. Already selected: ${selectedPostImages.length}`);
+      return;
+    }
+
+    const validFiles: File[] = [];
+    const newPreviews: string[] = [];
+
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`File "${file.name}" exceeds 5MB limit.`);
+        continue;
+      }
+      validFiles.push(file);
+      newPreviews.push(URL.createObjectURL(file));
+    }
+
+    setSelectedPostImages(prev => [...prev, ...validFiles]);
+    setPostImagePreviews(prev => [...prev, ...newPreviews]);
+  };
+
+  const removeSelectedPostImage = (index: number) => {
+    setSelectedPostImages(prev => prev.filter((_, i) => i !== index));
+    setPostImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePublishPost = async () => {
+    const tutorId = tutorProfile?._id || tutorProfile?.id || user?.id;
+    if (!tutorId) {
+      toast.error("Tutor profile not found.");
+      return;
+    }
+
+    if (selectedPostImages.length === 0) {
+      toast.error("Please select at least 1 image for your post.");
+      return;
+    }
+
+    if (selectedPostImages.length > 5) {
+      toast.error("Maximum 5 images allowed per post.");
+      return;
+    }
+
+    setIsPublishingPost(true);
+    try {
+      const imageUrls: string[] = [];
+
+      try {
+        // Strategy 1: Attempt multi-image upload endpoint
+        const formData = new FormData();
+        selectedPostImages.forEach(file => {
+          formData.append("images", file);
+        });
+
+        const uploadRes = await axios.post(`${API_URL}/upload/post-images`, formData);
+        if (uploadRes.data?.urls && Array.isArray(uploadRes.data.urls)) {
+          imageUrls.push(...uploadRes.data.urls);
+        }
+      } catch (multiErr) {
+        console.warn("[POST UPLOAD] Multi-image route failed, attempting single image upload fallback...", multiErr);
+        imageUrls.length = 0; // reset
+        
+        // Strategy 2: Fallback to uploading photos individually via /upload/photo
+        for (const file of selectedPostImages) {
+          const singleFormData = new FormData();
+          singleFormData.append("photo", file);
+          const singleRes = await axios.post(`${API_URL}/upload/photo`, singleFormData);
+          if (singleRes.data?.url) {
+            imageUrls.push(singleRes.data.url);
+          }
+        }
+      }
+
+      if (imageUrls.length === 0) {
+        throw new Error("Failed to upload image files to the server.");
+      }
+
+      const postRes = await axios.post(`${API_URL}/tutors/${tutorId}/posts`, {
+        title: postTitle.trim(),
+        caption: postCaption.trim(),
+        images: imageUrls
+      });
+
+      toast.success("Post published successfully!");
+      setPosts(prev => [postRes.data, ...prev]);
+
+      setPostTitle("");
+      setPostCaption("");
+      setSelectedPostImages([]);
+      setPostImagePreviews([]);
+    } catch (err: any) {
+      console.error("Error publishing post:", err);
+      let msg = err.response?.data?.message;
+      if (!msg) {
+        if (err.response?.status === 404) {
+          msg = "Tutor profile or post endpoint not found (404). Please ensure backend is running.";
+        } else {
+          msg = err.message || "Failed to publish post.";
+        }
+      }
+      toast.error(msg);
+    } finally {
+      setIsPublishingPost(false);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await axios.delete(`${API_URL}/tutors/posts/${postId}`);
+      toast.success("Post deleted successfully.");
+      setPosts(prev => prev.filter(p => p._id !== postId));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete post.");
+    }
+  };
+
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
-    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
+    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '05:00', endTime: '23:00' }] }))
   );
   const [isSavingAvailability, setIsSavingAvailability] = useState(false);
 
@@ -382,11 +528,15 @@ const TutorDashboard = () => {
     qualification: "",
     address: "",
     googleMapsUrl: "",
+    googleMeetLink: "",
     mode: "Online",
   });
   const [subjectRates, setSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [otherLanguageText, setOtherLanguageText] = useState("");
+  const [customLanguages, setCustomLanguages] = useState<string[]>([]);
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectRate, setNewSubjectRate] = useState(300);
   const [customSubjectInput, setCustomSubjectInput] = useState(false);
@@ -403,6 +553,30 @@ const TutorDashboard = () => {
   const [newExpCompany, setNewExpCompany] = useState("");
   const [newExpDuration, setNewExpDuration] = useState("");
   const [newExpDescription, setNewExpDescription] = useState("");
+
+  const toggleLanguage = (lang: string) => {
+    setSelectedLanguages((prev) =>
+      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
+    );
+  };
+
+  const handleAddOtherLanguage = () => {
+    const trimmed = otherLanguageText.trim();
+    if (!trimmed) return;
+    const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    if (!selectedLanguages.includes(formatted)) {
+      setSelectedLanguages((prev) => [...prev, formatted]);
+    }
+    if (!customLanguages.includes(formatted)) {
+      setCustomLanguages((prev) => [...prev, formatted]);
+    }
+    setOtherLanguageText("");
+  };
+
+  const handleRemoveCustomLanguage = (lang: string) => {
+    setSelectedLanguages((prev) => prev.filter((l) => l !== lang));
+    setCustomLanguages((prev) => prev.filter((l) => l !== lang));
+  };
 
   // Payment Details Form State
   const [paymentForm, setPaymentForm] = useState({
@@ -447,6 +621,9 @@ const TutorDashboard = () => {
       axios.get(`${API_URL}/tutors/user/${user.id}`)
         .then(res => {
           setTutorProfile(res.data);
+          if (res.data._id || res.data.id) {
+            fetchTutorPosts(res.data._id || res.data.id);
+          }
           if (res.data.timezone) {
             setTutorTimezone(res.data.timezone);
           }
@@ -464,11 +641,19 @@ const TutorDashboard = () => {
             qualification: res.data.qualification || "",
             address: res.data.address || "",
             googleMapsUrl: res.data.googleMapsUrl || "",
+            googleMeetLink: res.data.googleMeetLink || "",
             mode: getFormattedMode(res.data.mode),
           });
           setWorkExperience(res.data.workExperience || []);
           setSelectedClasses(res.data.classesTaught || []);
           setSelectedBoards(res.data.boardsTaught || []);
+          setSelectedLanguages(res.data.languages || []);
+          if (res.data.languages && Array.isArray(res.data.languages)) {
+            const custom = res.data.languages.filter(
+              (l: string) => !PREFERRED_LANGUAGE_OPTIONS.includes(l as any)
+            );
+            setCustomLanguages(custom);
+          }
           const legacyRates = res.data.subjectRates && res.data.subjectRates.length > 0
             ? res.data.subjectRates
             : (res.data.subjects || []).map((sub: string) => ({ subject: sub, rate: res.data.hourlyRate || 300 }));
@@ -521,7 +706,7 @@ const TutorDashboard = () => {
             slots: uniqueSlots
           };
         }
-        return { ...p, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] };
+        return { ...p, selected: false, slots: [{ startTime: '05:00', endTime: '23:00' }] };
       }));
     }
   }, [tutorStats?.availability]);
@@ -700,10 +885,12 @@ const TutorDashboard = () => {
         qualification: profileData.qualification,
         address: profileData.address,
         googleMapsUrl: profileData.googleMapsUrl,
+        googleMeetLink: profileData.googleMeetLink,
         mode: profileData.mode,
         subjectRates,
         classesTaught: selectedClasses,
         boardsTaught: selectedBoards,
+        languages: selectedLanguages,
         photo: uploadedPhotoUrl,
         verificationDocument: uploadedDocUrl,
         timezone: tutorTimezone,
@@ -712,10 +899,21 @@ const TutorDashboard = () => {
 
       console.log("[DEBUG] handleProfileUpdate: payload=", payload);
 
+      let cleanPhone = profilePhone.trim();
+      if (cleanPhone) {
+        const parsed = parsePhoneString(cleanPhone);
+        const phoneCheck = validatePhoneInput(parsed.dialCode, parsed.nationalNumber);
+        if (!phoneCheck.isValid) {
+          toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+          return;
+        }
+        cleanPhone = phoneCheck.fullPhone;
+      }
+
       const [authRes, tutorRes] = await Promise.all([
         axios.put(`${API_URL}/auth/profile/${user.id}`, {
           full_name: profileName,
-          phone: profilePhone,
+          phone: cleanPhone,
           timezone: tutorTimezone
         }),
         axios.put(`${API_URL}/tutors/${tutorProfile.id}/profile`, payload)
@@ -762,7 +960,22 @@ const TutorDashboard = () => {
       <div className="container py-10 max-w-7xl">
         <div className="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Hello, {name}</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Hello, {name}</h1>
+              {tutorProfile && (
+                tutorProfile.isVerified ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm">
+                    <CheckCircle className="h-3.5 w-3.5 fill-blue-500 text-white" />
+                    Verified Educator
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 shadow-sm">
+                    <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
+                    Not Verified Yet
+                  </span>
+                )
+              )}
+            </div>
             <p className="text-lg text-muted-foreground mt-1">Manage your teaching schedule, students, and profile.</p>
           </div>
           {tutorProfile?.status === "approved" && (
@@ -777,12 +990,104 @@ const TutorDashboard = () => {
           )}
         </div>
 
+        {/* Verification Banner for Unverified Tutors */}
+        {!tutorProfile?.isVerified && tutorProfile?.status !== "rejected" && (
+          <div className="mb-8 relative overflow-hidden rounded-2xl border border-amber-500/35 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-orange-500/10 backdrop-blur-sm p-5 sm:p-6 shadow-md transition-all">
+            <div className="absolute -top-12 -right-12 h-36 w-36 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-orange-500/10 blur-2xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+              <div className="flex items-start gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20 ring-4 ring-amber-500/10">
+                  <ShieldAlert className="h-6 w-6" />
+                </div>
+
+                <div className="space-y-1.5 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-bold text-base sm:text-lg text-foreground tracking-tight flex items-center gap-1.5">
+                      Your Profile is Not Verified Yet
+                    </h3>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      Get Verified
+                    </span>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    You do not have the <strong className="text-foreground font-semibold">Verified Tutor Badge</strong> yet. Verified educators appear at the top of search results, display a verified checkmark on cards, and receive up to <strong className="text-foreground font-semibold">3x more student demo bookings</strong>.
+                  </p>
+
+                  {/* Verification Checklist */}
+                  <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`h-4 w-4 rounded-full flex items-center justify-center text-[10px] ${tutorProfile?.verificationDocument ? 'bg-emerald-500 text-white font-bold' : 'bg-muted border text-muted-foreground'}`}>
+                        {tutorProfile?.verificationDocument ? '✓' : '1'}
+                      </div>
+                      <span className={tutorProfile?.verificationDocument ? 'text-foreground font-medium' : ''}>
+                        Resume/CV Document {tutorProfile?.verificationDocument ? '(Uploaded)' : '(Required)'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <div className={`h-4 w-4 rounded-full flex items-center justify-center text-[10px] ${tutorProfile?.photo ? 'bg-emerald-500 text-white font-bold' : 'bg-muted border text-muted-foreground'}`}>
+                        {tutorProfile?.photo ? '✓' : '2'}
+                      </div>
+                      <span className={tutorProfile?.photo ? 'text-foreground font-medium' : ''}>
+                        Profile Photo {tutorProfile?.photo ? '(Added)' : '(Recommended)'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-4 w-4 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold flex items-center justify-center text-[10px] border border-amber-500/40">
+                        3
+                      </div>
+                      <span className="text-foreground font-medium">
+                        Verification Demo Class with Admin
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full lg:w-auto shrink-0 justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-amber-500/20">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActiveTab("profile")}
+                  className="w-full sm:w-auto border-amber-500/30 hover:bg-amber-500/10 text-foreground font-semibold text-xs rounded-xl h-9 gap-1.5 shadow-sm"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                  Update Profile Details
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setActiveTab("messages")}
+                  className="w-full sm:w-auto bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl h-9 gap-1.5 shadow-md shadow-amber-600/20"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Request Demo Verification
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {tutorProfile?.status === "pending" && (
-          <Alert variant="destructive" className="mb-8 border-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-500 shadow-sm rounded-xl">
-            <AlertCircle className="h-5 w-5" />
-            <AlertTitle className="font-bold text-lg">Account Pending Approval</AlertTitle>
-            <AlertDescription className="mt-2 text-sm leading-relaxed">
-              Your tutor profile is under review by our admin team. Once approved, you will be publicly listed on the platform and students will be able to book your slots.
+          <Alert variant="destructive" className="mb-8 border-amber-500/50 bg-amber-500/10 text-slate-900 dark:text-slate-100 shadow-sm rounded-xl">
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <AlertTitle className="font-bold text-lg text-red-900 dark:text-red-300 flex items-center justify-between flex-wrap gap-2">
+              <span>Account Pending Approval</span>
+              <Button
+                size="sm"
+                onClick={() => setActiveTab("verification")}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-8 px-3 rounded-lg shadow-sm gap-1.5"
+              >
+                <Calendar className="h-3.5 w-3.5" /> Book Verification Slot with Admin
+              </Button>
+            </AlertTitle>
+            <AlertDescription className="mt-2 text-sm leading-relaxed text-black font-bold">
+              Your tutor profile is under review by our admin team. You can book your preferred verification demo slot with the platform administrator to fast-track your profile verification and activation!
             </AlertDescription>
           </Alert>
         )}
@@ -849,7 +1154,7 @@ const TutorDashboard = () => {
             { icon: Clock, label: "Demo Requests", value: tutorStats?.demoRequests || 0, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30", tab: "demos" },
             { icon: Users, label: "Active Students", value: uniqueStudents.length, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30", tab: "students" },
             { icon: Calendar, label: "Upcoming Classes", value: enrolledClasses.length, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30", tab: "schedule" },
-            { icon: DollarSign, label: "Total Earnings", value: `₹${enrolledClasses.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "earnings" },
+            { icon: DollarSign, label: "Total Earnings", value: `₹${enrolledClasses.reduce((acc, curr) => acc + (curr.baseInrAmount || curr.amountPaid || 0), 0)}`, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30", tab: "earnings" },
           ].map((stat) => (
             <Card
               key={stat.label}
@@ -881,6 +1186,20 @@ const TutorDashboard = () => {
             <TabsTrigger value="schedule" className="rounded-lg px-6 py-2.5 shrink-0">Class Schedule</TabsTrigger>
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0">Students</TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg px-6 py-2.5 shrink-0">Availability</TabsTrigger>
+            <TabsTrigger 
+              value="verification" 
+              className={`rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 ${
+                !tutorProfile?.isVerified 
+                  ? "bg-blue-50/70 text-blue-700 font-bold border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800" 
+                  : ""
+              }`}
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              Verification
+              {!tutorProfile?.isVerified && (
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping ml-1" />
+              )}
+            </TabsTrigger>
             <TabsTrigger value="earnings" className="rounded-lg px-6 py-2.5 shrink-0">My Earnings</TabsTrigger>
             <TabsTrigger value="payment" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
               <CreditCard className="h-4 w-4 text-emerald-600" />
@@ -908,6 +1227,10 @@ const TutorDashboard = () => {
                   {unreadMessagesCount}
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="posts" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              <Camera className="h-4 w-4 text-purple-500" />
+              Posts & Updates
             </TabsTrigger>
             <TabsTrigger
               value="profile"
@@ -948,6 +1271,17 @@ const TutorDashboard = () => {
                             <Users className="h-5 w-5 text-primary" /> Student: {booking.studentName}
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
+                          {booking.topicToLearn && (
+                            <div className="mt-2.5 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50 max-w-xl">
+                              <span className="font-bold text-xs text-purple-900 dark:text-purple-300 flex items-center gap-1.5 mb-1">
+                                <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                Topics Student Needs Explained:
+                              </span>
+                              <p className="text-xs text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {booking.topicToLearn}
+                              </p>
+                            </div>
+                          )}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
                             <Calendar className="h-4 w-4" /> {formatBookingTime(booking, tutorTimezone)}
                             {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
@@ -1056,7 +1390,7 @@ const TutorDashboard = () => {
                                     asChild
                                   >
                                     <a
-                                      href={getMeetingHref(booking.meetingLink, booking._id, name, user?.email || '', booking.subject)}
+                                      href={getMeetingHref(booking.meetingLink, booking._id, name, user?.email || '', booking.subject, profileData.googleMeetLink || tutorProfile?.googleMeetLink)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                     >
@@ -1212,7 +1546,7 @@ const TutorDashboard = () => {
                                                     asChild
                                                   >
                                                     <a
-                                                      href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, name, user?.email || '')}
+                                                      href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, name, user?.email || '', cls.subject, profileData.googleMeetLink || tutorProfile?.googleMeetLink)}
                                                       target="_blank"
                                                       rel="noopener noreferrer"
                                                     >
@@ -1259,6 +1593,18 @@ const TutorDashboard = () => {
                             </div>
                             <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 border-none px-3 py-1">{cls.planType}</Badge>
                           </div>
+
+                          {cls.topicToLearn && (
+                            <div className="mb-4 p-3 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50">
+                              <span className="font-bold text-xs text-purple-900 dark:text-purple-300 flex items-center gap-1.5 mb-1">
+                                <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                Topics to Cover:
+                              </span>
+                              <p className="text-xs text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {cls.topicToLearn}
+                              </p>
+                            </div>
+                          )}
 
                           {cls.rescheduleRequest && cls.rescheduleRequest.status === 'pending' && (
                             cls.rescheduleRequest.requestedBy === 'Student' ? (
@@ -1330,7 +1676,7 @@ const TutorDashboard = () => {
                                   asChild
                                 >
                                   <a
-                                    href={getMeetingHref(cls.meetingLink, cls._id, name, user?.email || '')}
+                                    href={getMeetingHref(cls.meetingLink, cls._id, name, user?.email || '', cls.subject, profileData.googleMeetLink || tutorProfile?.googleMeetLink)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
@@ -1456,7 +1802,7 @@ const TutorDashboard = () => {
                           className="w-fit text-xs h-7 gap-1 border-dashed"
                           onClick={() => {
                             const newAvail = [...availability];
-                            newAvail[i].slots.push({ startTime: '09:00', endTime: '17:00' });
+                            newAvail[i].slots.push({ startTime: '05:00', endTime: '23:00' });
                             setAvailability(newAvail);
                           }}
                         >
@@ -1474,6 +1820,20 @@ const TutorDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="verification">
+            <TutorVerificationBooking
+              tutorProfile={tutorProfile}
+              onBookingUpdated={() => {
+                const tutorId = tutorProfile?.id || tutorProfile?._id;
+                if (tutorId) {
+                  axios.get(`${API_URL}/dashboard/tutor/${tutorId}/bookings`)
+                    .then(res => setBookings(res.data.bookings || []))
+                    .catch(() => {});
+                }
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="earnings">
@@ -1511,8 +1871,15 @@ const TutorDashboard = () => {
                               <div className="font-semibold text-foreground">{cls.studentName}</div>
                               <div className="text-muted-foreground text-xs">{cls.subject}</div>
                             </td>
-                            <td className="px-6 py-4 text-right font-bold text-emerald-600 text-lg">
-                              +₹{cls.amountPaid}
+                            <td className="px-6 py-4 text-right">
+                              <div className="font-bold text-emerald-600 text-lg">
+                                +₹{cls.baseInrAmount || cls.amountPaid}
+                              </div>
+                              {cls.currency && cls.currency !== 'INR' && (
+                                <div className="text-[11px] text-muted-foreground font-normal">
+                                  Paid {cls.currency} {cls.foreignAmount || cls.amountPaid} (Intl)
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -1713,6 +2080,29 @@ const TutorDashboard = () => {
                   <div className="lg:col-span-1 border rounded-xl p-5 bg-secondary/10 self-start shadow-sm">
                     <h4 className="font-semibold mb-4 text-foreground border-b pb-2">Account Overview</h4>
 
+                    {/* Verification Status Badge Card */}
+                    <div className="mb-5 p-3.5 rounded-xl border flex items-center justify-between gap-3 shadow-sm bg-card border-border/60">
+                      <div>
+                        <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Verification Badge</div>
+                        <div className="text-sm font-bold text-foreground mt-0.5 flex items-center gap-1.5">
+                          {tutorProfile?.isVerified ? (
+                            <>
+                              <CheckCircle className="h-4 w-4 fill-blue-500 text-white" />
+                              <span className="text-blue-600 dark:text-blue-400">Verified Educator</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldAlert className="h-4 w-4 text-amber-500" />
+                              <span className="text-amber-600 dark:text-amber-400">Not Verified Yet</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant={tutorProfile?.isVerified ? "default" : "outline"} className={tutorProfile?.isVerified ? "bg-blue-600 hover:bg-blue-700 text-white text-[10px]" : "border-amber-500/40 text-amber-600 dark:text-amber-400 text-[10px]"}>
+                        {tutorProfile?.isVerified ? "Verified" : "Pending Demo"}
+                      </Badge>
+                    </div>
+
                     {/* Profile Photo Display and Upload */}
                     <div className="flex flex-col items-center mb-6 pb-6 border-b">
                       <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-background shadow-md bg-secondary/30">
@@ -1855,16 +2245,13 @@ const TutorDashboard = () => {
                             required
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
-                          <Input
-                            id="phone"
-                            value={profilePhone}
-                            onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))}
-                            placeholder="+1 234 567 890"
-                            className="bg-secondary/20 border-border/50 shadow-sm"
-                          />
-                        </div>
+                        <InternationalPhoneInput
+                          id="phone"
+                          label="Phone Number"
+                          required={false}
+                          value={profilePhone}
+                          onChange={(fullPhone) => setProfilePhone(fullPhone)}
+                        />
                       </div>
 
                       <div className="space-y-2">
@@ -1944,6 +2331,41 @@ const TutorDashboard = () => {
                         </div>
                       )}
 
+                      {(profileData.mode?.toLowerCase() === "online" || profileData.mode?.toLowerCase() === "both") && (
+                        <div className="p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="tutorGoogleMeetLink" className="text-sm font-semibold flex items-center gap-2">
+                              <Video className="h-4 w-4 text-emerald-600" />
+                              Direct Google Meet Link
+                              <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30">
+                                Online Classes
+                              </Badge>
+                            </Label>
+                            {profileData.googleMeetLink && (
+                              <a
+                                href={profileData.googleMeetLink.startsWith("http") ? profileData.googleMeetLink : `https://${profileData.googleMeetLink}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold"
+                              >
+                                <ExternalLink className="h-3 w-3" /> Test Link
+                              </a>
+                            )}
+                          </div>
+                          <Input
+                            id="tutorGoogleMeetLink"
+                            type="url"
+                            value={profileData.googleMeetLink || ""}
+                            onChange={(e) => setProfileData({ ...profileData, googleMeetLink: e.target.value })}
+                            placeholder="e.g. https://meet.google.com/abc-defg-hij"
+                            className="bg-secondary/20 shadow-sm"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Your direct Google Meet link for online classes and demo sessions. When students book sessions with you, this meeting link will be automatically used.
+                          </p>
+                        </div>
+                      )}
+
                       <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
                         <div className="space-y-2">
                           <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
@@ -1997,6 +2419,92 @@ const TutorDashboard = () => {
                               );
                             })}
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Preferred Languages to Speak Section */}
+                      <div className="space-y-4 border rounded-xl p-4 bg-secondary/5">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                            <Languages className="h-4 w-4 text-primary" />
+                            Preferred Languages to Speak
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Select all languages you are comfortable teaching in.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                          {PREFERRED_LANGUAGE_OPTIONS.map((lang) => {
+                            const isChecked = selectedLanguages.includes(lang);
+                            return (
+                              <button
+                                key={lang}
+                                type="button"
+                                onClick={() => toggleLanguage(lang)}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${isChecked
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                  : "bg-background text-foreground border-border hover:bg-secondary/40"
+                                  }`}
+                              >
+                                <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground/60"}`}>
+                                  {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                </div>
+                                <span className="truncate">{lang}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Other languages */}
+                        <div className="space-y-2 pt-3 border-t border-border/40">
+                          <Label className="text-xs font-bold text-foreground block">
+                            Other languages
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Enter another language (optional)"
+                              value={otherLanguageText}
+                              onChange={(e) => setOtherLanguageText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleAddOtherLanguage();
+                                }
+                              }}
+                              className="h-9 text-xs sm:text-sm bg-background"
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={handleAddOtherLanguage}
+                              className="h-9 text-xs font-semibold shrink-0"
+                            >
+                              <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
+                            </Button>
+                          </div>
+
+                          {customLanguages.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {customLanguages.map((lang) => (
+                                <Badge
+                                  key={lang}
+                                  variant="secondary"
+                                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-primary/10 text-primary border border-primary/20"
+                                >
+                                  <span>{lang}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveCustomLanguage(lang)}
+                                    className="hover:text-destructive transition-colors ml-0.5"
+                                    title="Remove"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -2145,11 +2653,11 @@ const TutorDashboard = () => {
                                       min={1}
                                       max={10000}
                                       className="w-20 h-8 text-xs font-bold text-center"
-                                      value={sr.rate !== undefined ? sr.rate : ""}
+                                      value={sr.rate || ""}
                                       onChange={(e) => {
                                         const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                                        const val = cleaned === "" ? "" : parseInt(cleaned, 10);
-                                        setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val as number) ? "" : val } : item));
+                                        const val = cleaned === "" ? 0 : parseInt(cleaned, 10);
+                                        setSubjectRates(prev => prev.map((item, idx) => idx === sIdx ? { ...item, rate: isNaN(val) ? 0 : val } : item));
                                       }}
                                     />
                                     <span className="text-[10px] text-muted-foreground">/hr</span>
@@ -2312,7 +2820,7 @@ const TutorDashboard = () => {
                         </span>
                         <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Invite Students, Earn ₹500!</h2>
                         <p className="text-white/95 text-sm md:text-base leading-relaxed">
-                          Help students find great mentors while boosting your own earnings. Share your unique link or code below to get started.
+                          Students get <strong>₹200 instant wallet credits</strong> upon registration to book classes, and you earn <strong>₹500 cash reward</strong> when they complete their first regular class!
                         </p>
                       </div>
                       <div className="shrink-0 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-inner">
@@ -2331,7 +2839,7 @@ const TutorDashboard = () => {
                           Your Referral Details
                         </CardTitle>
                         <CardDescription>
-                          Share your code or link with students or parents.
+                          Students get ₹200 wallet balance; you earn ₹500 per enrolled student.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -2366,7 +2874,7 @@ const TutorDashboard = () => {
                         <div className="flex flex-col sm:flex-row gap-3 pt-2">
                           <a
                             href={refParamVal ? `https://api.whatsapp.com/send?text=${encodeURIComponent(
-                              `Hey! I'm teaching on Cuvasol Tutor. Register for high-quality classes using my referral code: ${refParamVal} or direct link: ${shareLink}`
+                              `Hey! I'm teaching on Cuvasol Tutor. Register using my referral code: ${refParamVal} to get ₹200 credited to your student wallet for booking classes! Link: ${shareLink}`
                             )}` : "#"}
                             onClick={(e) => !refParamVal && e.preventDefault()}
                             target="_blank"
@@ -2380,9 +2888,9 @@ const TutorDashboard = () => {
                           </a>
                           <a
                             href={refParamVal ? `mailto:?subject=${encodeURIComponent(
-                              "Join me on Cuvasol Tutor!"
+                              "Join me on Cuvasol Tutor — Get ₹200 Free Wallet Credits!"
                             )}&body=${encodeURIComponent(
-                              `Hi there,\n\nI invite you to register as a student on Cuvasol Tutor using my referral code: ${refParamVal} or link:\n${shareLink}\n\nStart your learning journey today!`
+                              `Hi there,\n\nI invite you to register as a student on Cuvasol Tutor using my referral code: ${refParamVal} or direct link:\n${shareLink}\n\nYou'll get ₹200 credited to your wallet instantly to book your classes!\n\nHappy learning!`
                             )}` : "#"}
                             onClick={(e) => !refParamVal && e.preventDefault()}
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer ${!refParamVal && 'opacity-50 cursor-not-allowed'}`}
@@ -2569,6 +3077,190 @@ const TutorDashboard = () => {
                 </div>
               );
             })()}
+          </TabsContent>
+
+          {/* Posts & Updates Tab Content */}
+          <TabsContent value="posts">
+            <Card className="shadow-md border-border/50">
+              <CardHeader className="bg-secondary/20 border-b pb-4">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5 text-purple-500" />
+                  Share & Manage Posts
+                </CardTitle>
+                <CardDescription>
+                  Post notes, classroom whiteboards, certificates, or study materials. You can attach up to 5 images per post.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-8">
+                {/* Create New Post Form */}
+                <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-5">
+                  <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-primary" /> Create New Post
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="postTitle" className="font-semibold text-sm">Post Title / Topic (Optional)</Label>
+                      <Input
+                        id="postTitle"
+                        placeholder="e.g. Physics Formula Cheat-Sheet & Class Notes"
+                        value={postTitle}
+                        onChange={(e) => setPostTitle(e.target.value)}
+                        className="mt-1.5"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="postCaption" className="font-semibold text-sm">Caption / Description (Optional)</Label>
+                      <Textarea
+                        id="postCaption"
+                        placeholder="Write a brief description or note for students..."
+                        value={postCaption}
+                        onChange={(e) => setPostCaption(e.target.value)}
+                        className="mt-1.5 resize-none"
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="font-semibold text-sm flex items-center gap-1.5">
+                          <Upload className="h-4 w-4 text-purple-600" /> Upload Images (Max 5)
+                        </Label>
+                        <Badge variant="outline" className={`${selectedPostImages.length === 5 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-secondary'}`}>
+                          {selectedPostImages.length} / 5 Images
+                        </Badge>
+                      </div>
+
+                      {selectedPostImages.length < 5 && (
+                        <label className="border-2 border-dashed border-purple-200 dark:border-purple-900/50 hover:border-purple-500 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors bg-purple-50/30 dark:bg-purple-950/10">
+                          <Camera className="h-8 w-8 text-purple-500 mb-2" />
+                          <span className="text-sm font-semibold text-foreground">Click to upload image files</span>
+                          <span className="text-xs text-muted-foreground mt-1">PNG, JPG, WebP, GIF up to 5MB each</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handlePostImagesSelect}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+
+                      {/* Selected Image Thumbnails */}
+                      {postImagePreviews.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-4">
+                          {postImagePreviews.map((previewUrl, idx) => (
+                            <div key={idx} className="relative group rounded-xl overflow-hidden border bg-muted aspect-square shadow-sm">
+                              <img src={previewUrl} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeSelectedPostImage(idx)}
+                                className="absolute top-1.5 right-1.5 bg-rose-600 text-white rounded-full p-1 shadow-md hover:bg-rose-700 transition-colors"
+                                title="Remove image"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                                #{idx + 1}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      onClick={handlePublishPost}
+                      disabled={isPublishingPost || selectedPostImages.length === 0}
+                      className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl px-8 shadow-md"
+                    >
+                      {isPublishingPost ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Publishing Post...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" /> Publish Post
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Existing Published Posts */}
+                <div className="space-y-4">
+                  <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" /> Published Posts ({posts.length})
+                  </h3>
+
+                  {loadingPosts ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-40 w-full rounded-2xl" />
+                      <Skeleton className="h-40 w-full rounded-2xl" />
+                    </div>
+                  ) : posts.length === 0 ? (
+                    <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed">
+                      <ImageIcon className="mx-auto mb-4 h-16 w-16 opacity-30 text-purple-500" />
+                      <h3 className="text-lg font-semibold text-foreground mb-2">No Posts Published Yet</h3>
+                      <p className="text-sm">Create your first post above with up to 5 images to showcase on your booking page.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
+                      {posts.map((post: any) => (
+                        <div key={post._id} className="bg-card border rounded-2xl p-5 shadow-sm space-y-4 relative flex flex-col justify-between hover:shadow-md transition-shadow">
+                          <div>
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div>
+                                {post.title && <h4 className="font-bold text-lg text-foreground">{post.title}</h4>}
+                                <p className="text-xs text-muted-foreground">
+                                  Posted on {new Date(post.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeletePost(post._id)}
+                                className="text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950 h-8 w-8 p-0 shrink-0"
+                                title="Delete post"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            {post.caption && (
+                              <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed mb-4">
+                                {post.caption}
+                              </p>
+                            )}
+
+                            {/* Image Grid (Max 5 images display) */}
+                            {post.images && post.images.length > 0 && (
+                              <div className={`grid gap-2 ${
+                                post.images.length === 1 ? 'grid-cols-1' :
+                                post.images.length === 2 ? 'grid-cols-2' :
+                                'grid-cols-3 sm:grid-cols-3'
+                              }`}>
+                                {post.images.map((imgUrl: string, idx: number) => (
+                                  <div key={idx} className="relative rounded-xl overflow-hidden border bg-muted aspect-square">
+                                    <img
+                                      src={resolveAssetUrl(imgUrl)}
+                                      alt={`Post media ${idx + 1}`}
+                                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 cursor-pointer"
+                                      onClick={() => window.open(resolveAssetUrl(imgUrl), "_blank")}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

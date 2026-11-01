@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
 
@@ -40,6 +40,28 @@ const syncStudentWalletAndReferrals = async (studentUserId) => {
   if (!user.walletHistory) {
     user.walletHistory = [];
     modified = true;
+  }
+
+  // Ensure student who signed up using a referral code has their ₹200 welcome credit
+  if (user.role === 'student' && (user.referredBy || user.usedReferralCode || user.marketingRefCode)) {
+    const hasSignupBonus = user.walletHistory.some(t => 
+      t.type === 'credit' && (
+        (t.description && (t.description.toLowerCase().includes('welcome') || t.description.toLowerCase().includes('signup') || t.description.toLowerCase().includes('sign up'))) ||
+        t.amount === 200
+      )
+    );
+
+    if (!hasSignupBonus) {
+      const codeUsed = user.usedReferralCode || user.marketingRefCode || 'Referral';
+      user.walletHistory.push({
+        type: 'credit',
+        amount: 200,
+        description: `Welcome Bonus: ₹200 credited for signing up with referral code (${codeUsed})`,
+        date: user.createdAt || new Date()
+      });
+      modified = true;
+      console.log(`[Student Wallet] Credited ₹200 welcome bonus to student ${user.full_name || user.email} (${user._id}) for using referral code ${codeUsed}`);
+    }
   }
 
   // Find all students who signed up with this user's referral code

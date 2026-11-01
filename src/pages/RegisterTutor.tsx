@@ -8,15 +8,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PageLayout from "@/components/layout/PageLayout";
-import { Eye, EyeOff, Calendar, Clock, PlusCircle, Check, GraduationCap, Award, Briefcase, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Calendar, Clock, PlusCircle, Check, GraduationCap, Award, Briefcase, Trash2, Video, ExternalLink, Languages } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleLogin } from "@react-oauth/google";
+import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import API_URL from "@/config/api";
 import { detectUserTimeZone, COMMON_TIMEZONES } from "@/utils/timezone";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 
 export const CLASS_TAUGHT_OPTIONS = [
   "Class 1 - 5 (Primary)",
@@ -103,6 +106,7 @@ const RegisterTutor = () => {
   const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [address, setAddress] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [googleMeetLink, setGoogleMeetLink] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [subjectRates, setSubjectRates] = useState<Record<string, number>>({});
   const [otherSubjectText, setOtherSubjectText] = useState("");
@@ -114,11 +118,14 @@ const RegisterTutor = () => {
   const [hearAboutUs, setHearAboutUs] = useState("");
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const [availability, setAvailability] = useState<{ day: string; selected: boolean; slots: { startTime: string; endTime: string }[] }[]>(
-    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '09:00', endTime: '17:00' }] }))
+    DAYS.map(day => ({ day, selected: false, slots: [{ startTime: '05:00', endTime: '23:00' }] }))
   );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["English"]);
+  const [otherLanguageText, setOtherLanguageText] = useState("");
+  const [customLanguages, setCustomLanguages] = useState<string[]>([]);
 
   useEffect(() => {
     return () => {
@@ -208,8 +215,40 @@ const RegisterTutor = () => {
     setSelectedBoards(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]);
   };
 
+  const toggleLanguage = (lang: string) => {
+    setSelectedLanguages((prev) =>
+      prev.includes(lang) ? prev.filter((l) => l !== lang) : [...prev, lang]
+    );
+  };
+
+  const handleAddOtherLanguage = () => {
+    const trimmed = otherLanguageText.trim();
+    if (!trimmed) return;
+    const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    if (!selectedLanguages.includes(formatted)) {
+      setSelectedLanguages((prev) => [...prev, formatted]);
+    }
+    if (!customLanguages.includes(formatted)) {
+      setCustomLanguages((prev) => [...prev, formatted]);
+    }
+    setOtherLanguageText("");
+  };
+
+  const handleRemoveCustomLanguage = (lang: string) => {
+    setSelectedLanguages((prev) => prev.filter((l) => l !== lang));
+    setCustomLanguages((prev) => prev.filter((l) => l !== lang));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const parsedPhone = parsePhoneString(phone);
+    const phoneCheck = validatePhoneInput(parsedPhone.dialCode, parsedPhone.nationalNumber);
+    if (!phoneCheck.isValid) {
+      toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+      return;
+    }
+
     if (!category || !teachingMode) {
       toast.error("Please select category and teaching mode.");
       return;
@@ -222,6 +261,11 @@ const RegisterTutor = () => {
 
     if (category === "Academic" && selectedBoards.length === 0) {
       toast.error("Please select at least one educational board you teach.");
+      return;
+    }
+
+    if (selectedLanguages.length === 0) {
+      toast.error("Please select at least one preferred language to speak.");
       return;
     }
 
@@ -318,13 +362,17 @@ const RegisterTutor = () => {
       }
     }
 
+    const finalPhone = phoneCheck.fullPhone || phone;
+
     const { error } = await signUp(email, password, {
       full_name: name,
-      phone,
+      phone: finalPhone,
       role: "tutor",
       timezone,
       category: category.toLowerCase(),
       subjects: JSON.stringify(finalSubjects),
+      languages: JSON.stringify(selectedLanguages),
+      preferredLanguages: JSON.stringify(selectedLanguages),
       classesTaught: JSON.stringify(selectedClasses),
       boardsTaught: JSON.stringify(selectedBoards),
       subjectRates: JSON.stringify(finalSubjectRates),
@@ -339,6 +387,8 @@ const RegisterTutor = () => {
       teaching_mode: teachingMode.toLowerCase(),
       address: (teachingMode === "Offline" || teachingMode === "Both") ? address : "",
       google_maps_url: (teachingMode === "Offline" || teachingMode === "Both") ? googleMapsUrl : "",
+      googleMeetLink: googleMeetLink.trim(),
+      google_meet_link: googleMeetLink.trim(),
       availability: JSON.stringify(selectedDays.flatMap(dayObj => {
         const seen = new Set<string>();
         const uniqueSlots = dayObj.slots.filter(slot => {
@@ -390,10 +440,13 @@ const RegisterTutor = () => {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} />
-                </div>
+                <InternationalPhoneInput
+                  id="phone"
+                  label="Phone Number"
+                  required
+                  value={phone}
+                  onChange={(fullPhone) => setPhone(fullPhone)}
+                />
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
                   <Input id="city" required maxLength={100} value={city} onChange={(e) => setCity(e.target.value.replace(/[^a-zA-Z\s.-]/g, ''))} />
@@ -520,6 +573,93 @@ const RegisterTutor = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Preferred Languages to Speak Section */}
+              <div className="space-y-4 border rounded-xl p-4 bg-secondary/5 animate-in fade-in duration-200">
+                <div className="space-y-1">
+                  <Label className="text-sm font-bold flex items-center gap-1.5 text-foreground">
+                    <Languages className="h-4 w-4 text-primary" />
+                    Preferred Languages to Speak <span className="text-destructive">*</span>
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Select all languages you are comfortable teaching in.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                  {PREFERRED_LANGUAGE_OPTIONS.map((lang) => {
+                    const isChecked = selectedLanguages.includes(lang);
+                    return (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => toggleLanguage(lang)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-xs sm:text-sm font-semibold transition-all text-left ${
+                          isChecked
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-background text-foreground border-border hover:bg-secondary/40"
+                        }`}
+                      >
+                        <div className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground/60"}`}>
+                          {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                        </div>
+                        <span className="truncate">{lang}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Other languages */}
+                <div className="space-y-2 pt-3 border-t border-border/40">
+                  <Label className="text-xs font-bold text-foreground block">
+                    Other languages
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter another language (optional)"
+                      value={otherLanguageText}
+                      onChange={(e) => setOtherLanguageText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddOtherLanguage();
+                        }
+                      }}
+                      className="h-9 text-xs sm:text-sm bg-background"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAddOtherLanguage}
+                      className="h-9 text-xs font-semibold shrink-0"
+                    >
+                      <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
+                    </Button>
+                  </div>
+
+                  {customLanguages.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {customLanguages.map((lang) => (
+                        <Badge
+                          key={lang}
+                          variant="secondary"
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-primary/10 text-primary border border-primary/20"
+                        >
+                          <span>{lang}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCustomLanguage(lang)}
+                            className="hover:text-destructive transition-colors ml-0.5"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Work Experience Section */}
@@ -664,6 +804,41 @@ const RegisterTutor = () => {
                       onChange={(e) => setGoogleMapsUrl(e.target.value)} 
                     />
                   </div>
+                </div>
+              )}
+
+              {(teachingMode === "Online" || teachingMode === "Both") && (
+                <div className="p-4 border rounded-xl bg-secondary/5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="googleMeetLink" className="flex items-center gap-2 font-medium text-foreground text-sm">
+                      <Video className="h-4 w-4 text-emerald-600" />
+                      Direct Google Meet Link <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                      <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30">
+                        Online Classes
+                      </Badge>
+                    </Label>
+                    {googleMeetLink && (
+                      <a
+                        href={googleMeetLink.startsWith("http") ? googleMeetLink : `https://${googleMeetLink}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold"
+                      >
+                        <ExternalLink className="h-3 w-3" /> Test Link
+                      </a>
+                    )}
+                  </div>
+                  <Input 
+                    id="googleMeetLink" 
+                    type="url"
+                    placeholder="e.g. https://meet.google.com/abc-defg-hij" 
+                    value={googleMeetLink} 
+                    onChange={(e) => setGoogleMeetLink(e.target.value)} 
+                    className="bg-background shadow-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Provide your personal or recurring Google Meet URL. When students book online classes or demo sessions with you, they will join via this meeting link.
+                  </p>
                 </div>
               )}
 
@@ -900,7 +1075,7 @@ const RegisterTutor = () => {
                             className="w-fit text-xs h-7 gap-1"
                             onClick={() => {
                               const newAvail = [...availability];
-                              newAvail[i].slots.push({ startTime: '09:00', endTime: '17:00' });
+                              newAvail[i].slots.push({ startTime: '05:00', endTime: '23:00' });
                               setAvailability(newAvail);
                             }}
                           >

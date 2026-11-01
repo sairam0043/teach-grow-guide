@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import ThemeSwitcher from "./ThemeSwitcher";
+import CurrencySelector from "@/components/navigation/CurrencySelector";
+import CurrencyBanner from "@/components/navigation/CurrencyBanner";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -26,72 +28,21 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
-      <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="Logo" className="h-9 w-auto" />
-          <span className="font-serif text-xl text-foreground hidden sm:inline-block">Cuvasol Tutor</span>
-        </Link>
+    <>
+      <CurrencyBanner />
+      <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
+        <div className="container flex h-16 items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo.png" alt="Logo" className="h-9 w-auto" />
+            <span className="font-serif text-xl text-foreground hidden sm:inline-block">Cuvasol Tutor</span>
+          </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary ${
-                location.pathname === link.to
-                  ? "bg-secondary text-foreground"
-                  : "text-muted-foreground"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="hidden items-center gap-2 md:flex">
-          <ThemeSwitcher mode="desktop" />
-          {user ? (
-            <>
-              <Button variant="ghost" asChild>
-                <Link to={dashboardPath}>Dashboard</Link>
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                <LogOut className="mr-2 h-4 w-4" /> Sign out
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="ghost" asChild>
-                <Link to="/login">Log in</Link>
-              </Button>
-              <Button asChild>
-                <Link to="/register/student">Sign up</Link>
-              </Button>
-            </>
-          )}
-        </div>
-
-        {/* Mobile toggle */}
-        <button
-          className="md:hidden text-foreground"
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Toggle menu"
-        >
-          {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
-      </div>
-
-      {/* Mobile menu */}
-      {mobileOpen && (
-        <div className="border-t bg-card md:hidden">
-          <nav className="container flex flex-col gap-1 py-4">
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-1 md:flex">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
-                onClick={() => setMobileOpen(false)}
                 className={`rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary ${
                   location.pathname === link.to
                     ? "bg-secondary text-foreground"
@@ -101,34 +52,98 @@ const Header = () => {
                 {link.label}
               </Link>
             ))}
-            <div className="mt-3 mb-1">
-              <ThemeSwitcher mode="mobile" />
-            </div>
-            <div className="mt-2 flex flex-col gap-2">
-              {user ? (
-                <>
-                  <Button variant="ghost" asChild>
-                    <Link to={dashboardPath} onClick={() => setMobileOpen(false)}>Dashboard</Link>
-                  </Button>
-                  <Button variant="outline" onClick={() => { handleSignOut(); setMobileOpen(false); }}>
-                    <LogOut className="mr-2 h-4 w-4" /> Sign out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="ghost" asChild>
-                    <Link to="/login" onClick={() => setMobileOpen(false)}>Log in</Link>
-                  </Button>
-                  <Button asChild>
-                    <Link to="/register/student" onClick={() => setMobileOpen(false)}>Sign up</Link>
-                  </Button>
-                </>
-              )}
-            </div>
           </nav>
+
+          <div className="hidden items-center gap-2 md:flex">
+            <CurrencySelector mode="desktop" />
+            <ThemeSwitcher mode="desktop" />
+            {user ? (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to={dashboardPath}>Dashboard</Link>
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" /> Sign out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to="/login">Log in</Link>
+                </Button>
+                <Button asChild>
+                  <Link to="/register/student">Sign up</Link>
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Mobile toggle */}
+          <button
+            className="md:hidden text-foreground"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
         </div>
-      )}
-    </header>
+
+        {/* Mobile menu */}
+        {mobileOpen && (
+          <div className="border-t bg-card md:hidden">
+            <nav className="container flex flex-col gap-1 py-4">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  onClick={() => setMobileOpen(false)}
+                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-secondary ${
+                    location.pathname === link.to
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+              <div className="mt-3 mb-1 flex flex-col gap-2.5 pt-2 border-t">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground font-medium">Currency:</span>
+                  <div className="flex-1 max-w-[180px]">
+                    <CurrencySelector mode="mobile" />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground font-medium">Theme:</span>
+                  <ThemeSwitcher mode="mobile" />
+                </div>
+              </div>
+              <div className="mt-2 flex flex-col gap-2">
+                {user ? (
+                  <>
+                    <Button variant="ghost" asChild>
+                      <Link to={dashboardPath} onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                    </Button>
+                    <Button variant="outline" onClick={() => { handleSignOut(); setMobileOpen(false); }}>
+                      <LogOut className="mr-2 h-4 w-4" /> Sign out
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="ghost" asChild>
+                      <Link to="/login" onClick={() => setMobileOpen(false)}>Log in</Link>
+                    </Button>
+                    <Button asChild>
+                      <Link to="/register/student" onClick={() => setMobileOpen(false)}>Sign up</Link>
+                    </Button>
+                  </>
+                )}
+              </div>
+            </nav>
+          </div>
+        )}
+      </header>
+    </>
   );
 };
 

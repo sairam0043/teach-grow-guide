@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { Search, SlidersHorizontal, Map as MapIcon, Grid as GridIcon, Scale } from "lucide-react";
+import { Search, SlidersHorizontal, Map as MapIcon, Grid as GridIcon, Scale, Sparkles } from "lucide-react";
+import { getSpellingSuggestion } from "@/utils/spellingSuggestion";
 import TutorMapView from "@/components/tutors/TutorMapView";
 import TutorComparisonModal from "@/components/tutors/TutorComparisonModal";
 import TutorCompareFloatingBar from "@/components/tutors/TutorCompareFloatingBar";
@@ -18,6 +19,7 @@ import { useSearchParams } from "react-router-dom";
 import TutorCard from "@/components/tutors/TutorCard";
 import type { Tutor } from "@/data/mockTutors";
 import { CLASS_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
+import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import API_URL from "@/config/api";
 
 const normalize = (value?: string | null) => (value || "").trim().toLowerCase();
@@ -111,6 +113,7 @@ const BrowseTutors = () => {
     return sessionStorage.getItem("tutor_class") || "all";
   });
   const [subject, setSubject] = useState<string>(() => sessionStorage.getItem("tutor_subject") || "all");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(() => sessionStorage.getItem("tutor_language") || "all");
   const [mode, setMode] = useState<string>(() => sessionStorage.getItem("tutor_mode") || "all");
   const [city, setCity] = useState<string>(() => sessionStorage.getItem("tutor_city") || "all");
   const [day, setDay] = useState(() => sessionStorage.getItem("tutor_day") || "all");
@@ -175,6 +178,7 @@ const BrowseTutors = () => {
     sessionStorage.setItem("tutor_category", category);
     sessionStorage.setItem("tutor_class", selectedClass);
     sessionStorage.setItem("tutor_subject", subject);
+    sessionStorage.setItem("tutor_language", selectedLanguage);
     sessionStorage.setItem("tutor_mode", mode);
     sessionStorage.setItem("tutor_city", city);
     sessionStorage.setItem("tutor_day", day);
@@ -182,7 +186,7 @@ const BrowseTutors = () => {
     sessionStorage.setItem("tutor_sort_by", sortBy);
     sessionStorage.setItem("tutor_show_filters", String(showFilters));
     sessionStorage.setItem("tutor_show_map", String(showMap));
-  }, [search, category, selectedClass, subject, mode, city, day, time, sortBy, showFilters, showMap]);
+  }, [search, category, selectedClass, subject, selectedLanguage, mode, city, day, time, sortBy, showFilters, showMap]);
 
   const handleCategoryChange = (val: string) => {
     setCategory(val);
@@ -263,11 +267,42 @@ const BrowseTutors = () => {
     return Array.from(classSet);
   }, [tutors]);
 
+  const allLanguages = useMemo(() => {
+    const langSet = new Set<string>();
+    PREFERRED_LANGUAGE_OPTIONS.forEach((l) => langSet.add(l));
+    tutors.forEach((tutor) => {
+      (tutor.languages || []).forEach((l) => {
+        if (l && typeof l === "string" && l.trim()) {
+          langSet.add(l.trim());
+        }
+      });
+    });
+    return Array.from(langSet).sort((a, b) => a.localeCompare(b));
+  }, [tutors]);
+
   useEffect(() => {
     if (subject !== "all" && !allSubjects.some((s) => standardizeSubject(s) === standardizeSubject(subject))) {
       setSubject("all");
     }
   }, [allSubjects, subject]);
+
+  const tutorCandidateDictionary = useMemo(() => {
+    return {
+      subjects: allSubjects,
+      cities: allCities,
+      names: tutors.map((t) => t.name).filter(Boolean),
+    };
+  }, [allSubjects, allCities, tutors]);
+
+  const spellingSuggestion = useMemo(() => {
+    if (!search || search.trim().length < 3) return null;
+    return getSpellingSuggestion(search, tutorCandidateDictionary);
+  }, [search, tutorCandidateDictionary]);
+
+  const handleApplySuggestion = (suggestedText: string) => {
+    setSearch(suggestedText);
+    toast.success(`Showing results for "${suggestedText}"`);
+  };
 
   const filtered = useMemo(() => {
     const result = tutors
@@ -279,6 +314,7 @@ const BrowseTutors = () => {
             t.subjects?.some((s) => normalize(s).includes(q)) ||
             t.classesTaught?.some((c) => normalize(c).includes(q)) ||
             t.boardsTaught?.some((b) => normalize(b).includes(q)) ||
+            t.languages?.some((l) => normalize(l).includes(q)) ||
             normalize(t.city).includes(q)
           );
         }
@@ -313,6 +349,11 @@ const BrowseTutors = () => {
         if (selectedSubject === "all") return true;
         const targetStd = standardizeSubject(subject);
         return (t.subjects || []).some((s) => standardizeSubject(s) === targetStd);
+      })
+      .filter((t) => {
+        if (selectedLanguage === "all") return true;
+        const target = normalize(selectedLanguage);
+        return (t.languages || []).some((l) => normalize(l) === target);
       })
       .filter((t) => {
         if (selectedMode === "all") return true;
@@ -353,13 +394,14 @@ const BrowseTutors = () => {
       }
       return (a.name || "").localeCompare(b.name || "");
     });
-  }, [search, selectedCategory, selectedClass, selectedSubject, selectedMode, selectedCity, day, time, sortBy, tutors]);
+  }, [search, selectedCategory, selectedClass, selectedSubject, selectedLanguage, selectedMode, selectedCity, day, time, sortBy, tutors]);
 
   const clearFilters = () => {
     setSearch("");
     setCategory("all");
     setSelectedClass("all");
     setSubject("all");
+    setSelectedLanguage("all");
     setMode("all");
     setCity("all");
     setDay("all");
@@ -368,7 +410,7 @@ const BrowseTutors = () => {
     setSearchParams({});
   };
 
-  const hasFilters = search || category !== "all" || selectedClass !== "all" || subject !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "price-asc";
+  const hasFilters = search || category !== "all" || selectedClass !== "all" || subject !== "all" || selectedLanguage !== "all" || mode !== "all" || city !== "all" || time !== "all" || day !== "all" || sortBy !== "price-asc";
 
   return (
     <PageLayout>
@@ -390,8 +432,18 @@ const BrowseTutors = () => {
                 placeholder="Search by name, subject, or city..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="bg-card pl-10"
+                className="bg-card pl-10 pr-9"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
             </div>
             <Sheet>
               <SheetTrigger asChild>
@@ -484,6 +536,23 @@ const BrowseTutors = () => {
                   </div>
 
                   <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Language to Speak</label>
+                    <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Language" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        <SelectItem value="all">All Languages</SelectItem>
+                        {allLanguages.map((l) => (
+                          <SelectItem key={l} value={l}>
+                            {l}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Day</label>
                     <Select value={day} onValueChange={setDay}>
                       <SelectTrigger className="w-full">
@@ -554,6 +623,29 @@ const BrowseTutors = () => {
               {showMap ? <GridIcon className="h-4 w-4" /> : <MapIcon className="h-4 w-4" />}
             </Button>
           </div>
+
+          {/* Spelling Suggestion Banner */}
+          {spellingSuggestion && (
+            <div className="mt-3 flex items-center justify-center animate-in fade-in slide-in-from-top-1 duration-200">
+              <button
+                type="button"
+                onClick={() => handleApplySuggestion(spellingSuggestion.correctedText)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 dark:bg-card/95 text-slate-800 dark:text-slate-100 font-medium text-xs sm:text-sm shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all border border-blue-200 dark:border-blue-800 group"
+              >
+                <Sparkles className="h-4 w-4 text-amber-500 animate-pulse shrink-0" />
+                <span>
+                  Are you searching for{" "}
+                  <strong className="font-bold underline decoration-blue-500 decoration-2 underline-offset-2 text-blue-600 dark:text-blue-400">
+                    {spellingSuggestion.suggestedWord}
+                  </strong>
+                  ?
+                </span>
+                <span className="text-[11px] bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-semibold group-hover:bg-blue-200 dark:group-hover:bg-blue-800 transition-colors">
+                  Search this
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -592,6 +684,18 @@ const BrowseTutors = () => {
                 <SelectItem value="all">All Classes</SelectItem>
                 {allClasses.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Language" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[260px]">
+                <SelectItem value="all">All Languages</SelectItem>
+                {allLanguages.map((l) => (
+                  <SelectItem key={l} value={l}>{l}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -745,9 +849,40 @@ const BrowseTutors = () => {
                   ))}
                 </div>
               ) : (
-                <div className="py-20 text-center bg-card border rounded-2xl">
-                  <p className="text-lg text-muted-foreground">No tutors found matching your criteria.</p>
-                  <Button variant="outline" onClick={clearFilters} className="mt-4">Clear filters</Button>
+                <div className="py-20 text-center bg-card border rounded-2xl p-6 shadow-sm">
+                  <p className="text-lg font-bold text-foreground mb-1">
+                    {search ? `No tutors found matching "${search}"` : "No tutors found matching your criteria."}
+                  </p>
+                  {spellingSuggestion ? (
+                    <div className="mt-4 max-w-md mx-auto p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
+                      <p className="text-sm text-foreground flex items-center justify-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+                        <span>
+                          Are you searching for{" "}
+                          <strong className="font-bold text-blue-600 dark:text-blue-400">
+                            {spellingSuggestion.suggestedWord}
+                          </strong>
+                          ?
+                        </span>
+                      </p>
+                      <div className="flex items-center justify-center gap-2 mt-3.5">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApplySuggestion(spellingSuggestion.correctedText)}
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg text-xs"
+                        >
+                          Search for "{spellingSuggestion.suggestedWord}"
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={clearFilters} className="rounded-lg text-xs">
+                          Clear filters
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button variant="outline" onClick={clearFilters} className="mt-4 rounded-lg">
+                      Clear filters
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

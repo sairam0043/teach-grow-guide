@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/sonner";
 import axios from "axios";
 import API_URL from "@/config/api";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 
 interface ConsultationModalProps {
   isOpen: boolean;
@@ -51,6 +53,13 @@ export default function ConsultationModal({ isOpen, onClose }: ConsultationModal
 
     if (!name || !email || !phone) {
       toast.error("Please fill in your name, email, and phone number.");
+      return;
+    }
+
+    const parsedPhone = parsePhoneString(phone);
+    const phoneCheck = validatePhoneInput(parsedPhone.dialCode, parsedPhone.nationalNumber);
+    if (!phoneCheck.isValid) {
+      toast.error(phoneCheck.error || "Please enter a valid mobile number.");
       return;
     }
 
@@ -182,23 +191,13 @@ ${notes.trim() ? notes.trim() : "None provided"}
                     </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor="consult-phone" className="text-xs font-medium text-foreground">
-                      Phone Number *
-                    </Label>
-                    <div className="relative mt-1">
-                      <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="consult-phone"
-                        type="tel"
-                        placeholder="+91 98765 43210"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="pl-9 text-sm"
-                        required
-                      />
-                    </div>
-                  </div>
+                  <InternationalPhoneInput
+                    id="consult-phone"
+                    label="Phone Number"
+                    required
+                    value={phone}
+                    onChange={(fullPhone) => setPhone(fullPhone)}
+                  />
                 </div>
 
                 <div>

@@ -8,16 +8,25 @@ const bookingSchema = new mongoose.Schema({
   studentId: { type: String, required: true },
   studentName: { type: String, required: true },
   subject: { type: String, required: true },
+  topicToLearn: { type: String, trim: true, default: '' },
   status: { type: String, enum: ['pending', 'pending_payment', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'], default: 'confirmed' },
   planType: { type: String },
   amountPaid: { type: Number },
   originalAmount: { type: Number },
+  currency: { type: String, default: 'INR' },
+  foreignAmount: { type: Number },
+  exchangeRateApplied: { type: Number, default: 1.0 },
+  baseInrAmount: { type: Number },
+  razorpayOrderId: { type: String },
+  razorpayPaymentId: { type: String },
   walletUsed: { type: Number, default: 0 },
   isRated: { type: Boolean, default: false },
   meetingLink: { type: String },
   cancellationReason: { type: String },
   cancelledBy: { type: String, enum: ['Student', 'Tutor', 'Admin', ''], default: '' },
   cancelledAt: { type: Date },
+  adminComment: { type: String, default: '' },
+  completedAt: { type: Date },
   groupDetails: {
     isGroup: { type: Boolean, default: false },
     invitedEmails: [{
@@ -77,4 +86,3 @@ const bookingSchema = new mongoose.Schema({
 const Booking = mongoose.model('Booking', bookingSchema);
 
 module.exports = Booking;
-

@@ -2,9 +2,11 @@ const express = require('express');
 const Tutor = require('../schemas/tutorSchema');
 const User = require('../schemas/userSchema');
 const Booking = require('../schemas/bookingSchema');
+const Post = require('../schemas/postSchema');
 const nodemailer = require('nodemailer');
 const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
 const { rewardReferrerOnClassCompletion, refundWalletOnBookingCancel } = require('../utils/referralWalletHelper');
+const { SUPPORTED_CURRENCIES, convertInrToCurrency } = require('../utils/pricingService');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -386,6 +388,9 @@ router.get('/', async (req, res) => {
 // Get a single tutor by database ID
 router.get('/:id', async (req, res) => {
   try {
+    if (!req.params.id || !req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(404).json({ message: 'Invalid tutor ID format' });
+    }
     const tutor = await Tutor.findById(req.params.id).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
     
@@ -461,10 +466,13 @@ router.post('/:id/slots', async (req, res) => {
 router.post('/:id/book', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, utcTiming } = req.body;
+    const { timing, subject, studentId, studentName, utcTiming, topicToLearn } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
+    if (!topicToLearn || !topicToLearn.trim()) {
+      return res.status(400).json({ message: 'Please specify the topic(s) or concepts you would like the tutor to cover in this demo.' });
+    }
 
     const tutor = await Tutor.findById(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
@@ -509,6 +517,7 @@ router.post('/:id/book', async (req, res) => {
       timing,
       utcTiming: utcTiming ? new Date(utcTiming) : undefined,
       subject,
+      topicToLearn: (topicToLearn || '').trim(),
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
       status: 'pending'
@@ -533,10 +542,14 @@ router.post('/:id/book', async (req, res) => {
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutorUser.email,
           subject: 'New Demo Session Requested (Pending Approval)',
-          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
+          text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nTopics to cover:\n"${(topicToLearn || '').trim()}"\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
           html: `<h3>New Demo Session Requested</h3>
                  <p>Hello <b>${tutor.name}</b>,</p>
                  <p>Student <b>${studentName}</b> has requested a demo session for <b>${subject}</b> at <b>${timing}</b>.</p>
+                 <div style="background-color: #f3f4f6; padding: 12px; border-radius: 8px; margin: 14px 0; border-left: 4px solid #4f46e5;">
+                   <strong style="color: #4f46e5; display: block; margin-bottom: 4px;">Topics Student Needs Explained:</strong>
+                   <p style="margin: 0; color: #1f2937; white-space: pre-wrap;">${(topicToLearn || '').trim()}</p>
+                 </div>
                  <p>Please log in to your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
                  <p>Best regards,<br/>Cuvasol Tutor Team</p>`,
         }).then(() => {
@@ -632,7 +645,7 @@ router.post('/:id/book-verification-demo', async (req, res) => {
 router.post('/:id/book-class', async (req, res) => {
   try {
     const tutorId = req.params.id;
-    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet } = req.body;
+    const { timing, subject, studentId, studentName, planType, otherStudentsEmails, packDetails, sessions, utcTiming, useWallet, topicToLearn, currency: requestedCurrency } = req.body;
     
     if (!timing) return res.status(400).json({ message: 'Timing is required' });
     if (!subject) return res.status(400).json({ message: 'Subject is required' });
@@ -697,10 +710,11 @@ router.post('/:id/book-class', async (req, res) => {
 
     const isGroup = otherStudentsEmails && otherStudentsEmails.length > 0;
     
-    // Securely calculate price on the backend
+    // Securely calculate base price on the backend
     const calculatedPrice = calculatePlanPrice(tutor, subject, planType);
+    const bookingCurrency = requestedCurrency && SUPPORTED_CURRENCIES[requestedCurrency] ? requestedCurrency : 'INR';
     
-    // Handle Student Wallet deduction
+    // Handle Student Wallet deduction (wallet is maintained in INR base)
     let walletDiscount = 0;
     let fullyPaidByWallet = false;
     let studentUser = null;
@@ -718,7 +732,10 @@ router.post('/:id/book-class', async (req, res) => {
       }
     }
 
-    const netPayable = Math.max(0, calculatedPrice - walletDiscount);
+    const netPayableInr = Math.max(0, calculatedPrice - walletDiscount);
+    const localizedPrice = convertInrToCurrency(calculatedPrice, bookingCurrency);
+    const netPayableLocalized = convertInrToCurrency(netPayableInr, bookingCurrency);
+    const exchangeMultiplier = SUPPORTED_CURRENCIES[bookingCurrency]?.exchangeMultiplier || 1.0;
 
     if (fullyPaidByWallet && studentUser) {
       // Deduct full amount from student wallet immediately
@@ -740,12 +757,17 @@ router.post('/:id/book-class', async (req, res) => {
       timing,
       utcTiming: utcTiming ? new Date(utcTiming) : undefined,
       subject,
+      topicToLearn: (topicToLearn || '').trim(),
       studentId: studentId || "anonymous_student",
       studentName: studentName || "Anonymous",
       status: isGroup ? 'pending' : (fullyPaidByWallet ? 'enrolled' : 'pending_payment'),
       planType,
-      amountPaid: fullyPaidByWallet ? calculatedPrice : netPayable,
-      originalAmount: calculatedPrice,
+      currency: bookingCurrency,
+      baseInrAmount: calculatedPrice,
+      foreignAmount: bookingCurrency !== 'INR' ? (fullyPaidByWallet ? 0 : netPayableLocalized) : undefined,
+      exchangeRateApplied: exchangeMultiplier,
+      amountPaid: bookingCurrency !== 'INR' ? (fullyPaidByWallet ? 0 : netPayableLocalized) : (fullyPaidByWallet ? calculatedPrice : netPayableInr),
+      originalAmount: bookingCurrency !== 'INR' ? localizedPrice : calculatedPrice,
       walletUsed: walletDiscount,
       groupDetails: isGroup ? {
         isGroup: true,
@@ -867,15 +889,20 @@ router.post('/:id/book-class', async (req, res) => {
 // Get student's bookings for a specific tutor
 router.get('/:id/bookings/student/:studentId', async (req, res) => {
   try {
-    const bookings = await Booking.find({ tutorId: req.params.id, studentId: req.params.studentId }).populate('tutorId', 'address googleMapsUrl mode city');
+    const bookings = await Booking.find({ tutorId: req.params.id, studentId: req.params.studentId }).populate('tutorId', 'address googleMapsUrl googleMeetLink mode city');
     const formatted = bookings.map(b => {
       const obj = b.toObject();
       if (b.tutorId) {
         obj.tutorAddress = b.tutorId.address;
         obj.tutorGoogleMapsUrl = b.tutorId.googleMapsUrl;
+        obj.tutorGoogleMeetLink = b.tutorId.googleMeetLink;
         obj.tutorMode = b.tutorId.mode;
         obj.tutorCity = b.tutorId.city;
         obj.tutorId = b.tutorId._id.toString();
+
+        if (b.tutorId.googleMeetLink && b.tutorId.googleMeetLink.trim() && obj.subject !== 'Verification Demo Class') {
+          obj.meetingLink = b.tutorId.googleMeetLink.trim();
+        }
       }
       return obj;
     });
@@ -888,7 +915,7 @@ router.get('/:id/bookings/student/:studentId', async (req, res) => {
 // Update booking status
 router.put('/booking/:bookingId/status', async (req, res) => {
   try {
-    const { status, cancellationReason, cancelledBy } = req.body;
+    const { status, cancellationReason, cancelledBy, adminComment } = req.body;
     if (!['pending', 'confirmed', 'cancelled', 'rejected', 'completed', 'enrolled'].includes(status)) {
        return res.status(400).json({ message: 'Invalid status' });
     }
@@ -897,8 +924,27 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     
     const oldStatus = booking.status;
     booking.status = status;
+
+    // When confirmed, ensure booking uses tutor's personal Google Meet link if configured
+    if (status === 'confirmed' && booking.subject !== 'Verification Demo Class') {
+      try {
+        const tutor = await Tutor.findById(booking.tutorId);
+        if (tutor && tutor.googleMeetLink && tutor.googleMeetLink.trim()) {
+          booking.meetingLink = tutor.googleMeetLink.trim();
+        }
+      } catch (err) {
+        console.warn('Could not sync tutor meet link on booking confirm:', err.message);
+      }
+    }
+
     if (cancellationReason !== undefined) {
       booking.cancellationReason = cancellationReason;
+    }
+    if (adminComment !== undefined) {
+      booking.adminComment = adminComment;
+    }
+    if (status === 'completed') {
+      booking.completedAt = new Date();
     }
     if (status === 'cancelled' || status === 'rejected') {
       booking.cancelledAt = new Date();
@@ -914,7 +960,7 @@ router.put('/booking/:bookingId/status', async (req, res) => {
     }
     await booking.save();
     
-    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status} (Cancelled By: ${booking.cancelledBy || 'N/A'})`);
+    console.log(`[Booking] Updated status of Booking ID ${booking._id} from ${oldStatus} to ${status}${adminComment ? ` (Admin Comment: "${adminComment}")` : ''} (Cancelled By: ${booking.cancelledBy || 'N/A'})`);
 
     // Handle wallet refund if booking was cancelled or rejected
     if (status === 'cancelled' || status === 'rejected') {
@@ -1399,20 +1445,56 @@ router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
     }
 
     const oldTiming = booking.timing;
+    const oldStatus = booking.status;
     booking.timing = requestedTiming;
     if (requestedUtcTiming) {
       booking.utcTiming = new Date(requestedUtcTiming);
     }
     booking.rescheduledAt = new Date();
     booking.rescheduledBy = 'Admin';
+
+    const isVerificationDemo = booking.subject === 'Verification Demo Class' || booking.studentId === 'admin';
+
+    // If the booking was previously declined/rejected or cancelled, reactivate it!
+    if (['rejected', 'cancelled'].includes(booking.status)) {
+      booking.status = isVerificationDemo ? 'pending' : (booking.amountPaid ? 'confirmed' : 'pending');
+      booking.cancellationReason = undefined;
+      booking.cancelledBy = undefined;
+      booking.cancelledAt = undefined;
+    }
+
     if (booking.rescheduleRequest) {
       booking.rescheduleRequest.status = 'approved';
       booking.rescheduleRequest.requestedTiming = requestedTiming;
       booking.rescheduleRequest.requestedUtcTiming = requestedUtcTiming ? new Date(requestedUtcTiming) : undefined;
+      if (reason) booking.rescheduleRequest.reason = reason;
+    } else {
+      booking.rescheduleRequest = {
+        requestedTiming,
+        requestedUtcTiming: requestedUtcTiming ? new Date(requestedUtcTiming) : undefined,
+        requestedBy: 'Admin',
+        reason: reason || (oldStatus === 'rejected' ? 'Rescheduled following tutor decline' : ''),
+        status: 'approved',
+        requestedAt: new Date()
+      };
+    }
+
+    // Refresh video room meeting link for the updated timing
+    try {
+      booking.meetingLink = await generateMeetingLinkForBooking({
+        tutor,
+        studentId: booking.studentId,
+        subject: booking.subject,
+        timing: requestedTiming,
+        utcTiming: requestedUtcTiming,
+        fallbackJitsiPrefix: `cuvasol-tutor-verification-${booking._id}`
+      });
+    } catch (meetErr) {
+      console.error('[Admin Reschedule] Meeting link update error:', meetErr.message);
     }
 
     await booking.save();
-    console.log(`[Admin Reschedule] Booking ID ${booking._id} rescheduled by Admin to ${requestedTiming}`);
+    console.log(`[Admin Reschedule] Booking ID ${booking._id} rescheduled by Admin to ${requestedTiming} (Status: ${booking.status})`);
 
     // Notify tutor and student
     try {
@@ -1426,9 +1508,28 @@ router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
         transporter.sendMail({
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: tutorUser.email,
-          subject: `Class Rescheduled by Administrator: ${booking.subject}`,
-          text: `Hello ${tutor.name},\n\nOur administrator has rescheduled the ${booking.subject} class with ${booking.studentName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
-          html: `
+          subject: isVerificationDemo
+            ? `Verification Demo Class Rescheduled: ${requestedTiming}`
+            : `Class Rescheduled by Administrator: ${booking.subject}`,
+          text: isVerificationDemo
+            ? `Hello ${tutor.name},\n\nOur administrator has rescheduled your Verification Demo Class to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Notes: ${reason}\n` : ''}\nPlease log in to your dashboard to review and accept this session.\n\nBest regards,\nCuvasol Tutor Team`
+            : `Hello ${tutor.name},\n\nOur administrator has rescheduled the ${booking.subject} class with ${booking.studentName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
+          html: isVerificationDemo
+            ? `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+              <h2 style="color: #7c3aed; text-align: center;">Verification Demo Class Rescheduled</h2>
+              <p>Hello <strong>${tutor.name}</strong>,</p>
+              <p>Our administrator has rescheduled your <strong>Verification Demo Class</strong> session.</p>
+              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+              </div>
+              <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to review and accept this updated session time.</p>
+              <p>Best regards,<br/>Cuvasol Tutor Team</p>
+            </div>
+            `
+            : `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
               <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
               <p>Hello <strong>${tutor.name}</strong>,</p>
@@ -1445,7 +1546,7 @@ router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
         }).catch(err => console.error('[Admin Reschedule Email] Tutor error:', err.message));
       }
 
-      if (studentEmail) {
+      if (studentEmail && !isVerificationDemo) {
         transporter.sendMail({
           from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
           to: studentEmail,
@@ -1608,7 +1709,7 @@ router.post('/booking/:bookingId/approve', async (req, res) => {
 // Admin can update approval status, featured flag, and verification badge status
 router.put('/:id/admin', async (req, res) => {
   try {
-    const { status, featured, rejectionReason, isVerified } = req.body;
+    const { status, featured, rejectionReason, isVerified, googleMeetLink, languages } = req.body;
     const updateData = {};
     if (status) {
       updateData.status = status;
@@ -1619,9 +1720,58 @@ router.put('/:id/admin', async (req, res) => {
     if (featured !== undefined) updateData.featured = featured;
     if (rejectionReason !== undefined) updateData.rejectionReason = rejectionReason;
     if (isVerified !== undefined) updateData.isVerified = isVerified;
+    if (googleMeetLink !== undefined) {
+      let link = (googleMeetLink || '').trim();
+      if (link && !/^https?:\/\//i.test(link)) {
+        link = `https://${link}`;
+      }
+      updateData.googleMeetLink = link;
+    }
+    if (languages !== undefined) {
+      let parsedLangs = [];
+      if (typeof languages === 'string') {
+        try {
+          parsedLangs = JSON.parse(languages);
+        } catch (e) {
+          parsedLangs = languages.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(languages)) {
+        parsedLangs = languages;
+      }
+      updateData.languages = parsedLangs;
+    }
 
     const tutor = await Tutor.findByIdAndUpdate(req.params.id, updateData, { new: true }).populate('userId', 'email phone avatar');
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
+
+    // Sync updated Google Meet link to tutor's active bookings
+    if (googleMeetLink !== undefined && updateData.googleMeetLink) {
+      try {
+        const directLink = updateData.googleMeetLink;
+        await Booking.updateMany(
+          {
+            tutorId: tutor._id,
+            subject: { $ne: 'Verification Demo Class' },
+            status: { $in: ['pending', 'confirmed', 'enrolled'] }
+          },
+          { $set: { meetingLink: directLink } }
+        );
+        const enrolledBookings = await Booking.find({
+          tutorId: tutor._id,
+          subject: { $ne: 'Verification Demo Class' },
+          status: 'enrolled',
+          'sessions.0': { $exists: true }
+        });
+        for (const b of enrolledBookings) {
+          if (b.sessions && Array.isArray(b.sessions)) {
+            b.sessions = b.sessions.map(s => ({ ...s, meetingLink: directLink }));
+            await b.save();
+          }
+        }
+      } catch (syncErr) {
+        console.error('Failed to sync updated Google Meet link to bookings (admin):', syncErr);
+      }
+    }
     
     // If tutor is approved, send email
     if (status === 'approved' && tutor.userId && tutor.userId.email) {
@@ -1725,7 +1875,7 @@ router.put('/:id/admin', async (req, res) => {
 // Tutor can update their profile details
 router.put('/:id/profile', async (req, res) => {
   try {
-    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, timezone, classesTaught, boardsTaught, workExperience, mode } = req.body;
+    const { bio, qualification, experience, hourlyRate, category, subjects, photo, verificationDocument, subjectRates, address, googleMapsUrl, googleMeetLink, timezone, classesTaught, boardsTaught, workExperience, mode, languages } = req.body;
     const updateData = {};
     if (bio !== undefined) updateData.bio = bio;
     if (qualification !== undefined) updateData.qualification = qualification;
@@ -1754,9 +1904,29 @@ router.put('/:id/profile', async (req, res) => {
     if (classesTaught !== undefined) currentTutor.classesTaught = classesTaught;
     if (boardsTaught !== undefined) currentTutor.boardsTaught = boardsTaught;
     if (workExperience !== undefined) currentTutor.workExperience = workExperience;
+    if (languages !== undefined) {
+      let parsedLangs = [];
+      if (typeof languages === 'string') {
+        try {
+          parsedLangs = JSON.parse(languages);
+        } catch (e) {
+          parsedLangs = languages.split(',').map(s => s.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(languages)) {
+        parsedLangs = languages;
+      }
+      currentTutor.languages = parsedLangs;
+    }
     if (googleMapsUrl !== undefined) {
       const { expandGoogleMapsUrl } = require('../utils/urlHelper');
       currentTutor.googleMapsUrl = await expandGoogleMapsUrl(googleMapsUrl);
+    }
+    if (googleMeetLink !== undefined) {
+      let link = (googleMeetLink || '').trim();
+      if (link && !/^https?:\/\//i.test(link)) {
+        link = `https://${link}`;
+      }
+      currentTutor.googleMeetLink = link;
     }
     
     // Update subjectRates / subjects
@@ -1799,6 +1969,36 @@ router.put('/:id/profile', async (req, res) => {
     if (timezone !== undefined) currentTutor.timezone = timezone;
 
     await currentTutor.save();
+
+    // Sync updated Google Meet link to tutor's active bookings
+    if (googleMeetLink !== undefined && currentTutor.googleMeetLink && currentTutor.googleMeetLink.trim()) {
+      try {
+        const directLink = currentTutor.googleMeetLink.trim();
+        await Booking.updateMany(
+          {
+            tutorId: currentTutor._id,
+            subject: { $ne: 'Verification Demo Class' },
+            status: { $in: ['pending', 'confirmed', 'enrolled'] }
+          },
+          { $set: { meetingLink: directLink } }
+        );
+        const enrolledBookings = await Booking.find({
+          tutorId: currentTutor._id,
+          subject: { $ne: 'Verification Demo Class' },
+          status: 'enrolled',
+          'sessions.0': { $exists: true }
+        });
+        for (const b of enrolledBookings) {
+          if (b.sessions && Array.isArray(b.sessions)) {
+            b.sessions = b.sessions.map(s => ({ ...s, meetingLink: directLink }));
+            await b.save();
+          }
+        }
+      } catch (syncErr) {
+        console.error('Failed to sync updated Google Meet link to bookings (tutor profile):', syncErr);
+      }
+    }
+
     const tutor = await currentTutor.populate('userId', 'email phone avatar');
     
     const obj = tutor.toObject();
@@ -1941,6 +2141,88 @@ router.delete('/:id/admin', async (req, res) => {
     res.json({ message: 'Tutor and associated user account deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting tutor', error: error.message });
+  }
+});
+
+// ================= POST MANAGEMENT ROUTES =================
+
+// Create a new post for a tutor (supports up to 5 images)
+router.post('/:tutorId/posts', async (req, res) => {
+  try {
+    const { title, caption, images } = req.body;
+    const { tutorId } = req.params;
+
+    // Find tutor by Mongo _id or userId
+    let tutor = null;
+    if (tutorId && tutorId.match(/^[0-9a-fA-F]{24}$/)) {
+      tutor = await Tutor.findById(tutorId);
+    }
+    if (!tutor) {
+      tutor = await Tutor.findOne({ userId: tutorId });
+    }
+
+    if (!tutor) {
+      return res.status(404).json({ message: 'Tutor profile not found.' });
+    }
+
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({ message: 'Please attach at least 1 image (up to 5 images allowed).' });
+    }
+
+    if (images.length > 5) {
+      return res.status(400).json({ message: 'Maximum 5 images allowed per post.' });
+    }
+
+    const newPost = new Post({
+      tutorId: tutor._id,
+      title: title || '',
+      caption: caption || '',
+      images
+    });
+
+    const savedPost = await newPost.save();
+    res.status(201).json(savedPost);
+  } catch (error) {
+    console.error("Error creating post:", error);
+    res.status(500).json({ message: 'Failed to create post', error: error.message });
+  }
+});
+
+// Get all posts for a specific tutor
+router.get('/:tutorId/posts', async (req, res) => {
+  try {
+    const { tutorId } = req.params;
+    let tutor = null;
+    if (tutorId && tutorId.match(/^[0-9a-fA-F]{24}$/)) {
+      tutor = await Tutor.findById(tutorId);
+    }
+    if (!tutor) {
+      tutor = await Tutor.findOne({ userId: tutorId });
+    }
+
+    if (!tutor) {
+      return res.json([]);
+    }
+
+    const posts = await Post.find({ tutorId: tutor._id }).sort({ createdAt: -1 });
+    res.json(posts);
+  } catch (error) {
+    console.error("Error fetching posts:", error);
+    res.status(500).json({ message: 'Failed to fetch posts', error: error.message });
+  }
+});
+
+// Delete a post by ID
+router.delete('/posts/:postId', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const deleted = await Post.findByIdAndDelete(postId);
+    if (!deleted) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+    res.json({ message: 'Post deleted successfully', id: postId });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete post', error: error.message });
   }
 });
 

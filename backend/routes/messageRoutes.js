@@ -28,9 +28,12 @@ async function resolveUserId(id) {
 // POST /api/messages - Send a message
 router.post('/', async (req, res) => {
   try {
-    let { senderId, receiverId, text } = req.body;
-    if (!senderId || !receiverId || !text) {
-      return res.status(400).json({ message: 'Sender, receiver, and text are required.' });
+    let { senderId, receiverId, text, attachments } = req.body;
+    const hasText = text && typeof text === 'string' && text.trim().length > 0;
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+    if (!senderId || !receiverId || (!hasText && !hasAttachments)) {
+      return res.status(400).json({ message: 'Sender, receiver, and at least a message or attachment are required.' });
     }
 
     const resolvedSender = await resolveUserId(senderId) || senderId;
@@ -39,7 +42,8 @@ router.post('/', async (req, res) => {
     const message = new Message({
       sender: resolvedSender,
       receiver: resolvedReceiver,
-      text: text.trim(),
+      text: hasText ? text.trim() : '',
+      attachments: hasAttachments ? attachments : [],
       read: false
     });
 
@@ -60,9 +64,16 @@ router.post('/', async (req, res) => {
           ? 'https://tutor.cuvasol.com/dashboard/tutor' 
           : 'https://tutor.cuvasol.com/dashboard/student';
 
+        const attachmentSummary = hasAttachments
+          ? `[📎 ${attachments.length} Attachment${attachments.length > 1 ? 's' : ''}: ${attachments.map(a => a.filename).join(', ')}]`
+          : '';
+        const previewText = hasText
+          ? `${text}${attachmentSummary ? `\n${attachmentSummary}` : ''}`
+          : attachmentSummary;
+
         sendEmail({
           to: populated.receiver.email,
-          subject: `📩 New Message from Cuvasol Admin Support: "${text.slice(0, 45)}${text.length > 45 ? '...' : ''}"`,
+          subject: `📩 New Message from Cuvasol Admin Support: "${previewText.slice(0, 45)}${previewText.length > 45 ? '...' : ''}"`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
               <div style="background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%); padding: 24px; text-align: center; color: #ffffff;">
@@ -72,7 +83,7 @@ router.post('/', async (req, res) => {
               <div style="padding: 24px; color: #374151; font-size: 15px; line-height: 1.6;">
                 <p>Hello <strong>${receiverName}</strong>,</p>
                 <p>You have received a direct message from <strong>${senderName}</strong>:</p>
-                <div style="background: #f3f4f6; border-left: 4px solid #6366f1; padding: 16px; border-radius: 6px; margin: 20px 0; font-size: 15px; color: #1f2937; white-space: pre-wrap;">${text}</div>
+                <div style="background: #f3f4f6; border-left: 4px solid #6366f1; padding: 16px; border-radius: 6px; margin: 20px 0; font-size: 15px; color: #1f2937; white-space: pre-wrap;">${previewText}</div>
                 <div style="text-align: center; margin: 24px 0;">
                   <a href="${dashboardUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 15px;">Open Messages in Dashboard</a>
                 </div>
@@ -247,7 +258,10 @@ router.get('/inbox/:userId', async (req, res) => {
             tutorProfileId
           },
           lastMessage: {
-            text: msg.text || '',
+            text: msg.text || (msg.attachments && msg.attachments.length > 0
+              ? (msg.attachments[0].fileType === 'image' ? '📷 Photo' : `📄 ${msg.attachments[0].filename}`)
+              : ''),
+            attachments: msg.attachments || [],
             createdAt: msg.createdAt,
             senderId: msg?.sender?._id || null
           },
@@ -261,6 +275,132 @@ router.get('/inbox/:userId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching inbox conversations:', error);
     res.status(500).json({ message: 'Error fetching inbox conversations', error: error.message });
+  }
+});
+
+// GET /api/messages/admin/all-conversations - Admin audit view of all conversations
+router.get('/admin/all-conversations', async (req, res) => {
+  try {
+    const messages = await Message.find()
+      .sort({ createdAt: -1 })
+      .populate('sender', 'full_name email role avatar student_class phone')
+      .populate('receiver', 'full_name email role avatar student_class phone');
+
+    // Collect all unique user IDs to bulk-query Tutor profiles
+    const allUserIds = new Set();
+    messages.forEach(m => {
+      if (m.sender?._id) allUserIds.add(m.sender._id.toString());
+      if (m.receiver?._id) allUserIds.add(m.receiver._id.toString());
+    });
+
+    const tutors = await Tutor.find({ userId: { $in: Array.from(allUserIds) } })
+      .select('userId subjects city phone bio hourlyRate isVerified');
+    const tutorMap = new Map();
+    tutors.forEach(t => {
+      if (t.userId) tutorMap.set(t.userId.toString(), t);
+    });
+
+    const conversationMap = new Map();
+
+    for (const msg of messages) {
+      if (!msg.sender?._id || !msg.receiver?._id) continue;
+      const sId = msg.sender._id.toString();
+      const rId = msg.receiver._id.toString();
+      const key = [sId, rId].sort().join('___');
+
+      if (!conversationMap.has(key)) {
+        let tutorUser = null;
+        let studentUser = null;
+
+        if (msg.sender.role === 'tutor') tutorUser = msg.sender;
+        else if (msg.sender.role === 'student') studentUser = msg.sender;
+
+        if (msg.receiver.role === 'tutor') tutorUser = msg.receiver;
+        else if (msg.receiver.role === 'student') studentUser = msg.receiver;
+
+        if (!tutorUser && !studentUser) {
+          tutorUser = msg.sender;
+          studentUser = msg.receiver;
+        } else if (!tutorUser) {
+          tutorUser = msg.sender._id.toString() === studentUser._id.toString() ? msg.receiver : msg.sender;
+        } else if (!studentUser) {
+          studentUser = msg.sender._id.toString() === tutorUser._id.toString() ? msg.receiver : msg.sender;
+        }
+
+        const tutorProfile = tutorMap.get(tutorUser._id.toString()) || null;
+
+        conversationMap.set(key, {
+          id: key,
+          user1: msg.sender,
+          user2: msg.receiver,
+          tutor: {
+            id: tutorUser._id.toString(),
+            name: tutorUser.full_name || 'Tutor',
+            email: tutorUser.email || '',
+            role: tutorUser.role,
+            avatar: tutorUser.avatar,
+            phone: tutorUser.phone || tutorProfile?.phone || '',
+            city: tutorProfile?.city || '',
+            subjects: tutorProfile?.subjects || [],
+            isVerified: tutorProfile?.isVerified || false
+          },
+          student: {
+            id: studentUser._id.toString(),
+            name: studentUser.full_name || 'Student',
+            email: studentUser.email || '',
+            role: studentUser.role,
+            avatar: studentUser.avatar,
+            phone: studentUser.phone || '',
+            student_class: studentUser.student_class || ''
+          },
+          lastMessage: {
+            text: msg.text || (msg.attachments && msg.attachments.length > 0
+              ? (msg.attachments[0].fileType === 'image' ? '📷 Photo' : `📄 ${msg.attachments[0].filename}`)
+              : ''),
+            attachments: msg.attachments || [],
+            createdAt: msg.createdAt,
+            senderId: sId
+          },
+          messageCount: 0
+        });
+      }
+
+      const conv = conversationMap.get(key);
+      conv.messageCount++;
+    }
+
+    const conversations = Array.from(conversationMap.values());
+    res.json(conversations);
+  } catch (error) {
+    console.error('Error fetching admin conversations:', error);
+    res.status(500).json({ message: 'Error fetching admin conversations', error: error.message });
+  }
+});
+
+// GET /api/messages/admin/chat/:userId1/:userId2 - Read-only chat transcript for admin security audit
+router.get('/admin/chat/:userId1/:userId2', async (req, res) => {
+  try {
+    const { userId1, userId2 } = req.params;
+    const resolved1 = await resolveUserId(userId1) || userId1;
+    const resolved2 = await resolveUserId(userId2) || userId2;
+
+    const u1Variants = Array.from(new Set([userId1, resolved1])).filter(Boolean);
+    const u2Variants = Array.from(new Set([userId2, resolved2])).filter(Boolean);
+
+    const messages = await Message.find({
+      $or: [
+        { sender: { $in: u1Variants }, receiver: { $in: u2Variants } },
+        { sender: { $in: u2Variants }, receiver: { $in: u1Variants } }
+      ]
+    })
+    .sort({ createdAt: 1 })
+    .populate('sender', 'full_name email role avatar student_class')
+    .populate('receiver', 'full_name email role avatar student_class');
+
+    res.json(messages);
+  } catch (error) {
+    console.error('Error fetching admin chat transcript:', error);
+    res.status(500).json({ message: 'Error fetching chat transcript', error: error.message });
   }
 });
 

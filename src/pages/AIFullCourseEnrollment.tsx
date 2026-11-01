@@ -7,11 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import PageLayout from "@/components/layout/PageLayout";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import axios from "axios";
 import API_URL from "@/config/api";
 
 const AIFullCourseEnrollment = () => {
   const { user } = useAuth();
+  const { currentCurrency, formatPrice } = useCurrency();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -336,7 +338,7 @@ const AIFullCourseEnrollment = () => {
                     <span className="text-xs text-muted-foreground block">1 Month program tuition</span>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="font-extrabold text-2xl block text-indigo-600">₹1,500</span>
+                    <span className="font-extrabold text-2xl block text-indigo-600">{formatPrice(1500)}</span>
                     <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground block">one-time</span>
                   </div>
                 </div>
@@ -362,7 +364,7 @@ const AIFullCourseEnrollment = () => {
                         Initiating Order...
                       </span>
                     ) : (
-                      "Enroll & Pay ₹1,500"
+                      `Enroll & Pay ${formatPrice(1500)}`
                     )}
                   </Button>
                 )}

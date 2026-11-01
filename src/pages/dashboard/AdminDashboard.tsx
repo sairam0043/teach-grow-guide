@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef, Fragment } from "react";
+import { useEffect, useState, useRef, Fragment, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2 } from "lucide-react";
+import { Users, BookOpen, CreditCard, CheckCircle, XCircle, Clock, Shield, Star, DollarSign, Activity, Trash2, ChevronDown, ChevronUp, Calendar, History, Percent, Sparkles, MapPin, Video, MessageSquare, Globe, Search, FileText, GraduationCap, Award, Mail, Phone, Tag, Check, Landmark, ArrowUpRight, Trophy, Copy, SlidersHorizontal, Download, TrendingUp, UserCheck, Eye, Gift, Camera, Upload, Image, Loader2, ExternalLink, Languages, PlusCircle, Pencil } from "lucide-react";
+import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import PayoutBatchPanel from "@/components/payouts/PayoutBatchPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,13 +21,20 @@ import { resolveAssetUrl } from "@/lib/assetUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
 import ChatPanel from "@/components/chat/ChatPanel";
+import AdminConversationViewer from "@/components/chat/AdminConversationViewer";
+import CustomServiceRequestsViewer from "@/components/admin/CustomServiceRequestsViewer";
+import AdminAvailabilityManager from "@/components/admin/AdminAvailabilityManager";
 import { format, parse } from "date-fns";
 import { getTimeZoneAbbreviation, COMMON_TIMEZONES } from "@/utils/timezone";
 import { getMeetingHref } from "@/utils/meeting";
 import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
+import { getSpellingSuggestion } from "@/utils/spellingSuggestion";
 
 const CLASS_TAUGHT_OPTIONS = [
   "Class 1 - 5 (Primary)",
@@ -69,6 +77,32 @@ const ALL_SUBJECTS = [
   "Other"
 ];
 
+const STUDENT_CLASS_OPTIONS = [
+  "Class 1",
+  "Class 2",
+  "Class 3",
+  "Class 4",
+  "Class 5",
+  "Class 6",
+  "Class 7",
+  "Class 8",
+  "Class 9",
+  "Class 10",
+  "Class 11",
+  "Class 12",
+  "College / University",
+  "Other"
+];
+
+const STUDENT_HEARD_ABOUT_US_OPTIONS = [
+  "Google Search",
+  "Social Media (Instagram, Facebook, LinkedIn)",
+  "Friend / Family Referral",
+  "Advertisement / Flyer",
+  "School / College",
+  "Other"
+];
+
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useAuth();
@@ -90,6 +124,17 @@ const AdminDashboard = () => {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [selectedStudentForDetail, setSelectedStudentForDetail] = useState<any | null>(null);
   const [isStudentDetailDialogOpen, setIsStudentDetailDialogOpen] = useState(false);
+  const [isEditingStudentProfile, setIsEditingStudentProfile] = useState(false);
+  const [editStudentName, setEditStudentName] = useState("");
+  const [editStudentEmail, setEditStudentEmail] = useState("");
+  const [editStudentPhone, setEditStudentPhone] = useState("");
+  const [editStudentClass, setEditStudentClass] = useState("");
+  const [editStudentOrParent, setEditStudentOrParent] = useState("Student");
+  const [editStudentChildName, setEditStudentChildName] = useState("");
+  const [editStudentInterestedSubject, setEditStudentInterestedSubject] = useState("");
+  const [editStudentTimezone, setEditStudentTimezone] = useState("Asia/Kolkata");
+  const [editStudentHeardAboutUs, setEditStudentHeardAboutUs] = useState("");
+  const [isSavingStudentProfile, setIsSavingStudentProfile] = useState(false);
   const [selectedAssessmentPayment, setSelectedAssessmentPayment] = useState<any | null>(null);
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
@@ -108,6 +153,7 @@ const AdminDashboard = () => {
   const [editCity, setEditCity] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editGoogleMapsUrl, setEditGoogleMapsUrl] = useState("");
+  const [editGoogleMeetLink, setEditGoogleMeetLink] = useState("");
   const [editMode, setEditMode] = useState("Online");
   const [editQualification, setEditQualification] = useState("");
   const [editExperience, setEditExperience] = useState<number | string>(0);
@@ -115,6 +161,8 @@ const AdminDashboard = () => {
   const [editSubjectRates, setEditSubjectRates] = useState<{ subject: string; rate: number }[]>([]);
   const [editClassesTaught, setEditClassesTaught] = useState<string[]>([]);
   const [editBoardsTaught, setEditBoardsTaught] = useState<string[]>([]);
+  const [editLanguages, setEditLanguages] = useState<string[]>([]);
+  const [editOtherLanguageText, setEditOtherLanguageText] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Rejection Dialog States
@@ -164,7 +212,15 @@ const AdminDashboard = () => {
   const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false);
   const [isSendingProfileEmails, setIsSendingProfileEmails] = useState(false);
   const [isSendingReferralEmails, setIsSendingReferralEmails] = useState(false);
-  const [bookingToComplete, setBookingToComplete] = useState<{ id: string; tutorName: string } | null>(null);
+  const [bookingToComplete, setBookingToComplete] = useState<{
+    id: string;
+    tutorName: string;
+    timing?: string;
+    subject?: string;
+    existingComment?: string;
+  } | null>(null);
+  const [adminCompletionComment, setAdminCompletionComment] = useState("");
+  const [isCompletingBooking, setIsCompletingBooking] = useState(false);
 
   // Referrals Leaderboard State
   const [referralsLeaderboard, setReferralsLeaderboard] = useState<any[]>([]);
@@ -353,7 +409,77 @@ const AdminDashboard = () => {
 
   const handleViewStudentDetail = (student: any) => {
     setSelectedStudentForDetail(student);
+    setIsEditingStudentProfile(false);
+    setEditStudentName(student.full_name || "");
+    setEditStudentEmail(student.email || "");
+    setEditStudentPhone(student.phone || "");
+    setEditStudentClass(student.student_class || student.studentClass || "");
+    setEditStudentOrParent(student.student_or_parent || "Student");
+    setEditStudentChildName(student.student_name || "");
+    setEditStudentInterestedSubject(student.interested_subject || student.interestedSubject || student.subject || "");
+    setEditStudentTimezone(student.timezone || "Asia/Kolkata");
+    setEditStudentHeardAboutUs(student.heard_about_us || student.heardAboutUs || "");
     setIsStudentDetailDialogOpen(true);
+  };
+
+  const handleSaveStudentDetail = async () => {
+    if (!selectedStudentForDetail) return;
+    const studentId = selectedStudentForDetail._id || selectedStudentForDetail.id;
+    if (!studentId) return;
+
+    if (!editStudentName.trim()) {
+      toast.error("Full name is required");
+      return;
+    }
+
+    if (!editStudentEmail.trim()) {
+      toast.error("Email address is required");
+      return;
+    }
+
+    let cleanPhone = editStudentPhone.trim();
+    if (cleanPhone) {
+      const parsed = parsePhoneString(cleanPhone);
+      const phoneCheck = validatePhoneInput(parsed.dialCode, parsed.nationalNumber);
+      if (!phoneCheck.isValid) {
+        toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+        return;
+      }
+      cleanPhone = phoneCheck.fullPhone;
+    }
+
+    setIsSavingStudentProfile(true);
+    try {
+      const payload = {
+        full_name: editStudentName.trim(),
+        email: editStudentEmail.trim().toLowerCase(),
+        phone: cleanPhone,
+        student_class: editStudentClass,
+        student_or_parent: editStudentOrParent,
+        student_name: editStudentOrParent === "Parent" ? editStudentChildName.trim() : "",
+        interested_subject: editStudentInterestedSubject.trim(),
+        timezone: editStudentTimezone,
+        heard_about_us: editStudentHeardAboutUs
+      };
+
+      const res = await axios.put(`${API_URL}/dashboard/admin/students/${studentId}`, payload);
+      const updatedStudent = res.data.student || { ...selectedStudentForDetail, ...payload };
+
+      toast.success("Student profile updated successfully!");
+
+      // Update list state
+      setStudents(prev => prev.map(s => ((s._id && s._id === studentId) || s.id === studentId) ? { ...s, ...updatedStudent } : s));
+
+      // Update selected student detail state
+      setSelectedStudentForDetail((prev: any) => prev ? { ...prev, ...updatedStudent } : null);
+
+      setIsEditingStudentProfile(false);
+    } catch (err: any) {
+      console.error("Error updating student profile:", err);
+      toast.error(err.response?.data?.message || err.message || "Failed to update student profile");
+    } finally {
+      setIsSavingStudentProfile(false);
+    }
   };
 
   const handleViewTutorDetail = (tutor: any) => {
@@ -367,6 +493,7 @@ const AdminDashboard = () => {
     setEditCity(tutor.city || "");
     setEditAddress(tutor.address || "");
     setEditGoogleMapsUrl(tutor.googleMapsUrl || "");
+    setEditGoogleMeetLink(tutor.googleMeetLink || "");
     setEditMode(tutor.mode || "Online");
     setEditQualification(tutor.qualification || "");
     setEditExperience(tutor.experience ?? 0);
@@ -379,6 +506,8 @@ const AdminDashboard = () => {
     
     setEditClassesTaught(tutor.classesTaught || []);
     setEditBoardsTaught(tutor.boardsTaught || []);
+    setEditLanguages(tutor.languages || []);
+    setEditOtherLanguageText("");
     
     setIsDetailDialogOpen(true);
   };
@@ -509,11 +638,13 @@ const AdminDashboard = () => {
         experience: Number(editExperience),
         address: editAddress,
         googleMapsUrl: editGoogleMapsUrl,
+        googleMeetLink: editGoogleMeetLink,
         mode: editMode,
         category: editCategory,
         subjectRates: editSubjectRates,
         classesTaught: editClassesTaught,
         boardsTaught: editBoardsTaught,
+        languages: editLanguages,
         timezone: editTimezone,
         city: editCity
       };
@@ -744,6 +875,23 @@ const AdminDashboard = () => {
   };
 
   const filteredPendingTutors = pendingTutors.filter((t) => matchesTutorSearch(t, pendingTutorSearch));
+  const adminCandidateDictionary = useMemo(() => {
+    const subjects = Array.from(new Set(tutors.flatMap((t: any) => t.subjects || []).filter(Boolean))) as string[];
+    const cities = Array.from(new Set(tutors.map((t: any) => t.city).filter(Boolean))) as string[];
+    const names = tutors.map((t: any) => t.name || t.full_name).filter(Boolean) as string[];
+    return { subjects, cities, names };
+  }, [tutors]);
+
+  const approvedTutorSearchSuggestion = useMemo(() => {
+    if (!approvedTutorSearch || approvedTutorSearch.trim().length < 3) return null;
+    return getSpellingSuggestion(approvedTutorSearch, adminCandidateDictionary);
+  }, [approvedTutorSearch, adminCandidateDictionary]);
+
+  const pendingTutorSearchSuggestion = useMemo(() => {
+    if (!pendingTutorSearch || pendingTutorSearch.trim().length < 3) return null;
+    return getSpellingSuggestion(pendingTutorSearch, adminCandidateDictionary);
+  }, [pendingTutorSearch, adminCandidateDictionary]);
+
   const filteredApprovedTutors = approvedTutors.filter((t) => matchesTutorSearch(t, approvedTutorSearch));
 
   const enrolledBookings = bookings.filter((b) => (b.status === "enrolled" || b.status === "completed") && (b.amountPaid || 0) > 0);
@@ -751,6 +899,120 @@ const AdminDashboard = () => {
   const verificationDemos = bookings.filter((b) => b.subject === "Verification Demo Class");
 
   const totalPlatformRevenue = enrolledBookings.reduce((acc, curr) => acc + (curr.amountPaid || 0), 0);
+
+  const downloadTutorsCSV = () => {
+    if (!approvedTutors || approvedTutors.length === 0) {
+      toast.error("No tutors available to download.");
+      return;
+    }
+
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Category",
+      "City",
+      "Pincode",
+      "Referral Source",
+      "Subjects",
+      "Boards",
+      "Classes",
+      "Status",
+      "Verified",
+      "Featured",
+      "Joined Date",
+    ];
+
+    const escapeCSV = (value: any) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      const text = Array.isArray(value) ? value.join(", ") : String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const rows = approvedTutors.map((tutor) => [
+      tutor.name,
+      tutor.email,
+      tutor.phone,
+      tutor.category,
+      tutor.city,
+      tutor.pincode,
+      tutor.hearAboutUs,
+      tutor.subjects,
+      tutor.boardsTaught,
+      tutor.classesTaught,
+      tutor.status,
+      tutor.isVerified ? "Yes" : "No",
+      tutor.isFeatured ? "Yes" : "No",
+      tutor.createdAt ? new Date(tutor.createdAt).toLocaleDateString() : "",
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) => row.map(escapeCSV).join(",")),
+    ].join("\r\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `approved_tutors_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Tutors CSV downloaded successfully!");
+  };
+
+  const downloadStudentsCSV = () => {
+    if (!students || students.length === 0) {
+      toast.error("No students available to download.");
+      return;
+    }
+
+    const headers = [
+      "Student ID",
+      "Full Name",
+      "Email",
+      "Contact",
+      "Class / Grade",
+      "Joined Date",
+    ];
+
+    const escapeCSV = (value: any) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      const text = String(value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const rows = students.map((student) => [
+      student._id || student.id,
+      student.full_name,
+      student.email,
+      student.phone,
+      student.student_class || student.studentClass,
+      student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "",
+    ]);
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) => row.map(escapeCSV).join(",")),
+    ].join("\r\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `registered_students_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Students CSV downloaded successfully!");
+  };
 
   const handleApproval = async (tutorId: string, status: "approved" | "rejected") => {
     if (status === "rejected") {
@@ -838,12 +1100,13 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleUpdateBookingStatus = async (bookingId: string, status: string, cancellationReason?: string) => {
+  const handleUpdateBookingStatus = async (bookingId: string, status: string, cancellationReason?: string, adminComment?: string) => {
     try {
       await axios.put(`${API_URL}/tutors/booking/${bookingId}/status`, { 
         status,
         cancellationReason: cancellationReason || (status === 'cancelled' ? 'Cancelled by Admin' : undefined),
-        cancelledBy: status === 'cancelled' || status === 'rejected' ? 'Admin' : undefined
+        cancelledBy: status === 'cancelled' || status === 'rejected' ? 'Admin' : undefined,
+        adminComment
       });
       toast.success(`Booking status updated to ${status} successfully.`);
       fetchTutors();
@@ -988,6 +1251,10 @@ const AdminDashboard = () => {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="admin-availability" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              <Calendar className="h-4 w-4 text-blue-500" />
+              Admin Availability & Meet Link
+            </TabsTrigger>
             <TabsTrigger value="tutors" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">All Tutors</TabsTrigger>
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Students</TabsTrigger>
             <TabsTrigger value="bookings" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Bookings</TabsTrigger>
@@ -1005,6 +1272,10 @@ const AdminDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="payout-batch" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Payout Batch</TabsTrigger>
             <TabsTrigger value="geo-analytics" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">Geo Analytics</TabsTrigger>
+            <TabsTrigger value="conversations" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              <Shield className="h-4 w-4 text-indigo-500" />
+              Student & Tutor Conversations
+            </TabsTrigger>
             <TabsTrigger value="messages" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
               Messages
               {unreadMessagesCount > 0 && (
@@ -1012,6 +1283,10 @@ const AdminDashboard = () => {
                   {unreadMessagesCount}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="custom-services" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-blue-500" />
+              Chatbot Service Requests
             </TabsTrigger>
           </TabsList>
 
@@ -1042,6 +1317,20 @@ const AdminDashboard = () => {
                         ✕
                       </button>
                     )}
+                    {pendingTutorSearchSuggestion && (
+                      <div className="mt-2 text-xs flex items-center gap-1.5 text-muted-foreground animate-in fade-in">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span>Are you searching for </span>
+                        <button
+                          type="button"
+                          onClick={() => setPendingTutorSearch(pendingTutorSearchSuggestion.correctedText)}
+                          className="font-bold underline text-blue-600 dark:text-blue-400 hover:text-blue-700"
+                        >
+                          {pendingTutorSearchSuggestion.suggestedWord}
+                        </button>
+                        <span>?</span>
+                      </div>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground font-medium self-end sm:self-center">
                     Showing <strong className="text-foreground">{filteredPendingTutors.length}</strong> of {pendingTutors.length} pending
@@ -1064,7 +1353,21 @@ const AdminDashboard = () => {
                   <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
                     <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
                     <h3 className="text-lg font-bold text-foreground mb-1">No Matching Applications</h3>
-                    <p className="text-sm text-muted-foreground mb-4">No pending applications matched "{pendingTutorSearch}".</p>
+                    <p className="text-sm text-muted-foreground mb-2">No pending applications matched "{pendingTutorSearch}".</p>
+                    {pendingTutorSearchSuggestion && (
+                      <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-3 flex items-center justify-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        Are you searching for{" "}
+                        <button
+                          type="button"
+                          onClick={() => setPendingTutorSearch(pendingTutorSearchSuggestion.correctedText)}
+                          className="font-bold underline hover:text-blue-700"
+                        >
+                          {pendingTutorSearchSuggestion.suggestedWord}
+                        </button>
+                        ?
+                      </p>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setPendingTutorSearch("")} className="rounded-lg">
                       Clear Search Filter
                     </Button>
@@ -1228,9 +1531,35 @@ const AdminDashboard = () => {
                         ✕
                       </button>
                     )}
+                    {approvedTutorSearchSuggestion && (
+                      <div className="mt-2 text-xs flex items-center gap-1.5 text-muted-foreground animate-in fade-in">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span>Are you searching for </span>
+                        <button
+                          type="button"
+                          onClick={() => setApprovedTutorSearch(approvedTutorSearchSuggestion.correctedText)}
+                          className="font-bold underline text-blue-600 dark:text-blue-400 hover:text-blue-700"
+                        >
+                          {approvedTutorSearchSuggestion.suggestedWord}
+                        </button>
+                        <span>?</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-xs text-muted-foreground font-medium self-end sm:self-center">
-                    Showing <strong className="text-foreground">{filteredApprovedTutors.length}</strong> of {approvedTutors.length} tutors
+                  <div className="flex items-center gap-3 self-end sm:self-center">
+                    <div className="text-xs text-muted-foreground font-medium">
+                      Showing <strong className="text-foreground">{filteredApprovedTutors.length}</strong> of {approvedTutors.length} tutors
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={downloadTutorsCSV}
+                      disabled={approvedTutors.length === 0}
+                      className="rounded-xl text-xs font-semibold border-border hover:bg-secondary flex items-center gap-1.5"
+                    >
+                      <Download className="h-3.5 w-3.5 text-blue-600" />
+                      Export CSV
+                    </Button>
                   </div>
                 </div>
 
@@ -1250,7 +1579,21 @@ const AdminDashboard = () => {
                   <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed border-border/70 mt-4 max-w-lg mx-auto">
                     <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
                     <h3 className="text-lg font-bold text-foreground mb-1">No Matching Tutors Found</h3>
-                    <p className="text-sm text-muted-foreground mb-4">No tutors matched "{approvedTutorSearch}".</p>
+                    <p className="text-sm text-muted-foreground mb-2">No tutors matched "{approvedTutorSearch}".</p>
+                    {approvedTutorSearchSuggestion && (
+                      <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-3 flex items-center justify-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        Are you searching for{" "}
+                        <button
+                          type="button"
+                          onClick={() => setApprovedTutorSearch(approvedTutorSearchSuggestion.correctedText)}
+                          className="font-bold underline hover:text-blue-700"
+                        >
+                          {approvedTutorSearchSuggestion.suggestedWord}
+                        </button>
+                        ?
+                      </p>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => setApprovedTutorSearch("")} className="rounded-lg">
                       Clear Search Filter
                     </Button>
@@ -1442,15 +1785,27 @@ const AdminDashboard = () => {
                 <CardDescription>View all students on the platform.</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="mb-4 relative max-w-sm">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search students by name..."
-                    value={studentSearch}
-                    onChange={(e) => setStudentSearch(e.target.value)}
-                    className="pl-9 rounded-lg"
-                    disabled={loading}
-                  />
+                <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                  <div className="relative max-w-sm flex-1">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search students by name..."
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      className="pl-9 rounded-lg"
+                      disabled={loading}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadStudentsCSV}
+                    disabled={students.length === 0}
+                    className="rounded-xl text-xs font-semibold border-border hover:bg-secondary flex items-center gap-1.5 self-end sm:self-center"
+                  >
+                    <Download className="h-3.5 w-3.5 text-indigo-600" />
+                    Export CSV
+                  </Button>
                 </div>
                 {(() => {
                   const filteredStudents = [...students]
@@ -1459,11 +1814,17 @@ const AdminDashboard = () => {
                       const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                       return timeB - timeA;
                     })
-                    .filter(student =>
-                      (student.full_name || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
-                      (student.email || "").toLowerCase().includes(studentSearch.toLowerCase()) ||
-                      (student.phone || "").toLowerCase().includes(studentSearch.toLowerCase())
-                    );
+                    .filter(student => {
+                      const query = studentSearch.toLowerCase().trim();
+                      if (!query) return true;
+                      const name = (student.full_name || "").toLowerCase();
+                      const email = (student.email || "").toLowerCase();
+                      const phone = (student.phone || "").toLowerCase();
+                      const refCode = (student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode || "").toLowerCase();
+                      const referrerName = (student.referrerName || student.referralInfo?.referrer?.name || "").toLowerCase();
+                      const referrerCode = (student.referrerCode || student.referralInfo?.referrer?.referralCode || "").toLowerCase();
+                      return name.includes(query) || email.includes(query) || phone.includes(query) || refCode.includes(query) || referrerName.includes(query) || referrerCode.includes(query);
+                    });
 
                   if (loading) {
                     return (
@@ -1490,7 +1851,7 @@ const AdminDashboard = () => {
                       <div className="py-16 text-center text-muted-foreground bg-secondary/5 rounded-2xl border border-dashed mt-4">
                         <Search className="mx-auto mb-4 h-12 w-12 opacity-30 text-muted-foreground" />
                         <h3 className="text-lg font-semibold text-foreground mb-2">No Match Found</h3>
-                        <p>No students match the name "{studentSearch}".</p>
+                        <p>No students match the search "{studentSearch}".</p>
                       </div>
                     );
                   }
@@ -1506,6 +1867,7 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Contact</TableHead>
                             <TableHead className="font-medium h-12">Class / Grade</TableHead>
                             <TableHead className="font-medium h-12">Source</TableHead>
+                            <TableHead className="font-medium h-12">Referral Code & Referrer</TableHead>
                             <TableHead className="font-medium h-12 text-right">Joined</TableHead>
                             <TableHead className="font-medium h-12 text-right">Actions</TableHead>
                           </TableRow>
@@ -1523,8 +1885,42 @@ const AdminDashboard = () => {
                               </TableCell>
                               <TableCell>{student.email || "–"}</TableCell>
                               <TableCell>{student.phone || "–"}</TableCell>
-                              <TableCell><Badge variant="outline" className="font-normal bg-secondary/20">{student.student_class || student.studentClass || "–"}</Badge></TableCell>
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <Badge variant="outline" className="font-normal bg-secondary/20 block w-fit">{student.student_class || student.studentClass || "–"}</Badge>
+                                  {(student.interested_subject || student.interestedSubject || student.subject) && (
+                                    <span className="text-[11px] text-muted-foreground block truncate max-w-[140px]" title={student.interested_subject || student.interestedSubject || student.subject}>
+                                      📚 {student.interested_subject || student.interestedSubject || student.subject}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
                               <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
+                              <TableCell>
+                                {(() => {
+                                  const usedCode = student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode;
+                                  const referrer = student.referralInfo?.referrer;
+                                  const referrerName = student.referrerName || referrer?.name;
+                                  const referrerRole = student.referrerRole || referrer?.role;
+                                  
+                                  if (usedCode || referrerName) {
+                                    return (
+                                      <div className="space-y-1">
+                                        <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 text-[11px] font-mono font-bold flex items-center gap-1 w-fit">
+                                          <Gift className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                                          {usedCode || referrer?.referralCode || "Referred"}
+                                        </Badge>
+                                        {referrerName && (
+                                          <span className="text-[11px] text-muted-foreground block truncate max-w-[150px]" title={`Referred by ${referrerName}${referrerRole ? ` (${referrerRole})` : ''}`}>
+                                            by <strong className="text-foreground/90 font-medium">{referrerName}</strong> {referrerRole && <span className="text-[10px] text-muted-foreground capitalize">({referrerRole})</span>}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return <span className="text-muted-foreground text-xs">Direct</span>;
+                                })()}
+                              </TableCell>
                               <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
                               <TableCell className="text-right">
                                 <Button 
@@ -1551,10 +1947,22 @@ const AdminDashboard = () => {
           <TabsContent value="verification-demos">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border-b pb-4">
-                <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
-                  <Video className="h-5 w-5 text-blue-500" /> Tutor Verification Demos
-                </CardTitle>
-                <CardDescription>Monitor and join scheduled mock classes for tutor profile verification.</CardDescription>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-xl flex items-center gap-2 font-bold text-foreground">
+                      <Video className="h-5 w-5 text-blue-500" /> Tutor Verification Demos
+                    </CardTitle>
+                    <CardDescription>Monitor and join scheduled mock classes for tutor profile verification.</CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab("admin-availability")}
+                    className="bg-blue-50/60 hover:bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900 text-xs font-semibold gap-1.5 shadow-xs shrink-0 self-start sm:self-center"
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Manage Admin Availability & Meet Link
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 {loading ? (
@@ -1612,6 +2020,12 @@ const AdminDashboard = () => {
                                     "{demo.cancellationReason}"
                                   </p>
                                 )}
+                                {demo.status === 'completed' && demo.adminComment && (
+                                  <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1 max-w-[220px] truncate mx-auto italic flex items-center justify-center gap-1" title={`Admin Note: ${demo.adminComment}`}>
+                                    <MessageSquare className="h-3 w-3 shrink-0" />
+                                    <span>"{demo.adminComment}"</span>
+                                  </p>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell className="text-center">
@@ -1635,16 +2049,25 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right px-6 py-3">
                               <div className="flex justify-end gap-2">
-                                {demo.status === 'confirmed' && (
+                                {['pending', 'confirmed'].includes(demo.status) && (
                                   <Button
                                     size="sm"
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg"
-                                    onClick={() => setBookingToComplete({ id: demo._id, tutorName: demo.tutorName || "Unknown Tutor" })}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 px-3 rounded-lg text-xs flex items-center gap-1 shadow-xs"
+                                    onClick={() => {
+                                      setBookingToComplete({
+                                        id: demo._id,
+                                        tutorName: demo.tutorName || "Unknown Tutor",
+                                        timing: demo.timing,
+                                        subject: demo.subject,
+                                        existingComment: demo.adminComment || ""
+                                      });
+                                      setAdminCompletionComment(demo.adminComment || "");
+                                    }}
                                   >
-                                    Mark Completed
+                                    <CheckCircle className="h-3.5 w-3.5" /> Completed
                                   </Button>
                                 )}
-                                {['pending', 'confirmed'].includes(demo.status) && (
+                                {['pending', 'confirmed', 'rejected'].includes(demo.status) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1689,6 +2112,23 @@ const AdminDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="admin-availability">
+            <AdminAvailabilityManager
+              onRefreshBookings={fetchTutors}
+              verificationDemos={verificationDemos}
+              onCompleteBooking={(demo) => {
+                setBookingToComplete({
+                  id: demo._id,
+                  tutorName: demo.tutorName || "Unknown Tutor",
+                  timing: demo.timing,
+                  subject: demo.subject,
+                  existingComment: demo.adminComment || ""
+                });
+                setAdminCompletionComment(demo.adminComment || "");
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="bookings">
@@ -1762,7 +2202,7 @@ const AdminDashboard = () => {
                             <TableCell className="text-sm text-muted-foreground">{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1.5">
-                                {['pending', 'confirmed', 'enrolled'].includes(booking.status) && (
+                                {['pending', 'confirmed', 'enrolled', 'rejected'].includes(booking.status) && (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -2856,10 +3296,20 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="conversations">
+            <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-6">
+              <AdminConversationViewer />
+            </Card>
+          </TabsContent>
+
           <TabsContent value="messages">
             <Card className="shadow-lg border border-border/50 bg-card/60 backdrop-blur-md overflow-hidden p-0">
               <ChatPanel initialActiveUserId={activeChatUserId} initialActiveUser={activeChatUser} />
             </Card>
+          </TabsContent>
+
+          <TabsContent value="custom-services">
+            <CustomServiceRequestsViewer />
           </TabsContent>
         </Tabs>
       </div>
@@ -3237,6 +3687,18 @@ const AdminDashboard = () => {
                     />
                   </div>
                   <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Direct Google Meet Link</label>
+                    <Input 
+                      value={editGoogleMeetLink} 
+                      onChange={(e) => setEditGoogleMeetLink(e.target.value)} 
+                      placeholder="https://meet.google.com/abc-defg-hij"
+                      className="bg-background text-sm font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
                     <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block">Teaching Mode</label>
                     <Select value={editMode} onValueChange={setEditMode}>
                       <SelectTrigger className="bg-background text-sm font-semibold">
@@ -3334,6 +3796,93 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Preferred Languages to Speak */}
+                <div className="space-y-3 border-t pt-4">
+                  <div>
+                    <label className="text-xs text-muted-foreground font-bold uppercase tracking-wider block flex items-center gap-1">
+                      <Languages className="h-3.5 w-3.5 text-primary" /> Preferred Languages to Speak
+                    </label>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Languages the tutor is comfortable speaking & teaching in.</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {PREFERRED_LANGUAGE_OPTIONS.map((lang) => {
+                      const isChecked = editLanguages.includes(lang);
+                      return (
+                        <button
+                          key={lang}
+                          type="button"
+                          onClick={() => setEditLanguages(prev => prev.includes(lang) ? prev.filter(l => l !== lang) : [...prev, lang])}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all text-left ${
+                            isChecked
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-background text-foreground border-border hover:bg-secondary/40"
+                          }`}
+                        >
+                          <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 ${isChecked ? "bg-white text-primary border-white" : "border-muted-foreground/60"}`}>
+                            {isChecked && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                          </div>
+                          <span className="truncate">{lang}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-2 items-center pt-1">
+                    <Input
+                      placeholder="Add another language..."
+                      value={editOtherLanguageText}
+                      onChange={(e) => setEditOtherLanguageText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const trimmed = editOtherLanguageText.trim();
+                          if (trimmed) {
+                            const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+                            if (!editLanguages.includes(formatted)) {
+                              setEditLanguages(prev => [...prev, formatted]);
+                            }
+                            setEditOtherLanguageText("");
+                          }
+                        }
+                      }}
+                      className="h-8 text-xs bg-background"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        const trimmed = editOtherLanguageText.trim();
+                        if (trimmed) {
+                          const formatted = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+                          if (!editLanguages.includes(formatted)) {
+                            setEditLanguages(prev => [...prev, formatted]);
+                          }
+                          setEditOtherLanguageText("");
+                        }
+                      }}
+                      className="h-8 text-xs shrink-0"
+                    >
+                      <PlusCircle className="mr-1 h-3.5 w-3.5" /> Add
+                    </Button>
+                  </div>
+                  {editLanguages.filter(l => !PREFERRED_LANGUAGE_OPTIONS.includes(l as any)).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {editLanguages.filter(l => !PREFERRED_LANGUAGE_OPTIONS.includes(l as any)).map(lang => (
+                        <Badge key={lang} variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20 flex items-center gap-1">
+                          {lang}
+                          <button
+                            type="button"
+                            onClick={() => setEditLanguages(prev => prev.filter(l => l !== lang))}
+                            className="hover:text-destructive transition-colors ml-1"
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Subjects & Rates */}
                 <div className="space-y-2 border-t pt-4">
@@ -3594,6 +4143,31 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
+              {/* Preferred Languages to Speak */}
+              <div className="space-y-1.5">
+                <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block flex items-center gap-1">
+                  <Languages className="h-3.5 w-3.5 text-primary" /> Preferred Languages to Speak
+                </span>
+                {selectedTutorForDetail.languages && selectedTutorForDetail.languages.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2 bg-secondary/15 p-3 rounded-lg border border-border/30">
+                    <span className="text-sm font-semibold text-primary mr-1">
+                      {selectedTutorForDetail.languages.join(" · ")}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedTutorForDetail.languages.map((lang: string) => (
+                        <Badge key={lang} variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
+                          {lang}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic bg-secondary/15 p-3 rounded-lg border border-border/30 block">
+                    Not specified
+                  </span>
+                )}
+              </div>
+
               {/* Subjects and Rates */}
               <div className="space-y-2">
                 <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Subjects & Hourly Rates</h4>
@@ -3654,6 +4228,34 @@ const AdminDashboard = () => {
                         <MapPin className="h-3.5 w-3.5" /> View on Google Maps
                       </a>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Direct Google Meet Link Section */}
+              {selectedTutorForDetail.googleMeetLink && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Direct Google Meet Link</h4>
+                  <div className="p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/10 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-emerald-600">
+                        <Video className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Google Meet Room</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[280px]">
+                          {selectedTutorForDetail.googleMeetLink}
+                        </p>
+                      </div>
+                    </div>
+                    <a 
+                      href={selectedTutorForDetail.googleMeetLink.startsWith('http') ? selectedTutorForDetail.googleMeetLink : `https://${selectedTutorForDetail.googleMeetLink}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-2 px-4 rounded-lg border border-emerald-200 dark:border-emerald-900/30 transition-colors inline-flex items-center gap-1.5"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Open Meet
+                    </a>
                   </div>
                 </div>
               )}
@@ -3869,117 +4471,408 @@ const AdminDashboard = () => {
       </Dialog>
 
       {/* Student Details Modal */}
-      <Dialog open={isStudentDetailDialogOpen} onOpenChange={setIsStudentDetailDialogOpen}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <Dialog 
+        open={isStudentDetailDialogOpen} 
+        onOpenChange={(open) => {
+          setIsStudentDetailDialogOpen(open);
+          if (!open) setIsEditingStudentProfile(false);
+        }}
+      >
+        <DialogContent className={`${isEditingStudentProfile ? "sm:max-w-lg" : "sm:max-w-md"} max-h-[90vh] overflow-y-auto transition-all`}>
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-              <GraduationCap className="h-6 w-6 text-indigo-500" /> Student Profile
+            <DialogTitle className="text-2xl font-bold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <GraduationCap className="h-6 w-6 text-indigo-500" /> 
+                {isEditingStudentProfile ? "Edit Student Details" : "Student Profile"}
+              </span>
+              {!isEditingStudentProfile && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditingStudentProfile(true)}
+                  className="rounded-lg h-8 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 gap-1.5 shadow-sm"
+                >
+                  <Pencil className="h-3 w-3" /> Edit Details
+                </Button>
+              )}
             </DialogTitle>
             <DialogDescription>
-              View detailed registration information for this student account.
+              {isEditingStudentProfile 
+                ? "Update student registration credentials, contact details, and grade level."
+                : "View detailed registration information for this student account."
+              }
             </DialogDescription>
           </DialogHeader>
 
           {selectedStudentForDetail && (
-            <div className="space-y-6 py-4">
-              {/* Header profile section with Avatar */}
-              <div className="flex items-center gap-4 pb-4 border-b">
-                <div className="h-16 w-16 rounded-full border shadow-sm overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                  {selectedStudentForDetail.avatar ? (
-                    <img 
-                      src={resolveAssetUrl(selectedStudentForDetail.avatar)} 
-                      alt={selectedStudentForDetail.full_name} 
-                      className="h-full w-full object-cover" 
-                      onError={(e: any) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentForDetail.full_name || "S")}&background=random&size=200`;
-                      }}
+            isEditingStudentProfile ? (
+              <div className="space-y-4 py-2">
+                <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/40 rounded-xl text-xs text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-2">
+                  <Pencil className="h-4 w-4 shrink-0 text-indigo-600" />
+                  <span>Editing registration details for <strong>{selectedStudentForDetail.full_name}</strong>. Changes apply across active classes.</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs font-bold text-foreground">Full Name *</Label>
+                    <Input
+                      value={editStudentName}
+                      onChange={(e) => setEditStudentName(e.target.value)}
+                      placeholder="e.g. Abhiram Kumar"
+                      className="h-9 text-xs sm:text-sm bg-background font-semibold"
                     />
-                  ) : (
-                    <span className="font-bold text-2xl text-indigo-500 uppercase">
-                      {(selectedStudentForDetail.full_name || "S").charAt(0)}
-                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Account Type</Label>
+                    <Select value={editStudentOrParent} onValueChange={setEditStudentOrParent}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Student">Student</SelectItem>
+                        <SelectItem value="Parent">Parent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {editStudentOrParent === "Parent" && (
+                    <div className="space-y-1 animate-in fade-in duration-150">
+                      <Label className="text-xs font-bold text-foreground">Child (Student) Name</Label>
+                      <Input
+                        value={editStudentChildName}
+                        onChange={(e) => setEditStudentChildName(e.target.value)}
+                        placeholder="Child's full name"
+                        className="h-9 text-xs sm:text-sm bg-background font-semibold"
+                      />
+                    </div>
                   )}
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Email Address *</Label>
+                    <Input
+                      type="email"
+                      value={editStudentEmail}
+                      onChange={(e) => setEditStudentEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      className="h-9 text-xs sm:text-sm bg-background"
+                    />
+                  </div>
+
+                  <InternationalPhoneInput
+                    id="editStudentPhone"
+                    label="Phone Number"
+                    required={false}
+                    value={editStudentPhone}
+                    onChange={(fullPhone) => setEditStudentPhone(fullPhone)}
+                  />
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Class / Grade</Label>
+                    <Select value={editStudentClass} onValueChange={setEditStudentClass}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select class" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {STUDENT_CLASS_OPTIONS.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Interested Subject</Label>
+                    <Select value={editStudentInterestedSubject} onValueChange={setEditStudentInterestedSubject}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select subject" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {ALL_SUBJECTS.map((sub) => (
+                          <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs font-bold text-foreground">Time Zone</Label>
+                    <Select value={editStudentTimezone} onValueChange={setEditStudentTimezone}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {COMMON_TIMEZONES.map((tz) => (
+                          <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs font-bold text-foreground">How they heard about us</Label>
+                    <Select value={editStudentHeardAboutUs} onValueChange={setEditStudentHeardAboutUs}>
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select source" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[220px]">
+                        {STUDENT_HEARD_ABOUT_US_OPTIONS.map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-foreground leading-tight">
-                    {selectedStudentForDetail.full_name}
-                  </h3>
-                  <Badge variant="outline" className="mt-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200">
-                    {selectedStudentForDetail.student_or_parent || "Student"}
-                  </Badge>
+
+                <div className="flex justify-end gap-2 pt-3 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsEditingStudentProfile(false)}
+                    disabled={isSavingStudentProfile}
+                    className="h-9 text-xs font-semibold"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSaveStudentDetail}
+                    disabled={isSavingStudentProfile}
+                    className="h-9 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-sm"
+                  >
+                    {isSavingStudentProfile ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-3.5 w-3.5" /> Save Changes
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
+            ) : (
+              <div className="space-y-6 py-4">
+                {/* Header profile section with Avatar */}
+                <div className="flex items-center gap-4 pb-4 border-b">
+                  <div className="h-16 w-16 rounded-full border shadow-sm overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                    {selectedStudentForDetail.avatar ? (
+                      <img 
+                        src={resolveAssetUrl(selectedStudentForDetail.avatar)} 
+                        alt={selectedStudentForDetail.full_name} 
+                        className="h-full w-full object-cover" 
+                        onError={(e: any) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudentForDetail.full_name || "S")}&background=random&size=200`;
+                        }}
+                      />
+                    ) : (
+                      <span className="font-bold text-2xl text-indigo-500 uppercase">
+                        {(selectedStudentForDetail.full_name || "S").charAt(0)}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground leading-tight">
+                      {selectedStudentForDetail.full_name}
+                    </h3>
+                    <Badge variant="outline" className="mt-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200">
+                      {selectedStudentForDetail.student_or_parent || "Student"}
+                    </Badge>
+                  </div>
+                </div>
 
-              {/* General details grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
-                  <span className="text-sm font-semibold text-foreground break-all">{selectedStudentForDetail.email || "–"}</span>
+                {/* General details grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
+                    <span className="text-sm font-semibold text-foreground break-all">{selectedStudentForDetail.email || "–"}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
+                    <span className="text-sm font-semibold text-foreground">{selectedStudentForDetail.phone || "–"}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Class / Grade</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      <Badge variant="outline" className="bg-secondary/20">{selectedStudentForDetail.student_class || selectedStudentForDetail.studentClass || "–"}</Badge>
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Interested Subject(s)</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject ? (
+                        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                          {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject}
+                        </Badge>
+                      ) : (
+                        "–"
+                      )}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Time Zone</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {selectedStudentForDetail.timezone ? `${getTimeZoneAbbreviation(selectedStudentForDetail.timezone)} (${selectedStudentForDetail.timezone})` : 'IST (Asia/Kolkata)'}
+                    </span>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Phone Number</span>
-                  <span className="text-sm font-semibold text-foreground">{selectedStudentForDetail.phone || "–"}</span>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Class / Grade</span>
-                  <span className="text-sm font-semibold text-foreground">
-                    <Badge variant="outline" className="bg-secondary/20">{selectedStudentForDetail.student_class || selectedStudentForDetail.studentClass || "–"}</Badge>
+
+                {/* Conditional section if Parent was registered */}
+                {selectedStudentForDetail.student_or_parent === "Parent" && selectedStudentForDetail.student_name && (
+                  <div className="space-y-1 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
+                    <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Child (Student) Name</span>
+                    <span className="text-sm font-bold text-foreground">{selectedStudentForDetail.student_name}</span>
+                  </div>
+                )}
+
+                {/* Referral Source */}
+                <div className="space-y-1 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> How they heard about us
+                  </span>
+                  <span className="text-sm font-bold text-foreground">
+                    {selectedStudentForDetail.heard_about_us || selectedStudentForDetail.heardAboutUs || "Not specified / Existing User"}
                   </span>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Time Zone</span>
-                  <span className="text-sm font-semibold text-foreground">
-                    {selectedStudentForDetail.timezone ? `${getTimeZoneAbbreviation(selectedStudentForDetail.timezone)} (${selectedStudentForDetail.timezone})` : 'IST (Asia/Kolkata)'}
-                  </span>
+
+                {/* Referral Code & Attribution */}
+                {(() => {
+                  const refInfo = selectedStudentForDetail.referralInfo;
+                  const usedCode = selectedStudentForDetail.usedReferralCode || refInfo?.usedReferralCode || selectedStudentForDetail.marketingRefCode;
+                  const referrer = refInfo?.referrer;
+                  const referrerName = selectedStudentForDetail.referrerName || referrer?.name;
+                  const referrerRole = selectedStudentForDetail.referrerRole || referrer?.role;
+                  const referrerEmail = selectedStudentForDetail.referrerEmail || referrer?.email;
+                  const referrerPhone = referrer?.phone;
+                  const hasReferral = Boolean(usedCode || referrerName || selectedStudentForDetail.referredBy);
+
+                  return (
+                    <div className={`space-y-2.5 p-3.5 rounded-xl border transition-all ${
+                      hasReferral 
+                        ? "bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-purple-500/5 border-purple-500/30 dark:border-purple-500/20 shadow-sm" 
+                        : "bg-secondary/15 border-border/60"
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                          hasReferral ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground"
+                        }`}>
+                          <Gift className="h-3.5 w-3.5" /> Referral Code & Attribution
+                        </span>
+                        {hasReferral ? (
+                          <Badge className="bg-purple-600 hover:bg-purple-700 text-white font-mono text-[10px] px-2 py-0.5 shadow-sm">
+                            Referred Signup
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground border-border">
+                            Direct Signup
+                          </Badge>
+                        )}
+                      </div>
+
+                      {hasReferral ? (
+                        <div className="space-y-2 pt-0.5">
+                          {/* Referral code applied */}
+                          <div className="flex items-center justify-between bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Referral Code Used</span>
+                              <span className="text-xs text-muted-foreground">Code submitted at signup</span>
+                            </div>
+                            <span className="font-mono font-bold text-sm tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-md border border-purple-200 dark:border-purple-800 shadow-sm select-all">
+                              {usedCode || (referrer?.referralCode) || "APPLIED"}
+                            </span>
+                          </div>
+
+                          {/* Whom they used / Referrer details */}
+                          <div className="bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40 space-y-1.5">
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">
+                              Referred By (Owner of Code)
+                            </span>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                                {referrerName || "Referred User"}
+                              </span>
+                              {referrerRole && (
+                                <Badge variant="outline" className={`text-[10px] font-bold capitalize ${
+                                  referrerRole === 'tutor' 
+                                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200' 
+                                    : referrerRole === 'student' 
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200' 
+                                    : 'bg-purple-50 text-purple-600 border-purple-200'
+                                }`}>
+                                  {referrerRole === 'tutor' ? '👨‍🏫 Tutor' : referrerRole === 'student' ? '🎓 Student' : '📢 Affiliate'}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {(referrerEmail || referrerPhone || referrer?.referralCode) && (
+                              <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t border-border/40">
+                                {referrerEmail && (
+                                  <span className="flex items-center gap-1">
+                                    <Mail className="h-3 w-3 text-muted-foreground" /> {referrerEmail}
+                                  </span>
+                                )}
+                                {referrerPhone && (
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3 text-muted-foreground" /> {referrerPhone}
+                                  </span>
+                                )}
+                                {referrer?.referralCode && (
+                                  <span className="flex items-center gap-1 font-mono text-[11px]">
+                                    <Tag className="h-3 w-3 text-muted-foreground" /> {referrer.referralCode}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground py-0.5">
+                          No referral code was used during registration (direct sign up).
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Dates / Metadata */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">
+                  <div>
+                    <span>Joined Date:</span>
+                    <span className="block font-medium text-foreground mt-0.5">
+                      {selectedStudentForDetail.createdAt ? new Date(selectedStudentForDetail.createdAt).toLocaleString() : "Not available"}
+                    </span>
+                  </div>
+                  <div>
+                    <span>User ID:</span>
+                    <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all">
+                      {selectedStudentForDetail._id || selectedStudentForDetail.id || "–"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsEditingStudentProfile(true)}
+                    className="rounded-lg h-9 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 gap-1.5 shadow-sm"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit Details
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsStudentDetailDialogOpen(false)}
+                    className="rounded-lg h-9 px-4 text-xs hover:bg-secondary/20 hover:text-foreground"
+                  >
+                    Close
+                  </Button>
                 </div>
               </div>
-
-              {/* Conditional section if Parent was registered */}
-              {selectedStudentForDetail.student_or_parent === "Parent" && selectedStudentForDetail.student_name && (
-                <div className="space-y-1 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
-                  <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider block">Child (Student) Name</span>
-                  <span className="text-sm font-bold text-foreground">{selectedStudentForDetail.student_name}</span>
-                </div>
-              )}
-
-              {/* Referral Source */}
-              <div className="space-y-1 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider block flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" /> How they heard about us
-                </span>
-                <span className="text-sm font-bold text-foreground">
-                  {selectedStudentForDetail.heard_about_us || selectedStudentForDetail.heardAboutUs || "Not specified / Existing User"}
-                </span>
-              </div>
-
-              {/* Dates / Metadata */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">
-                <div>
-                  <span>Joined Date:</span>
-                  <span className="block font-medium text-foreground mt-0.5">
-                    {selectedStudentForDetail.createdAt ? new Date(selectedStudentForDetail.createdAt).toLocaleString() : "Not available"}
-                  </span>
-                </div>
-                <div>
-                  <span>User ID:</span>
-                  <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all">
-                    {selectedStudentForDetail._id || selectedStudentForDetail.id || "–"}
-                  </span>
-                </div>
-              </div>
-            </div>
+            )
           )}
-
-          <div className="flex justify-end pt-2 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsStudentDetailDialogOpen(false)}
-              className="rounded-lg h-10 px-4 hover:bg-secondary/20 hover:text-foreground"
-            >
-              Close
-            </Button>
-          </div>
         </DialogContent>
       </Dialog>
 
@@ -4245,6 +5138,18 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
+              {selectedBookingForDetail.topicToLearn && (
+                <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/50">
+                  <span className="text-[10px] text-purple-900 dark:text-purple-300 font-bold uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                    <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    Student's Requested Topics to Learn
+                  </span>
+                  <p className="text-xs text-foreground font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                    {selectedBookingForDetail.topicToLearn}
+                  </p>
+                </div>
+              )}
+
               {/* Timing and Financials Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-card border">
@@ -4255,7 +5160,7 @@ const AdminDashboard = () => {
                         <Calendar className="h-4 w-4 text-primary" /> {selectedBookingForDetail.timing}
                       </span>
                     </div>
-                    {['pending', 'confirmed', 'enrolled'].includes(selectedBookingForDetail.status) && (
+                    {['pending', 'confirmed', 'enrolled', 'rejected'].includes(selectedBookingForDetail.status) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -4266,6 +5171,24 @@ const AdminDashboard = () => {
                         }}
                       >
                         <Clock className="h-3 w-3" /> Reschedule
+                      </Button>
+                    )}
+                    {['pending', 'confirmed'].includes(selectedBookingForDetail.status) && selectedBookingForDetail.subject === "Verification Demo Class" && (
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                        onClick={() => {
+                          setBookingToComplete({
+                            id: selectedBookingForDetail._id,
+                            tutorName: selectedBookingForDetail.tutorName || "Unknown Tutor",
+                            timing: selectedBookingForDetail.timing,
+                            subject: selectedBookingForDetail.subject,
+                            existingComment: selectedBookingForDetail.adminComment || ""
+                          });
+                          setAdminCompletionComment(selectedBookingForDetail.adminComment || "");
+                        }}
+                      >
+                        <CheckCircle className="h-3 w-3" /> Completed
                       </Button>
                     )}
                   </div>
@@ -4574,35 +5497,93 @@ const AdminDashboard = () => {
           })()}
         </DialogContent>
       </Dialog>
-      {/* Complete Booking Confirmation Modal */}
-      <Dialog open={bookingToComplete !== null} onOpenChange={(open) => !open && setBookingToComplete(null)}>
-        <DialogContent className="sm:max-w-[450px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
+      {/* Complete Booking Confirmation Modal with Admin Comment */}
+      <Dialog
+        open={bookingToComplete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBookingToComplete(null);
+            setAdminCompletionComment("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[480px] border border-border bg-card/95 backdrop-blur-md shadow-2xl rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-blue-600">
-              <CheckCircle className="h-5 w-5" /> Confirm Demo Completion
+              <CheckCircle className="h-5 w-5" /> Mark Demo as Completed
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground mt-1">
-              Are you sure you want to mark the verification demo for <strong>{bookingToComplete?.tutorName}</strong> as completed? This action will update their status and cannot be undone.
+              Mark the verification demo for <strong className="text-foreground">{bookingToComplete?.tutorName}</strong> as completed.
+              {bookingToComplete?.timing && (
+                <span className="block mt-0.5 text-xs text-muted-foreground">
+                  Scheduled Time: <strong className="text-foreground">{bookingToComplete.timing}</strong>
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-completion-comment" className="text-xs font-semibold flex items-center justify-between">
+                <span>Admin Comment / Feedback</span>
+                <span className="text-[11px] text-muted-foreground font-normal">(Optional)</span>
+              </Label>
+              <Textarea
+                id="admin-completion-comment"
+                placeholder="e.g. Tutor attended demo session via direct link. Good communication, subject expertise verified, profile approved..."
+                value={adminCompletionComment}
+                onChange={(e) => setAdminCompletionComment(e.target.value)}
+                rows={3}
+                className="text-xs resize-none rounded-lg"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                This comment will be saved to the verification demo record for reference.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-border/40">
             <Button
               variant="ghost"
-              onClick={() => setBookingToComplete(null)}
-              className="rounded-lg h-10 px-4 hover:bg-secondary/20 font-semibold"
+              onClick={() => {
+                setBookingToComplete(null);
+                setAdminCompletionComment("");
+              }}
+              disabled={isCompletingBooking}
+              className="rounded-lg h-9 px-4 hover:bg-secondary/20 font-semibold text-xs"
             >
               Cancel
             </Button>
             <Button
               onClick={async () => {
                 if (bookingToComplete) {
-                  await handleUpdateBookingStatus(bookingToComplete.id, 'completed');
-                  setBookingToComplete(null);
+                  try {
+                    setIsCompletingBooking(true);
+                    await handleUpdateBookingStatus(
+                      bookingToComplete.id,
+                      'completed',
+                      undefined,
+                      adminCompletionComment.trim()
+                    );
+                    setBookingToComplete(null);
+                    setAdminCompletionComment("");
+                  } finally {
+                    setIsCompletingBooking(false);
+                  }
                 }
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-10 px-4 shadow-md font-semibold"
+              disabled={isCompletingBooking}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-9 px-4 shadow-md font-semibold text-xs flex items-center gap-1.5"
             >
-              Mark Completed
+              {isCompletingBooking ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3.5 w-3.5" /> Mark Completed
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>
@@ -4615,10 +5596,11 @@ const AdminDashboard = () => {
         booking={reschedulingBooking}
         userRole="Admin"
         onSuccess={(updatedBooking) => {
-          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? updatedBooking : b));
+          setBookings(prev => prev.map(b => b._id === updatedBooking._id ? { ...b, ...updatedBooking } : b));
           if (selectedBookingForDetail && selectedBookingForDetail._id === updatedBooking._id) {
-            setSelectedBookingForDetail(updatedBooking);
+            setSelectedBookingForDetail((prev: any) => ({ ...prev, ...updatedBooking }));
           }
+          fetchTutors();
         }}
       />
     </PageLayout>

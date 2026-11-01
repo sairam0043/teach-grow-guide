@@ -4,8 +4,8 @@ declare global {
   }
 }
 
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles } from "lucide-react";
+import { useParams, Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "@/components/ui/sonner";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
 import { 
@@ -39,7 +40,16 @@ const TutorProfile = () => {
   const { id } = useParams();
   const { user, role } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const navigationState = location.state;
+  const returnToRecommendations =
+    navigationState !== null &&
+    typeof navigationState === "object" &&
+    "returnTo" in navigationState &&
+    navigationState.returnTo === "/dashboard/student" &&
+    "returnTab" in navigationState &&
+    navigationState.returnTab === "recommendations";
   const selectPack = searchParams.get("selectPack") === "true";
   const [tutor, setTutor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +57,17 @@ const TutorProfile = () => {
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
+  const [tutorPosts, setTutorPosts] = useState<any[]>([]);
+  const [selectedImageModal, setSelectedImageModal] = useState<string | null>(null);
+  const [demoTopics, setDemoTopics] = useState<string>("");
+
+  useEffect(() => {
+    if (id) {
+      axios.get(`${API_URL}/tutors/${id}/posts`)
+        .then(res => setTutorPosts(res.data || []))
+        .catch(err => console.error("Failed to fetch tutor posts", err));
+    }
+  }, [id]);
 
   const [studentTimezone, setStudentTimezone] = useState(
     user?.user_metadata?.timezone || user?.timezone || detectUserTimeZone()
@@ -373,6 +394,7 @@ const TutorProfile = () => {
               if (pending.subject) setSelectedSubject(pending.subject);
               if (pending.slot) setSelectedSlot(pending.slot);
               if (pending.plan) setSelectedPlan(pending.plan);
+              if (pending.demoTopics) setDemoTopics(pending.demoTopics);
 
               sessionStorage.removeItem("pending_booking");
               toast.success("Restored your selected booking slot!");
@@ -504,6 +526,13 @@ const TutorProfile = () => {
       }
     }
 
+    if (selectedPlan.type === 'Free Demo Class' && !demoTopics.trim()) {
+      toast.error("Please enter what topics you need the tutor to explain before booking the demo.");
+      const topicsEl = document.getElementById("demo-topics");
+      if (topicsEl) topicsEl.focus();
+      return;
+    }
+
     if (selectedPlan.type === 'Free Demo Class' && isDemoDisabledForSubject) {
       if (demoBookingForSubject?.status === 'pending') {
         toast.error(`You have already requested a demo session for ${selectedSubject}. Please wait for the tutor to accept or reject it.`);
@@ -528,7 +557,8 @@ const TutorProfile = () => {
                   date: date ? date.toISOString() : null,
                   subject: selectedSubject,
                   slot: selectedSlot,
-                  plan: selectedPlan
+                  plan: selectedPlan,
+                  demoTopics: demoTopics.trim()
                 }));
                 window.scrollTo(0, 0);
                 navigate("/login");
@@ -545,7 +575,8 @@ const TutorProfile = () => {
                   date: date ? date.toISOString() : null,
                   subject: selectedSubject,
                   slot: selectedSlot,
-                  plan: selectedPlan
+                  plan: selectedPlan,
+                  demoTopics: demoTopics.trim()
                 }));
                 window.scrollTo(0, 0);
                 navigate("/register/student");
@@ -618,7 +649,8 @@ const TutorProfile = () => {
         subject: selectedSubject,
         studentId: user.id,
         studentName,
-        utcTiming
+        utcTiming,
+        topicToLearn: demoTopics.trim()
       };
 
       if (!isDemoBooking) {
@@ -693,13 +725,15 @@ const TutorProfile = () => {
             orderId: orderData.orderId,
             bookingId: booking._id,
             amount: orderData.amount,
+            currency: orderData.currency || currentCurrency,
+            currencySymbol: currencyInfo.symbol,
             keyId: orderData.keyId,
             tutorName: tutor.name,
             subject: selectedSubject,
             timing: formattedTiming,
             planType: selectedPlan.type,
-            price: booking.amountPaid,
-            originalPrice: selectedPlan.price,
+            price: orderData.foreignAmount || booking.foreignAmount || booking.amountPaid,
+            originalPrice: booking.originalAmount || selectedPlan.price,
             walletDiscount: booking.walletUsed || 0
           });
           setIsProcessingPayment(false);
@@ -1032,7 +1066,16 @@ const TutorProfile = () => {
       )}
       <div className="container py-8">
         <Button variant="ghost" asChild className="mb-6">
-          <Link to="/tutors"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Tutors</Link>
+          <Link
+            to={returnToRecommendations ? "/dashboard/student" : "/tutors"}
+            onClick={() => {
+              if (returnToRecommendations) {
+                sessionStorage.setItem("student_dashboard_tab", "recommendations");
+              }
+            }}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" /> {returnToRecommendations ? "Back to Recommendations" : "Back to Tutors"}
+          </Link>
         </Button>
 
         <div className="grid gap-8 lg:grid-cols-3">
@@ -1064,7 +1107,9 @@ const TutorProfile = () => {
                 <div className="flex flex-wrap items-center gap-3 mb-1">
                   <h1 className="text-3xl font-bold text-foreground capitalize">{tutor.name}</h1>
                   {tutor.isVerified && (
-                    <CheckCircle className="h-6 w-6 fill-blue-500 text-white shrink-0" title="Verified Tutor" />
+                    <span title="Verified Tutor">
+                      <CheckCircle className="h-6 w-6 fill-blue-500 text-white shrink-0" aria-label="Verified Tutor" />
+                    </span>
                   )}
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1306,6 +1351,76 @@ const TutorProfile = () => {
               </Card>
             )}
 
+            {/* Tutor Posts & Media Showcase Section */}
+            {tutorPosts && tutorPosts.length > 0 && (
+              <Card className="border-border/60 shadow-md overflow-hidden">
+                <CardHeader className="bg-purple-50/50 dark:bg-purple-950/20 border-b pb-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xl flex items-center gap-2.5 text-foreground font-extrabold">
+                      <ImageIcon className="h-5 w-5 text-purple-600" />
+                      Tutor Posts & Media Showcase
+                    </CardTitle>
+                    <Badge className="bg-purple-600 text-white font-bold px-3 py-1">
+                      {tutorPosts.length} {tutorPosts.length === 1 ? 'Post' : 'Posts'}
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    Explore notes, whiteboard explanations, and study resources posted by {tutor.name}.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2">
+                    {tutorPosts.map((post: any) => (
+                      <div key={post._id} className="bg-card border rounded-2xl p-5 shadow-sm space-y-4 hover:shadow-md transition-shadow flex flex-col justify-between">
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              {post.title && <h4 className="font-extrabold text-base text-foreground leading-snug">{post.title}</h4>}
+                              <p className="text-[11px] font-medium text-muted-foreground mt-0.5">
+                                Posted on {new Date(post.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {post.caption && (
+                            <p className="text-xs sm:text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                              {post.caption}
+                            </p>
+                          )}
+
+                          {/* Up to 5 Images Display */}
+                          {post.images && post.images.length > 0 && (
+                            <div className={`grid gap-2 mt-2 ${
+                              post.images.length === 1 ? 'grid-cols-1' :
+                              post.images.length === 2 ? 'grid-cols-2' :
+                              'grid-cols-3'
+                            }`}>
+                              {post.images.map((imgUrl: string, idx: number) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => setSelectedImageModal(resolveAssetUrl(imgUrl))}
+                                  className="relative rounded-xl overflow-hidden border bg-muted aspect-square group cursor-pointer"
+                                >
+                                  <img
+                                    src={resolveAssetUrl(imgUrl)}
+                                    alt={`Post media ${idx + 1}`}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold bg-black/60 px-2 py-1 rounded-full backdrop-blur-sm">View</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {(tutor.mode?.toLowerCase() === "offline" || tutor.mode?.toLowerCase() === "both") && tutor.address && (
               <Card className="overflow-hidden border-border/50 shadow-sm">
                 <CardHeader className="bg-secondary/10 pb-4">
@@ -1517,7 +1632,7 @@ const TutorProfile = () => {
                     <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 text-center">
                       <p className="font-medium text-green-800 dark:text-green-300 mb-2">You are officially enrolled in {tutor.name}'s classes!</p>
                       <p className="text-sm text-green-600/80 dark:text-green-400/80">
-                        Plan: {enrolledBooking.planType} (₹{enrolledBooking.amountPaid}{enrolledBooking.planType.includes('Pack') ? '/month' : '/hr'})
+                        Plan: {enrolledBooking.planType} ({enrolledBooking.currency && enrolledBooking.currency !== 'INR' ? `${enrolledBooking.currency} ${enrolledBooking.foreignAmount || enrolledBooking.amountPaid}` : `₹${enrolledBooking.amountPaid}`}{enrolledBooking.planType.includes('Pack') ? '/month' : '/hr'})
                       </p>
                       <p className="text-sm text-green-600/80 dark:text-green-400/80 mt-1">
                         Timing: {enrolledBooking.timing}
@@ -1636,7 +1751,7 @@ const TutorProfile = () => {
                                 </div>
                                 <div className="text-right shrink-0">
                                   <span className="font-extrabold text-sm block">
-                                    {plan.price === 0 ? "Free" : `₹${plan.price}`}
+                                    {plan.price === 0 ? "Free Demo" : formatPrice(plan.price)}
                                   </span>
                                   <span className={`text-[9px] uppercase font-bold tracking-wider ${selectedPlan?.type === plan.type ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
                                     {plan.price === 0 ? "" : plan.isPack ? "/month" : "/hr"}
@@ -1986,7 +2101,7 @@ const TutorProfile = () => {
                                 Apply Student Wallet Credits
                               </label>
                               <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-xs font-bold">
-                                Available: ₹{studentWalletBalance}
+                                Available: {formatPrice(studentWalletBalance)}
                               </Badge>
                             </div>
 
@@ -1998,21 +2113,59 @@ const TutorProfile = () => {
                                 <div className="text-[11px] space-y-1 pt-1 border-t border-amber-500/20 text-muted-foreground">
                                   <div className="flex justify-between">
                                     <span>Plan Price:</span>
-                                    <span className="font-semibold text-foreground">₹{origPrice}</span>
+                                    <span className="font-semibold text-foreground">{formatPrice(origPrice)}</span>
                                   </div>
                                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
                                     <span>Wallet Credit Applied:</span>
-                                    <span>-₹{discount}</span>
+                                    <span>-{formatPrice(discount)}</span>
                                   </div>
                                   <div className="flex justify-between font-bold text-foreground text-xs pt-1 border-t border-amber-500/20">
                                     <span>Net Payable:</span>
                                     <span className="text-amber-600 dark:text-amber-400">
-                                      {net === 0 ? "🎉 FREE (₹0)" : `₹${net}`}
+                                      {net === 0 ? "🎉 FREE (₹0)" : formatPrice(net)}
                                     </span>
                                   </div>
                                 </div>
                               );
                             })()}
+                          </div>
+                        )}
+
+                        {/* Student Topics to be Taught / Focus Areas */}
+                        {selectedPlan && (
+                          <div className="space-y-2 mt-4 p-3.5 border rounded-xl bg-secondary/15 dark:bg-secondary/10 shadow-xs animate-in fade-in">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="demo-topics" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                <BookOpen className="h-3.5 w-3.5 text-primary" />
+                                Topics to be Taught / Questions {selectedPlan.type === 'Free Demo Class' ? <span className="text-destructive font-black">*</span> : <span className="text-muted-foreground font-normal text-[11px]">(Optional)</span>}
+                              </Label>
+                              {selectedPlan.type === 'Free Demo Class' && (
+                                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5">
+                                  Required for Demo
+                                </Badge>
+                              )}
+                            </div>
+                            <Textarea
+                              id="demo-topics"
+                              placeholder={
+                                selectedPlan.type === 'Free Demo Class'
+                                  ? "Please explain what specific topics or chapters you want the tutor to explain in this demo (e.g. Calculus derivatives, Organic chemistry reactions, grammar basics) so the tutor can prepare beforehand..."
+                                  : "Any specific chapters, topics, or goals you would like the tutor to focus on..."
+                              }
+                              value={demoTopics}
+                              onChange={(e) => setDemoTopics(e.target.value)}
+                              className="text-xs min-h-[75px] resize-none rounded-lg bg-background"
+                              maxLength={500}
+                            />
+                            <p className="text-[11px] text-muted-foreground leading-normal">
+                              {selectedPlan.type === 'Free Demo Class' ? (
+                                <span className="text-primary font-medium">
+                                  💡 This informs the tutor in advance so they can prepare custom material for your demo.
+                                </span>
+                              ) : (
+                                <span>Helps the tutor prepare custom learning plans for your session.</span>
+                              )}
+                            </p>
                           </div>
                         )}
 
@@ -2041,9 +2194,9 @@ const TutorProfile = () => {
                                           return "🎉 Pay ₹0 with Wallet & Enroll Now";
                                         }
                                         if (discount > 0) {
-                                          return `Book Class & Pay ₹${net} (₹${discount} from Wallet)`;
+                                          return `Book Class & Pay ${formatPrice(net)} (${formatPrice(discount)} from Wallet)`;
                                         }
-                                        return `Book Class & Pay ₹${origPrice}`;
+                                        return `Book Class & Pay ${formatPrice(origPrice)}`;
                                       })()
                                   )
                                 : "Select Pricing & Booking option"
@@ -2063,7 +2216,7 @@ const TutorProfile = () => {
                         {!selectedExisting && (
                           <p className="text-center text-xs text-muted-foreground mt-2">
                             {selectedPlan
-                              ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ₹${selectedPlan.price}${selectedPlan.isPack ? ' (Monthly Pack)' : '/hr'}`)
+                              ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ${formatPrice(selectedPlan.price)}${selectedPlan.isPack ? ' (Monthly Pack)' : '/hr'}`)
                               : "Select Pricing & Booking option"}
                           </p>
                         )}
@@ -2100,7 +2253,7 @@ const TutorProfile = () => {
               <h3 className="text-2xl font-bold tracking-tight">Cuvasol Payments</h3>
               <div className="mt-4 flex items-baseline justify-between border-t border-white/10 pt-4">
                 <span className="text-sm text-indigo-100">Amount to Pay</span>
-                <span className="text-3xl font-extrabold text-white">₹{sandboxOrder.price}</span>
+                <span className="text-3xl font-extrabold text-white">{sandboxOrder.currency && sandboxOrder.currency !== "INR" ? `${sandboxOrder.currencySymbol || sandboxOrder.currency} ${sandboxOrder.price}` : `₹${sandboxOrder.price}`}</span>
               </div>
             </div>
 
@@ -2128,7 +2281,7 @@ const TutorProfile = () => {
                 {sandboxOrder.walletDiscount > 0 && (
                   <div className="flex justify-between text-emerald-400 font-semibold">
                     <span>Wallet Credit Applied:</span>
-                    <span>-₹{sandboxOrder.walletDiscount}</span>
+                    <span>-{formatPrice(sandboxOrder.walletDiscount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between border-t border-slate-800/80 pt-2 text-[10px] text-slate-500">
@@ -2393,6 +2546,21 @@ const TutorProfile = () => {
                 {isSubmittingCancellation ? "Submitting..." : "Confirm Cancellation"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Full Image Preview Lightbox Dialog */}
+      <Dialog open={!!selectedImageModal} onOpenChange={() => setSelectedImageModal(null)}>
+        <DialogContent className="max-w-4xl p-2 bg-black/90 border-none text-white overflow-hidden">
+          <div className="relative flex items-center justify-center p-4">
+            {selectedImageModal && (
+              <img
+                src={selectedImageModal}
+                alt="Post Full Image"
+                className="max-h-[85vh] w-auto object-contain rounded-lg shadow-2xl"
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 
 const walletTransactionSchema = new mongoose.Schema({
   type: { type: String, enum: ['credit', 'debit'], required: true },
@@ -19,12 +19,15 @@ const userSchema = new mongoose.Schema({
   student_class: { type: String },
   student_or_parent: { type: String, enum: ['Student', 'Parent'], default: 'Student' },
   student_name: { type: String },
+  interested_subject: { type: String, trim: true },
+  subject_interests: [{ type: String }],
   heard_about_us: { type: String },
   role: { type: String, enum: ['admin', 'hr', 'student', 'tutor'], default: 'student' },
   timezone: { type: String, default: 'Asia/Kolkata' },
   resetOtp: { type: String },
   resetOtpExpiry: { type: Date },
   referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  usedReferralCode: { type: String, trim: true },
   referralCode: { type: String, unique: true, sparse: true },
   marketingRefCode: { type: String, trim: true },
   walletBalance: { type: Number, default: 0 },

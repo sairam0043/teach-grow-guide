@@ -35,6 +35,7 @@ const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
 const SignupOtp = require('../schemas/signupOtpSchema');
 const bcrypt = require('bcryptjs');
+const { validateAndNormalizePhone, getPhoneCandidates } = require('../utils/phoneValidator');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const { OAuth2Client } = require('google-auth-library');
@@ -144,16 +145,109 @@ router.post('/send-signup-otp', async (req, res) => {
   }
 });
 
+// POST /api/auth/validate-referral
+router.post('/validate-referral', async (req, res) => {
+  try {
+    const { referralCode } = req.body;
+    if (!referralCode || !referralCode.trim()) {
+      return res.status(400).json({ valid: false, message: 'Please provide a referral code.' });
+    }
+
+    const cleanCode = referralCode.trim().toUpperCase();
+
+    // 1. Check Tutor referral codes (case-insensitive)
+    const referringTutor = await Tutor.findOne({
+      referralCode: { $regex: new RegExp(`^${cleanCode}$`, 'i') }
+    }).select('name referralCode subject category');
+
+    if (referringTutor) {
+      return res.json({
+        valid: true,
+        type: 'tutor',
+        code: referringTutor.referralCode || cleanCode,
+        referrerName: referringTutor.name || 'Tutor',
+        rewardAmount: 200,
+        message: `Valid Tutor Referral Code (${referringTutor.name})! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    // 2. Check Student referral codes (case-insensitive)
+    const referringStudent = await User.findOne({
+      role: 'student',
+      referralCode: { $regex: new RegExp(`^${cleanCode}$`, 'i') }
+    }).select('full_name student_name referralCode');
+
+    if (referringStudent) {
+      const studentName = referringStudent.student_name || referringStudent.full_name || 'a friend';
+      return res.json({
+        valid: true,
+        type: 'student',
+        code: referringStudent.referralCode || cleanCode,
+        referrerName: studentName,
+        rewardAmount: 200,
+        message: `Valid Student Referral Code (${studentName})! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    // 3. Fallback: Check if it's a valid ObjectId or Affiliate marketing pattern
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(cleanCode)) {
+      const refUser = await User.findById(cleanCode);
+      if (refUser) {
+        return res.json({
+          valid: true,
+          type: refUser.role || 'user',
+          code: cleanCode,
+          referrerName: refUser.full_name || 'Member',
+          rewardAmount: 200,
+          message: `Valid Referral Code! ₹200 wallet credits will be added to your account.`
+        });
+      }
+    }
+
+    // Affiliate code format (alphanumeric 3-25 chars)
+    if (/^[A-Z0-9_-]{3,25}$/i.test(cleanCode)) {
+      return res.json({
+        valid: true,
+        type: 'affiliate',
+        code: cleanCode,
+        referrerName: 'Community Referral',
+        rewardAmount: 200,
+        message: `Valid Referral Code! ₹200 wallet credits will be added to your account.`
+      });
+    }
+
+    return res.status(404).json({
+      valid: false,
+      message: 'Referral code not found. Please check and try again.'
+    });
+  } catch (err) {
+    res.status(500).json({ valid: false, message: 'Error validating referral code', error: err.message });
+  }
+});
+
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, heard_about_us, heardAboutUs, referredBy, otp, ...tutorData } = req.body;
+    const { email, password, full_name, phone, role, availableTimings, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, heard_about_us, heardAboutUs, referredBy, otp, ...tutorData } = req.body;
+
+    // Validate phone number (Supports India & International mobile numbers)
+    const phoneCheck = validateAndNormalizePhone(phone);
+    if (!phoneCheck.valid) {
+      return res.status(400).json({ message: phoneCheck.error || 'Please enter a valid mobile number.' });
+    }
+    const cleanPhone = phoneCheck.normalized;
 
     // Check if user exists by email or phone
-    const phoneQuery = phone ? { phone } : null;
-    const checkQuery = phoneQuery ? { $or: [{ email }, phoneQuery] } : { email };
-    let user = await User.findOne(checkQuery);
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    const phoneCandidates = getPhoneCandidates(cleanPhone);
+    let user = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { phone: { $in: phoneCandidates } }
+      ]
+    });
     if (user) {
-      if (user.email === email) {
+      if ((user.email || '').toLowerCase() === normalizedEmail) {
         return res.status(400).json({ message: 'User with this email already exists' });
       } else {
         return res.status(400).json({ message: 'User with this phone number already exists' });
@@ -180,18 +274,33 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    let parsedSubjectInterests = [];
+    if (Array.isArray(subject_interests || subjectInterests)) {
+      parsedSubjectInterests = subject_interests || subjectInterests;
+    } else if (typeof (subject_interests || subjectInterests) === 'string') {
+      parsedSubjectInterests = (subject_interests || subjectInterests).split(',').map(s => s.trim()).filter(Boolean);
+    }
+
     let referredByUserId = undefined;
     let marketingRefCode = undefined;
+    let usedReferralCode = undefined;
+    let initialWalletBalance = 0;
+    let initialWalletHistory = [];
 
     if (referredBy && referredBy.trim() !== "") {
       const trimmedRef = referredBy.trim().toUpperCase();
+      usedReferralCode = trimmedRef;
       // First, try to find a tutor by their referralCode (case-insensitive)
-      const referringTutor = await Tutor.findOne({ referralCode: trimmedRef });
+      const referringTutor = await Tutor.findOne({
+        referralCode: { $regex: new RegExp(`^${trimmedRef}$`, 'i') }
+      });
       if (referringTutor) {
         referredByUserId = referringTutor.userId;
       } else {
         // Next, check if it matches an internal student's referralCode
-        const referringStudent = await User.findOne({ referralCode: trimmedRef });
+        const referringStudent = await User.findOne({
+          referralCode: { $regex: new RegExp(`^${trimmedRef}$`, 'i') }
+        });
         if (referringStudent) {
           referredByUserId = referringStudent._id;
         } else {
@@ -205,21 +314,38 @@ router.post('/register', async (req, res) => {
           }
         }
       }
+
+      // If user is registering as a student and used a referral code, award ₹200 instant welcome wallet credit
+      if (role === 'student') {
+        initialWalletBalance = 200;
+        initialWalletHistory.push({
+          type: 'credit',
+          amount: 200,
+          description: `Welcome Bonus: ₹200 credited for signing up with referral code (${trimmedRef})`,
+          date: new Date()
+        });
+        console.log(`[Student Signup] Credited ₹200 welcome bonus to new student ${full_name || email} for referral code ${trimmedRef}`);
+      }
     }
 
     user = new User({ 
       email, 
       password: hashedPassword, 
       full_name, 
-      phone, 
+      phone: cleanPhone, 
       student_class: student_class || studentClass,
       student_or_parent: student_or_parent || studentOrParent || 'Student',
       student_name: student_name || studentName,
+      interested_subject: interested_subject || interestedSubject || subject || '',
+      subject_interests: parsedSubjectInterests,
       heard_about_us: heard_about_us || heardAboutUs,
       role, 
       timezone: timezone || 'Asia/Kolkata',
       referredBy: referredByUserId,
-      marketingRefCode: marketingRefCode
+      usedReferralCode: usedReferralCode,
+      marketingRefCode: marketingRefCode,
+      walletBalance: initialWalletBalance,
+      walletHistory: initialWalletHistory
     });
     await user.save();
 
@@ -269,6 +395,7 @@ router.post('/register', async (req, res) => {
       let parsedClassesTaught = [];
       let parsedBoardsTaught = [];
       let parsedWorkExperience = [];
+      let parsedLanguages = [];
       try {
         if (typeof tutorData.classesTaught === 'string') {
           parsedClassesTaught = JSON.parse(tutorData.classesTaught);
@@ -284,6 +411,15 @@ router.post('/register', async (req, res) => {
           parsedWorkExperience = JSON.parse(tutorData.workExperience);
         } else if (Array.isArray(tutorData.workExperience)) {
           parsedWorkExperience = tutorData.workExperience;
+        }
+        if (typeof tutorData.languages === 'string') {
+          parsedLanguages = JSON.parse(tutorData.languages);
+        } else if (Array.isArray(tutorData.languages)) {
+          parsedLanguages = tutorData.languages;
+        } else if (typeof tutorData.preferredLanguages === 'string') {
+          parsedLanguages = JSON.parse(tutorData.preferredLanguages);
+        } else if (Array.isArray(tutorData.preferredLanguages)) {
+          parsedLanguages = tutorData.preferredLanguages;
         }
       } catch (err) { }
 
@@ -305,6 +441,7 @@ router.post('/register', async (req, res) => {
         bio: tutorData.bio || '',
         hourlyRate: Number(tutorData.hourlyRate) || 500,
         subjects: parsedSubjects,
+        languages: parsedLanguages,
         classesTaught: parsedClassesTaught,
         boardsTaught: parsedBoardsTaught,
         workExperience: parsedWorkExperience,
@@ -318,6 +455,14 @@ router.post('/register', async (req, res) => {
           const rawUrl = tutorData.google_maps_url || tutorData.googleMapsUrl || '';
           const { expandGoogleMapsUrl } = require('../utils/urlHelper');
           return await expandGoogleMapsUrl(rawUrl);
+        })(),
+        googleMeetLink: (() => {
+          const rawMeet = (tutorData.googleMeetLink || tutorData.google_meet_link || '').trim();
+          if (!rawMeet) return '';
+          if (!/^https?:\/\//i.test(rawMeet)) {
+            return `https://${rawMeet}`;
+          }
+          return rawMeet;
         })(),
         timezone: tutorData.timezone || timezone || 'Asia/Kolkata',
         hearAboutUs: tutorData.hearAboutUs || '',
@@ -382,7 +527,7 @@ router.post('/register', async (req, res) => {
     // sign token for students/admins
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
+    res.status(201).json({ token, user: { id: user._id.toString(), email, full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role, timezone: user.timezone, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -416,7 +561,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role: user.role, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
+    res.json({ token, user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone, referralCode: user.referralCode, walletBalance: user.walletBalance || 0 } });
 
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -425,7 +570,7 @@ router.post('/login', async (req, res) => {
 
 router.post('/google', async (req, res) => {
   try {
-    const { idToken, role, action, timezone } = req.body;
+    const { idToken, role, action, timezone, referredBy } = req.body;
 
     const ticket = await client.verifyIdToken({
       idToken,
@@ -457,7 +602,16 @@ router.post('/google', async (req, res) => {
         googleId,
         avatar: picture,
         role: role || 'student', // Use provided role or default to student
-        timezone: timezone || 'Asia/Kolkata'
+        timezone: timezone || 'Asia/Kolkata',
+        referredBy: req.body.referredBy ? req.body.referredBy : undefined,
+        usedReferralCode: req.body.referredBy ? req.body.referredBy.trim().toUpperCase() : undefined,
+        walletBalance: (role === 'student' || !role) && (req.body.referredBy || req.body.referralCode) ? 200 : 0,
+        walletHistory: (role === 'student' || !role) && (req.body.referredBy || req.body.referralCode) ? [{
+          type: 'credit',
+          amount: 200,
+          description: `Welcome Bonus: ₹200 credited for signing up with referral code (${(req.body.referredBy || req.body.referralCode).trim().toUpperCase()})`,
+          date: new Date()
+        }] : []
       });
       await user.save();
 
@@ -472,7 +626,15 @@ router.post('/google', async (req, res) => {
           experience: 0,
           hourlyRate: 500,
           photo: user.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(user.full_name) + "&background=random",
-          timezone: timezone || 'Asia/Kolkata'
+          timezone: timezone || 'Asia/Kolkata',
+          googleMeetLink: (() => {
+            const rawMeet = (req.body.googleMeetLink || req.body.google_meet_link || '').trim();
+            if (!rawMeet) return '';
+            if (!/^https?:\/\//i.test(rawMeet)) {
+              return `https://${rawMeet}`;
+            }
+            return rawMeet;
+          })()
         });
         await tutor.save();
 
@@ -504,8 +666,11 @@ router.post('/google', async (req, res) => {
         student_class: user.student_class,
         student_name: user.student_name,
         student_or_parent: user.student_or_parent,
+        interested_subject: user.interested_subject,
+        subject_interests: user.subject_interests || [],
         role: user.role,
         avatar: user.avatar,
+        timezone: user.timezone,
         referralCode: user.referralCode,
         walletBalance: user.walletBalance || 0
       }
@@ -647,19 +812,54 @@ router.post('/reset-password', async (req, res) => {
 
 router.put('/profile/:id', async (req, res) => {
   try {
-    const { full_name, phone, timezone, student_class, studentClass, student_name, studentName, avatar, photo } = req.body;
+    const { full_name, email, phone, timezone, student_class, studentClass, student_or_parent, studentOrParent, student_name, studentName, interested_subject, interestedSubject, subject, subject_interests, subjectInterests, heard_about_us, heardAboutUs, avatar, photo } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (full_name) user.full_name = full_name;
-    if (phone !== undefined) user.phone = phone;
+    if (email && email.trim() !== '' && email.trim().toLowerCase() !== (user.email || '').toLowerCase()) {
+      const emailLower = email.trim().toLowerCase();
+      const existing = await User.findOne({ email: emailLower, _id: { $ne: user._id } });
+      if (existing) {
+        return res.status(400).json({ message: 'Another user with this email address already exists' });
+      }
+      user.email = emailLower;
+    }
+    if (phone !== undefined && phone !== null && phone.toString().trim() !== '') {
+      const phoneCheck = validateAndNormalizePhone(phone);
+      if (!phoneCheck.valid) {
+        return res.status(400).json({ message: phoneCheck.error || 'Please enter a valid mobile number.' });
+      }
+      user.phone = phoneCheck.normalized;
+    } else if (phone !== undefined) {
+      user.phone = phone;
+    }
     if (timezone !== undefined) user.timezone = timezone;
     if (avatar !== undefined || photo !== undefined) user.avatar = avatar || photo;
     if (student_class !== undefined || studentClass !== undefined) {
       user.student_class = student_class || studentClass;
     }
+    if (student_or_parent !== undefined || studentOrParent !== undefined) {
+      user.student_or_parent = student_or_parent || studentOrParent;
+    }
     if (student_name !== undefined || studentName !== undefined) {
       user.student_name = student_name || studentName;
+    }
+    if (heard_about_us !== undefined || heardAboutUs !== undefined) {
+      user.heard_about_us = heard_about_us || heardAboutUs;
+    }
+
+    if (interested_subject !== undefined || interestedSubject !== undefined || subject !== undefined) {
+      user.interested_subject = interested_subject || interestedSubject || subject;
+    }
+
+    if (subject_interests !== undefined || subjectInterests !== undefined) {
+      const rawSub = subject_interests !== undefined ? subject_interests : subjectInterests;
+      if (Array.isArray(rawSub)) {
+        user.subject_interests = rawSub;
+      } else if (typeof rawSub === 'string') {
+        user.subject_interests = rawSub.split(',').map(s => s.trim()).filter(Boolean);
+      }
     }
 
     await user.save();
@@ -672,7 +872,7 @@ router.put('/profile/:id', async (req, res) => {
       await Tutor.findOneAndUpdate({ userId: user._id }, updateData);
     }
 
-    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, role: user.role, timezone: user.timezone } });
+    res.json({ message: 'Profile updated successfully', user: { id: user._id.toString(), email: user.email, full_name: user.full_name, phone: user.phone, student_class: user.student_class, student_name: user.student_name, student_or_parent: user.student_or_parent, interested_subject: user.interested_subject, subject_interests: user.subject_interests || [], role: user.role, timezone: user.timezone } });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

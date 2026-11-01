@@ -127,6 +127,20 @@ const generateMeetingLinkForBooking = async ({
 }) => {
   const isAdminDemo = studentId === 'admin' || subject === 'Verification Demo Class';
 
+  // If it's a verification demo and admin configured their Google Meet link in Admin Availability, use it
+  if (isAdminDemo) {
+    try {
+      const AdminAvailability = require('../schemas/adminAvailabilitySchema');
+      const adminAvail = await AdminAvailability.findOne({ isActive: true });
+      if (adminAvail && adminAvail.googleMeetLink && adminAvail.googleMeetLink.trim()) {
+        console.log(`[GoogleMeetService] Using saved Admin Google Meet link: ${adminAvail.googleMeetLink}`);
+        return adminAvail.googleMeetLink.trim();
+      }
+    } catch (err) {
+      console.warn(`[GoogleMeetService] Error checking AdminAvailability:`, err.message);
+    }
+  }
+
   // If it's a verification demo and the admin Google OAuth refresh token is configured, use admin calendar
   if (isAdminDemo && process.env.ADMIN_GOOGLE_REFRESH_TOKEN) {
     try {
@@ -190,8 +204,26 @@ const generateMeetingLinkForBooking = async ({
     }
   }
 
+  // If the tutor has configured their direct Google Meet link, prioritize it for classes and student bookings
+  let activeTutor = tutor;
+  if (!isAdminDemo && tutor) {
+    if (!activeTutor.googleMeetLink && (activeTutor._id || typeof activeTutor === 'string')) {
+      try {
+        const Tutor = require('../schemas/tutorSchema');
+        const dbTutor = await Tutor.findById(activeTutor._id || activeTutor);
+        if (dbTutor) activeTutor = dbTutor;
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (activeTutor && activeTutor.googleMeetLink && activeTutor.googleMeetLink.trim()) {
+      console.log(`[GoogleMeetService] Using tutor's direct Google Meet link: ${activeTutor.googleMeetLink}`);
+      return activeTutor.googleMeetLink.trim();
+    }
+  }
+
   // Otherwise, if it is a normal student booking and the tutor has calendar connected, use tutor calendar
-  if (!isAdminDemo && tutor.googleTokens && tutor.googleTokens.refreshToken) {
+  if (!isAdminDemo && activeTutor && activeTutor.googleTokens && activeTutor.googleTokens.refreshToken) {
     try {
       const User = require('../schemas/userSchema');
       const tutorUser = await User.findById(tutor.userId);

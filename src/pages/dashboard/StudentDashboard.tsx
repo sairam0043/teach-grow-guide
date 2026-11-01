@@ -1,18 +1,47 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Wallet, Gift, Sparkles, Copy, ArrowUpRight, ArrowDownLeft, Check, Share2 } from "lucide-react";
+import { Calendar, BookOpen, CreditCard, User, Search, Clock, Save, History, PlayCircle, Star, Video, MapPin, Settings, Wallet, Gift, Sparkles, Copy, ArrowUpRight, ArrowDownLeft, Check, Share2, CheckCircle2, Plus, X, GraduationCap, Award, ShieldCheck, ArrowRight, BadgeCheck, MessageSquare, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InternationalPhoneInput } from "@/components/ui/international-phone-input";
+import { parsePhoneString, validatePhoneInput } from "@/constants/countryCodes";
+
+const POPULAR_SUBJECTS = [
+  "Mathematics",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Computer Science",
+  "Coding & AI",
+  "English",
+  "Economics",
+  "Social Studies",
+  "Accountancy",
+  "Business Studies",
+  "Malayalam",
+  "Hindi",
+  "French",
+  "Fine Arts",
+  "Music",
+  "Chess"
+];
+
+const STANDARD_CLASSES = [
+  "Class 1", "Class 2", "Class 3", "Class 4", "Class 5",
+  "Class 6", "Class 7", "Class 8", "Class 9", "Class 10",
+  "Class 11", "Class 12", "College / University"
+];
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PageLayout from "@/components/layout/PageLayout";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchStudentStats } from "@/redux/slices/dashboardSlice";
 import { updateUser } from "@/redux/slices/authSlice";
@@ -102,7 +131,7 @@ const StudentDashboard = () => {
     return "upcoming";
   });
 
-  const [activeChatUserId] = useState<string | undefined>(() => {
+  const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
     const saved = sessionStorage.getItem("active_chat_user_id");
     if (saved) {
       sessionStorage.removeItem("active_chat_user_id");
@@ -117,6 +146,16 @@ const StudentDashboard = () => {
   const [profileStudentClass, setProfileStudentClass] = useState(
     user?.student_class || user?.user_metadata?.student_class || ""
   );
+  const [profileInterestedSubject, setProfileInterestedSubject] = useState(
+    user?.interested_subject || user?.user_metadata?.interested_subject || ""
+  );
+  const [profileSubjectInterests, setProfileSubjectInterests] = useState<string[]>(() => {
+    const metaInt = user?.subject_interests || user?.user_metadata?.subject_interests;
+    if (Array.isArray(metaInt)) return metaInt;
+    if (typeof metaInt === 'string') return metaInt.split(',').map((s: string) => s.trim()).filter(Boolean);
+    return [];
+  });
+  const [customSubjectInput, setCustomSubjectInput] = useState("");
   const [profileStudentName, setProfileStudentName] = useState(
     user?.student_name || user?.user_metadata?.student_name || ""
   );
@@ -125,11 +164,23 @@ const StudentDashboard = () => {
   );
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
+  // Recommended Tutors States
+  const [allTutors, setAllTutors] = useState<any[]>([]);
+  const [loadingTutors, setLoadingTutors] = useState<boolean>(true);
+  const [recommendationSortBy, setRecommendationSortBy] = useState<"match" | "price-asc" | "price-desc">("match");
+
   useEffect(() => {
     if (user) {
       setProfileName(String(user.user_metadata?.full_name || user.full_name || "Student"));
       setProfilePhone(user.phone || "");
       setProfileStudentClass(user.student_class || user.user_metadata?.student_class || "");
+      setProfileInterestedSubject(user.interested_subject || user.user_metadata?.interested_subject || "");
+      const metaInt = user.subject_interests || user.user_metadata?.subject_interests;
+      if (Array.isArray(metaInt)) {
+        setProfileSubjectInterests(metaInt);
+      } else if (typeof metaInt === 'string') {
+        setProfileSubjectInterests(metaInt.split(',').map((s: string) => s.trim()).filter(Boolean));
+      }
       setProfileStudentName(user.student_name || user.user_metadata?.student_name || "");
       if (user.timezone) {
         setStudentTimezone(user.timezone);
@@ -138,6 +189,130 @@ const StudentDashboard = () => {
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    axios.get(`${API_URL}/tutors?status=approved`)
+      .then(res => setAllTutors(res.data || []))
+      .catch(err => console.error("Error fetching tutors for recommendations:", err))
+      .finally(() => setLoadingTutors(false));
+  }, []);
+
+  // MANDATORY REQUIREMENT: ONLY VERIFIED TUTORS (isVerified === true)
+  const verifiedTutors = (Array.isArray(allTutors) ? allTutors : []).filter(t => t && t.isVerified === true);
+
+  // Helper to determine tutor effective hourly price for sorting & display
+  const getTutorPrice = (tutor: any): number => {
+    const rates = (Array.isArray(tutor?.subjectRates) ? tutor.subjectRates : [])
+      .map((sr: any) => Number(sr?.rate))
+      .filter((r: number) => !isNaN(r) && r > 0);
+    if (rates.length > 0) {
+      return Math.min(...rates);
+    }
+    const hr = Number(tutor?.hourlyRate);
+    if (!isNaN(hr) && hr > 0) {
+      return hr;
+    }
+    return 300;
+  };
+
+  const getTutorPriceDisplay = (tutor: any) => {
+    const rates = (Array.isArray(tutor?.subjectRates) ? tutor.subjectRates : [])
+      .map((sr: any) => Number(sr?.rate))
+      .filter((r: number) => !isNaN(r) && r > 0);
+    if (rates.length > 1) {
+      const min = Math.min(...rates);
+      const max = Math.max(...rates);
+      if (min !== max) {
+        return `₹${min} - ₹${max}`;
+      }
+      return `₹${min}`;
+    }
+    return `₹${getTutorPrice(tutor)}`;
+  };
+
+  // Recommendation Scoring Logic based on Student Class & Subject Interests
+  const recommendedTutors = verifiedTutors.map(tutor => {
+    try {
+      let score = 0;
+      const matchReasons: string[] = [];
+
+      const stdClass = String(profileStudentClass || "").toLowerCase().trim();
+      const stdSubjects = (Array.isArray(profileSubjectInterests) ? profileSubjectInterests : [])
+        .map(s => String(s || '').toLowerCase().trim())
+        .filter(Boolean);
+
+      // 1. Match Subject Interests
+      const tutorSubjects = (Array.isArray(tutor?.subjects) ? tutor.subjects : [])
+        .map((s: any) => String(s || '').toLowerCase().trim())
+        .filter(Boolean);
+      const tutorRates = (Array.isArray(tutor?.subjectRates) ? tutor.subjectRates : [])
+        .map((sr: any) => String(sr?.subject || '').toLowerCase().trim())
+        .filter(Boolean);
+      const allTutorSubjects = Array.from(new Set([...tutorSubjects, ...tutorRates]));
+
+      stdSubjects.forEach(stSub => {
+        const isMatch = allTutorSubjects.some(tSub => tSub.includes(stSub) || stSub.includes(tSub));
+        if (isMatch) {
+          score += 4;
+          const formattedSubject = stSub.charAt(0).toUpperCase() + stSub.slice(1);
+          if (!matchReasons.includes(`Subject: ${formattedSubject}`)) {
+            matchReasons.push(`Subject: ${formattedSubject}`);
+          }
+        }
+      });
+
+      // 2. Match Class / Grade
+      const tutorClasses = (Array.isArray(tutor?.classesTaught) ? tutor.classesTaught : [])
+        .map((c: any) => String(c || '').toLowerCase().trim())
+        .filter(Boolean);
+      if (stdClass) {
+        const classNumMatch = stdClass.match(/\d+/)?.[0];
+        const isClassMatch = tutorClasses.some((tc: string) => {
+          if (tc === stdClass) return true;
+          if (classNumMatch && (tc.includes(`class ${classNumMatch}`) || tc.includes(`grade ${classNumMatch}`) || tc === classNumMatch)) return true;
+          return false;
+        });
+
+        if (isClassMatch) {
+          score += 4;
+          matchReasons.push(`Class: ${profileStudentClass}`);
+        }
+      }
+
+      if (tutor?.featured) score += 1;
+      if (typeof tutor?.rating === 'number' && tutor.rating >= 4.5) score += 1;
+
+      return {
+        tutor,
+        score,
+        matchReasons
+      };
+    } catch (e) {
+      console.error("Error scoring recommended tutor:", e);
+      return {
+        tutor,
+        score: 0,
+        matchReasons: []
+      };
+    }
+  }).sort((a, b) => {
+    if (recommendationSortBy === "price-asc") {
+      const diff = getTutorPrice(a.tutor) - getTutorPrice(b.tutor);
+      if (diff !== 0) return diff;
+      return b.score - a.score;
+    }
+    if (recommendationSortBy === "price-desc") {
+      const diff = getTutorPrice(b.tutor) - getTutorPrice(a.tutor);
+      if (diff !== 0) return diff;
+      return b.score - a.score;
+    }
+    // Default: Sort by recommendation match score (highest score first)
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    // Secondary tie-breaker: Lowest price first
+    return getTutorPrice(a.tutor) - getTutorPrice(b.tutor);
+  });
 
   const timezonesList = studentTimezone && !COMMON_TIMEZONES.includes(studentTimezone)
     ? [studentTimezone, ...COMMON_TIMEZONES]
@@ -250,8 +425,11 @@ const StudentDashboard = () => {
     if (user?.id) {
       dispatch(fetchStudentStats(user.id));
       axios.get(`${API_URL}/dashboard/student/${user.id}/bookings`)
-        .then(res => setBookings(res.data))
-        .catch(err => console.error(err))
+        .then(res => setBookings(Array.isArray(res.data) ? res.data : []))
+        .catch(err => {
+          console.error(err);
+          setBookings([]);
+        })
         .finally(() => setLoadingBookings(false));
     }
   }, [dispatch, user?.id]);
@@ -268,14 +446,26 @@ const StudentDashboard = () => {
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id) return;
+    let cleanPhone = profilePhone.trim();
+    if (cleanPhone) {
+      const parsed = parsePhoneString(cleanPhone);
+      const phoneCheck = validatePhoneInput(parsed.dialCode, parsed.nationalNumber);
+      if (!phoneCheck.isValid) {
+        toast.error(phoneCheck.error || "Please enter a valid mobile number.");
+        return;
+      }
+      cleanPhone = phoneCheck.fullPhone;
+    }
+
     setIsUpdatingProfile(true);
     try {
       const response = await axios.put(`${API_URL}/auth/profile/${user.id}`, { 
         full_name: profileName, 
-        phone: profilePhone,
+        phone: cleanPhone,
         student_class: profileStudentClass,
         student_name: user?.student_or_parent === "Parent" ? profileStudentName : undefined,
+        interested_subject: profileInterestedSubject,
+        subject_interests: profileSubjectInterests,
         timezone: studentTimezone
       });
       if (response.data && response.data.user) {
@@ -284,6 +474,8 @@ const StudentDashboard = () => {
           phone: response.data.user.phone,
           student_class: response.data.user.student_class,
           student_name: response.data.user.student_name,
+          interested_subject: response.data.user.interested_subject,
+          subject_interests: response.data.user.subject_interests,
           timezone: response.data.user.timezone
         }));
       }
@@ -320,8 +512,8 @@ const StudentDashboard = () => {
     }
   };
 
-  const enrolledClasses = bookings.filter(b => b.status === 'enrolled');
-  const paymentHistory = bookings.filter(b => b.status === 'enrolled' && b.amountPaid);
+  const enrolledClasses = (Array.isArray(bookings) ? bookings : []).filter(b => b && b.status === 'enrolled');
+  const paymentHistory = (Array.isArray(bookings) ? bookings : []).filter(b => b && b.status === 'enrolled' && b.amountPaid);
 
   return (
     <PageLayout>
@@ -371,6 +563,13 @@ const StudentDashboard = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/50 p-1 rounded-xl shadow-sm border mb-4 w-full overflow-x-auto whitespace-nowrap justify-start h-auto">
             <TabsTrigger value="upcoming" className="rounded-lg px-6 py-2.5 shrink-0">My Classes</TabsTrigger>
+            <TabsTrigger value="recommendations" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400">
+              <Sparkles className="h-4 w-4 fill-amber-400 text-amber-500 animate-pulse" />
+              Recommended Tutors
+              {verifiedTutors.length > 0 && (
+                <Badge className="ml-1 bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 border-none">Verified</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Tracker</TabsTrigger>
             <TabsTrigger value="wallet" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-2">
               <Wallet className="h-4 w-4 text-amber-500" />
@@ -553,7 +752,7 @@ const StudentDashboard = () => {
                                               asChild
                                             >
                                               <a
-                                                href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, profileName, user?.email || '')}
+                                                href={getMeetingHref(session.meetingLink, `${cls._id}-session-${sIdx + 1}`, profileName, user?.email || '', cls.subject, cls.tutorGoogleMeetLink)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                               >
@@ -697,7 +896,7 @@ const StudentDashboard = () => {
                                     asChild
                                   >
                                     <a
-                                       href={getMeetingHref(cls.meetingLink, cls._id, profileName, user?.email || '')}
+                                       href={getMeetingHref(cls.meetingLink, cls._id, profileName, user?.email || '', cls.subject, cls.tutorGoogleMeetLink)}
                                        target="_blank"
                                       rel="noopener noreferrer"
                                     >
@@ -718,6 +917,264 @@ const StudentDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Recommended Tutors Tab Content */}
+          <TabsContent value="recommendations" className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b">
+                <div>
+                  <h2 className="text-2xl font-extrabold text-foreground flex items-center gap-2">
+                    <Sparkles className="h-6 w-6 text-amber-500 fill-amber-400" />
+                    Recommended Tutors for You
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Verified tutors matched automatically based on your 
+                    {profileStudentClass ? <span className="font-semibold text-foreground"> {profileStudentClass}</span> : null}
+                    {profileSubjectInterests.length > 0 ? (
+                      <span> and subject interests (<span className="font-semibold text-primary">{profileSubjectInterests.join(", ")}</span>)</span>
+                    ) : null}.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                  {/* Price & Recommendation Sorting */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1 shrink-0">
+                      <ArrowUpDown className="h-3.5 w-3.5 text-primary" /> Sort:
+                    </span>
+                    <Select
+                      value={recommendationSortBy}
+                      onValueChange={(val: "match" | "price-asc" | "price-desc") => setRecommendationSortBy(val)}
+                    >
+                      <SelectTrigger className="w-[190px] h-9 text-xs font-medium rounded-xl bg-background border-border/80 shadow-sm hover:border-primary/50 transition-colors">
+                        <SelectValue placeholder="Sort tutors" />
+                      </SelectTrigger>
+                      <SelectContent align="end" className="rounded-xl shadow-lg border-border">
+                        <SelectItem value="match" className="text-xs font-medium cursor-pointer">
+                          ✨ Best Match (Default)
+                        </SelectItem>
+                        <SelectItem value="price-asc" className="text-xs font-medium cursor-pointer">
+                          📈 Price: Low to High
+                        </SelectItem>
+                        <SelectItem value="price-desc" className="text-xs font-medium cursor-pointer">
+                          📉 Price: High to Low
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 font-bold px-3 py-1.5 flex items-center gap-1.5 shrink-0">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    Verified Tutors Only
+                  </Badge>
+                </div>
+              </div>
+
+              {recommendationSortBy !== "match" && (
+                <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl px-4 py-2 text-xs">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <ArrowUpDown className="h-3.5 w-3.5 text-primary" />
+                    <span>
+                      Sorting tutors by: <strong className="text-foreground">{recommendationSortBy === "price-asc" ? "Price: Low to High" : "Price: High to Low"}</strong>
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRecommendationSortBy("match")}
+                    className="h-6 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10 rounded-md font-semibold"
+                  >
+                    Reset to Best Match <X className="h-3 w-3 ml-1" />
+                  </Button>
+                </div>
+              )}
+
+              {loadingTutors ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <Skeleton className="h-72 w-full rounded-2xl" />
+                  <Skeleton className="h-72 w-full rounded-2xl" />
+                  <Skeleton className="h-72 w-full rounded-2xl" />
+                </div>
+              ) : verifiedTutors.length === 0 ? (
+                <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed">
+                  <ShieldCheck className="mx-auto mb-4 h-16 w-16 opacity-40 text-primary" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No Verified Tutors Found</h3>
+                  <p className="max-w-md mx-auto text-sm">Our admin team is currently reviewing tutor applications. Check back soon for newly verified tutors!</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {profileSubjectInterests.length === 0 && !profileStudentClass && (
+                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-950 dark:text-amber-200 flex items-center justify-between text-xs sm:text-sm">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+                        <span>Add your <strong>Class/Grade</strong> and <strong>Subject Interests</strong> in Profile Settings to see top personalized matches!</span>
+                      </div>
+                      <Button size="sm" onClick={() => setActiveTab("profile")} className="bg-amber-500 hover:bg-amber-600 text-white text-xs shrink-0 rounded-full px-4 ml-2">
+                        Go to Settings
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {recommendedTutors.map(({ tutor, score, matchReasons }) => {
+                      const tutorUserId = tutor.userId?._id || tutor.userId?.id || tutor.userId;
+                      const hasMatches = matchReasons.length > 0;
+
+                      return (
+                        <Card key={tutor._id || tutor.id} className="group border-border/60 hover:border-primary/50 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden bg-card">
+                          <CardHeader className="p-5 pb-3 bg-secondary/10 border-b border-border/40 relative">
+                            <div className="flex items-start gap-4">
+                              <div className="relative shrink-0">
+                                <img
+                                  src={tutor.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random`}
+                                  alt={tutor.name}
+                                  className="h-16 w-16 rounded-2xl object-cover border-2 border-primary/30 shadow-sm"
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}&background=random`;
+                                  }}
+                                />
+                                <Badge className="absolute -bottom-2 -right-1 bg-emerald-600 text-white text-[9px] px-1 py-0 border-none shadow-sm flex items-center gap-0.5">
+                                  <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                                </Badge>
+                              </div>
+
+                              <div className="flex-grow min-w-0">
+                                <div className="flex items-center justify-between gap-1">
+                                  <h3 className="font-bold text-lg text-foreground truncate capitalize">{tutor.name}</h3>
+                                </div>
+                                <p className="text-xs text-muted-foreground font-medium mt-0.5">{tutor.experience || 0} years experience</p>
+
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  {tutor.rating > 0 && (
+                                    <div className="flex items-center gap-1 text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-2 py-0.5 rounded-full border border-amber-500/20">
+                                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                                      <span>{tutor.rating}</span>
+                                      {tutor.reviewCount > 0 && <span className="text-muted-foreground font-normal">({tutor.reviewCount})</span>}
+                                    </div>
+                                  )}
+                                  <Badge variant="outline" className="text-[10px] font-semibold text-primary border-primary/30">
+                                    {tutor.category || 'Academic'}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Match Badges */}
+                            {hasMatches && (
+                              <div className="mt-3 flex flex-wrap gap-1">
+                                {matchReasons.map(reason => (
+                                  <span key={reason} className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                    <Sparkles className="h-2.5 w-2.5 text-emerald-500" /> {reason}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </CardHeader>
+
+                          <CardContent className="p-5 flex-grow space-y-3">
+                            {/* Subjects Taught */}
+                            <div>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">Subjects Taught</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(tutor.subjects || []).slice(0, 4).map((sub: string) => (
+                                  <Badge key={sub} variant="secondary" className="text-xs font-medium bg-secondary/80">
+                                    {sub}
+                                  </Badge>
+                                ))}
+                                {(tutor.subjects || []).length > 4 && (
+                                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                                    +{(tutor.subjects || []).length - 4} more
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Classes Taught */}
+                            {tutor.classesTaught && tutor.classesTaught.length > 0 && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-1">
+                                <GraduationCap className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <span className="truncate">Classes: <strong className="text-foreground">{tutor.classesTaught.join(", ")}</strong></span>
+                              </div>
+                            )}
+
+                            {/* City & Mode */}
+                            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/30">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3.5 w-3.5 text-rose-500" />
+                                {tutor.city || "Online"}
+                              </span>
+                              <span className="font-medium text-foreground">
+                                Mode: {tutor.mode?.toLowerCase() === "both" ? "Online & Offline" : (tutor.mode || "Online")}
+                              </span>
+                            </div>
+
+                            {/* Pricing */}
+                            <div className="pt-2 flex items-baseline justify-between">
+                              <div>
+                                <span className="text-2xl font-extrabold text-foreground tracking-tight">
+                                  {getTutorPriceDisplay(tutor)}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-normal"> / hour</span>
+                              </div>
+                            </div>
+                          </CardContent>
+
+                          <div className="p-4 bg-secondary/20 border-t border-border/40 grid grid-cols-2 gap-2">
+                            <Button
+                              asChild
+                              size="sm"
+                              className="w-full shadow-sm rounded-xl font-bold text-xs bg-primary hover:bg-primary/90"
+                            >
+                              <Link
+                                to={`/tutors/${tutor._id || tutor.id}`}
+                                state={{ returnTo: "/dashboard/student", returnTab: "recommendations" }}
+                                onClick={() => sessionStorage.setItem("student_dashboard_tab", "recommendations")}
+                              >
+                                Book Demo
+                              </Link>
+                            </Button>
+
+                            {tutorUserId ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  if (typeof tutorUserId === 'string') {
+                                    sessionStorage.setItem("active_chat_user_id", tutorUserId);
+                                    setActiveChatUserId(tutorUserId);
+                                  }
+                                  setActiveTab("messages");
+                                }}
+                                className="w-full rounded-xl text-xs font-semibold border-border hover:bg-secondary/60 flex items-center justify-center gap-1"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5 text-blue-500" /> Message
+                              </Button>
+                            ) : (
+                              <Button
+                                asChild
+                                size="sm"
+                                variant="outline"
+                                className="w-full rounded-xl text-xs font-semibold border-border"
+                              >
+                                <Link
+                                  to={`/tutors/${tutor._id || tutor.id}`}
+                                  state={{ returnTo: "/dashboard/student", returnTab: "recommendations" }}
+                                  onClick={() => sessionStorage.setItem("student_dashboard_tab", "recommendations")}
+                                >
+                                  View Profile
+                                </Link>
+                              </Button>
+                            )}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="demos">
@@ -746,6 +1203,17 @@ const StudentDashboard = () => {
                              <User className="h-5 w-5 text-primary"/> {booking.tutorName}
                           </p>
                           {booking.subject && <p className="text-sm font-medium text-primary mt-1 px-2 py-0.5 bg-primary/10 rounded-md inline-block">{booking.subject}</p>}
+                          {booking.topicToLearn && (
+                            <div className="mt-2.5 p-2.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-800/50 text-xs max-w-lg">
+                              <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5 mb-0.5">
+                                <BookOpen className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                Requested Topics to Learn:
+                              </span>
+                              <p className="text-foreground/90 font-medium pl-5 whitespace-pre-wrap leading-relaxed">
+                                {booking.topicToLearn}
+                              </p>
+                            </div>
+                          )}
                           <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
                             <Calendar className="h-4 w-4"/> {formatBookingTime(booking, studentTimezone)}
                             {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
@@ -846,7 +1314,7 @@ const StudentDashboard = () => {
                                      asChild
                                    >
                                      <a
-                                       href={getMeetingHref(booking.meetingLink, booking._id, profileName, user?.email || '', booking.subject)}
+                                       href={getMeetingHref(booking.meetingLink, booking._id, profileName, user?.email || '', booking.subject, booking.tutorGoogleMeetLink)}
                                        target="_blank"
                                        rel="noopener noreferrer"
                                      >
@@ -975,9 +1443,9 @@ const StudentDashboard = () => {
                         <span className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm">
                           <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Student Rewards & Wallet
                         </span>
-                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Refer Friends, Earn ₹500 Class Credits!</h2>
+                        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Give ₹200, Earn ₹500 Class Credits!</h2>
                         <p className="text-white/95 text-sm md:text-base leading-relaxed">
-                          Invite friends to learn on Cuvasol. When your friend completes their first regular class, you get <strong>₹500 added directly to your Student Wallet</strong> to use for 100% free bookings or discounts on any class!
+                          Invite friends to learn on Cuvasol. When your friend signs up with your referral code, <strong>they get ₹200 credited to their wallet</strong> immediately for booking classes. When they complete their first regular class, <strong>you get ₹500 added to your Student Wallet</strong>!
                         </p>
                       </div>
                       <div className="shrink-0 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-inner">
@@ -1033,7 +1501,7 @@ const StudentDashboard = () => {
                           Your Referral Link & Code
                         </CardTitle>
                         <CardDescription>
-                          Share with classmates, friends, or parents to earn ₹500 credits.
+                          Friends get ₹200 instantly on signup; you earn ₹500 on class completion.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
@@ -1068,7 +1536,7 @@ const StudentDashboard = () => {
                         <div className="flex flex-col sm:flex-row gap-3 pt-1">
                           <a
                             href={studentRefCode ? `https://api.whatsapp.com/send?text=${encodeURIComponent(
-                              `Hey! I'm learning with top tutors on Cuvasol. Register using my invite code: ${studentRefCode} or link: ${studentShareLink} to start your classes!`
+                              `Hey! I'm learning with top tutors on Cuvasol. Register using my invite code: ${studentRefCode} to get ₹200 credited to your wallet instantly to book classes! Direct link: ${studentShareLink}`
                             )}` : "#"}
                             onClick={(e) => !studentRefCode && e.preventDefault()}
                             target="_blank"
@@ -1080,9 +1548,9 @@ const StudentDashboard = () => {
                           </a>
                           <a
                             href={studentRefCode ? `mailto:?subject=${encodeURIComponent(
-                              "Join me on Cuvasol Tutor!"
+                              "Join me on Cuvasol Tutor — Get ₹200 Free Wallet Credits!"
                             )}&body=${encodeURIComponent(
-                              `Hi there,\n\nI invite you to learn with expert tutors on Cuvasol! Use my referral code: ${studentRefCode} or direct link:\n${studentShareLink}\n\nHappy learning!`
+                              `Hi there,\n\nI invite you to learn with expert tutors on Cuvasol! Use my referral code: ${studentRefCode} or direct link:\n${studentShareLink}\n\nYou'll get ₹200 in your student wallet instantly to book your classes!\n\nHappy learning!`
                             )}` : "#"}
                             onClick={(e) => !studentRefCode && e.preventDefault()}
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl text-sm transition-all border shadow-sm cursor-pointer ${!studentRefCode && 'opacity-50 cursor-not-allowed'}`}
@@ -1286,15 +1754,126 @@ const StudentDashboard = () => {
                     <Label htmlFor="email" className="text-sm font-semibold">Email Address <span className="text-xs font-normal text-muted-foreground">(Cannot be changed)</span></Label>
                     <Input id="email" value={String(user?.email || "")} disabled className="bg-secondary/50 opacity-70" />
                   </div>
+                  <InternationalPhoneInput
+                    id="phone"
+                    label="Phone Number"
+                    required={false}
+                    value={profilePhone}
+                    onChange={(fullPhone) => setProfilePhone(fullPhone)}
+                  />
+                  {/* Class / Grade Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
-                    <Input id="phone" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value.replace(/[^0-9+\s-]/g, ''))} placeholder="+1 234 567 890" className="bg-secondary/20 border-border/50" />
+                    <Label htmlFor="studentClass" className="text-sm font-semibold flex items-center justify-between">
+                      <span>Class / Grade</span>
+                      <span className="text-xs font-normal text-muted-foreground">Used for tutor matching</span>
+                    </Label>
+                    <Select value={profileStudentClass} onValueChange={setProfileStudentClass}>
+                      <SelectTrigger id="studentClass" className="bg-secondary/20 border-border/50">
+                        <SelectValue placeholder="Select your class or grade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STANDARD_CLASSES.map((cls) => (
+                          <SelectItem key={cls} value={cls}>{cls}</SelectItem>
+                        ))}
+                        {!STANDARD_CLASSES.includes(profileStudentClass) && profileStudentClass && (
+                          <SelectItem value={profileStudentClass}>{profileStudentClass}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="studentClass" className="text-sm font-semibold">Class / Grade</Label>
-                    <Input id="studentClass" value={profileStudentClass} onChange={(e) => setProfileStudentClass(e.target.value)} placeholder="e.g. Class 10, Grade 8, College" className="bg-secondary/20 border-border/50" />
+
+                  {/* Subject Interests Section */}
+                  <div className="space-y-3 pt-2 border-t border-border/40">
+                    <Label className="text-sm font-semibold flex items-center justify-between">
+                      <span>Subject Interests</span>
+                      <span className="text-xs font-normal text-muted-foreground">Subjects you want to study</span>
+                    </Label>
+
+                    {/* Selected subject tags */}
+                    <div className="flex flex-wrap gap-2 p-3 bg-secondary/15 rounded-xl border border-border/40 min-h-[48px] items-center">
+                      {profileSubjectInterests.length === 0 ? (
+                        <span className="text-xs text-muted-foreground italic">No subjects selected yet. Pick from popular subjects below or type your own.</span>
+                      ) : (
+                        profileSubjectInterests.map((sub) => (
+                          <Badge key={sub} className="bg-primary/15 text-primary hover:bg-primary/25 border border-primary/30 px-3 py-1 text-xs rounded-full flex items-center gap-1.5">
+                            {sub}
+                            <button
+                              type="button"
+                              onClick={() => setProfileSubjectInterests(prev => prev.filter(s => s !== sub))}
+                              className="hover:text-destructive text-primary/70 transition-colors ml-0.5 cursor-pointer"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Popular Subject Quick Select */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">Popular Subjects (Click to select/deselect):</p>
+                      <div className="flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto p-1">
+                        {POPULAR_SUBJECTS.map((sub) => {
+                          const isSelected = profileSubjectInterests.includes(sub);
+                          return (
+                            <button
+                              key={sub}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setProfileSubjectInterests(prev => prev.filter(s => s !== sub));
+                                } else {
+                                  setProfileSubjectInterests(prev => [...prev, sub]);
+                                }
+                              }}
+                              className={`text-xs px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+                                isSelected 
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm font-semibold" 
+                                  : "bg-background hover:bg-secondary text-muted-foreground border-border/60"
+                              }`}
+                            >
+                              {isSelected ? "✓ " : "+ "}{sub}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Custom subject interest input */}
+                    <div className="flex gap-2 pt-1">
+                      <Input
+                        placeholder="Add custom subject (e.g. Robotics, SAT Math)..."
+                        value={customSubjectInput}
+                        onChange={(e) => setCustomSubjectInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (customSubjectInput.trim() && !profileSubjectInterests.includes(customSubjectInput.trim())) {
+                              setProfileSubjectInterests(prev => [...prev, customSubjectInput.trim()]);
+                              setCustomSubjectInput("");
+                            }
+                          }
+                        }}
+                        className="bg-secondary/20 border-border/50 text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (customSubjectInput.trim() && !profileSubjectInterests.includes(customSubjectInput.trim())) {
+                            setProfileSubjectInterests(prev => [...prev, customSubjectInput.trim()]);
+                            setCustomSubjectInput("");
+                          }
+                        }}
+                        className="shrink-0 text-xs"
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Add
+                      </Button>
+                    </div>
                   </div>
-                  <div className="space-y-2">
+
+                  <div className="space-y-2 pt-2 border-t border-border/40">
                     <Label htmlFor="timezone" className="text-sm font-semibold">Time Zone</Label>
                     <Select value={studentTimezone} onValueChange={setStudentTimezone}>
                       <SelectTrigger id="timezone" className="bg-secondary/20 border-border/50">
@@ -1310,7 +1889,7 @@ const StudentDashboard = () => {
                     </Select>
                   </div>
                   <Button type="submit" disabled={isUpdatingProfile} className="w-full sm:w-auto shadow-md rounded-full px-8">
-                    {isUpdatingProfile ? "Saving..." : <><Save className="mr-2 h-4 w-4"/> Save Changes</>}
+                    {isUpdatingProfile ? "Saving..." : <><Save className="mr-2 h-4 w-4"/> Save Profile & Recommendations</>}
                   </Button>
                 </form>
               </CardContent>
