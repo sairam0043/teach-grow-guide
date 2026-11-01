@@ -47,8 +47,7 @@ function isOwnApi(url?: string): boolean {
 axios.interceptors.request.use((config) => {
   const token = readToken();
   if (token && isOwnApi(config.url)) {
-    config.headers = config.headers ?? {};
-    (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
