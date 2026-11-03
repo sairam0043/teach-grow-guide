@@ -75,11 +75,10 @@ export default function ThemeSwitcher({ mode = "desktop" }: ThemeSwitcherProps) 
               <button
                 key={t.id}
                 onClick={() => setTheme(t.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors duration-200 ${
-                  isActive
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors duration-200 ${isActive
                     ? "bg-primary/10 text-primary font-semibold"
                     : "text-foreground hover:bg-secondary"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2.5">
                   <div className={`p-1 rounded-md ${isActive ? "bg-primary/25 text-primary" : t.colorClass}`}>
@@ -121,11 +120,10 @@ export default function ThemeSwitcher({ mode = "desktop" }: ThemeSwitcherProps) 
               <DropdownMenuItem
                 key={t.id}
                 onClick={() => setTheme(t.id)}
-                className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm cursor-pointer transition-colors duration-200 ${
-                  isActive
+                className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-sm cursor-pointer transition-colors duration-200 ${isActive
                     ? "bg-primary/10 text-primary font-semibold"
                     : "text-foreground hover:bg-secondary hover:text-foreground focus:bg-secondary focus:text-foreground"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2.5">
                   <div className={`p-1 rounded-md ${isActive ? "bg-primary/25 text-primary" : t.colorClass}`}>

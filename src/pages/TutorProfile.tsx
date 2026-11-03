@@ -39,6 +39,7 @@ import {
 const TutorProfile = () => {
   const { id } = useParams();
   const { user, role } = useAuth();
+  const { currentCurrency, formatPrice, convertPrice, currencyInfo } = useCurrency();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -656,6 +657,7 @@ const TutorProfile = () => {
       if (!isDemoBooking) {
         payload.planType = selectedPlan.type;
         payload.amountPaid = selectedPlan.price;
+        payload.currency = currentCurrency;
         payload.isDirectClass = true; // flag to tell backend this isn't a demo
         payload.useWallet = useWalletBalance;
 
