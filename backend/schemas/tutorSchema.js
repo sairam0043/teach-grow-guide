@@ -98,6 +98,22 @@ const tutorSchema = new mongoose.Schema({
     isEnabled: { type: Boolean, default: true },
     updatedAt: { type: Date, default: Date.now }
   },
+  mediaGallery: {
+    videos: [{
+      url: { type: String, required: true },
+      embedUrl: { type: String, default: "" },
+      title: { type: String, default: "" },
+      provider: { type: String, default: "youtube" },
+      thumbnail: { type: String, default: "" },
+      createdAt: { type: Date, default: Date.now }
+    }],
+    images: [{
+      url: { type: String, required: true },
+      caption: { type: String, default: "" },
+      createdAt: { type: Date, default: Date.now }
+    }],
+    isEnabled: { type: Boolean, default: true }
+  },
   hasVideoFeature: { type: Boolean, default: false }
 }, { timestamps: true });
  

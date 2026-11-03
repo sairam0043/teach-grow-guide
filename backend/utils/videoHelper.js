@@ -1,5 +1,5 @@
 /**
- * Helper to validate and normalize video URLs (YouTube, Vimeo, Google Drive, direct links)
+ * Helper to validate and normalize video URLs and multi-media galleries
  */
 
 const VIDEO_FEATURE_WHITELIST_EMAILS = [
@@ -30,10 +30,6 @@ function parseVideoUrl(rawUrl) {
   const url = rawUrl.trim();
 
   // 1. YouTube Matchers
-  // https://www.youtube.com/watch?v=XXXX
-  // https://youtu.be/XXXX
-  // https://www.youtube.com/shorts/XXXX
-  // https://www.youtube.com/embed/XXXX
   const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
   if (ytMatch && ytMatch[1]) {
     const videoId = ytMatch[1];
@@ -47,7 +43,6 @@ function parseVideoUrl(rawUrl) {
   }
 
   // 2. Vimeo Matcher
-  // https://vimeo.com/XXXX
   const vimeoMatch = url.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|)(\d+)(?:$|\/|\?)/i);
   if (vimeoMatch && vimeoMatch[1]) {
     const videoId = vimeoMatch[1];
@@ -61,7 +56,6 @@ function parseVideoUrl(rawUrl) {
   }
 
   // 3. Google Drive Matcher
-  // https://drive.google.com/file/d/XXXX/view
   const driveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
   if (driveMatch && driveMatch[1]) {
     const fileId = driveMatch[1];
@@ -94,8 +88,49 @@ function parseVideoUrl(rawUrl) {
   };
 }
 
+function normalizeMediaGallery(input) {
+  if (!input || typeof input !== 'object') {
+    return {
+      videos: [],
+      images: [],
+      isEnabled: true
+    };
+  }
+
+  const rawVideos = Array.isArray(input.videos) ? input.videos : [];
+  const normalizedVideos = rawVideos
+    .filter(v => v && v.url && typeof v.url === 'string' && v.url.trim())
+    .map(v => {
+      const parsed = parseVideoUrl(v.url);
+      return {
+        url: v.url.trim(),
+        embedUrl: parsed.embedUrl,
+        title: (v.title || '').trim(),
+        provider: parsed.provider,
+        thumbnail: v.thumbnail || parsed.thumbnail || '',
+        createdAt: v.createdAt || new Date()
+      };
+    });
+
+  const rawImages = Array.isArray(input.images) ? input.images : [];
+  const normalizedImages = rawImages
+    .filter(img => img && img.url && typeof img.url === 'string' && img.url.trim())
+    .map(img => ({
+      url: img.url.trim(),
+      caption: (img.caption || '').trim(),
+      createdAt: img.createdAt || new Date()
+    }));
+
+  return {
+    videos: normalizedVideos,
+    images: normalizedImages,
+    isEnabled: input.isEnabled !== undefined ? Boolean(input.isEnabled) : true
+  };
+}
+
 module.exports = {
   VIDEO_FEATURE_WHITELIST_EMAILS,
   isVideoFeatureAllowed,
-  parseVideoUrl
+  parseVideoUrl,
+  normalizeMediaGallery
 };

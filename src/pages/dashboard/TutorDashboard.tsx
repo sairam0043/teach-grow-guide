@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, ShieldAlert, ArrowRight, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages, Play } from "lucide-react";
-import { canUserManageVideo, parseVideoUrl } from "@/lib/videoHelper";
+import { canUserManageVideo, parseVideoUrl, GalleryVideo, GalleryImage } from "@/lib/videoHelper";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -542,13 +542,15 @@ const TutorDashboard = () => {
   const [customSubjectInput, setCustomSubjectInput] = useState(false);
   const [newSubjectCategory, setNewSubjectCategory] = useState("Academic");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [introVideoData, setIntroVideoData] = useState({
-    url: "",
-    embedUrl: "",
-    title: "",
-    isEnabled: true
-  });
+  const [galleryVideos, setGalleryVideos] = useState<GalleryVideo[]>([]);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [mediaGalleryEnabled, setMediaGalleryEnabled] = useState(true);
+  const [showcaseTab, setShowcaseTab] = useState<'videos' | 'photos'>('videos');
+  const [newVideoUrl, setNewVideoUrl] = useState("");
+  const [newVideoTitle, setNewVideoTitle] = useState("");
   const [isVideoUploading, setIsVideoUploading] = useState(false);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [newPhotoCaption, setNewPhotoCaption] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
@@ -652,13 +654,17 @@ const TutorDashboard = () => {
             mode: getFormattedMode(res.data.mode),
           });
           setWorkExperience(res.data.workExperience || []);
-          if (res.data.introVideo) {
-            setIntroVideoData({
-              url: res.data.introVideo.url || "",
-              embedUrl: res.data.introVideo.embedUrl || "",
-              title: res.data.introVideo.title || "",
-              isEnabled: res.data.introVideo.isEnabled !== false
-            });
+          if (res.data.mediaGallery) {
+            setGalleryVideos(res.data.mediaGallery.videos || []);
+            setGalleryImages(res.data.mediaGallery.images || []);
+            setMediaGalleryEnabled(res.data.mediaGallery.isEnabled !== false);
+          } else if (res.data.introVideo?.url) {
+            setGalleryVideos([{
+              url: res.data.introVideo.url,
+              embedUrl: res.data.introVideo.embedUrl,
+              title: res.data.introVideo.title || `Introduction with ${res.data.name}`,
+              provider: res.data.introVideo.provider
+            }]);
           }
           setSelectedClasses(res.data.classesTaught || []);
           setSelectedBoards(res.data.boardsTaught || []);
@@ -2377,160 +2383,331 @@ const TutorDashboard = () => {
                         </div>
                       )}
 
-                      {/* Exclusive Tutor Introduction Video Showcase */}
+                      {/* Exclusive Tutor Multi-Media Portfolio Showcase (Videos & Photos) */}
                       {canUserManageVideo(user, tutorProfile) && (
                         <div className="space-y-4 border-2 border-indigo-500/30 dark:border-indigo-500/20 rounded-2xl p-5 bg-gradient-to-br from-indigo-50/50 via-background to-purple-50/30 dark:from-indigo-950/20 dark:via-background dark:to-purple-950/10 shadow-sm relative overflow-hidden">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3 border-indigo-200/50 dark:border-indigo-800/30">
-                            <div className="flex items-center gap-2">
-                              <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 border-indigo-200/50 dark:border-indigo-800/30">
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-9 w-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
                                 <Play className="h-4 w-4 fill-white" />
                               </div>
                               <div>
                                 <h4 className="font-extrabold text-base text-foreground flex items-center gap-2">
-                                  Profile Introduction Video Showcase
+                                  Teaching Portfolio & Media Showcase
                                   <Badge className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10px] px-2 py-0 border-0">
                                     VIP Feature
                                   </Badge>
                                 </h4>
                                 <p className="text-xs text-muted-foreground">
-                                  Feature an introduction video on your tutor card & public profile to boost student enrollments.
+                                  Add multiple teaching demo videos and photo achievements to showcase on your profile & search cards.
                                 </p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="video-enabled" className="text-xs font-semibold cursor-pointer">
-                                {introVideoData.isEnabled ? "Video Active" : "Video Hidden"}
+                            <div className="flex items-center gap-3">
+                              <Label htmlFor="gallery-enabled" className="text-xs font-semibold cursor-pointer">
+                                {mediaGalleryEnabled ? "Showcase Active" : "Showcase Hidden"}
                               </Label>
                               <input
-                                id="video-enabled"
+                                id="gallery-enabled"
                                 type="checkbox"
-                                checked={introVideoData.isEnabled}
-                                onChange={(e) => setIntroVideoData(prev => ({ ...prev, isEnabled: e.target.checked }))}
+                                checked={mediaGalleryEnabled}
+                                onChange={(e) => setMediaGalleryEnabled(e.target.checked)}
                                 className="h-4 w-4 rounded accent-indigo-600 cursor-pointer"
                               />
                             </div>
                           </div>
 
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-1.5 sm:col-span-2">
-                              <Label className="text-xs font-bold text-foreground">
-                                Video URL (YouTube, Vimeo, Google Drive, or Direct MP4 link)
-                              </Label>
-                              <div className="flex gap-2">
-                                <Input
-                                  placeholder="e.g. https://www.youtube.com/watch?v=... or https://youtu.be/..."
-                                  value={introVideoData.url}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const parsed = parseVideoUrl(val);
-                                    setIntroVideoData(prev => ({
-                                      ...prev,
-                                      url: val,
-                                      embedUrl: parsed.embedUrl
-                                    }));
-                                  }}
-                                  className="bg-background shadow-sm text-xs"
-                                />
-                                {introVideoData.url && (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setIntroVideoData(prev => ({ ...prev, url: "", embedUrl: "" }))}
-                                    className="text-xs shrink-0 text-rose-500 hover:text-rose-600"
-                                  >
-                                    Clear
-                                  </Button>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-muted-foreground">
-                                Tip: Paste standard YouTube URLs, YouTube Shorts, Vimeo links, or upload an MP4 video below.
-                              </p>
-                            </div>
-
-                            <div className="space-y-1.5 sm:col-span-2">
-                              <Label className="text-xs font-bold text-foreground">
-                                Video Showcase Title
-                              </Label>
-                              <Input
-                                placeholder={`e.g. Welcome & Mathematics Demo with ${name}`}
-                                value={introVideoData.title}
-                                onChange={(e) => setIntroVideoData(prev => ({ ...prev, title: e.target.value }))}
-                                className="bg-background shadow-sm text-xs"
-                              />
-                            </div>
-
-                            {/* Or Upload video file */}
-                            <div className="space-y-1.5 sm:col-span-2">
-                              <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
-                                <Upload className="h-3.5 w-3.5" /> Or Upload MP4/WebM Video (Max 30MB)
-                              </Label>
-                              <Input
-                                type="file"
-                                accept="video/mp4,video/webm,video/quicktime"
-                                disabled={isVideoUploading}
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-                                  if (file.size > 30 * 1024 * 1024) {
-                                    toast.error("Video file size exceeds 30MB limit.");
-                                    return;
-                                  }
-                                  setIsVideoUploading(true);
-                                  const formData = new FormData();
-                                  formData.append("video", file);
-                                  try {
-                                    toast.loading("Uploading video...");
-                                    const upRes = await axios.post(`${API_URL}/upload/video`, formData);
-                                    toast.dismiss();
-                                    if (upRes.data?.url) {
-                                      toast.success("Video uploaded successfully!");
-                                      setIntroVideoData(prev => ({
-                                        ...prev,
-                                        url: upRes.data.url,
-                                        embedUrl: upRes.data.url
-                                      }));
-                                    }
-                                  } catch (upErr: any) {
-                                    toast.dismiss();
-                                    toast.error(upErr.response?.data?.message || "Failed to upload video");
-                                  } finally {
-                                    setIsVideoUploading(false);
-                                  }
-                                }}
-                                className="bg-background cursor-pointer text-xs"
-                              />
-                            </div>
+                          {/* Sub-Tabs: Videos & Photos */}
+                          <div className="flex items-center gap-2 border-b border-border/40 pb-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowcaseTab('videos')}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                showcaseTab === 'videos'
+                                  ? 'bg-primary text-primary-foreground shadow-sm'
+                                  : 'bg-secondary/40 text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              <Video className="h-4 w-4" />
+                              Videos ({galleryVideos.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowcaseTab('photos')}
+                              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                showcaseTab === 'photos'
+                                  ? 'bg-primary text-primary-foreground shadow-sm'
+                                  : 'bg-secondary/40 text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              <ImageIcon className="h-4 w-4" />
+                              Photos & Notes ({galleryImages.length})
+                            </button>
                           </div>
 
-                          {/* Live Interactive Preview Box */}
-                          {introVideoData.url && (
-                            <div className="mt-4 pt-4 border-t border-indigo-200/50 dark:border-indigo-800/30">
-                              <p className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5">
-                                <Sparkles className="h-3.5 w-3.5 text-indigo-500" /> Live Video Preview:
-                              </p>
-                              <div className="relative aspect-video w-full max-w-lg mx-auto rounded-xl overflow-hidden bg-black shadow-md border border-border">
-                                {(() => {
-                                  const parsed = parseVideoUrl(introVideoData.url);
-                                  const embed = introVideoData.embedUrl || parsed.embedUrl;
-                                  const isDirect = parsed.provider === 'direct' || parsed.provider === 'upload';
-                                  if (isDirect) {
-                                    return (
-                                      <video src={embed} controls className="w-full h-full object-contain">
-                                        Your browser does not support HTML video.
-                                      </video>
-                                    );
-                                  }
-                                  return (
-                                    <iframe
-                                      src={embed}
-                                      title="Preview"
-                                      className="w-full h-full border-0"
-                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                      allowFullScreen
+                          {/* Tab 1: Multiple Videos */}
+                          {showcaseTab === 'videos' && (
+                            <div className="space-y-4">
+                              {/* Existing Videos List */}
+                              {galleryVideos.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Your Videos Playlist ({galleryVideos.length}):
+                                  </p>
+                                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                    {galleryVideos.map((vid, idx) => {
+                                      const parsed = parseVideoUrl(vid.url);
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className="flex items-center justify-between gap-3 bg-background p-3 rounded-xl border border-border shadow-sm"
+                                        >
+                                          <div className="flex items-center gap-3 min-w-0">
+                                            <div className="h-10 w-16 bg-secondary/80 rounded-lg overflow-hidden shrink-0 flex items-center justify-center relative">
+                                              {vid.thumbnail ? (
+                                                <img src={vid.thumbnail} alt="" className="w-full h-full object-cover" />
+                                              ) : (
+                                                <Play className="h-4 w-4 text-primary" />
+                                              )}
+                                              <span className="absolute bottom-0.5 right-0.5 text-[9px] bg-black/70 text-white px-1 rounded font-bold">
+                                                #{idx + 1}
+                                              </span>
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-bold text-foreground truncate">
+                                                {vid.title || `Video #${idx + 1}`}
+                                              </p>
+                                              <p className="text-[11px] text-muted-foreground truncate">
+                                                {vid.url}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => {
+                                                setGalleryVideos(prev => prev.filter((_, i) => i !== idx));
+                                                toast.info("Video removed. Click 'Update Public Profile' to save.");
+                                              }}
+                                              className="h-8 w-8 p-0 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Add New Video Sub-Form */}
+                              <div className="border border-border/80 bg-background/80 rounded-xl p-4 space-y-3">
+                                <p className="text-xs font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                                  <PlusCircle className="h-3.5 w-3.5" /> Add New Video to Playlist
+                                </p>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <div className="space-y-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-foreground">Video Title</Label>
+                                    <Input
+                                      placeholder="e.g. Concept Walkthrough: Integration & Calculus"
+                                      value={newVideoTitle}
+                                      onChange={(e) => setNewVideoTitle(e.target.value)}
+                                      className="text-xs bg-background"
                                     />
-                                  );
-                                })()}
+                                  </div>
+                                  <div className="space-y-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-foreground">Video URL (YouTube, Vimeo, Google Drive, or Direct link)</Label>
+                                    <div className="flex gap-2">
+                                      <Input
+                                        placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                                        value={newVideoUrl}
+                                        onChange={(e) => setNewVideoUrl(e.target.value)}
+                                        className="text-xs bg-background"
+                                      />
+                                      <Button
+                                        type="button"
+                                        disabled={!newVideoUrl.trim()}
+                                        onClick={() => {
+                                          if (!newVideoUrl.trim()) return;
+                                          const parsed = parseVideoUrl(newVideoUrl);
+                                          setGalleryVideos(prev => [
+                                            ...prev,
+                                            {
+                                              url: newVideoUrl.trim(),
+                                              embedUrl: parsed.embedUrl,
+                                              title: newVideoTitle.trim() || `Lesson ${prev.length + 1}`,
+                                              provider: parsed.provider,
+                                              thumbnail: parsed.thumbnail
+                                            }
+                                          ]);
+                                          setNewVideoUrl("");
+                                          setNewVideoTitle("");
+                                          toast.success("Video added to playlist! Click 'Update Public Profile' to save.");
+                                        }}
+                                        className="shrink-0 text-xs font-bold"
+                                      >
+                                        Add Video
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Or Upload Video File */}
+                                <div className="pt-2 border-t border-border/40">
+                                  <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 mb-1.5">
+                                    <Upload className="h-3.5 w-3.5" /> Or Upload MP4/WebM Video File (Max 30MB)
+                                  </Label>
+                                  <Input
+                                    type="file"
+                                    accept="video/mp4,video/webm,video/quicktime"
+                                    disabled={isVideoUploading}
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      if (file.size > 30 * 1024 * 1024) {
+                                        toast.error("Video file size exceeds 30MB limit.");
+                                        return;
+                                      }
+                                      setIsVideoUploading(true);
+                                      const formData = new FormData();
+                                      formData.append("video", file);
+                                      try {
+                                        toast.loading("Uploading video file...");
+                                        const upRes = await axios.post(`${API_URL}/upload/video`, formData);
+                                        toast.dismiss();
+                                        if (upRes.data?.url) {
+                                          setGalleryVideos(prev => [
+                                            ...prev,
+                                            {
+                                              url: upRes.data.url,
+                                              embedUrl: upRes.data.url,
+                                              title: newVideoTitle.trim() || file.name.replace(/\.[^/.]+$/, ""),
+                                              provider: 'upload'
+                                            }
+                                          ]);
+                                          setNewVideoTitle("");
+                                          toast.success("Video uploaded and added to playlist!");
+                                        }
+                                      } catch (err: any) {
+                                        toast.dismiss();
+                                        toast.error(err.response?.data?.message || "Failed to upload video");
+                                      } finally {
+                                        setIsVideoUploading(false);
+                                      }
+                                    }}
+                                    className="text-xs bg-background cursor-pointer"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Tab 2: Multiple Photos & Notes */}
+                          {showcaseTab === 'photos' && (
+                            <div className="space-y-4">
+                              {/* Existing Photos Grid */}
+                              {galleryImages.length > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Uploaded Photos & Notes ({galleryImages.length}):
+                                  </p>
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[350px] overflow-y-auto pr-1">
+                                    {galleryImages.map((img, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="group relative aspect-square rounded-xl overflow-hidden border border-border shadow-sm bg-secondary/20"
+                                      >
+                                        <img
+                                          src={resolveAssetUrl(img.url)}
+                                          alt={img.caption || ""}
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="destructive"
+                                            onClick={() => {
+                                              setGalleryImages(prev => prev.filter((_, i) => i !== idx));
+                                              toast.info("Photo removed. Click 'Update Public Profile' to save.");
+                                            }}
+                                            className="h-8 w-8 p-0"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                        {img.caption && (
+                                          <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1 text-[10px] text-white truncate">
+                                            {img.caption}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Upload New Photos Sub-Form */}
+                              <div className="border border-border/80 bg-background/80 rounded-xl p-4 space-y-3">
+                                <p className="text-xs font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                                  <PlusCircle className="h-3.5 w-3.5" /> Upload Photos / Certificates / Whiteboard Notes
+                                </p>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <div className="space-y-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-foreground">Optional Photo Caption</Label>
+                                    <Input
+                                      placeholder="e.g. Mathematics state award certificate / Whiteboard session summary"
+                                      value={newPhotoCaption}
+                                      onChange={(e) => setNewPhotoCaption(e.target.value)}
+                                      className="text-xs bg-background"
+                                    />
+                                  </div>
+                                  <div className="space-y-1 sm:col-span-2">
+                                    <Label className="text-xs font-bold text-foreground">Select Photo(s) (JPEG, PNG, WebP)</Label>
+                                    <Input
+                                      type="file"
+                                      multiple
+                                      accept="image/*"
+                                      disabled={isUploadingPhotos}
+                                      onChange={async (e) => {
+                                        const files = e.target.files;
+                                        if (!files || files.length === 0) return;
+                                        setIsUploadingPhotos(true);
+                                        toast.loading(`Uploading ${files.length} photo(s)...`);
+                                        const newPhotos: GalleryImage[] = [];
+
+                                        try {
+                                          for (let i = 0; i < files.length; i++) {
+                                            const formData = new FormData();
+                                            formData.append("photo", files[i]);
+                                            const upRes = await axios.post(`${API_URL}/upload/photo`, formData);
+                                            if (upRes.data?.url) {
+                                              newPhotos.push({
+                                                url: upRes.data.url,
+                                                caption: newPhotoCaption.trim()
+                                              });
+                                            }
+                                          }
+                                          toast.dismiss();
+                                          if (newPhotos.length > 0) {
+                                            setGalleryImages(prev => [...prev, ...newPhotos]);
+                                            setNewPhotoCaption("");
+                                            toast.success(`${newPhotos.length} photo(s) uploaded successfully! Click 'Update Public Profile' to save.`);
+                                          }
+                                        } catch (err: any) {
+                                          toast.dismiss();
+                                          toast.error(err.response?.data?.message || "Failed to upload photo(s)");
+                                        } finally {
+                                          setIsUploadingPhotos(false);
+                                        }
+                                      }}
+                                      className="text-xs bg-background cursor-pointer"
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )}

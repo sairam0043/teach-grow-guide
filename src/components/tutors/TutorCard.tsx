@@ -17,7 +17,10 @@ interface TutorCardProps {
 const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProps) => {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const introVideo = (tutor as any).introVideo;
-  const hasIntroVideo = !!(introVideo && introVideo.url && introVideo.isEnabled !== false);
+  const mediaGallery = (tutor as any).mediaGallery;
+  const hasVideos = !!((mediaGallery?.videos && mediaGallery.videos.length > 0) || (introVideo && introVideo.url && introVideo.isEnabled !== false));
+  const hasImages = !!(mediaGallery?.images && mediaGallery.images.length > 0);
+  const hasMediaShowcase = (hasVideos || hasImages) && (mediaGallery?.isEnabled !== false);
   const { formatPrice } = useCurrency();
 
   const photoSrc =
@@ -69,7 +72,7 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
           />
         )}
         
-        {hasIntroVideo && (
+        {hasMediaShowcase && (
           <button
             type="button"
             onClick={(e) => {
@@ -78,10 +81,10 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
               setIsVideoModalOpen(true);
             }}
             className="absolute bottom-3 left-3 z-10 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg bg-red-600/90 hover:bg-red-600 text-white backdrop-blur-md transition-all hover:scale-105 active:scale-95 group-hover:ring-2 ring-red-400"
-            title="Watch Intro Video"
+            title="Watch Teaching Portfolio & Demos"
           >
             <Play className="h-3 w-3 fill-white" />
-            <span>Watch Intro</span>
+            <span>Portfolio</span>
           </button>
         )}
 
@@ -218,7 +221,7 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
           </Button>
         </div>
       </div>
-      {hasIntroVideo && (
+      {hasMediaShowcase && (
         <TutorVideoModal
           isOpen={isVideoModalOpen}
           onClose={() => setIsVideoModalOpen(false)}

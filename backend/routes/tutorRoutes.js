@@ -1957,9 +1957,9 @@ router.put('/:id/profile', async (req, res) => {
     if (verificationDocument !== undefined) currentTutor.verificationDocument = verificationDocument;
     if (timezone !== undefined) currentTutor.timezone = timezone;
 
-    // Handle exclusive Intro Video showcase
-    if (req.body.introVideo !== undefined) {
-      const { parseVideoUrl, isVideoFeatureAllowed } = require('../utils/videoHelper');
+    // Handle exclusive Intro Video showcase & Multi-Media Gallery
+    if (req.body.mediaGallery !== undefined || req.body.introVideo !== undefined) {
+      const { parseVideoUrl, isVideoFeatureAllowed, normalizeMediaGallery } = require('../utils/videoHelper');
       let tutorEmail = '';
       if (currentTutor.userId) {
         const User = require('../schemas/userSchema');
@@ -1968,28 +1968,59 @@ router.put('/:id/profile', async (req, res) => {
       }
       
       if (isVideoFeatureAllowed(tutorEmail, currentTutor)) {
-        const introVideoInput = req.body.introVideo;
-        if (!introVideoInput || !introVideoInput.url || !introVideoInput.url.trim()) {
-          currentTutor.introVideo = {
-            url: '',
-            embedUrl: '',
-            title: '',
-            provider: '',
-            thumbnail: '',
-            isEnabled: false,
-            updatedAt: new Date()
-          };
-        } else {
-          const parsed = parseVideoUrl(introVideoInput.url);
-          currentTutor.introVideo = {
-            url: introVideoInput.url.trim(),
-            embedUrl: parsed.embedUrl,
-            title: (introVideoInput.title || '').trim(),
-            provider: parsed.provider,
-            thumbnail: introVideoInput.thumbnail || parsed.thumbnail || '',
-            isEnabled: introVideoInput.isEnabled !== undefined ? Boolean(introVideoInput.isEnabled) : true,
-            updatedAt: new Date()
-          };
+        if (req.body.mediaGallery !== undefined) {
+          const normalizedGallery = normalizeMediaGallery(req.body.mediaGallery);
+          currentTutor.mediaGallery = normalizedGallery;
+
+          // Sync introVideo with first video of gallery if present
+          if (normalizedGallery.videos.length > 0) {
+            const firstVid = normalizedGallery.videos[0];
+            currentTutor.introVideo = {
+              url: firstVid.url,
+              embedUrl: firstVid.embedUrl,
+              title: firstVid.title,
+              provider: firstVid.provider,
+              thumbnail: firstVid.thumbnail,
+              isEnabled: normalizedGallery.isEnabled,
+              updatedAt: new Date()
+            };
+          } else if (req.body.introVideo === undefined) {
+            currentTutor.introVideo = {
+              url: '',
+              embedUrl: '',
+              title: '',
+              provider: '',
+              thumbnail: '',
+              isEnabled: false,
+              updatedAt: new Date()
+            };
+          }
+        }
+
+        if (req.body.introVideo !== undefined) {
+          const introVideoInput = req.body.introVideo;
+          if (!introVideoInput || !introVideoInput.url || !introVideoInput.url.trim()) {
+            currentTutor.introVideo = {
+              url: '',
+              embedUrl: '',
+              title: '',
+              provider: '',
+              thumbnail: '',
+              isEnabled: false,
+              updatedAt: new Date()
+            };
+          } else {
+            const parsed = parseVideoUrl(introVideoInput.url);
+            currentTutor.introVideo = {
+              url: introVideoInput.url.trim(),
+              embedUrl: parsed.embedUrl,
+              title: (introVideoInput.title || '').trim(),
+              provider: parsed.provider,
+              thumbnail: introVideoInput.thumbnail || parsed.thumbnail || '',
+              isEnabled: introVideoInput.isEnabled !== undefined ? Boolean(introVideoInput.isEnabled) : true,
+              updatedAt: new Date()
+            };
+          }
         }
       }
     }

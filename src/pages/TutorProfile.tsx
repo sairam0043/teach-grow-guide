@@ -62,6 +62,9 @@ const TutorProfile = () => {
   const [tutorPosts, setTutorPosts] = useState<any[]>([]);
   const [selectedImageModal, setSelectedImageModal] = useState<string | null>(null);
   const [demoTopics, setDemoTopics] = useState<string>("");
+  const [activeShowcaseVideoIndex, setActiveShowcaseVideoIndex] = useState(0);
+  const [showcaseLightboxImg, setShowcaseLightboxImg] = useState<{ url: string; caption?: string } | null>(null);
+  const [showcaseTab, setShowcaseTab] = useState<'videos' | 'photos'>('videos');
 
   useEffect(() => {
     if (id) {
@@ -1187,53 +1190,219 @@ const TutorProfile = () => {
               </div>
             </div>
 
-            {/* Featured Intro Video Section */}
+            {/* Featured Teaching Portfolio & Media Showcase */}
             {(() => {
-              const video = (tutor as any).introVideo;
-              if (!video || !video.url || video.isEnabled === false) return null;
-              const parsed = parseVideoUrl(video.url);
-              const embedUrl = video.embedUrl || parsed.embedUrl;
-              const isDirect = parsed.provider === 'direct' || parsed.provider === 'upload';
-              const title = video.title || `Introduction & Teaching Demo with ${tutor.name}`;
+              const mediaGallery = (tutor as any).mediaGallery;
+              const introVideo = (tutor as any).introVideo;
+              
+              const videos: any[] = (mediaGallery?.videos && mediaGallery.videos.length > 0)
+                ? mediaGallery.videos
+                : (introVideo?.url && introVideo.isEnabled !== false ? [{
+                    url: introVideo.url,
+                    embedUrl: introVideo.embedUrl,
+                    title: introVideo.title || `Introduction & Teaching Demo with ${tutor.name}`,
+                    provider: introVideo.provider
+                  }] : []);
+
+              const images: any[] = mediaGallery?.images || [];
+              const isEnabled = mediaGallery?.isEnabled !== false && (introVideo?.isEnabled !== false || videos.length > 0);
+
+              if (!isEnabled || (videos.length === 0 && images.length === 0)) return null;
+
+              const activeVideo = videos[activeShowcaseVideoIndex] || videos[0];
+              const parsed = activeVideo ? parseVideoUrl(activeVideo.url) : null;
+              const embedUrl = activeVideo?.embedUrl || parsed?.embedUrl;
+              const isDirect = parsed?.provider === 'direct' || parsed?.provider === 'upload';
+              const title = activeVideo?.title || `Teaching Demo with ${tutor.name}`;
 
               return (
                 <Card className="border-primary/20 shadow-lg overflow-hidden bg-gradient-to-br from-card via-card to-primary/5">
-                  <CardHeader className="pb-3 border-b border-border/40 bg-secondary/10 flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2 font-bold text-foreground">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-600/10 text-red-600">
-                        <Play className="h-4 w-4 fill-red-600" />
-                      </span>
-                      {title}
-                    </CardTitle>
-                    <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
-                      Featured Showcase
-                    </Badge>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">
-                      {isDirect ? (
-                        <video
-                          src={embedUrl}
-                          controls
-                          playsInline
-                          className="w-full h-full object-contain"
-                        >
-                          Your browser does not support HTML video.
-                        </video>
-                      ) : (
-                        <iframe
-                          src={embedUrl}
-                          title={title}
-                          className="w-full h-full border-0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                          allowFullScreen
-                        />
-                      )}
+                  <CardHeader className="pb-3 border-b border-border/40 bg-secondary/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2 font-bold text-foreground">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-600/10 text-red-600">
+                          <Play className="h-4 w-4 fill-red-600" />
+                        </span>
+                        Teaching Portfolio & Media Showcase
+                      </CardTitle>
+                      <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                        Interactive class recordings, concept demos, and classroom materials by {tutor.name}
+                      </CardDescription>
                     </div>
+
+                    <div className="flex items-center gap-2">
+                      {videos.length > 0 && images.length > 0 && (
+                        <div className="flex items-center bg-secondary/60 p-1 rounded-xl border border-border/40 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setShowcaseTab('videos')}
+                            className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                              showcaseTab === 'videos'
+                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            Videos ({videos.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowcaseTab('photos')}
+                            className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                              showcaseTab === 'photos'
+                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            Photos ({images.length})
+                          </button>
+                        </div>
+                      )}
+                      <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20 shrink-0">
+                        VIP Showcase
+                      </Badge>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="p-0">
+                    {showcaseTab === 'videos' && videos.length > 0 ? (
+                      <div>
+                        {/* 16:9 Video Player */}
+                        <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">
+                          {isDirect ? (
+                            <video
+                              key={embedUrl}
+                              src={embedUrl}
+                              controls
+                              playsInline
+                              className="w-full h-full object-contain"
+                            >
+                              Your browser does not support HTML video.
+                            </video>
+                          ) : (
+                            <iframe
+                              key={embedUrl}
+                              src={embedUrl}
+                              title={title}
+                              className="w-full h-full border-0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                              allowFullScreen
+                            />
+                          )}
+                        </div>
+
+                        {/* Title & Playlist Switcher */}
+                        <div className="p-4 sm:p-5 border-t border-border/40 bg-card/60">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                            <h4 className="font-bold text-base text-foreground">{title}</h4>
+                            {videos.length > 1 && (
+                              <span className="text-xs text-muted-foreground">
+                                Playing {activeShowcaseVideoIndex + 1} of {videos.length} videos
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Playlist Thumbnails */}
+                          {videos.length > 1 && (
+                            <div>
+                              <p className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground mb-2">
+                                Playlist:
+                              </p>
+                              <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
+                                {videos.map((vid, idx) => {
+                                  const isSelected = idx === activeShowcaseVideoIndex;
+                                  const thumb = vid.thumbnail || (vid.url.includes('youtube') ? `https://img.youtube.com/vi/${vid.url.match(/v=([a-zA-Z0-9_-]{11})/)?.[1] || ''}/hqdefault.jpg` : '');
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => setActiveShowcaseVideoIndex(idx)}
+                                      className={`relative shrink-0 w-36 rounded-xl overflow-hidden border-2 text-left transition-all ${
+                                        isSelected
+                                          ? 'border-primary ring-2 ring-primary/40 shadow-md scale-[1.02]'
+                                          : 'border-border/60 hover:border-primary/40 opacity-80 hover:opacity-100'
+                                      }`}
+                                    >
+                                      <div className="aspect-video bg-secondary/80 relative flex items-center justify-center overflow-hidden">
+                                        {thumb ? (
+                                          <img src={thumb} alt={vid.title || `Video ${idx + 1}`} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <Play className="h-6 w-6 text-primary" />
+                                        )}
+                                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                          <Play className="h-4 w-4 fill-white text-white drop-shadow" />
+                                        </div>
+                                      </div>
+                                      <div className="p-1.5 bg-card">
+                                        <p className="text-[11px] font-bold text-foreground line-clamp-1">
+                                          {vid.title || `Lesson ${idx + 1}`}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Photos Gallery Grid */
+                      <div className="p-5">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          {images.map((img, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setShowcaseLightboxImg(img)}
+                              className="group relative aspect-square rounded-xl overflow-hidden border border-border/60 bg-secondary/30 hover:border-primary transition-all hover:shadow-lg focus:outline-none"
+                            >
+                              <img
+                                src={resolveAssetUrl(img.url)}
+                                alt={img.caption || `Photo ${idx + 1}`}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                loading="lazy"
+                              />
+                              {img.caption && (
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 text-left">
+                                  <p className="text-[11px] font-medium text-white line-clamp-2">
+                                    {img.caption}
+                                  </p>
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
             })()}
+
+            {/* Lightbox for profile photos */}
+            {showcaseLightboxImg && (
+              <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
+                <button
+                  type="button"
+                  onClick={() => setShowcaseLightboxImg(null)}
+                  className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all"
+                >
+                  <AlertCircle className="h-5 w-5" />
+                </button>
+                <div className="max-w-3xl max-h-[80vh] flex flex-col items-center">
+                  <img
+                    src={resolveAssetUrl(showcaseLightboxImg.url)}
+                    alt={showcaseLightboxImg.caption || "Full photo"}
+                    className="max-w-full max-h-[70vh] rounded-xl object-contain shadow-2xl"
+                  />
+                  {showcaseLightboxImg.caption && (
+                    <p className="mt-3 text-sm font-semibold text-white/90 text-center bg-black/50 px-4 py-1.5 rounded-full">
+                      {showcaseLightboxImg.caption}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <Card>
               <CardHeader><CardTitle>About</CardTitle></CardHeader>

@@ -1,5 +1,5 @@
 /**
- * Utility functions and configuration for Tutor Introduction Video Showcase
+ * Utility functions and configuration for Tutor Multi-Media Showcase (Videos & Photo Gallery)
  */
 
 export const VIDEO_FEATURE_WHITELIST_EMAILS = [
@@ -13,6 +13,27 @@ export interface IntroVideoData {
   provider?: 'youtube' | 'vimeo' | 'drive' | 'direct' | 'upload' | string;
   thumbnail?: string;
   isEnabled?: boolean;
+}
+
+export interface GalleryVideo {
+  url: string;
+  embedUrl?: string;
+  title?: string;
+  provider?: string;
+  thumbnail?: string;
+  createdAt?: string | Date;
+}
+
+export interface GalleryImage {
+  url: string;
+  caption?: string;
+  createdAt?: string | Date;
+}
+
+export interface MediaGalleryData {
+  videos: GalleryVideo[];
+  images: GalleryImage[];
+  isEnabled: boolean;
 }
 
 export function canUserManageVideo(user: any, tutorProfile?: any): boolean {
