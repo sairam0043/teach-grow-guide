@@ -916,10 +916,15 @@ const TutorDashboard = () => {
         verificationDocument: uploadedDocUrl,
         timezone: tutorTimezone,
         workExperience,
-        introVideo: canUserManageVideo(user, tutorProfile) ? {
-          url: introVideoData.url.trim(),
-          title: introVideoData.title.trim(),
-          isEnabled: introVideoData.isEnabled
+        mediaGallery: canUserManageVideo(user, tutorProfile) ? {
+          videos: galleryVideos,
+          images: galleryImages,
+          isEnabled: mediaGalleryEnabled
+        } : undefined,
+        introVideo: canUserManageVideo(user, tutorProfile) && galleryVideos.length > 0 ? {
+          url: galleryVideos[0].url,
+          title: galleryVideos[0].title || "",
+          isEnabled: mediaGalleryEnabled
         } : undefined
       };
 
@@ -1305,12 +1310,12 @@ const TutorDashboard = () => {
                               </p>
                             </div>
                           )}
-                          <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+                          <div className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
                             <Calendar className="h-4 w-4" /> {formatBookingTime(booking, tutorTimezone)}
                             {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
-                          </p>
+                          </div>
                           {booking.rescheduleRequest && booking.rescheduleRequest.status === 'pending' && (
                             booking.rescheduleRequest.requestedBy === 'Student' ? (
                               <div className="w-full mt-3 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">

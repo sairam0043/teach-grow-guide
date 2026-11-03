@@ -58,13 +58,13 @@ export const InternationalPhoneInput: React.FC<InternationalPhoneInputProps> = (
     }
   }, [value]);
 
-  const handleCountryChange = (newDialCode: string) => {
-    setDialCode(newDialCode);
-    const newCountry = findCountryByDialCode(newDialCode);
+  const handleCountryChange = (newCountryCode: string) => {
+    const newCountry = findCountryByCode(newCountryCode);
     setCountry(newCountry);
+    setDialCode(newCountry.dialCode);
     setTouched(true);
 
-    const validation = validatePhoneInput(newDialCode, nationalNumber);
+    const validation = validatePhoneInput(newCountry.dialCode, nationalNumber);
     onChange(validation.fullPhone, validation.isValid);
   };
 
@@ -101,7 +101,7 @@ export const InternationalPhoneInput: React.FC<InternationalPhoneInputProps> = (
 
       <div className="flex items-stretch rounded-md shadow-sm">
         {/* Country Code Selector */}
-        <Select value={dialCode} onValueChange={handleCountryChange} disabled={disabled}>
+        <Select value={country.code} onValueChange={handleCountryChange} disabled={disabled}>
           <SelectTrigger 
             className="w-[110px] sm:w-[125px] shrink-0 rounded-r-none border-r-0 focus:ring-0 focus:ring-offset-0 bg-secondary/30 hover:bg-secondary/50 font-medium text-xs sm:text-sm px-2.5 transition-colors"
             aria-label="Select country calling code"
@@ -115,7 +115,7 @@ export const InternationalPhoneInput: React.FC<InternationalPhoneInputProps> = (
           </SelectTrigger>
           <SelectContent className="max-h-[300px] w-[260px]">
             {COUNTRY_CODES.map((c) => (
-              <SelectItem key={`${c.code}-${c.dialCode}`} value={c.dialCode} className="text-xs cursor-pointer py-2">
+              <SelectItem key={c.code} value={c.code} className="text-xs cursor-pointer py-2">
                 <div className="flex items-center gap-2.5">
                   <span className="text-base leading-none">{c.flag}</span>
                   <span className="font-bold text-foreground min-w-[42px]">{c.dialCode}</span>

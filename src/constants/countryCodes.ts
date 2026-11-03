@@ -191,6 +191,11 @@ export const COUNTRY_CODES: CountryCode[] = [
 
 export const DEFAULT_COUNTRY = COUNTRY_CODES[0]; // India (+91)
 
+export function findCountryByCode(code: string): CountryCode {
+  const found = COUNTRY_CODES.find(c => c.code.toUpperCase() === (code || '').toUpperCase());
+  return found || DEFAULT_COUNTRY;
+}
+
 export function findCountryByDialCode(dialCode: string): CountryCode {
   return COUNTRY_CODES.find(c => c.dialCode === dialCode) || DEFAULT_COUNTRY;
 }
