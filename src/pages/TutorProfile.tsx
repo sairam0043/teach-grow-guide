@@ -5,7 +5,8 @@ declare global {
 }
 
 import { useParams, Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen } from "lucide-react";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen, Play } from "lucide-react";
+import { parseVideoUrl } from "@/lib/videoHelper";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1185,6 +1186,54 @@ const TutorProfile = () => {
                 </div>
               </div>
             </div>
+
+            {/* Featured Intro Video Section */}
+            {(() => {
+              const video = (tutor as any).introVideo;
+              if (!video || !video.url || video.isEnabled === false) return null;
+              const parsed = parseVideoUrl(video.url);
+              const embedUrl = video.embedUrl || parsed.embedUrl;
+              const isDirect = parsed.provider === 'direct' || parsed.provider === 'upload';
+              const title = video.title || `Introduction & Teaching Demo with ${tutor.name}`;
+
+              return (
+                <Card className="border-primary/20 shadow-lg overflow-hidden bg-gradient-to-br from-card via-card to-primary/5">
+                  <CardHeader className="pb-3 border-b border-border/40 bg-secondary/10 flex flex-row items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2 font-bold text-foreground">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-600/10 text-red-600">
+                        <Play className="h-4 w-4 fill-red-600" />
+                      </span>
+                      {title}
+                    </CardTitle>
+                    <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+                      Featured Showcase
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">
+                      {isDirect ? (
+                        <video
+                          src={embedUrl}
+                          controls
+                          playsInline
+                          className="w-full h-full object-contain"
+                        >
+                          Your browser does not support HTML video.
+                        </video>
+                      ) : (
+                        <iframe
+                          src={embedUrl}
+                          title={title}
+                          className="w-full h-full border-0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             <Card>
               <CardHeader><CardTitle>About</CardTitle></CardHeader>

@@ -17,6 +17,16 @@ const upload = multer({
   }
 });
 
+const uploadVideo = multer({
+  storage,
+  limits: { fileSize: 30 * 1024 * 1024 }, // 30MB limit
+  fileFilter: (req, file, cb) => {
+    const isVideo = /^video\/(mp4|webm|quicktime|ogg)$/i.test(file.mimetype) || /\.(mp4|webm|mov|ogg)$/i.test(file.originalname);
+    if (isVideo) cb(null, true);
+    else cb(new Error('Only video files (MP4, WebM, MOV) are allowed.'));
+  }
+});
+
 const uploadDoc = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
@@ -156,6 +166,33 @@ router.post('/post-images', upload.array('images', 5), async (req, res) => {
     res.json({ urls });
   } catch (error) {
     res.status(500).json({ message: 'Post images upload failed', error: error.message });
+  }
+});
+
+// POST /api/upload/video - single video file upload for tutor intro (up to 30MB)
+router.post('/video', uploadVideo.single('video'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No video file uploaded.' });
+    }
+    
+    const newUpload = new Upload({
+      filename: `tutor-video-${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+      contentType: req.file.mimetype || 'video/mp4',
+      data: req.file.buffer
+    });
+    const saved = await newUpload.save();
+
+    const configuredBaseUrl = (process.env.BACKEND_URL || '').trim().replace(/\/$/, '');
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = (forwardedProto || req.protocol || 'http').split(',')[0].trim();
+    const inferredBaseUrl = `${protocol}://${req.get('host')}`;
+    const baseUrl = configuredBaseUrl || inferredBaseUrl;
+
+    const videoUrl = `${baseUrl}/api/upload/file/${saved._id}`;
+    res.json({ url: videoUrl, filename: saved.filename });
+  } catch (error) {
+    res.status(500).json({ message: 'Video upload failed', error: error.message });
   }
 });
 

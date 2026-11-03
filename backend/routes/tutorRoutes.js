@@ -1957,6 +1957,43 @@ router.put('/:id/profile', async (req, res) => {
     if (verificationDocument !== undefined) currentTutor.verificationDocument = verificationDocument;
     if (timezone !== undefined) currentTutor.timezone = timezone;
 
+    // Handle exclusive Intro Video showcase
+    if (req.body.introVideo !== undefined) {
+      const { parseVideoUrl, isVideoFeatureAllowed } = require('../utils/videoHelper');
+      let tutorEmail = '';
+      if (currentTutor.userId) {
+        const User = require('../schemas/userSchema');
+        const u = await User.findById(currentTutor.userId);
+        if (u) tutorEmail = u.email;
+      }
+      
+      if (isVideoFeatureAllowed(tutorEmail, currentTutor)) {
+        const introVideoInput = req.body.introVideo;
+        if (!introVideoInput || !introVideoInput.url || !introVideoInput.url.trim()) {
+          currentTutor.introVideo = {
+            url: '',
+            embedUrl: '',
+            title: '',
+            provider: '',
+            thumbnail: '',
+            isEnabled: false,
+            updatedAt: new Date()
+          };
+        } else {
+          const parsed = parseVideoUrl(introVideoInput.url);
+          currentTutor.introVideo = {
+            url: introVideoInput.url.trim(),
+            embedUrl: parsed.embedUrl,
+            title: (introVideoInput.title || '').trim(),
+            provider: parsed.provider,
+            thumbnail: introVideoInput.thumbnail || parsed.thumbnail || '',
+            isEnabled: introVideoInput.isEnabled !== undefined ? Boolean(introVideoInput.isEnabled) : true,
+            updatedAt: new Date()
+          };
+        }
+      }
+    }
+
     await currentTutor.save();
 
     // Sync updated Google Meet link to tutor's active bookings

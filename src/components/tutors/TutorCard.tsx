@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
-import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2, Scale, Check, Languages } from "lucide-react";
+import { useState } from "react";
+import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2, Scale, Check, Languages, Play } from "lucide-react";
+import { TutorVideoModal } from "@/components/tutors/TutorVideoModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Tutor } from "@/data/mockTutors";
@@ -13,6 +15,9 @@ interface TutorCardProps {
 }
 
 const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProps) => {
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const introVideo = (tutor as any).introVideo;
+  const hasIntroVideo = !!(introVideo && introVideo.url && introVideo.isEnabled !== false);
   const { formatPrice } = useCurrency();
 
   const photoSrc =
@@ -64,6 +69,22 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
           />
         )}
         
+        {hasIntroVideo && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsVideoModalOpen(true);
+            }}
+            className="absolute bottom-3 left-3 z-10 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg bg-red-600/90 hover:bg-red-600 text-white backdrop-blur-md transition-all hover:scale-105 active:scale-95 group-hover:ring-2 ring-red-400"
+            title="Watch Intro Video"
+          >
+            <Play className="h-3 w-3 fill-white" />
+            <span>Watch Intro</span>
+          </button>
+        )}
+
         {/* Top Compare Button overlay on image */}
         {onToggleCompare && (
           <button
@@ -197,6 +218,13 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
           </Button>
         </div>
       </div>
+      {hasIntroVideo && (
+        <TutorVideoModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          tutor={tutor as any}
+        />
+      )}
     </div>
   );
 };

@@ -88,7 +88,17 @@ const tutorSchema = new mongoose.Schema({
     disbursedBy: { type: String },
     notes: { type: String },
     receiptSent: { type: Boolean, default: false }
-  }]
+  }],
+  introVideo: {
+    url: { type: String, default: "" },
+    embedUrl: { type: String, default: "" },
+    title: { type: String, default: "" },
+    provider: { type: String, enum: ['youtube', 'vimeo', 'drive', 'direct', 'upload', ''], default: '' },
+    thumbnail: { type: String, default: "" },
+    isEnabled: { type: Boolean, default: true },
+    updatedAt: { type: Date, default: Date.now }
+  },
+  hasVideoFeature: { type: Boolean, default: false }
 }, { timestamps: true });
  
 tutorSchema.pre('save', function() {

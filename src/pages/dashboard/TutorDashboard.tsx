@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, ShieldAlert, ArrowRight, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, ShieldAlert, ArrowRight, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages, Play } from "lucide-react";
+import { canUserManageVideo, parseVideoUrl } from "@/lib/videoHelper";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -541,6 +542,13 @@ const TutorDashboard = () => {
   const [customSubjectInput, setCustomSubjectInput] = useState(false);
   const [newSubjectCategory, setNewSubjectCategory] = useState("Academic");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [introVideoData, setIntroVideoData] = useState({
+    url: "",
+    embedUrl: "",
+    title: "",
+    isEnabled: true
+  });
+  const [isVideoUploading, setIsVideoUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
@@ -644,6 +652,14 @@ const TutorDashboard = () => {
             mode: getFormattedMode(res.data.mode),
           });
           setWorkExperience(res.data.workExperience || []);
+          if (res.data.introVideo) {
+            setIntroVideoData({
+              url: res.data.introVideo.url || "",
+              embedUrl: res.data.introVideo.embedUrl || "",
+              title: res.data.introVideo.title || "",
+              isEnabled: res.data.introVideo.isEnabled !== false
+            });
+          }
           setSelectedClasses(res.data.classesTaught || []);
           setSelectedBoards(res.data.boardsTaught || []);
           setSelectedLanguages(res.data.languages || []);
@@ -893,7 +909,12 @@ const TutorDashboard = () => {
         photo: uploadedPhotoUrl,
         verificationDocument: uploadedDocUrl,
         timezone: tutorTimezone,
-        workExperience
+        workExperience,
+        introVideo: canUserManageVideo(user, tutorProfile) ? {
+          url: introVideoData.url.trim(),
+          title: introVideoData.title.trim(),
+          isEnabled: introVideoData.isEnabled
+        } : undefined
       };
 
       console.log("[DEBUG] handleProfileUpdate: payload=", payload);
@@ -2353,6 +2374,166 @@ const TutorDashboard = () => {
                           <p className="text-xs text-muted-foreground">
                             Your direct Google Meet link for online classes and demo sessions. When students book sessions with you, this meeting link will be automatically used.
                           </p>
+                        </div>
+                      )}
+
+                      {/* Exclusive Tutor Introduction Video Showcase */}
+                      {canUserManageVideo(user, tutorProfile) && (
+                        <div className="space-y-4 border-2 border-indigo-500/30 dark:border-indigo-500/20 rounded-2xl p-5 bg-gradient-to-br from-indigo-50/50 via-background to-purple-50/30 dark:from-indigo-950/20 dark:via-background dark:to-purple-950/10 shadow-sm relative overflow-hidden">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3 border-indigo-200/50 dark:border-indigo-800/30">
+                            <div className="flex items-center gap-2">
+                              <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                                <Play className="h-4 w-4 fill-white" />
+                              </div>
+                              <div>
+                                <h4 className="font-extrabold text-base text-foreground flex items-center gap-2">
+                                  Profile Introduction Video Showcase
+                                  <Badge className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[10px] px-2 py-0 border-0">
+                                    VIP Feature
+                                  </Badge>
+                                </h4>
+                                <p className="text-xs text-muted-foreground">
+                                  Feature an introduction video on your tutor card & public profile to boost student enrollments.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="video-enabled" className="text-xs font-semibold cursor-pointer">
+                                {introVideoData.isEnabled ? "Video Active" : "Video Hidden"}
+                              </Label>
+                              <input
+                                id="video-enabled"
+                                type="checkbox"
+                                checked={introVideoData.isEnabled}
+                                onChange={(e) => setIntroVideoData(prev => ({ ...prev, isEnabled: e.target.checked }))}
+                                className="h-4 w-4 rounded accent-indigo-600 cursor-pointer"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-xs font-bold text-foreground">
+                                Video URL (YouTube, Vimeo, Google Drive, or Direct MP4 link)
+                              </Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  placeholder="e.g. https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                                  value={introVideoData.url}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const parsed = parseVideoUrl(val);
+                                    setIntroVideoData(prev => ({
+                                      ...prev,
+                                      url: val,
+                                      embedUrl: parsed.embedUrl
+                                    }));
+                                  }}
+                                  className="bg-background shadow-sm text-xs"
+                                />
+                                {introVideoData.url && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIntroVideoData(prev => ({ ...prev, url: "", embedUrl: "" }))}
+                                    className="text-xs shrink-0 text-rose-500 hover:text-rose-600"
+                                  >
+                                    Clear
+                                  </Button>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">
+                                Tip: Paste standard YouTube URLs, YouTube Shorts, Vimeo links, or upload an MP4 video below.
+                              </p>
+                            </div>
+
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-xs font-bold text-foreground">
+                                Video Showcase Title
+                              </Label>
+                              <Input
+                                placeholder={`e.g. Welcome & Mathematics Demo with ${name}`}
+                                value={introVideoData.title}
+                                onChange={(e) => setIntroVideoData(prev => ({ ...prev, title: e.target.value }))}
+                                className="bg-background shadow-sm text-xs"
+                              />
+                            </div>
+
+                            {/* Or Upload video file */}
+                            <div className="space-y-1.5 sm:col-span-2">
+                              <Label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                                <Upload className="h-3.5 w-3.5" /> Or Upload MP4/WebM Video (Max 30MB)
+                              </Label>
+                              <Input
+                                type="file"
+                                accept="video/mp4,video/webm,video/quicktime"
+                                disabled={isVideoUploading}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  if (file.size > 30 * 1024 * 1024) {
+                                    toast.error("Video file size exceeds 30MB limit.");
+                                    return;
+                                  }
+                                  setIsVideoUploading(true);
+                                  const formData = new FormData();
+                                  formData.append("video", file);
+                                  try {
+                                    toast.loading("Uploading video...");
+                                    const upRes = await axios.post(`${API_URL}/upload/video`, formData);
+                                    toast.dismiss();
+                                    if (upRes.data?.url) {
+                                      toast.success("Video uploaded successfully!");
+                                      setIntroVideoData(prev => ({
+                                        ...prev,
+                                        url: upRes.data.url,
+                                        embedUrl: upRes.data.url
+                                      }));
+                                    }
+                                  } catch (upErr: any) {
+                                    toast.dismiss();
+                                    toast.error(upErr.response?.data?.message || "Failed to upload video");
+                                  } finally {
+                                    setIsVideoUploading(false);
+                                  }
+                                }}
+                                className="bg-background cursor-pointer text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Live Interactive Preview Box */}
+                          {introVideoData.url && (
+                            <div className="mt-4 pt-4 border-t border-indigo-200/50 dark:border-indigo-800/30">
+                              <p className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5">
+                                <Sparkles className="h-3.5 w-3.5 text-indigo-500" /> Live Video Preview:
+                              </p>
+                              <div className="relative aspect-video w-full max-w-lg mx-auto rounded-xl overflow-hidden bg-black shadow-md border border-border">
+                                {(() => {
+                                  const parsed = parseVideoUrl(introVideoData.url);
+                                  const embed = introVideoData.embedUrl || parsed.embedUrl;
+                                  const isDirect = parsed.provider === 'direct' || parsed.provider === 'upload';
+                                  if (isDirect) {
+                                    return (
+                                      <video src={embed} controls className="w-full h-full object-contain">
+                                        Your browser does not support HTML video.
+                                      </video>
+                                    );
+                                  }
+                                  return (
+                                    <iframe
+                                      src={embed}
+                                      title="Preview"
+                                      className="w-full h-full border-0"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                      allowFullScreen
+                                    />
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
