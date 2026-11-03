@@ -49,6 +49,8 @@ export const TutorVideoModal: React.FC<TutorVideoModalProps> = ({ isOpen, onClos
   const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
 
+  const effectiveTab = galleryVideos.length === 0 ? 'photos' : (galleryImages.length === 0 ? 'videos' : activeTab);
+
   const currentVideo = galleryVideos[selectedVideoIndex] || galleryVideos[0];
   const parsed = currentVideo ? parseVideoUrl(currentVideo.url) : null;
   const embedUrl = currentVideo?.embedUrl || parsed?.embedUrl;
@@ -88,13 +90,13 @@ export const TutorVideoModal: React.FC<TutorVideoModalProps> = ({ isOpen, onClos
             </div>
 
             {/* Tabs switcher if both videos and images exist */}
-            {hasImages && galleryVideos.length > 0 && (
+            {hasImages && galleryVideos.length > 0 ? (
               <div className="flex items-center bg-secondary/60 p-1 rounded-xl border border-border/40 self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setActiveTab('videos')}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    activeTab === 'videos'
+                    effectiveTab === 'videos'
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
@@ -106,7 +108,7 @@ export const TutorVideoModal: React.FC<TutorVideoModalProps> = ({ isOpen, onClos
                   type="button"
                   onClick={() => setActiveTab('photos')}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    activeTab === 'photos'
+                    effectiveTab === 'photos'
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
@@ -115,13 +117,18 @@ export const TutorVideoModal: React.FC<TutorVideoModalProps> = ({ isOpen, onClos
                   Photos ({galleryImages.length})
                 </button>
               </div>
-            )}
+            ) : hasImages ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-secondary text-foreground border border-border/60">
+                <ImageIcon className="h-3.5 w-3.5 text-primary" />
+                Photo Gallery ({galleryImages.length})
+              </span>
+            ) : null}
           </div>
         </DialogHeader>
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === 'videos' ? (
+          {effectiveTab === 'videos' ? (
             <div className="space-y-3">
               {/* Active Video Player (16:9) */}
               <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">

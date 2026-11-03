@@ -1205,9 +1205,11 @@ const TutorProfile = () => {
                   }] : []);
 
               const images: any[] = mediaGallery?.images || [];
-              const isEnabled = mediaGallery?.isEnabled !== false && (introVideo?.isEnabled !== false || videos.length > 0);
+              const isEnabled = mediaGallery?.isEnabled !== false;
 
               if (!isEnabled || (videos.length === 0 && images.length === 0)) return null;
+
+              const effectiveTab = videos.length === 0 ? 'photos' : (images.length === 0 ? 'videos' : showcaseTab);
 
               const activeVideo = videos[activeShowcaseVideoIndex] || videos[0];
               const parsed = activeVideo ? parseVideoUrl(activeVideo.url) : null;
@@ -1237,7 +1239,7 @@ const TutorProfile = () => {
                             type="button"
                             onClick={() => setShowcaseTab('videos')}
                             className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                              showcaseTab === 'videos'
+                              effectiveTab === 'videos'
                                 ? 'bg-primary text-primary-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
                             }`}
@@ -1248,7 +1250,7 @@ const TutorProfile = () => {
                             type="button"
                             onClick={() => setShowcaseTab('photos')}
                             className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                              showcaseTab === 'photos'
+                              effectiveTab === 'photos'
                                 ? 'bg-primary text-primary-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
                             }`}
@@ -1264,7 +1266,7 @@ const TutorProfile = () => {
                   </CardHeader>
 
                   <CardContent className="p-0">
-                    {showcaseTab === 'videos' && videos.length > 0 ? (
+                    {effectiveTab === 'videos' ? (
                       <div>
                         {/* 16:9 Video Player */}
                         <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
-import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2, Scale, Check, Languages, Play } from "lucide-react";
+import { Star, MapPin, Monitor, Users, CalendarDays, CheckCircle2, Scale, Check, Languages, Play, Image as ImageIcon } from "lucide-react";
 import { TutorVideoModal } from "@/components/tutors/TutorVideoModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,10 +81,19 @@ const TutorCard = ({ tutor, isCompared = false, onToggleCompare }: TutorCardProp
               setIsVideoModalOpen(true);
             }}
             className="absolute bottom-3 left-3 z-10 px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg bg-red-600/90 hover:bg-red-600 text-white backdrop-blur-md transition-all hover:scale-105 active:scale-95 group-hover:ring-2 ring-red-400"
-            title="Watch Teaching Portfolio & Demos"
+            title="Watch Teaching Portfolio & Showcase"
           >
-            <Play className="h-3 w-3 fill-white" />
-            <span>Portfolio</span>
+            {hasVideos ? (
+              <>
+                <Play className="h-3 w-3 fill-white" />
+                <span>Portfolio</span>
+              </>
+            ) : (
+              <>
+                <ImageIcon className="h-3.5 w-3.5 text-white" />
+                <span>Photos ({mediaGallery?.images?.length || 1})</span>
+              </>
+            )}
           </button>
         )}
 
