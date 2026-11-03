@@ -733,6 +733,7 @@ router.post('/:id/book-class', async (req, res) => {
     const netPayableInr = Math.max(0, calculatedPrice - walletDiscount);
     const localizedPrice = convertInrToCurrency(calculatedPrice, bookingCurrency);
     const netPayableLocalized = convertInrToCurrency(netPayableInr, bookingCurrency);
+    const netPayable = bookingCurrency !== 'INR' ? netPayableLocalized : netPayableInr;
     const exchangeMultiplier = SUPPORTED_CURRENCIES[bookingCurrency]?.exchangeMultiplier || 1.0;
 
     if (fullyPaidByWallet && studentUser) {
