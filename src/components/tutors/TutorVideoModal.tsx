@@ -248,22 +248,33 @@ export const TutorVideoModal: React.FC<TutorVideoModalProps> = ({ isOpen, onClos
 
         {/* Lightbox Modal for Full-Size Image Preview */}
         {lightboxImage && (
-          <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 cursor-pointer"
+            onClick={() => setLightboxImage(null)}
+          >
             <button
               type="button"
-              onClick={() => setLightboxImage(null)}
-              className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxImage(null);
+              }}
+              className="absolute top-4 right-4 z-50 h-11 w-11 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all shadow-lg hover:scale-105 active:scale-95"
+              title="Close image preview"
+              aria-label="Close image preview"
             >
-              <X className="h-5 w-5" />
+              <X className="h-6 w-6 stroke-[2.5]" />
             </button>
-            <div className="max-w-3xl max-h-[80vh] flex flex-col items-center">
+            <div 
+              className="max-w-4xl max-h-[85vh] flex flex-col items-center cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            >
               <img
                 src={resolveAssetUrl(lightboxImage.url)}
                 alt={lightboxImage.caption || "Full photo"}
-                className="max-w-full max-h-[70vh] rounded-xl object-contain shadow-2xl"
+                className="max-w-full max-h-[75vh] rounded-2xl object-contain shadow-2xl"
               />
               {lightboxImage.caption && (
-                <p className="mt-3 text-sm font-semibold text-white/90 text-center bg-black/50 px-4 py-1.5 rounded-full">
+                <p className="mt-3 text-sm font-semibold text-white/90 text-center bg-black/60 backdrop-blur-md px-5 py-2 rounded-full border border-white/10 shadow-md">
                   {lightboxImage.caption}
                 </p>
               )}
