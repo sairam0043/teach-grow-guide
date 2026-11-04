@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, ShieldAlert, ArrowRight, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages, Play } from "lucide-react";
+import { Calendar, Users, Clock, DollarSign, BookOpen, AlertCircle, Save, CheckCircle, PlusCircle, Check, Video, Sparkles, Trash2, GraduationCap, Award, Settings, Briefcase, Gift, Copy, CreditCard, Eye, EyeOff, ShieldCheck, ShieldAlert, ArrowRight, MessageSquare, Image as ImageIcon, FileText, Camera, Upload, X, Loader2, ExternalLink, Languages, Play, UserCheck } from "lucide-react";
 import { canUserManageVideo, parseVideoUrl, GalleryVideo, GalleryImage } from "@/lib/videoHelper";
 import { CLASS_TAUGHT_OPTIONS, BOARD_TAUGHT_OPTIONS } from "@/pages/RegisterTutor";
 import { PREFERRED_LANGUAGE_OPTIONS } from "@/constants/languages";
@@ -33,6 +33,7 @@ import { detectUserTimeZone, COMMON_TIMEZONES, formatBookingTime, formatSessionD
 import { getMeetingHref } from "@/utils/meeting";
 import { RescheduleDialog, DeclineRescheduleDialog } from "@/components/booking/RescheduleDialog";
 import TutorVerificationBooking from "@/components/tutor/TutorVerificationBooking";
+import TutorAttendanceManager from "@/components/tutor/TutorAttendanceManager";
 
 const parseTimingStringToDate = (timingStr: string): Date | null => {
   try {
@@ -1215,6 +1216,10 @@ const TutorDashboard = () => {
           <TabsList className="bg-secondary/50 p-1 rounded-xl shadow-sm border mb-4 h-auto justify-start w-full overflow-x-auto whitespace-nowrap">
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Requests</TabsTrigger>
             <TabsTrigger value="schedule" className="rounded-lg px-6 py-2.5 shrink-0">Class Schedule</TabsTrigger>
+            <TabsTrigger value="attendance" className="rounded-lg px-6 py-2.5 shrink-0 flex items-center gap-1.5">
+              <UserCheck className="h-4 w-4 text-emerald-600" />
+              Attendance
+            </TabsTrigger>
             <TabsTrigger value="students" className="rounded-lg px-6 py-2.5 shrink-0">Students</TabsTrigger>
             <TabsTrigger value="availability" className="rounded-lg px-6 py-2.5 shrink-0">Availability</TabsTrigger>
             <TabsTrigger 
@@ -1684,6 +1689,16 @@ const TutorDashboard = () => {
                               )}
                             </span>
                             <div className="flex flex-wrap gap-2">
+                              {(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full sm:w-auto text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 font-semibold text-xs"
+                                  onClick={() => setActiveTab("attendance")}
+                                >
+                                  <UserCheck className="h-3.5 w-3.5 mr-1" /> Class Attendance
+                                </Button>
+                              )}
                               {(!cls.rescheduleRequest || cls.rescheduleRequest.status !== 'pending') && !(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
                                 <Button
                                   size="sm"
@@ -1721,6 +1736,14 @@ const TutorDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="attendance">
+            <TutorAttendanceManager
+              tutorId={tutorProfile?._id || tutorProfile?.id || user?.id || ""}
+              tutorName={tutorProfile?.name || name || "Tutor"}
+              tutorTimezone={tutorTimezone}
+            />
           </TabsContent>
 
           <TabsContent value="students">
