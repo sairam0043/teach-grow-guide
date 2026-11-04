@@ -14,6 +14,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const visitorRoutes = require('./routes/visitorRoutes');
 const customServiceRoutes = require('./routes/CustomServiceRequest');
+const attendanceRoutes = require('./routes/attendanceRoutes');
 
 const app = express();
 
@@ -147,6 +148,7 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/visitors', visitorRoutes);
 app.use('/api/custom-service', customServiceRoutes);
 app.use('/api/custom-service-request', customServiceRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'cuvasol-backend' });
