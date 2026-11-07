@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Play, Sparkles, Calendar, Image as ImageIcon, Video as VideoIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
@@ -48,6 +48,19 @@ export const TutorVideoModal: React.FC<TutorVideoModalProps> = ({ isOpen, onClos
   const [activeTab, setActiveTab] = useState<'videos' | 'photos'>('videos');
   const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (lightboxImage) {
+          e.stopPropagation();
+          setLightboxImage(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxImage]);
 
   const effectiveTab = galleryVideos.length === 0 ? 'photos' : (galleryImages.length === 0 ? 'videos' : activeTab);
 
@@ -258,11 +271,12 @@ export const TutorVideoModal: React.FC<TutorVideoModalProps> = ({ isOpen, onClos
                 e.stopPropagation();
                 setLightboxImage(null);
               }}
-              className="absolute top-4 right-4 z-50 h-11 w-11 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all shadow-lg hover:scale-105 active:scale-95"
-              title="Close image preview"
+              className="fixed top-5 right-5 z-[99999] flex items-center gap-2 px-4 py-2.5 rounded-full bg-neutral-900 hover:bg-rose-600 text-white border-2 border-white/80 shadow-[0_8px_30px_rgba(0,0,0,0.8)] transition-all hover:scale-105 active:scale-95 group font-bold text-sm cursor-pointer select-none ring-2 ring-black/40"
+              title="Close preview (Esc)"
               aria-label="Close image preview"
             >
-              <X className="h-6 w-6 stroke-[2.5]" />
+              <X className="h-5 w-5 stroke-[3] group-hover:rotate-90 transition-transform duration-200" />
+              <span>Close</span>
             </button>
             <div 
               className="max-w-4xl max-h-[85vh] flex flex-col items-center cursor-default"
