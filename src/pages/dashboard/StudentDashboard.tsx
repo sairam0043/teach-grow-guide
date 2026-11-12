@@ -231,16 +231,38 @@ const StudentDashboard = () => {
     return `₹${getTutorPrice(tutor)}`;
   };
 
-  // Recommendation Scoring Logic based on Student Class & Subject Interests
-  const recommendedTutors = verifiedTutors.map(tutor => {
+  // Distinct recommended subjects for the student
+  const studentRecommendedSubjects = Array.from(new Set([
+    ...(Array.isArray(profileSubjectInterests) ? profileSubjectInterests : []),
+    profileInterestedSubject
+  ].filter(Boolean).map(s => String(s || '').trim())));
+
+  const stdSubjects = studentRecommendedSubjects.map(s => s.toLowerCase());
+
+  // Recommendation Scoring Logic: ONLY display VERIFIED tutors teaching the RECOMMENDED subjects
+  const recommendedTutors = verifiedTutors
+    .filter(tutor => {
+      // If student has recommended subjects specified, strictly filter to verified tutors who teach them
+      if (stdSubjects.length === 0) return true;
+
+      const tutorSubjects = (Array.isArray(tutor?.subjects) ? tutor.subjects : [])
+        .map((s: any) => String(s || '').toLowerCase().trim())
+        .filter(Boolean);
+      const tutorRates = (Array.isArray(tutor?.subjectRates) ? tutor.subjectRates : [])
+        .map((sr: any) => String(sr?.subject || '').toLowerCase().trim())
+        .filter(Boolean);
+      const allTutorSubjects = Array.from(new Set([...tutorSubjects, ...tutorRates]));
+
+      return stdSubjects.some(stSub =>
+        allTutorSubjects.some(tSub => tSub.includes(stSub) || stSub.includes(tSub))
+      );
+    })
+    .map(tutor => {
     try {
       let score = 0;
       const matchReasons: string[] = [];
 
       const stdClass = String(profileStudentClass || "").toLowerCase().trim();
-      const stdSubjects = (Array.isArray(profileSubjectInterests) ? profileSubjectInterests : [])
-        .map(s => String(s || '').toLowerCase().trim())
-        .filter(Boolean);
 
       // 1. Match Subject Interests
       const tutorSubjects = (Array.isArray(tutor?.subjects) ? tutor.subjects : [])
@@ -388,7 +410,7 @@ const StudentDashboard = () => {
         action: 'approve',
         confirmedBy: 'Student'
       });
-      toast.success("Reschedule request accepted! Class timing updated.");
+      toast.success("Date and time confirmed! Booking details saved successfully.");
       setBookings(prev => prev.map(b => b._id === bookingId ? res.data.booking : b));
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to accept reschedule request");
@@ -834,21 +856,27 @@ const StudentDashboard = () => {
                               <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
-                                    <Clock className="h-4 w-4 text-amber-600" /> Tutor Requested Reschedule
+                                    <Clock className="h-4 w-4 text-amber-600 animate-pulse" /> Tutor Selected New Date & Time
                                   </span>
                                   <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
-                                    ACTION REQUIRED
+                                    STUDENT / PARENT OK REQUIRED
                                   </Badge>
                                 </div>
-                                <p className="text-xs text-amber-950 dark:text-amber-100">
-                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{cls.rescheduleRequest.requestedTiming}</span>
+                                <div className="p-3 bg-card rounded-lg border border-amber-200 dark:border-amber-800/60 space-y-1">
+                                  <p className="text-xs text-muted-foreground">Tutor selected this new date and time for your class:</p>
+                                  <p className="text-sm font-extrabold text-primary">
+                                    📅 {cls.rescheduleRequest.requestedTiming}
+                                  </p>
+                                  {cls.rescheduleRequest.reason && (
+                                    <p className="text-[11px] text-muted-foreground italic pt-0.5">Note: &ldquo;{cls.rescheduleRequest.reason}&rdquo;</p>
+                                  )}
+                                </div>
+                                <p className="text-xs text-foreground font-medium">
+                                  Click <strong>OK</strong> from student/parents to confirm and save these details to your schedule.
                                 </p>
-                                {cls.rescheduleRequest.reason && (
-                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{cls.rescheduleRequest.reason}"</p>
-                                )}
                                 <div className="flex items-center gap-2 pt-1">
-                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(cls._id)}>
-                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept New Time
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 shadow-xs" onClick={() => handleApproveReschedule(cls._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> OK - Confirm & Save Details
                                   </Button>
                                   <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
                                     setDecliningBooking(cls);
@@ -950,11 +978,15 @@ const StudentDashboard = () => {
                     Recommended Tutors for You
                   </h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Verified tutors matched automatically based on your 
-                    {profileStudentClass ? <span className="font-semibold text-foreground"> {profileStudentClass}</span> : null}
-                    {profileSubjectInterests.length > 0 ? (
-                      <span> and subject interests (<span className="font-semibold text-primary">{profileSubjectInterests.join(", ")}</span>)</span>
-                    ) : null}.
+                    Exclusively displaying verified tutors specialized in your recommended subjects:{" "}
+                    {stdSubjects.length > 0 ? (
+                      <span className="font-bold text-primary">
+                        {studentRecommendedSubjects.join(", ")}
+                      </span>
+                    ) : (
+                      <span className="italic text-muted-foreground">All Subjects (Add your subjects in Profile to filter)</span>
+                    )}
+                    {profileStudentClass ? <span className="font-semibold text-foreground"> • Grade/Class: {profileStudentClass}</span> : null}.
                   </p>
                 </div>
 
@@ -1017,11 +1049,20 @@ const StudentDashboard = () => {
                   <Skeleton className="h-72 w-full rounded-2xl" />
                   <Skeleton className="h-72 w-full rounded-2xl" />
                 </div>
-              ) : verifiedTutors.length === 0 ? (
+              ) : recommendedTutors.length === 0 ? (
                 <div className="py-16 text-center text-muted-foreground bg-secondary/10 rounded-2xl border border-dashed">
                   <ShieldCheck className="mx-auto mb-4 h-16 w-16 opacity-40 text-primary" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No Verified Tutors Found</h3>
-                  <p className="max-w-md mx-auto text-sm">Our admin team is currently reviewing tutor applications. Check back soon for newly verified tutors!</p>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">
+                    {stdSubjects.length > 0 ? "No Verified Tutors Found for Recommended Subjects" : "No Verified Tutors Available"}
+                  </h3>
+                  <p className="max-w-md mx-auto text-sm">
+                    {stdSubjects.length > 0
+                      ? `We couldn't find verified tutors currently teaching ${studentRecommendedSubjects.join(", ")}. You can update your subject preferences in Profile Settings or browse all tutors.`
+                      : "Our admin team is currently reviewing tutor applications. Check back soon for newly verified tutors!"}
+                  </p>
+                  <Button asChild className="mt-4 rounded-full px-6">
+                    <Link to="/tutors">Browse All Tutors</Link>
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1275,21 +1316,27 @@ const StudentDashboard = () => {
                               <div className="w-full mt-3 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
-                                    <Clock className="h-4 w-4 text-amber-600" /> Tutor Requested Reschedule
+                                    <Clock className="h-4 w-4 text-amber-600 animate-pulse" /> Tutor Selected New Date & Time
                                   </span>
                                   <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
-                                    ACTION REQUIRED
+                                    STUDENT / PARENT OK REQUIRED
                                   </Badge>
                                 </div>
-                                <p className="text-xs text-amber-950 dark:text-amber-100">
-                                  <strong>Proposed New Time:</strong> <span className="font-bold text-primary">{booking.rescheduleRequest.requestedTiming}</span>
+                                <div className="p-3 bg-card rounded-lg border border-amber-200 dark:border-amber-800/60 space-y-1">
+                                  <p className="text-xs text-muted-foreground">Tutor selected this new date and time for your demo class:</p>
+                                  <p className="text-sm font-extrabold text-primary">
+                                    📅 {booking.rescheduleRequest.requestedTiming}
+                                  </p>
+                                  {booking.rescheduleRequest.reason && (
+                                    <p className="text-[11px] text-muted-foreground italic pt-0.5">Note: &ldquo;{booking.rescheduleRequest.reason}&rdquo;</p>
+                                  )}
+                                </div>
+                                <p className="text-xs text-foreground font-medium">
+                                  Click <strong>OK</strong> from student/parents to confirm and save these details to your schedule.
                                 </p>
-                                {booking.rescheduleRequest.reason && (
-                                  <p className="text-[11px] text-muted-foreground italic">Reason: "{booking.rescheduleRequest.reason}"</p>
-                                )}
                                 <div className="flex items-center gap-2 pt-1">
-                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8" onClick={() => handleApproveReschedule(booking._id)}>
-                                    <Check className="h-3.5 w-3.5 mr-1" /> Accept New Time
+                                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 shadow-xs" onClick={() => handleApproveReschedule(booking._id)}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> OK - Confirm & Save Details
                                   </Button>
                                   <Button size="sm" variant="outline" className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8" onClick={() => {
                                     setDecliningBooking(booking);

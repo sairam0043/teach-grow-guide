@@ -5,7 +5,7 @@ declare global {
 }
 
 import { useParams, Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen, Play, X } from "lucide-react";
+import { Star, MapPin, Monitor, Clock, ArrowLeft, Calendar as CalendarIcon, CheckCircle, CreditCard, ClockIcon, Check, AlertCircle, MessageSquare, Share2, Copy, GraduationCap, Award, Briefcase, Lock, Wallet, Sparkles, Image as ImageIcon, BookOpen, Play, X, CheckCircle2 } from "lucide-react";
 import { parseVideoUrl } from "@/lib/videoHelper";
 import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
@@ -27,11 +27,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import API_URL from "@/config/api";
 import { resolveAssetUrl } from "@/lib/assetUrl";
-import { 
-  detectUserTimeZone, 
-  COMMON_TIMEZONES, 
-  convertTutorSlotsToStudentTime, 
-  getUtcTimeForLocalTimeInTimeZone, 
+import {
+  detectUserTimeZone,
+  COMMON_TIMEZONES,
+  convertTutorSlotsToStudentTime,
+  getUtcTimeForLocalTimeInTimeZone,
   formatDateInTimeZone,
   formatBookingTime,
   getTimeZoneAbbreviation
@@ -58,6 +58,7 @@ const TutorProfile = () => {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [date, setDate] = useState<Date | undefined>(new Date());
+  const [isDemoConfirmationOpen, setIsDemoConfirmationOpen] = useState(false);
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
   const [tutorPosts, setTutorPosts] = useState<any[]>([]);
   const [selectedImageModal, setSelectedImageModal] = useState<string | null>(null);
@@ -121,10 +122,10 @@ const TutorProfile = () => {
       toast.error("Please specify your reason");
       return;
     }
-    
+
     setIsSubmittingCancellation(true);
     try {
-      await axios.put(`${API_URL}/tutors/booking/${cancellingBookingId}/status`, { 
+      await axios.put(`${API_URL}/tutors/booking/${cancellingBookingId}/status`, {
         status: 'cancelled',
         cancellationReason: finalReason,
         cancelledBy: 'Student'
@@ -197,7 +198,7 @@ const TutorProfile = () => {
             setStudentWalletBalance(res.data.walletBalance);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [user?.id]);
 
@@ -224,7 +225,7 @@ const TutorProfile = () => {
         // Iterate through 28 days starting from packStartDate
         for (let i = 0; i < 28; i++) {
           const currentDate = addDays(packStartDate, i);
-          
+
           // Get weekday name in studentTimezone
           const dayName = new Intl.DateTimeFormat('en-US', {
             weekday: 'long',
@@ -237,14 +238,14 @@ const TutorProfile = () => {
             const timeDate = parse(slot.time, 'h:mm a', new Date());
             const shr = timeDate.getHours();
             const smin = timeDate.getMinutes();
-            
+
             // Extract local parts of currentDate under studentTimezone
             const studentParts = {
               year: currentDate.getFullYear(),
               month: currentDate.getMonth(),
               day: currentDate.getDate()
             };
-            
+
             const utcTimeMs = getUtcTimeForLocalTimeInTimeZone(
               studentParts.year,
               studentParts.month,
@@ -253,7 +254,7 @@ const TutorProfile = () => {
               smin,
               studentTimezone
             );
-            
+
             const displayDateStr = formatDateInTimeZone(new Date(utcTimeMs), studentTimezone);
             const displayTimeStr = new Intl.DateTimeFormat('en-US', {
               timeZone: studentTimezone,
@@ -291,20 +292,20 @@ const TutorProfile = () => {
     if (!tutor?.availability) return [];
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const targetDayIdx = days.indexOf(dayName);
-    
+
     let targetDate = new Date();
     for (let i = 0; i < 7; i++) {
       if (targetDate.getDay() === targetDayIdx) break;
       targetDate = addDays(targetDate, 1);
     }
-    
+
     const slots = convertTutorSlotsToStudentTime(
       tutor.availability,
       tutor.timezone || 'Asia/Kolkata',
       targetDate,
       studentTimezone
     );
-    
+
     return slots.map(s => s.studentDisplayTime);
   };
 
@@ -318,12 +319,12 @@ const TutorProfile = () => {
         date as Date,
         studentTimezone
       );
-      
+
       const filteredSlots = slots.filter(slot => {
         const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
         return slot.utcTimeMs >= minTime.getTime();
       });
-      
+
       setAvailableSlotsForDate(filteredSlots);
     } else if (tutor?.availableTimings && isValidDate(date)) {
       // Legacy availabilities conversion using IST fallback
@@ -332,7 +333,7 @@ const TutorProfile = () => {
           weekday: 'long',
           timeZone: 'Asia/Kolkata'
         }).format(date as Date);
-        
+
         let parsed = parse(timeStr, 'h:mm a', new Date());
         if (isNaN(parsed.getTime())) {
           parsed = parse(timeStr, 'HH:mm', new Date());
@@ -340,26 +341,26 @@ const TutorProfile = () => {
         const time24 = format(parsed, 'HH:mm');
         const endParsed = addMinutes(parsed, 30);
         const endTime24 = format(endParsed, 'HH:mm');
-        
+
         return {
           day: tutorWeekday,
           startTime: time24,
           endTime: endTime24
         };
       });
-      
+
       const slots = convertTutorSlotsToStudentTime(
         legacyAvailability,
         'Asia/Kolkata',
         date as Date,
         studentTimezone
       );
-      
+
       const filteredSlots = slots.filter(slot => {
         const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
         return slot.utcTimeMs >= minTime.getTime();
       });
-      
+
       setAvailableSlotsForDate(filteredSlots);
     } else {
       setAvailableSlotsForDate([]);
@@ -479,7 +480,7 @@ const TutorProfile = () => {
     );
   }
 
-  const handleBookDemo = async () => {
+  const handleBookDemo = async (demoConfirmed = false) => {
     if (isProcessingPayment || bookingInProgressRef.current) return;
     if (role === 'tutor') {
       toast.error("Tutors are not allowed to book classes.");
@@ -649,6 +650,11 @@ const TutorProfile = () => {
       }
     }
 
+    if (selectedPlan.type === 'Free Demo Class' && !demoConfirmed) {
+      setIsDemoConfirmationOpen(true);
+      return;
+    }
+
     // Otherwise book
     bookingInProgressRef.current = true;
     setIsProcessingPayment(true);
@@ -811,7 +817,7 @@ const TutorProfile = () => {
         }
       } else {
         // Free Demo Booking success
-        toast.success("Demo booked successfully! You'll receive a confirmation shortly.");
+        toast.success("Date and time confirmed! Booking details saved successfully.");
         setExistingBookings([...existingBookings, booking]);
         setSelectedSlot(null);
         setIsProcessingPayment(false);
@@ -821,6 +827,33 @@ const TutorProfile = () => {
       toast.error(err.response?.data?.message || "Failed to book");
       setIsProcessingPayment(false);
       bookingInProgressRef.current = false;
+    }
+  };
+
+  const handleApproveReschedule = async (bookingId: string) => {
+    try {
+      const res = await axios.post(`${API_URL}/tutors/booking/${bookingId}/reschedule-confirm`, {
+        action: 'approve',
+        confirmedBy: 'Student'
+      });
+      toast.success("Date and time confirmed! Booking details saved successfully.");
+      setExistingBookings(prev => prev.map(b => b._id === bookingId ? res.data.booking : b));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to accept reschedule request");
+    }
+  };
+
+  const handleDeclineReschedule = async (bookingId: string) => {
+    try {
+      const res = await axios.post(`${API_URL}/tutors/booking/${bookingId}/reschedule-confirm`, {
+        action: 'decline',
+        confirmedBy: 'Student',
+        declineReason: "Declined by student"
+      });
+      toast.success("Reschedule request declined.");
+      setExistingBookings(prev => prev.map(b => b._id === bookingId ? res.data.booking : b));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to decline reschedule request");
     }
   };
 
@@ -914,8 +947,15 @@ const TutorProfile = () => {
   const enrolledBooking = selectedSubject ? existingBookings.find(b => b.subject === selectedSubject && b.status === "enrolled" && !isBookingPast(b.timing)) : undefined;
   const pendingBooking = selectedSubject ? existingBookings.find(b => b.subject === selectedSubject && b.status === "pending" && !isBookingPast(b.timing)) : undefined;
 
-  const demoBookingForSubject = selectedSubject ? existingBookings.find(b => 
-    b.subject === selectedSubject && 
+  const tutorRescheduleBooking = existingBookings.find(b =>
+    b &&
+    b.rescheduleRequest &&
+    b.rescheduleRequest.status === 'pending' &&
+    b.rescheduleRequest.requestedBy === 'Tutor'
+  );
+
+  const demoBookingForSubject = selectedSubject ? existingBookings.find(b =>
+    b.subject === selectedSubject &&
     ['pending', 'confirmed', 'completed', 'enrolled'].includes(b.status)
   ) : null;
   const isDemoDisabledForSubject = !!demoBookingForSubject;
@@ -1036,15 +1076,15 @@ const TutorProfile = () => {
 
   const whatsappUrl = tutor
     ? (() => {
-        const { text, url } = getShareTextAndUrl();
-        return `https://api.whatsapp.com/send?text=${encodeURIComponent(`${text}\n\nCheck out their profile here: ${url}`)}`;
-      })()
+      const { text, url } = getShareTextAndUrl();
+      return `https://api.whatsapp.com/send?text=${encodeURIComponent(`${text}\n\nCheck out their profile here: ${url}`)}`;
+    })()
     : "#";
   const facebookUrl = tutor
     ? (() => {
-        const { text, url } = getShareTextAndUrl();
-        return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
-      })()
+      const { text, url } = getShareTextAndUrl();
+      return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`;
+    })()
     : "#";
 
   const tutorImageUrl = tutor ? (resolveAssetUrl(tutor.photo) || `https://ui-avatars.com/api/?name=${encodeURIComponent(tutor.name)}`) : "";
@@ -1203,15 +1243,15 @@ const TutorProfile = () => {
             {(() => {
               const mediaGallery = (tutor as any).mediaGallery;
               const introVideo = (tutor as any).introVideo;
-              
+
               const videos: any[] = (mediaGallery?.videos && mediaGallery.videos.length > 0)
                 ? mediaGallery.videos
                 : (introVideo?.url && introVideo.isEnabled !== false ? [{
-                    url: introVideo.url,
-                    embedUrl: introVideo.embedUrl,
-                    title: introVideo.title || `Introduction & Teaching Demo with ${tutor.name}`,
-                    provider: introVideo.provider
-                  }] : []);
+                  url: introVideo.url,
+                  embedUrl: introVideo.embedUrl,
+                  title: introVideo.title || `Introduction & Teaching Demo with ${tutor.name}`,
+                  provider: introVideo.provider
+                }] : []);
 
               const images: any[] = mediaGallery?.images || [];
               const isEnabled = mediaGallery?.isEnabled !== false;
@@ -1247,22 +1287,20 @@ const TutorProfile = () => {
                           <button
                             type="button"
                             onClick={() => setShowcaseTab('videos')}
-                            className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                              effectiveTab === 'videos'
+                            className={`px-3 py-1 rounded-lg font-bold transition-all ${effectiveTab === 'videos'
                                 ? 'bg-primary text-primary-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
-                            }`}
+                              }`}
                           >
                             Videos ({videos.length})
                           </button>
                           <button
                             type="button"
                             onClick={() => setShowcaseTab('photos')}
-                            className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                              effectiveTab === 'photos'
+                            className={`px-3 py-1 rounded-lg font-bold transition-all ${effectiveTab === 'photos'
                                 ? 'bg-primary text-primary-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
-                            }`}
+                              }`}
                           >
                             Photos ({images.length})
                           </button>
@@ -1327,11 +1365,10 @@ const TutorProfile = () => {
                                       key={idx}
                                       type="button"
                                       onClick={() => setActiveShowcaseVideoIndex(idx)}
-                                      className={`relative shrink-0 w-36 rounded-xl overflow-hidden border-2 text-left transition-all ${
-                                        isSelected
+                                      className={`relative shrink-0 w-36 rounded-xl overflow-hidden border-2 text-left transition-all ${isSelected
                                           ? 'border-primary ring-2 ring-primary/40 shadow-md scale-[1.02]'
                                           : 'border-border/60 hover:border-primary/40 opacity-80 hover:opacity-100'
-                                      }`}
+                                        }`}
                                     >
                                       <div className="aspect-video bg-secondary/80 relative flex items-center justify-center overflow-hidden">
                                         {thumb ? (
@@ -1392,7 +1429,7 @@ const TutorProfile = () => {
 
             {/* Lightbox for profile photos */}
             {showcaseLightboxImg && (
-              <div 
+              <div
                 className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 cursor-pointer"
                 onClick={() => setShowcaseLightboxImg(null)}
               >
@@ -1409,7 +1446,7 @@ const TutorProfile = () => {
                   <X className="h-5 w-5 stroke-[3] group-hover:rotate-90 transition-transform duration-200" />
                   <span>Close</span>
                 </button>
-                <div 
+                <div
                   className="max-w-4xl max-h-[85vh] flex flex-col items-center cursor-default"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -1456,7 +1493,7 @@ const TutorProfile = () => {
                         description: `Delivered high-quality guidance and conceptual lectures. Helped students prepare for school and board examinations.`
                       }
                     ];
-                    
+
                     const experiences = tutor.workExperience;
 
                     if (user) {
@@ -1521,7 +1558,7 @@ const TutorProfile = () => {
                           <p className="text-xs sm:text-sm text-muted-foreground max-w-sm mb-4 leading-relaxed">
                             Please log in to view detailed employment history, roles, and schools taught by {tutor.name || 'this tutor'}.
                           </p>
-                          <Button 
+                          <Button
                             onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/tutors/${id}`)}`)}
                             className="shadow-md rounded-full px-8 hover:scale-[1.02] active:scale-[0.98] transition-transform font-bold"
                           >
@@ -1633,11 +1670,10 @@ const TutorProfile = () => {
 
                           {/* Up to 5 Images Display */}
                           {post.images && post.images.length > 0 && (
-                            <div className={`grid gap-2 mt-2 ${
-                              post.images.length === 1 ? 'grid-cols-1' :
-                              post.images.length === 2 ? 'grid-cols-2' :
-                              'grid-cols-3'
-                            }`}>
+                            <div className={`grid gap-2 mt-2 ${post.images.length === 1 ? 'grid-cols-1' :
+                                post.images.length === 2 ? 'grid-cols-2' :
+                                  'grid-cols-3'
+                              }`}>
                               {post.images.map((imgUrl: string, idx: number) => (
                                 <div
                                   key={idx}
@@ -1678,7 +1714,7 @@ const TutorProfile = () => {
                       {tutor.address}
                     </p>
                   </div>
-                  
+
                   {/* Embedded Google Map iframe */}
                   <div className="relative w-full h-64 overflow-hidden rounded-xl border border-border bg-secondary/20 shadow-inner">
                     <iframe
@@ -1717,7 +1753,7 @@ const TutorProfile = () => {
                       {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
                         const rawSlots = tutor.availability.filter((a: any) => a.day === day);
                         if (rawSlots.length === 0) return null;
-                        
+
                         // Deduplicate slots to prevent displaying the exact same timings
                         const seen = new Set<string>();
                         const daySlots = rawSlots.filter((slot: any) => {
@@ -1826,610 +1862,701 @@ const TutorProfile = () => {
                     </div>
                   </CardContent>
                 </>
-              ) : pendingBooking ? (
-                <>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-amber-500">
-                      <ClockIcon className="h-5 w-5" /> Pending Approvals
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 text-center">
-                      <p className="font-medium text-amber-800 dark:text-amber-300 mb-2">Waiting for tutor to approve.</p>
-                      <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
-                        Email invitations have been sent to the tutor. The class will be officially booked once they approve. Check your mailbox for confirmation shortly
-                      </p>
-                      <p className="text-sm text-amber-600/80 dark:text-amber-400/80 mt-2 font-medium">
-                        Timing: {pendingBooking.timing}
-                      </p>
-                    </div>
-                    <Button 
-                      variant="destructive"
-                      className="w-full font-semibold"
-                      onClick={() => {
-                        setCancellingBookingId(pendingBooking._id);
-                        setIsCancelDialogOpen(true);
-                      }}
-                    >
-                      Cancel Demo Request
-                    </Button>
-                    {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl"
-                        onClick={handleMessageTutor}
-                      >
-                        <MessageSquare className="h-4 w-4" /> Message Tutor
-                      </Button>
-                    )}
-                  </CardContent>
-                </>
-              ) : enrolledBooking ? (
-                <>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-green-600">
-                      <CheckCircle className="h-5 w-5" /> Enrolled Successfully
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 text-center">
-                      <p className="font-medium text-green-800 dark:text-green-300 mb-2">You are officially enrolled in {tutor.name}'s classes!</p>
-                      <p className="text-sm text-green-600/80 dark:text-green-400/80">
-                        Plan: {enrolledBooking.planType} ({enrolledBooking.currency && enrolledBooking.currency !== 'INR' ? `${enrolledBooking.currency} ${enrolledBooking.foreignAmount || enrolledBooking.amountPaid}` : `₹${enrolledBooking.amountPaid}`}{enrolledBooking.planType.includes('Pack') ? '/month' : '/hr'})
-                      </p>
-                      <p className="text-sm text-green-600/80 dark:text-green-400/80 mt-1">
-                        Timing: {enrolledBooking.timing}
-                      </p>
-                    </div>
-                    <Button asChild className="w-full" variant="outline">
-                      <Link to="/dashboard/student">Go to Dashboard</Link>
-                    </Button>
-                    {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl"
-                        onClick={handleMessageTutor}
-                      >
-                        <MessageSquare className="h-4 w-4" /> Message Tutor
-                      </Button>
-                    )}
-                  </CardContent>
-                </>
               ) : (
                 <>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CalendarIcon className="h-5 w-5 text-primary" />
-                      <span>Book a Session</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Subject Selector Prompt */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground block">
-                        Choose Subject:
-                      </label>
-                      <Select
-                        value={selectedSubject}
-                        onValueChange={(val) => {
-                          setSelectedSubject(val);
-                          setSelectedPlan(null);
-                          setSelectedSlot(null);
-                        }}
-                      >
-                        <SelectTrigger className="w-full bg-background rounded-xl">
-                          <SelectValue placeholder="Select a subject..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(() => {
-                            const seen = new Set<string>();
-                            return (tutor.subjects || []).filter((s: string) => {
-                              const clean = s.replace(/\s*\((Academic|Extracurricular)\)/i, "").trim().toLowerCase();
-                              if (seen.has(clean)) return false;
-                              seen.add(clean);
-                              return true;
-                            }).map((s: string) => (
-                              <SelectItem key={s} value={s}>
-                                {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
-                              </SelectItem>
-                            ));
-                          })()}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Pricing Plans list (only shown once a subject is selected) */}
-                    {selectedSubject && (
-                      <div className="space-y-2 mt-4 animate-in fade-in duration-300">
-                        <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground block">
-                          Select a Plan:
-                        </label>
-                        <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
-                          {[
-                            { type: 'Free Demo Class', price: 0, isDemo: true },
-                            { type: '1-on-1 (Premium)', price: subjectRate },
-                            { type: '2 Students', price: Math.round(subjectRate * 0.75) },
-                            { type: '3–5 Students', price: Math.round(subjectRate * 0.55) },
-                            { type: '2 Days/Week (Monthly Pack)', price: Math.round(subjectRate * 8 * 0.85), isPack: true, sessionsCount: 8, subtitle: '8 Classes/mo • 15% Off' },
-                            { type: '3 Days/Week (Monthly Pack)', price: Math.round(subjectRate * 12 * 0.70), isPack: true, sessionsCount: 12, subtitle: '12 Classes/mo • 30% Off' }
-                          ].map(plan => {
-                            const demoBooking = plan.isDemo && selectedSubject ? existingBookings.find(b => 
-                              b.subject === selectedSubject && 
-                              ['pending', 'confirmed', 'completed', 'enrolled'].includes(b.status)
-                            ) : null;
-                            const isDemoDisabled = !!demoBooking;
-                            const isClickable = !enrolledBooking && !isDemoDisabled;
-                            return (
-                              <div
-                                key={plan.type}
-                                onClick={() => isClickable ? setSelectedPlan(plan) : null}
-                                className={`flex justify-between items-center rounded-xl p-2.5 transition-all duration-200 border text-xs ${selectedPlan?.type === plan.type
-                                  ? "bg-primary text-primary-foreground border-primary shadow-sm scale-[1.01]"
-                                  : isClickable
-                                    ? "bg-secondary/40 hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/20"
-                                    : "bg-secondary/20 border-transparent opacity-50 cursor-not-allowed"
-                                  }`}
-                              >
-                                <div className="flex items-start gap-2">
-                                  {isClickable && (
-                                    <div className={`h-3.5 w-3.5 mt-0.5 rounded-full border flex items-center justify-center ${selectedPlan?.type === plan.type ? "border-primary-foreground" : "border-muted-foreground/60"}`}>
-                                      {selectedPlan?.type === plan.type && <div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
-                                    </div>
-                                  )}
-                                  <div className="flex flex-col">
-                                    <span className="font-bold">
-                                      {plan.type}
-                                    </span>
-                                    {demoBooking && (
-                                      <span className="text-[10px] text-muted-foreground font-semibold">
-                                        ({demoBooking.status === 'pending' ? 'Pending Approval' : 'Already Booked'})
-                                      </span>
-                                    )}
-                                    {plan.subtitle && (
-                                      <span className={`text-[10px] ${selectedPlan?.type === plan.type ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                                        {plan.subtitle}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <span className="font-extrabold text-sm block">
-                                    {plan.price === 0 ? "Free Demo" : formatPrice(plan.price)}
-                                  </span>
-                                  <span className={`text-[9px] uppercase font-bold tracking-wider ${selectedPlan?.type === plan.type ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
-                                    {plan.price === 0 ? "" : plan.isPack ? "/month" : "/hr"}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                  {tutorRescheduleBooking && tutorRescheduleBooking._id !== pendingBooking?._id && (
+                    <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                          <Clock className="h-4 w-4 text-amber-600 animate-pulse" /> Tutor Selected New Date & Time
+                        </span>
+                        <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border-amber-300 text-[10px] font-bold">
+                          STUDENT / PARENT OK REQUIRED
+                        </Badge>
                       </div>
-                    )}
-
-                    {!selectedSubject && (
-                      <div className="text-center py-6 px-4 border border-dashed rounded-xl bg-secondary/10 mt-2">
-                        <p className="text-xs font-semibold text-muted-foreground">Select a subject above to view rates and booking plans.</p>
-                      </div>
-                    )}
-
-                    {selectedSubject && !selectedPlan && (
-                      <div className="text-center py-6 px-4 border border-dashed rounded-xl bg-secondary/10 mt-2">
-                        <p className="text-xs font-semibold text-muted-foreground">Please select a booking plan above to choose date & time slots.</p>
-                      </div>
-                    )}
-
-                    {selectedPlan && (
-                      <div className="space-y-4 pt-4 border-t border-border/40 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <div className="space-y-1">
-                          <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground block">
-                            Select Timing:
-                          </label>
-                          <p className="text-[11px] text-muted-foreground">
-                            {selectedPlan.type === 'Free Demo Class'
-                              ? "Select a date and an available slot to try a free demo class."
-                              : `Select a date and an available slot to book a ${selectedPlan.type} class.`}
+                      <div className="p-3 bg-card rounded-lg border border-amber-200 dark:border-amber-800/60 space-y-1 text-left">
+                        <p className="text-xs text-muted-foreground">Tutor selected this new date and time for your class:</p>
+                        <p className="text-sm font-extrabold text-primary">
+                          📅 {tutorRescheduleBooking.rescheduleRequest.requestedTiming}
+                        </p>
+                        {tutorRescheduleBooking.subject && (
+                          <p className="text-xs text-muted-foreground font-medium">
+                            Subject: <span className="text-foreground font-bold">{tutorRescheduleBooking.subject}</span>
                           </p>
-                        </div>
+                        )}
+                        {tutorRescheduleBooking.rescheduleRequest.reason && (
+                          <p className="text-[11px] text-muted-foreground italic pt-0.5">Note: &ldquo;{tutorRescheduleBooking.rescheduleRequest.reason}&rdquo;</p>
+                        )}
+                      </div>
+                      <p className="text-xs text-foreground font-medium text-left">
+                        Click <strong>OK</strong> from student/parents to confirm and save these details to your schedule.
+                      </p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 shadow-xs"
+                          onClick={() => handleApproveReschedule(tutorRescheduleBooking._id)}
+                        >
+                          <Check className="h-3.5 w-3.5 mr-1" /> OK - Confirm & Save Details
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8"
+                          onClick={() => handleDeclineReschedule(tutorRescheduleBooking._id)}
+                        >
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
-                        {selectedPlan.isPack ? (
-                          <div className="space-y-4">
-                            {/* Course start date selector */}
-                            <div className="space-y-2">
-                              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Course Start Date</label>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant={"outline"}
-                                    className={`w-full justify-start text-left font-normal ${!packStartDate && "text-muted-foreground"}`}
-                                  >
-                                    <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                                    {isValidDate(packStartDate) ? format(packStartDate as Date, "PPP") : <span>Pick a start date</span>}
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="center">
-                                  <Calendar
-                                    mode="single"
-                                    selected={packStartDate}
-                                    onSelect={setPackStartDate}
-                                    initialFocus
-                                    disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                              {packStartDate && (
-                                <p className="text-[11px] text-emerald-600 font-semibold px-1 mt-1">
-                                  ✓ Course Ends: {format(addDays(packStartDate, 27), "PPP")} (4 Weeks Package)
-                                </p>
+                  {pendingBooking ? (
+                    <>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-amber-500">
+                          <ClockIcon className="h-5 w-5" /> Pending Approvals
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {pendingBooking.rescheduleRequest && pendingBooking.rescheduleRequest.status === 'pending' && pendingBooking.rescheduleRequest.requestedBy === 'Tutor' ? (
+                          <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-2 text-left">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                                <Clock className="h-4 w-4 text-amber-600 animate-pulse" /> Tutor Selected New Date & Time
+                              </span>
+                              <Badge variant="outline" className="bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border-amber-300 text-[10px] font-bold">
+                                STUDENT / PARENT OK REQUIRED
+                              </Badge>
+                            </div>
+                            <div className="p-3 bg-card rounded-lg border border-amber-200 dark:border-amber-800/60 space-y-1">
+                              <p className="text-xs text-muted-foreground">Tutor selected this new date and time for your class:</p>
+                              <p className="text-sm font-extrabold text-primary">
+                                📅 {pendingBooking.rescheduleRequest.requestedTiming}
+                              </p>
+                              {pendingBooking.rescheduleRequest.reason && (
+                                <p className="text-[11px] text-muted-foreground italic pt-0.5">Note: &ldquo;{pendingBooking.rescheduleRequest.reason}&rdquo;</p>
                               )}
                             </div>
+                            <p className="text-xs text-foreground font-medium">
+                              Click <strong>OK</strong> from student/parents to confirm and save these details to your schedule.
+                            </p>
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 shadow-xs"
+                                onClick={() => handleApproveReschedule(pendingBooking._id)}
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" /> OK - Confirm & Save Details
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs h-8"
+                                onClick={() => handleDeclineReschedule(pendingBooking._id)}
+                              >
+                                Decline
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 text-center">
+                            <p className="font-medium text-amber-800 dark:text-amber-300 mb-2">Waiting for tutor to approve.</p>
+                            <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
+                              Email invitations have been sent to the tutor. The class will be officially booked once they approve. Check your mailbox for confirmation shortly
+                            </p>
+                            <p className="text-sm text-amber-600/80 dark:text-amber-400/80 mt-2 font-medium">
+                              Timing: {pendingBooking.timing}
+                            </p>
+                          </div>
+                        )}
+                        <Button
+                          variant="destructive"
+                          className="w-full font-semibold"
+                          onClick={() => {
+                            setCancellingBookingId(pendingBooking._id);
+                            setIsCancelDialogOpen(true);
+                          }}
+                        >
+                          Cancel Demo Request
+                        </Button>
+                        {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
+                          <Button
+                            variant="outline"
+                            className="w-full gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl"
+                            onClick={handleMessageTutor}
+                          >
+                            <MessageSquare className="h-4 w-4" /> Message Tutor
+                          </Button>
+                        )}
+                      </CardContent>
+                    </>
+                  ) : enrolledBooking ? (
+                    <>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-green-600">
+                          <CheckCircle className="h-5 w-5" /> Enrolled Successfully
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 text-center">
+                          <p className="font-medium text-green-800 dark:text-green-300 mb-2">You are officially enrolled in {tutor.name}'s classes!</p>
+                          <p className="text-sm text-green-600/80 dark:text-green-400/80">
+                            Plan: {enrolledBooking.planType} ({enrolledBooking.currency && enrolledBooking.currency !== 'INR' ? `${enrolledBooking.currency} ${enrolledBooking.foreignAmount || enrolledBooking.amountPaid}` : `₹${enrolledBooking.amountPaid}`}{enrolledBooking.planType.includes('Pack') ? '/month' : '/hr'})
+                          </p>
+                          <p className="text-sm text-green-600/80 dark:text-green-400/80 mt-1">
+                            Timing: {enrolledBooking.timing}
+                          </p>
+                        </div>
+                        <Button asChild className="w-full" variant="outline">
+                          <Link to="/dashboard/student">Go to Dashboard</Link>
+                        </Button>
+                        {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
+                          <Button
+                            variant="outline"
+                            className="w-full gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl"
+                            onClick={handleMessageTutor}
+                          >
+                            <MessageSquare className="h-4 w-4" /> Message Tutor
+                          </Button>
+                        )}
+                      </CardContent>
+                    </>
+                  ) : (
+                    <>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <CalendarIcon className="h-5 w-5 text-primary" />
+                          <span>Book a Session</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Subject Selector Prompt */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground block">
+                            Choose Subject:
+                          </label>
+                          <Select
+                            value={selectedSubject}
+                            onValueChange={(val) => {
+                              setSelectedSubject(val);
+                              setSelectedPlan(null);
+                              setSelectedSlot(null);
+                            }}
+                          >
+                            <SelectTrigger className="w-full bg-background rounded-xl">
+                              <SelectValue placeholder="Select a subject..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(() => {
+                                const seen = new Set<string>();
+                                return (tutor.subjects || []).filter((s: string) => {
+                                  const clean = s.replace(/\s*\((Academic|Extracurricular)\)/i, "").trim().toLowerCase();
+                                  if (seen.has(clean)) return false;
+                                  seen.add(clean);
+                                  return true;
+                                }).map((s: string) => (
+                                  <SelectItem key={s} value={s}>
+                                    {s.replace(/\s*\((Academic|Extracurricular)\)/i, "")}
+                                  </SelectItem>
+                                ));
+                              })()}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                            {/* Recurrent scheduling slot pickers */}
-                            <div className="space-y-3 p-3.5 border rounded-xl bg-secondary/15">
-                              <h4 className="text-xs font-extrabold uppercase tracking-wider text-foreground mb-2">Set Weekly Schedule</h4>
-                              {packSchedule.map((sched, idx) => {
-                                const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-                                const rawDays = tutor?.availability?.map((a: any) => a.day) || dayOrder;
-                                const availableDays = Array.from(new Set(rawDays)).sort((a: any, b: any) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
-                                const daySlots = sched.day ? getSlotsForWeekday(sched.day) : [];
-
+                        {/* Pricing Plans list (only shown once a subject is selected) */}
+                        {selectedSubject && (
+                          <div className="space-y-2 mt-4 animate-in fade-in duration-300">
+                            <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground block">
+                              Select a Plan:
+                            </label>
+                            <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+                              {[
+                                { type: 'Free Demo Class', price: 0, isDemo: true },
+                                { type: '1-on-1 (Premium)', price: subjectRate },
+                                { type: '2 Students', price: Math.round(subjectRate * 0.75) },
+                                { type: '3–5 Students', price: Math.round(subjectRate * 0.55) },
+                                { type: '2 Days/Week (Monthly Pack)', price: Math.round(subjectRate * 8 * 0.85), isPack: true, sessionsCount: 8, subtitle: '8 Classes/mo • 15% Off' },
+                                { type: '3 Days/Week (Monthly Pack)', price: Math.round(subjectRate * 12 * 0.70), isPack: true, sessionsCount: 12, subtitle: '12 Classes/mo • 30% Off' }
+                              ].map(plan => {
+                                const demoBooking = plan.isDemo && selectedSubject ? existingBookings.find(b =>
+                                  b.subject === selectedSubject &&
+                                  ['pending', 'confirmed', 'completed', 'enrolled'].includes(b.status)
+                                ) : null;
+                                const isDemoDisabled = !!demoBooking;
+                                const isClickable = !enrolledBooking && !isDemoDisabled;
                                 return (
-                                  <div key={idx} className="space-y-2 border-b border-border/50 pb-3 last:border-0 last:pb-0">
-                                    <label className="text-xs font-bold text-muted-foreground">Class Slot #{idx + 1}</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {/* Day Selector */}
-                                      <Select
-                                        value={sched.day}
-                                        onValueChange={(val) => {
-                                          const newSched = [...packSchedule];
-                                          newSched[idx] = { day: val, time: '' }; // reset time on day change
-                                          setPackSchedule(newSched);
-                                        }}
-                                      >
-                                        <SelectTrigger className="bg-background">
-                                          <SelectValue placeholder="Select Day" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {availableDays.map((dayName: any) => (
-                                            <SelectItem key={dayName} value={dayName}>{dayName}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-
-                                      {/* Time Selector */}
-                                      <Select
-                                        value={sched.time}
-                                        onValueChange={(val) => {
-                                          const newSched = [...packSchedule];
-                                          newSched[idx].time = val;
-                                          setPackSchedule(newSched);
-                                        }}
-                                        disabled={!sched.day}
-                                      >
-                                        <SelectTrigger className="bg-background">
-                                          <SelectValue placeholder="Select Time" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {daySlots.map((timeString: string) => (
-                                            <SelectItem key={timeString} value={timeString}>{timeString}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
+                                  <div
+                                    key={plan.type}
+                                    onClick={() => isClickable ? setSelectedPlan(plan) : null}
+                                    className={`flex justify-between items-center rounded-xl p-2.5 transition-all duration-200 border text-xs ${selectedPlan?.type === plan.type
+                                      ? "bg-primary text-primary-foreground border-primary shadow-sm scale-[1.01]"
+                                      : isClickable
+                                        ? "bg-secondary/40 hover:bg-secondary/80 cursor-pointer border-transparent hover:border-primary/20"
+                                        : "bg-secondary/20 border-transparent opacity-50 cursor-not-allowed"
+                                      }`}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      {isClickable && (
+                                        <div className={`h-3.5 w-3.5 mt-0.5 rounded-full border flex items-center justify-center ${selectedPlan?.type === plan.type ? "border-primary-foreground" : "border-muted-foreground/60"}`}>
+                                          {selectedPlan?.type === plan.type && <div className="h-1.5 w-1.5 rounded-full bg-primary-foreground" />}
+                                        </div>
+                                      )}
+                                      <div className="flex flex-col">
+                                        <span className="font-bold">
+                                          {plan.type}
+                                        </span>
+                                        {demoBooking && (
+                                          <span className="text-[10px] text-muted-foreground font-semibold">
+                                            ({demoBooking.status === 'pending' ? 'Pending Approval' : 'Already Booked'})
+                                          </span>
+                                        )}
+                                        {plan.subtitle && (
+                                          <span className={`text-[10px] ${selectedPlan?.type === plan.type ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                                            {plan.subtitle}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <span className="font-extrabold text-sm block">
+                                        {plan.price === 0 ? "Free Demo" : formatPrice(plan.price)}
+                                      </span>
+                                      <span className={`text-[9px] uppercase font-bold tracking-wider ${selectedPlan?.type === plan.type ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
+                                        {plan.price === 0 ? "" : plan.isPack ? "/month" : "/hr"}
+                                      </span>
                                     </div>
                                   </div>
                                 );
                               })}
-                              {packSchedule.some((slot, i) =>
-                                slot.day && slot.time && packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
-                              ) && (
-                                  <div className="text-[11px] font-semibold text-destructive mt-2 flex items-center gap-1.5 animate-pulse bg-destructive/10 p-2.5 rounded-lg border border-destructive/20">
-                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                    <span>Duplicate slots selected. Please choose unique times.</span>
-                                  </div>
-                                )}
+                            </div>
+                          </div>
+                        )}
+
+                        {!selectedSubject && (
+                          <div className="text-center py-6 px-4 border border-dashed rounded-xl bg-secondary/10 mt-2">
+                            <p className="text-xs font-semibold text-muted-foreground">Select a subject above to view rates and booking plans.</p>
+                          </div>
+                        )}
+
+                        {selectedSubject && !selectedPlan && (
+                          <div className="text-center py-6 px-4 border border-dashed rounded-xl bg-secondary/10 mt-2">
+                            <p className="text-xs font-semibold text-muted-foreground">Please select a booking plan above to choose date & time slots.</p>
+                          </div>
+                        )}
+
+                        {selectedPlan && (
+                          <div className="space-y-4 pt-4 border-t border-border/40 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="space-y-1">
+                              <label className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground block">
+                                Select Timing:
+                              </label>
+                              <p className="text-[11px] text-muted-foreground">
+                                {selectedPlan.type === 'Free Demo Class'
+                                  ? "Select a date and an available slot to try a free demo class."
+                                  : `Select a date and an available slot to book a ${selectedPlan.type} class.`}
+                              </p>
                             </div>
 
-                            {/* Instant Calendar Sessions Preview */}
-                            {generatedPackSessions && generatedPackSessions.length > 0 ? (
-                              <div className="space-y-2">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Calendar Preview ({generatedPackSessions.length} Sessions)</label>
-                                <div className="border rounded-xl bg-card p-3 max-h-[180px] overflow-y-auto space-y-1.5 shadow-inner">
-                                  {generatedPackSessions.map((session, i) => (
-                                    <div key={i} className="flex justify-between items-center text-xs p-2 rounded-lg bg-secondary/20 hover:bg-secondary/40 transition-colors">
-                                      <span className="font-semibold text-muted-foreground">Class #{i + 1}</span>
-                                      <span className="font-bold text-foreground">{session.date} at {session.time}</span>
-                                    </div>
-                                  ))}
+                            {selectedPlan.isPack ? (
+                              <div className="space-y-4">
+                                {/* Course start date selector */}
+                                <div className="space-y-2">
+                                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Course Start Date</label>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant={"outline"}
+                                        className={`w-full justify-start text-left font-normal ${!packStartDate && "text-muted-foreground"}`}
+                                      >
+                                        <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                                        {isValidDate(packStartDate) ? format(packStartDate as Date, "PPP") : <span>Pick a start date</span>}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="center">
+                                      <Calendar
+                                        mode="single"
+                                        selected={packStartDate}
+                                        onSelect={setPackStartDate}
+                                        initialFocus
+                                        disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  {packStartDate && (
+                                    <p className="text-[11px] text-emerald-600 font-semibold px-1 mt-1">
+                                      ✓ Course Ends: {format(addDays(packStartDate, 27), "PPP")} (4 Weeks Package)
+                                    </p>
+                                  )}
                                 </div>
+
+                                {/* Recurrent scheduling slot pickers */}
+                                <div className="space-y-3 p-3.5 border rounded-xl bg-secondary/15">
+                                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-foreground mb-2">Set Weekly Schedule</h4>
+                                  {packSchedule.map((sched, idx) => {
+                                    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                                    const rawDays = tutor?.availability?.map((a: any) => a.day) || dayOrder;
+                                    const availableDays = Array.from(new Set(rawDays)).sort((a: any, b: any) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+                                    const daySlots = sched.day ? getSlotsForWeekday(sched.day) : [];
+
+                                    return (
+                                      <div key={idx} className="space-y-2 border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                                        <label className="text-xs font-bold text-muted-foreground">Class Slot #{idx + 1}</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {/* Day Selector */}
+                                          <Select
+                                            value={sched.day}
+                                            onValueChange={(val) => {
+                                              const newSched = [...packSchedule];
+                                              newSched[idx] = { day: val, time: '' }; // reset time on day change
+                                              setPackSchedule(newSched);
+                                            }}
+                                          >
+                                            <SelectTrigger className="bg-background">
+                                              <SelectValue placeholder="Select Day" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {availableDays.map((dayName: any) => (
+                                                <SelectItem key={dayName} value={dayName}>{dayName}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+
+                                          {/* Time Selector */}
+                                          <Select
+                                            value={sched.time}
+                                            onValueChange={(val) => {
+                                              const newSched = [...packSchedule];
+                                              newSched[idx].time = val;
+                                              setPackSchedule(newSched);
+                                            }}
+                                            disabled={!sched.day}
+                                          >
+                                            <SelectTrigger className="bg-background">
+                                              <SelectValue placeholder="Select Time" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {daySlots.map((timeString: string) => (
+                                                <SelectItem key={timeString} value={timeString}>{timeString}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {packSchedule.some((slot, i) =>
+                                    slot.day && slot.time && packSchedule.some((otherSlot, j) => i !== j && slot.day === otherSlot.day && slot.time === otherSlot.time)
+                                  ) && (
+                                      <div className="text-[11px] font-semibold text-destructive mt-2 flex items-center gap-1.5 animate-pulse bg-destructive/10 p-2.5 rounded-lg border border-destructive/20">
+                                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                        <span>Duplicate slots selected. Please choose unique times.</span>
+                                      </div>
+                                    )}
+                                </div>
+
+                                {/* Instant Calendar Sessions Preview */}
+                                {generatedPackSessions && generatedPackSessions.length > 0 ? (
+                                  <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Calendar Preview ({generatedPackSessions.length} Sessions)</label>
+                                    <div className="border rounded-xl bg-card p-3 max-h-[180px] overflow-y-auto space-y-1.5 shadow-inner">
+                                      {generatedPackSessions.map((session, i) => (
+                                        <div key={i} className="flex justify-between items-center text-xs p-2 rounded-lg bg-secondary/20 hover:bg-secondary/40 transition-colors">
+                                          <span className="font-semibold text-muted-foreground">Class #{i + 1}</span>
+                                          <span className="font-bold text-foreground">{session.date} at {session.time}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] font-semibold text-center text-muted-foreground p-3 border border-dashed rounded-xl bg-secondary/5 mt-2">
+                                    Please select all days and time slots above to preview your monthly calendar schedule.
+                                  </div>
+                                )}
                               </div>
                             ) : (
-                              <div className="text-[11px] font-semibold text-center text-muted-foreground p-3 border border-dashed rounded-xl bg-secondary/5 mt-2">
-                                Please select all days and time slots above to preview your monthly calendar schedule.
+                              <>
+                                {/* Standard Single Booking Selector */}
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant={"outline"}
+                                      className={`w-full justify-start text-left font-normal ${!date && "text-muted-foreground"}`}
+                                    >
+                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                      {isValidDate(date) ? format(date as Date, "PPP") : <span>Pick a date</span>}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="center">
+                                    <Calendar
+                                      mode="single"
+                                      selected={date}
+                                      onSelect={setDate}
+                                      initialFocus
+                                      disabled={(d) => {
+                                        if (d < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+
+                                        // Determine availability source
+                                        let tutorAvail = tutor?.availability;
+                                        if ((!tutorAvail || tutorAvail.length === 0) && tutor?.availableTimings && tutor.availableTimings.length > 0) {
+                                          tutorAvail = tutor.availableTimings.map((timeStr: string) => {
+                                            const tutorWeekday = new Intl.DateTimeFormat('en-US', {
+                                              weekday: 'long',
+                                              timeZone: 'Asia/Kolkata'
+                                            }).format(d);
+
+                                            let parsed = parse(timeStr, 'h:mm a', new Date());
+                                            if (isNaN(parsed.getTime())) {
+                                              parsed = parse(timeStr, 'HH:mm', new Date());
+                                            }
+                                            const time24 = format(parsed, 'HH:mm');
+                                            const endParsed = addMinutes(parsed, 30);
+                                            const endTime24 = format(endParsed, 'HH:mm');
+
+                                            return {
+                                              day: tutorWeekday,
+                                              startTime: time24,
+                                              endTime: endTime24
+                                            };
+                                          });
+                                        }
+
+                                        if (tutorAvail && tutorAvail.length > 0) {
+                                          const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                          const dayName = days[getDay(d)];
+                                          const matchesWeekday = tutorAvail.some((a: any) => a.day === dayName);
+                                          if (!matchesWeekday) return true;
+
+                                          // If today, disable if all slots are in the past or within 3 hours
+                                          const todayStr = formatDateInTimeZone(new Date(), studentTimezone);
+                                          const dStr = formatDateInTimeZone(d, studentTimezone);
+                                          if (todayStr === dStr) {
+                                            const slots = convertTutorSlotsToStudentTime(
+                                              tutorAvail,
+                                              tutor?.timezone || 'Asia/Kolkata',
+                                              d,
+                                              studentTimezone
+                                            );
+                                            const filtered = slots.filter(slot => {
+                                              const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
+                                              return slot.utcTimeMs >= minTime.getTime();
+                                            });
+                                            return filtered.length === 0;
+                                          }
+                                          return false;
+                                        }
+                                        return false;
+                                      }}
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-2">
+                                  {availableSlotsForDate && availableSlotsForDate.length > 0 ? (
+                                    availableSlotsForDate.map((slot: any, i: number) => {
+                                      const timingString = isValidDate(date) ? `${formatDateInTimeZone(date as Date, studentTimezone)} at ${slot.studentDisplayTime}` : slot.studentDisplayTime;
+                                      const isBooked = existingBookings.some((b: any) => {
+                                        if (b.utcTiming) {
+                                          return new Date(b.utcTiming).getTime() === slot.utcTimeMs && (b.status === "confirmed" || b.status === "enrolled");
+                                        }
+                                        return b.timing === timingString && (b.status === "confirmed" || b.status === "enrolled");
+                                      });
+                                      const isSlotDisabled = (!selectedPlan && hasActiveBooking && timingString !== activeBookingTiming);
+
+                                      return (
+                                        <button
+                                          key={i}
+                                          onClick={() => setSelectedSlot(slot.studentDisplayTime)}
+                                          disabled={isSlotDisabled}
+                                          className={`w-full flex justify-between items-center rounded-lg border p-3 text-left text-sm transition-colors ${selectedSlot === slot.studentDisplayTime
+                                            ? "border-primary bg-primary/5 text-foreground"
+                                            : "hover:border-primary/50 text-muted-foreground"
+                                            } ${isSlotDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                                        >
+                                          <div className="font-medium text-foreground">
+                                            {slot.studentDisplayTime}
+                                            <span className="ml-1.5 text-xs font-normal text-muted-foreground italic">
+                                              ({slot.tutorDisplayTime} {slot.tutorTimeZoneAbbr})
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center">
+                                            {isBooked && (
+                                              <Badge variant="secondary" className="mr-2 text-xs text-green-600 bg-green-100">Booked</Badge>
+                                            )}
+                                            {selectedSlot === slot.studentDisplayTime && (
+                                              <CheckCircle className="h-4 w-4 text-primary" />
+                                            )}
+                                          </div>
+                                        </button>
+                                      )
+                                    })
+                                  ) : (
+                                    <div className="text-sm text-muted-foreground p-3 border rounded text-center bg-secondary/30">
+                                      No availability for {isValidDate(date) ? formatDateInTimeZone(date as Date, studentTimezone) : 'this date'}. <br /> Select a highlighted date from the calendar.
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="mt-3 text-[11px] text-muted-foreground flex items-center justify-between bg-secondary/5 p-2 rounded-lg border">
+                                  <span>Times shown in: <strong>{studentTimezone}</strong></span>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button className="text-primary hover:underline font-semibold ml-1">change</button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-64 p-3" align="end">
+                                      <div className="space-y-2">
+                                        <Label htmlFor="student-tz-override" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Override Timezone</Label>
+                                        <Select value={studentTimezone} onValueChange={setStudentTimezone}>
+                                          <SelectTrigger id="student-tz-override" className="h-8 text-xs bg-background">
+                                            <SelectValue placeholder="Select timezone" />
+                                          </SelectTrigger>
+                                          <SelectContent className="max-h-[200px]">
+                                            {COMMON_TIMEZONES.map((tz) => (
+                                              <SelectItem key={tz} value={tz} className="text-xs">
+                                                {tz}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+                              </>
+                            )}
+
+                            {selectedPlan && (selectedPlan.type === '2 Students' || selectedPlan.type === '3–5 Students') && (
+                              <div className="space-y-2 mt-4 p-3 border rounded-lg bg-secondary/10">
+                                <label className="text-sm font-medium">Invite Other Students (Emails)</label>
+                                {otherEmails.map((email, idx) => (
+                                  <div key={idx} className="flex gap-2">
+                                    <input
+                                      type="email"
+                                      value={email}
+                                      onChange={e => {
+                                        const newEmails = [...otherEmails];
+                                        newEmails[idx] = e.target.value;
+                                        setOtherEmails(newEmails);
+                                      }}
+                                      placeholder="student@example.com"
+                                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                    />
+                                    {idx === otherEmails.length - 1 && selectedPlan.type === '3–5 Students' && otherEmails.length < 4 && (
+                                      <Button type="button" variant="outline" size="sm" onClick={() => setOtherEmails([...otherEmails, ''])}>+</Button>
+                                    )}
+                                    {otherEmails.length > 1 && (
+                                      <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => {
+                                        const newEmails = otherEmails.filter((_, i) => i !== idx);
+                                        setOtherEmails(newEmails);
+                                      }}>✕</Button>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
                             )}
-                          </div>
-                        ) : (
-                          <>
-                            {/* Standard Single Booking Selector */}
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant={"outline"}
-                                  className={`w-full justify-start text-left font-normal ${!date && "text-muted-foreground"}`}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {isValidDate(date) ? format(date as Date, "PPP") : <span>Pick a date</span>}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="center">
-                                <Calendar
-                                  mode="single"
-                                  selected={date}
-                                  onSelect={setDate}
-                                  initialFocus
-                                  disabled={(d) => {
-                                    if (d < new Date(new Date().setHours(0, 0, 0, 0))) return true;
-                                    
-                                    // Determine availability source
-                                    let tutorAvail = tutor?.availability;
-                                    if ((!tutorAvail || tutorAvail.length === 0) && tutor?.availableTimings && tutor.availableTimings.length > 0) {
-                                      tutorAvail = tutor.availableTimings.map((timeStr: string) => {
-                                        const tutorWeekday = new Intl.DateTimeFormat('en-US', {
-                                          weekday: 'long',
-                                          timeZone: 'Asia/Kolkata'
-                                        }).format(d);
-                                        
-                                        let parsed = parse(timeStr, 'h:mm a', new Date());
-                                        if (isNaN(parsed.getTime())) {
-                                          parsed = parse(timeStr, 'HH:mm', new Date());
-                                        }
-                                        const time24 = format(parsed, 'HH:mm');
-                                        const endParsed = addMinutes(parsed, 30);
-                                        const endTime24 = format(endParsed, 'HH:mm');
-                                        
-                                        return {
-                                          day: tutorWeekday,
-                                          startTime: time24,
-                                          endTime: endTime24
-                                        };
-                                      });
-                                    }
 
-                                    if (tutorAvail && tutorAvail.length > 0) {
-                                      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                                      const dayName = days[getDay(d)];
-                                      const matchesWeekday = tutorAvail.some((a: any) => a.day === dayName);
-                                      if (!matchesWeekday) return true;
+                            {/* Student Wallet Discount Box */}
+                            {selectedPlan && selectedPlan.price > 0 && studentWalletBalance > 0 && (
+                              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 mt-4 animate-in fade-in">
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="use-wallet" className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+                                    <input
+                                      id="use-wallet"
+                                      type="checkbox"
+                                      checked={useWalletBalance}
+                                      onChange={(e) => setUseWalletBalance(e.target.checked)}
+                                      className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                                    />
+                                    <Wallet className="h-4 w-4 text-amber-500" />
+                                    Apply Student Wallet Credits
+                                  </label>
+                                  <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-xs font-bold">
+                                    Available: {formatPrice(studentWalletBalance)}
+                                  </Badge>
+                                </div>
 
-                                      // If today, disable if all slots are in the past or within 3 hours
-                                      const todayStr = formatDateInTimeZone(new Date(), studentTimezone);
-                                      const dStr = formatDateInTimeZone(d, studentTimezone);
-                                      if (todayStr === dStr) {
-                                        const slots = convertTutorSlotsToStudentTime(
-                                          tutorAvail,
-                                          tutor?.timezone || 'Asia/Kolkata',
-                                          d,
-                                          studentTimezone
-                                        );
-                                        const filtered = slots.filter(slot => {
-                                          const minTime = new Date(Date.now() + 3 * 60 * 60 * 1000);
-                                          return slot.utcTimeMs >= minTime.getTime();
-                                        });
-                                        return filtered.length === 0;
-                                      }
-                                      return false;
-                                    }
-                                    return false;
-                                  }}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-2">
-                              {availableSlotsForDate && availableSlotsForDate.length > 0 ? (
-                                availableSlotsForDate.map((slot: any, i: number) => {
-                                  const timingString = isValidDate(date) ? `${formatDateInTimeZone(date as Date, studentTimezone)} at ${slot.studentDisplayTime}` : slot.studentDisplayTime;
-                                  const isBooked = existingBookings.some((b: any) => {
-                                    if (b.utcTiming) {
-                                      return new Date(b.utcTiming).getTime() === slot.utcTimeMs && (b.status === "confirmed" || b.status === "enrolled");
-                                    }
-                                    return b.timing === timingString && (b.status === "confirmed" || b.status === "enrolled");
-                                  });
-                                  const isSlotDisabled = (!selectedPlan && hasActiveBooking && timingString !== activeBookingTiming);
-
+                                {useWalletBalance && (() => {
+                                  const origPrice = selectedPlan.price;
+                                  const discount = Math.min(studentWalletBalance, origPrice);
+                                  const net = Math.max(0, origPrice - discount);
                                   return (
-                                    <button
-                                      key={i}
-                                      onClick={() => setSelectedSlot(slot.studentDisplayTime)}
-                                      disabled={isSlotDisabled}
-                                      className={`w-full flex justify-between items-center rounded-lg border p-3 text-left text-sm transition-colors ${selectedSlot === slot.studentDisplayTime
-                                        ? "border-primary bg-primary/5 text-foreground"
-                                        : "hover:border-primary/50 text-muted-foreground"
-                                        } ${isSlotDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                                    >
-                                      <div className="font-medium text-foreground">
-                                        {slot.studentDisplayTime}
-                                        <span className="ml-1.5 text-xs font-normal text-muted-foreground italic">
-                                          ({slot.tutorDisplayTime} {slot.tutorTimeZoneAbbr})
+                                    <div className="text-[11px] space-y-1 pt-1 border-t border-amber-500/20 text-muted-foreground">
+                                      <div className="flex justify-between">
+                                        <span>Plan Price:</span>
+                                        <span className="font-semibold text-foreground">{formatPrice(origPrice)}</span>
+                                      </div>
+                                      <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
+                                        <span>Wallet Credit Applied:</span>
+                                        <span>-{formatPrice(discount)}</span>
+                                      </div>
+                                      <div className="flex justify-between font-bold text-foreground text-xs pt-1 border-t border-amber-500/20">
+                                        <span>Net Payable:</span>
+                                        <span className="text-amber-600 dark:text-amber-400">
+                                          {net === 0 ? "🎉 FREE (₹0)" : formatPrice(net)}
                                         </span>
                                       </div>
-                                      <div className="flex items-center">
-                                        {isBooked && (
-                                          <Badge variant="secondary" className="mr-2 text-xs text-green-600 bg-green-100">Booked</Badge>
-                                        )}
-                                        {selectedSlot === slot.studentDisplayTime && (
-                                          <CheckCircle className="h-4 w-4 text-primary" />
-                                        )}
-                                      </div>
-                                    </button>
-                                  )
-                                })
-                              ) : (
-                                <div className="text-sm text-muted-foreground p-3 border rounded text-center bg-secondary/30">
-                                  No availability for {isValidDate(date) ? formatDateInTimeZone(date as Date, studentTimezone) : 'this date'}. <br /> Select a highlighted date from the calendar.
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="mt-3 text-[11px] text-muted-foreground flex items-center justify-between bg-secondary/5 p-2 rounded-lg border">
-                              <span>Times shown in: <strong>{studentTimezone}</strong></span>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <button className="text-primary hover:underline font-semibold ml-1">change</button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-64 p-3" align="end">
-                                  <div className="space-y-2">
-                                    <Label htmlFor="student-tz-override" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Override Timezone</Label>
-                                    <Select value={studentTimezone} onValueChange={setStudentTimezone}>
-                                      <SelectTrigger id="student-tz-override" className="h-8 text-xs bg-background">
-                                        <SelectValue placeholder="Select timezone" />
-                                      </SelectTrigger>
-                                      <SelectContent className="max-h-[200px]">
-                                        {COMMON_TIMEZONES.map((tz) => (
-                                          <SelectItem key={tz} value={tz} className="text-xs">
-                                            {tz}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            </div>
-                          </>
-                        )}
-
-                        {selectedPlan && (selectedPlan.type === '2 Students' || selectedPlan.type === '3–5 Students') && (
-                          <div className="space-y-2 mt-4 p-3 border rounded-lg bg-secondary/10">
-                            <label className="text-sm font-medium">Invite Other Students (Emails)</label>
-                            {otherEmails.map((email, idx) => (
-                              <div key={idx} className="flex gap-2">
-                                <input
-                                  type="email"
-                                  value={email}
-                                  onChange={e => {
-                                    const newEmails = [...otherEmails];
-                                    newEmails[idx] = e.target.value;
-                                    setOtherEmails(newEmails);
-                                  }}
-                                  placeholder="student@example.com"
-                                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-                                />
-                                {idx === otherEmails.length - 1 && selectedPlan.type === '3–5 Students' && otherEmails.length < 4 && (
-                                  <Button type="button" variant="outline" size="sm" onClick={() => setOtherEmails([...otherEmails, ''])}>+</Button>
-                                )}
-                                {otherEmails.length > 1 && (
-                                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => {
-                                    const newEmails = otherEmails.filter((_, i) => i !== idx);
-                                    setOtherEmails(newEmails);
-                                  }}>✕</Button>
-                                )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
-                            ))}
-                          </div>
-                        )}
+                            )}
 
-                        {/* Student Wallet Discount Box */}
-                        {selectedPlan && selectedPlan.price > 0 && studentWalletBalance > 0 && (
-                          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 mt-4 animate-in fade-in">
-                            <div className="flex items-center justify-between">
-                              <label htmlFor="use-wallet" className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
-                                <input
-                                  id="use-wallet"
-                                  type="checkbox"
-                                  checked={useWalletBalance}
-                                  onChange={(e) => setUseWalletBalance(e.target.checked)}
-                                  className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
-                                />
-                                <Wallet className="h-4 w-4 text-amber-500" />
-                                Apply Student Wallet Credits
-                              </label>
-                              <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-xs font-bold">
-                                Available: {formatPrice(studentWalletBalance)}
-                              </Badge>
-                            </div>
-
-                            {useWalletBalance && (() => {
-                              const origPrice = selectedPlan.price;
-                              const discount = Math.min(studentWalletBalance, origPrice);
-                              const net = Math.max(0, origPrice - discount);
-                              return (
-                                <div className="text-[11px] space-y-1 pt-1 border-t border-amber-500/20 text-muted-foreground">
-                                  <div className="flex justify-between">
-                                    <span>Plan Price:</span>
-                                    <span className="font-semibold text-foreground">{formatPrice(origPrice)}</span>
-                                  </div>
-                                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
-                                    <span>Wallet Credit Applied:</span>
-                                    <span>-{formatPrice(discount)}</span>
-                                  </div>
-                                  <div className="flex justify-between font-bold text-foreground text-xs pt-1 border-t border-amber-500/20">
-                                    <span>Net Payable:</span>
-                                    <span className="text-amber-600 dark:text-amber-400">
-                                      {net === 0 ? "🎉 FREE (₹0)" : formatPrice(net)}
-                                    </span>
-                                  </div>
+                            {/* Student Topics to be Taught / Focus Areas */}
+                            {selectedPlan && (
+                              <div className="space-y-2 mt-4 p-3.5 border rounded-xl bg-secondary/15 dark:bg-secondary/10 shadow-xs animate-in fade-in">
+                                <div className="flex items-center justify-between">
+                                  <Label htmlFor="demo-topics" className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                    <BookOpen className="h-3.5 w-3.5 text-primary" />
+                                    Topics to be Taught / Questions {selectedPlan.type === 'Free Demo Class' ? <span className="text-destructive font-black">*</span> : <span className="text-muted-foreground font-normal text-[11px]">(Optional)</span>}
+                                  </Label>
+                                  {selectedPlan.type === 'Free Demo Class' && (
+                                    <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5">
+                                      Required for Demo
+                                    </Badge>
+                                  )}
                                 </div>
-                              );
-                            })()}
-                          </div>
-                        )}
+                                <Textarea
+                                  id="demo-topics"
+                                  placeholder={
+                                    selectedPlan.type === 'Free Demo Class'
+                                      ? "Please explain what specific topics or chapters you want the tutor to explain in this demo (e.g. Calculus derivatives, Organic chemistry reactions, grammar basics) so the tutor can prepare beforehand..."
+                                      : "Any specific chapters, topics, or goals you would like the tutor to focus on..."
+                                  }
+                                  value={demoTopics}
+                                  onChange={(e) => setDemoTopics(e.target.value)}
+                                  className="text-xs min-h-[75px] resize-none rounded-lg bg-background"
+                                  maxLength={500}
+                                />
+                                <p className="text-[11px] text-muted-foreground leading-normal">
+                                  {selectedPlan.type === 'Free Demo Class' ? (
+                                    <span className="text-primary font-medium">
+                                      💡 This informs the tutor in advance so they can prepare custom material for your demo.
+                                    </span>
+                                  ) : (
+                                    <span>Helps the tutor prepare custom learning plans for your session.</span>
+                                  )}
+                                </p>
+                              </div>
+                            )}
 
-                        {/* Student Topics to be Taught / Focus Areas */}
-                        {selectedPlan && (
-                          <div className="space-y-2 mt-4 p-3.5 border rounded-xl bg-secondary/15 dark:bg-secondary/10 shadow-xs animate-in fade-in">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="demo-topics" className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                <BookOpen className="h-3.5 w-3.5 text-primary" />
-                                Topics to be Taught / Questions {selectedPlan.type === 'Free Demo Class' ? <span className="text-destructive font-black">*</span> : <span className="text-muted-foreground font-normal text-[11px]">(Optional)</span>}
-                              </Label>
-                              {selectedPlan.type === 'Free Demo Class' && (
-                                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20 font-bold px-2 py-0.5">
-                                  Required for Demo
-                                </Badge>
-                              )}
-                            </div>
-                            <Textarea
-                              id="demo-topics"
-                              placeholder={
-                                selectedPlan.type === 'Free Demo Class'
-                                  ? "Please explain what specific topics or chapters you want the tutor to explain in this demo (e.g. Calculus derivatives, Organic chemistry reactions, grammar basics) so the tutor can prepare beforehand..."
-                                  : "Any specific chapters, topics, or goals you would like the tutor to focus on..."
-                              }
-                              value={demoTopics}
-                              onChange={(e) => setDemoTopics(e.target.value)}
-                              className="text-xs min-h-[75px] resize-none rounded-lg bg-background"
-                              maxLength={500}
-                            />
-                            <p className="text-[11px] text-muted-foreground leading-normal">
-                              {selectedPlan.type === 'Free Demo Class' ? (
-                                <span className="text-primary font-medium">
-                                  💡 This informs the tutor in advance so they can prepare custom material for your demo.
+                            <Button
+                              className="w-full mt-4"
+                              variant={selectedExisting ? "destructive" : "default"}
+                              onClick={() => void handleBookDemo()}
+                              disabled={isBookButtonDisabled}
+                            >
+                              {isProcessingPayment ? (
+                                <span className="flex items-center gap-2 justify-center">
+                                  <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
+                                  Processing...
                                 </span>
                               ) : (
-                                <span>Helps the tutor prepare custom learning plans for your session.</span>
-                              )}
-                            </p>
-                          </div>
-                        )}
-
-                        <Button
-                          className="w-full mt-4"
-                          variant={selectedExisting ? "destructive" : "default"}
-                          onClick={handleBookDemo}
-                          disabled={isBookButtonDisabled}
-                        >
-                          {isProcessingPayment ? (
-                            <span className="flex items-center gap-2 justify-center">
-                              <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
-                              Processing...
-                            </span>
-                          ) : (
-                            selectedExisting
-                              ? "Cancel Booking"
-                              : selectedPlan
-                                ? (selectedPlan.type === 'Free Demo Class' 
-                                    ? "Book Free Demo Session" 
-                                    : (() => {
+                                selectedExisting
+                                  ? "Cancel Booking"
+                                  : selectedPlan
+                                    ? (selectedPlan.type === 'Free Demo Class'
+                                      ? "Book Free Demo Session"
+                                      : (() => {
                                         const origPrice = selectedPlan.price;
                                         const discount = (useWalletBalance && studentWalletBalance > 0) ? Math.min(studentWalletBalance, origPrice) : 0;
                                         const net = Math.max(0, origPrice - discount);
@@ -2441,34 +2568,36 @@ const TutorProfile = () => {
                                         }
                                         return `Book Class & Pay ${formatPrice(origPrice)}`;
                                       })()
-                                  )
-                                : "Select Pricing & Booking option"
-                          )}
-                        </Button>
+                                    )
+                                    : "Select Pricing & Booking option"
+                              )}
+                            </Button>
 
-                        {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
-                          <Button
-                            variant="outline"
-                            className="w-full mt-2 gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl"
-                            onClick={handleMessageTutor}
-                          >
-                            <MessageSquare className="h-4 w-4" /> Message Tutor
-                          </Button>
-                        )}
+                            {user?.id !== (tutor.userId?._id || tutor.userId?.id || tutor.userId) && (
+                              <Button
+                                variant="outline"
+                                className="w-full mt-2 gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-xl"
+                                onClick={handleMessageTutor}
+                              >
+                                <MessageSquare className="h-4 w-4" /> Message Tutor
+                              </Button>
+                            )}
 
-                        {!selectedExisting && (
-                          <p className="text-center text-xs text-muted-foreground mt-2">
-                            {selectedPlan
-                              ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ${formatPrice(selectedPlan.price)}${selectedPlan.isPack ? ' (Monthly Pack)' : '/hr'}`)
-                              : "Select Pricing & Booking option"}
-                          </p>
+                            {!selectedExisting && (
+                              <p className="text-center text-xs text-muted-foreground mt-2">
+                                {selectedPlan
+                                  ? (selectedPlan.price === 0 ? "Free • No commitment required" : `Total: ${formatPrice(selectedPlan.price)}${selectedPlan.isPack ? ' (Monthly Pack)' : '/hr'}`)
+                                  : "Select Pricing & Booking option"}
+                              </p>
+                            )}
+                          </div>
                         )}
-                      </div>
-                    )}
-                  </CardContent>
+                      </CardContent>
+                    </>
+                  )}
                 </>
               )}
-            </Card>
+                </Card>
           </div>
         </div>
       </div>
@@ -2539,8 +2668,8 @@ const TutorProfile = () => {
                   <button
                     onClick={() => setSandboxMethod("card")}
                     className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${sandboxMethod === "card"
-                        ? "border-indigo-500 text-indigo-400"
-                        : "border-transparent text-slate-400 hover:text-slate-200"
+                      ? "border-indigo-500 text-indigo-400"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
                       }`}
                   >
                     <CreditCard className="inline-block h-4 w-4 mr-1.5 -mt-0.5" />
@@ -2549,8 +2678,8 @@ const TutorProfile = () => {
                   <button
                     onClick={() => setSandboxMethod("upi")}
                     className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${sandboxMethod === "upi"
-                        ? "border-indigo-500 text-indigo-400"
-                        : "border-transparent text-slate-400 hover:text-slate-200"
+                      ? "border-indigo-500 text-indigo-400"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
                       }`}
                   >
                     <span className="inline-block font-mono font-bold mr-1 bg-slate-800 text-slate-300 text-[10px] px-1 rounded">UPI</span>
@@ -2559,8 +2688,8 @@ const TutorProfile = () => {
                   <button
                     onClick={() => setSandboxMethod("netbanking")}
                     className={`flex-1 pb-3 text-sm font-semibold border-b-2 transition-all ${sandboxMethod === "netbanking"
-                        ? "border-indigo-500 text-indigo-400"
-                        : "border-transparent text-slate-400 hover:text-slate-200"
+                      ? "border-indigo-500 text-indigo-400"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
                       }`}
                   >
                     <Monitor className="inline-block h-4 w-4 mr-1.5 -mt-0.5" />
@@ -2739,6 +2868,31 @@ const TutorProfile = () => {
       )}
 
       {/* Cancellation Reason Dialog */}
+      <Dialog open={isDemoConfirmationOpen} onOpenChange={setIsDemoConfirmationOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Demo Session</DialogTitle>
+            <DialogDescription>
+              You are selecting {date ? format(date, "PPP") : "this date"} at {selectedSlot} ({studentTimezone}) for your free demo session. Do you want to save this booking?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsDemoConfirmationOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setIsDemoConfirmationOpen(false);
+                void handleBookDemo(true);
+              }}
+              disabled={isProcessingPayment}
+            >
+              OK
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -2761,7 +2915,7 @@ const TutorProfile = () => {
                 </SelectContent>
               </Select>
             </div>
-            
+
             {cancelReasonType === "Other" && (
               <div className="w-full space-y-2 animate-in fade-in duration-200">
                 <Label htmlFor="customCancelReason" className="text-xs text-muted-foreground">Specify Reason</Label>

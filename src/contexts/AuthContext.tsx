@@ -11,6 +11,8 @@ interface AppUser {
   full_name?: string;
   phone?: string;
   student_class?: string;
+  student_board?: string;
+  student_state?: string;
   student_name?: string;
   student_or_parent?: string;
   interested_subject?: string;
@@ -53,6 +55,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       full_name: authUser.full_name,
       phone: authUser.phone,
       student_class: authUser.student_class,
+      student_board: authUser.student_board,
+      student_state: authUser.student_state,
       student_name: authUser.student_name,
       student_or_parent: authUser.student_or_parent,
       interested_subject: authUser.interested_subject,

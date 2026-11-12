@@ -126,6 +126,8 @@ const RegisterStudent = () => {
   const [studentName, setStudentName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [customClass, setCustomClass] = useState("");
+  const [studentBoard, setStudentBoard] = useState("");
+  const [studentState, setStudentState] = useState("");
   const [interestedSubject, setInterestedSubject] = useState("");
   const [heardAboutUs, setHeardAboutUs] = useState("");
   const [customHeardAboutUs, setCustomHeardAboutUs] = useState("");
@@ -213,6 +215,16 @@ const RegisterStudent = () => {
       return;
     }
 
+    if (!studentBoard) {
+      toast.error("Please select your school board.");
+      return;
+    }
+
+    if (studentBoard === "State" && !studentState.trim()) {
+      toast.error("Please enter your state.");
+      return;
+    }
+
     if (!interestedSubject.trim()) {
       toast.error("Please enter the subject(s) you are interested in.");
       return;
@@ -262,6 +274,8 @@ const RegisterStudent = () => {
       full_name: name,
       phone: finalPhone,
       student_class: finalClass,
+      student_board: studentBoard,
+      student_state: studentBoard === "State" ? studentState.trim() : "",
       student_or_parent: studentOrParent,
       student_name: studentOrParent === "Parent" ? studentName.trim() : "",
       interested_subject: interestedSubject.trim(),
@@ -527,6 +541,40 @@ const RegisterStudent = () => {
                       placeholder="e.g. Masters, Diploma, Grade 5"
                       value={customClass}
                       onChange={(e) => setCustomClass(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="studentBoard">Board</Label>
+                  <Select
+                    value={studentBoard}
+                    onValueChange={(value) => {
+                      setStudentBoard(value);
+                      if (value !== "State") setStudentState("");
+                    }}
+                    required
+                  >
+                    <SelectTrigger id="studentBoard">
+                      <SelectValue placeholder="Select Board" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ICSE">ICSE</SelectItem>
+                      <SelectItem value="CBSE">CBSE</SelectItem>
+                      <SelectItem value="State">State</SelectItem>
+                      <SelectItem value="Not Applicable">Not Applicable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {studentBoard === "State" && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <Label htmlFor="studentState">Which State?</Label>
+                    <Input
+                      id="studentState"
+                      required
+                      maxLength={100}
+                      placeholder="Enter your state"
+                      value={studentState}
+                      onChange={(e) => setStudentState(e.target.value)}
                     />
                   </div>
                 )}

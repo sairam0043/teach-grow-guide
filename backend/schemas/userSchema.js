@@ -17,6 +17,8 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String },
   phone: { type: String },
   student_class: { type: String },
+  student_board: { type: String },
+  student_state: { type: String },
   student_or_parent: { type: String, enum: ['Student', 'Parent'], default: 'Student' },
   student_name: { type: String },
   interested_subject: { type: String, trim: true },

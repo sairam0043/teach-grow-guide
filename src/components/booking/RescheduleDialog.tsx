@@ -11,7 +11,8 @@ import {
   CalendarCheck,
   CalendarX,
   ShieldAlert,
-  Loader2
+  Loader2,
+  CheckCircle2
 } from "lucide-react";
 import {
   Dialog,
@@ -66,6 +67,17 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
 
   // Minimum allowed date is today
   const minDate = format(new Date(), "yyyy-MM-dd");
+
+  const formattedSelectedDate = useMemo(() => {
+    if (!selectedDate) return "";
+    try {
+      const parts = selectedDate.split("-").map(Number);
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return format(d, "EEEE, MMMM d, yyyy");
+    } catch {
+      return selectedDate;
+    }
+  }, [selectedDate]);
 
   useEffect(() => {
     if (isOpen && booking) {
@@ -288,8 +300,11 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
           reason,
           requestedBy: userRole
         });
-        const target = userRole === "Student" ? "Tutor" : "Student";
-        toast.success(`Reschedule request sent! Awaiting ${target}'s confirmation.`);
+        if (userRole === "Tutor") {
+          toast.success("Date and time selected! Proposal sent. Waiting for student/parents to click OK to save details.");
+        } else {
+          toast.success("Reschedule request sent! Awaiting tutor's confirmation.");
+        }
         onSuccess(res.data.booking);
         onOpenChange(false);
       }
@@ -314,9 +329,8 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
           <DialogDescription>
             {userRole === "Admin"
               ? "Select a new date and available timing slot. This will directly update the schedule and notify all parties."
-              : `Select a new date and available timing slot. The ${
-                  userRole === "Student" ? "tutor" : "student"
-                } will be notified to confirm.`}
+              : `Select a new date and available timing slot. The ${userRole === "Student" ? "tutor" : "student"
+              } will be notified to confirm.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -391,11 +405,10 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
                   return (
                     <span
                       key={day}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors ${
-                        isAvailable
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors ${isAvailable
                           ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 font-semibold"
                           : "bg-muted/40 text-muted-foreground/60 border-transparent opacity-60 line-through"
-                      }`}
+                        }`}
                     >
                       {day.slice(0, 3)}
                     </span>
@@ -459,11 +472,10 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
                         setSelectedDate(item.dateStr);
                         setSelectedSlot("");
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
-                        selectedDate === item.dateStr
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${selectedDate === item.dateStr
                           ? "bg-primary text-primary-foreground border-primary shadow-xs"
                           : "bg-secondary/50 hover:bg-secondary border-border text-foreground hover:border-primary/40"
-                      }`}
+                        }`}
                     >
                       {item.displayDate}
                       <span className="ml-1 opacity-75 text-[10px]">({item.slotsCount} slots)</span>
@@ -500,20 +512,18 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
                           type="button"
                           disabled={isBooked}
                           onClick={() => !isBooked && setSelectedSlot(slot.studentDisplayTime)}
-                          className={`relative py-2 px-2 rounded-lg text-xs font-semibold border transition-all text-center flex flex-col items-center justify-center gap-0.5 ${
-                            isBooked
+                          className={`relative py-2 px-2 rounded-lg text-xs font-semibold border transition-all text-center flex flex-col items-center justify-center gap-0.5 ${isBooked
                               ? "bg-muted/50 border-border/40 text-muted-foreground/50 cursor-not-allowed opacity-60"
                               : isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/30"
-                              : "bg-card hover:bg-primary/10 border-border text-foreground hover:border-primary/40"
-                          }`}
+                                ? "bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/30"
+                                : "bg-card hover:bg-primary/10 border-border text-foreground hover:border-primary/40"
+                            }`}
                         >
                           <span>{slot.studentDisplayTime}</span>
                           {slot.studentTimeZoneAbbr !== slot.tutorTimeZoneAbbr && (
                             <span
-                              className={`text-[9px] ${
-                                isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
-                              }`}
+                              className={`text-[9px] ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                                }`}
                             >
                               ({slot.tutorDisplayTime} {slot.tutorTimeZoneAbbr})
                             </span>
@@ -617,6 +627,43 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
             />
           </div>
 
+          {/* Selected Date & Time Notification Banner */}
+          {selectedDate && (selectedSlot || (adminOverride && adminCustomTime)) ? (
+            <div className="p-4 rounded-xl border-2 border-emerald-500/50 bg-emerald-500/10 dark:bg-emerald-950/30 text-foreground space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center gap-2 font-black text-sm text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>You have selected this date and time:</span>
+              </div>
+              <div className="pl-7 space-y-1.5">
+                <p className="text-base font-extrabold text-foreground">
+                  📅 {formattedSelectedDate} at ⏰ {adminOverride ? adminCustomTime : selectedSlot} ({getTimeZoneAbbreviation(userTimezone)})
+                </p>
+                <div className="p-2.5 rounded-lg bg-card/90 border border-emerald-500/20 text-xs text-muted-foreground">
+                  <p className="font-semibold text-foreground flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-primary" />
+                    {userRole === "Tutor"
+                      ? "Awaiting Student / Parent OK to save details:"
+                      : "Awaiting Tutor OK to save details:"}
+                  </p>
+                  <p className="mt-0.5 leading-relaxed">
+                    {userRole === "Tutor"
+                      ? "Once you click submit, this proposal will be sent to the student and parents. After they click OK, these new details will be officially saved and confirmed."
+                      : "Once you click submit, this proposal will be sent to the tutor. After they click OK, these new details will be officially saved and confirmed."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : selectedDate ? (
+            <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 text-foreground">
+              <p className="text-xs font-bold text-primary flex items-center gap-1.5">
+                <CalendarIcon className="h-4 w-4" /> You have selected date: {formattedSelectedDate}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Please select an available timing slot above to confirm your selection.
+              </p>
+            </div>
+          ) : null}
+
           <DialogFooter className="gap-2 sm:gap-0 pt-2">
             <Button
               type="button"
@@ -642,8 +689,10 @@ export const RescheduleDialog: React.FC<RescheduleDialogProps> = ({
                 </span>
               ) : userRole === "Admin" ? (
                 "Confirm Reschedule"
+              ) : userRole === "Tutor" ? (
+                "Submit Selected Date & Time (Await Student OK)"
               ) : (
-                "Request Reschedule"
+                "Confirm & Request Reschedule"
               )}
             </Button>
           </DialogFooter>
