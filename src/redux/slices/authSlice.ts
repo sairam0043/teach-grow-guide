@@ -8,6 +8,8 @@ interface UserInfo {
   full_name: string;
   phone?: string;
   student_class?: string;
+  student_board?: string;
+  student_state?: string;
   student_name?: string;
   student_or_parent?: string;
   interested_subject?: string;

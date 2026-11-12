@@ -1316,7 +1316,23 @@ const TutorDashboard = () => {
                             </div>
                           )}
                           <div className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-                            <Calendar className="h-4 w-4" /> {formatBookingTime(booking, tutorTimezone)}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReschedulingBooking(booking);
+                                setIsRescheduleDialogOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 text-sm text-foreground hover:text-primary transition-colors group cursor-pointer text-left bg-secondary/30 hover:bg-primary/10 border border-border/60 hover:border-primary/40 px-2.5 py-1 rounded-lg shadow-xs"
+                              title="Click date to open date toggle & reschedule"
+                            >
+                              <Calendar className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                              <span className="font-bold underline decoration-primary/40 underline-offset-2 group-hover:decoration-primary">
+                                {formatBookingTime(booking, tutorTimezone)}
+                              </span>
+                              <Badge variant="outline" className="text-[10px] bg-background text-primary border-primary/30 font-semibold ml-1">
+                                Change Date ▾
+                              </Badge>
+                            </button>
                             {['confirmed', 'pending'].includes(booking.status) && (booking.utcTiming ? new Date(booking.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(booking.timing)) && (
                               <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Demo</Badge>
                             )}
@@ -1556,7 +1572,18 @@ const TutorDashboard = () => {
                                             #{sIdx + 1}
                                           </div>
                                           <div>
-                                            <p className="font-bold text-sm text-foreground">{formattedSession.date}</p>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setReschedulingBooking(cls);
+                                                setIsRescheduleDialogOpen(true);
+                                              }}
+                                              className="text-left group cursor-pointer hover:underline decoration-primary/40 flex items-center gap-1.5"
+                                              title="Click date to open date toggle & reschedule"
+                                            >
+                                              <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{formattedSession.date}</span>
+                                              <span className="text-[10px] text-primary underline">Change ▾</span>
+                                            </button>
                                             <p className="text-xs text-muted-foreground font-medium flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" /> Time: {formattedSession.time}</p>
                                           </div>
                                         </div>
@@ -1683,7 +1710,23 @@ const TutorDashboard = () => {
 
                           <div className="mt-auto pt-4 border-t flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
                             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                              <Clock className="h-4 w-4" /> {formatBookingTime(cls, tutorTimezone)}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReschedulingBooking(cls);
+                                  setIsRescheduleDialogOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1.5 text-sm text-foreground hover:text-primary transition-colors group cursor-pointer text-left bg-secondary/30 hover:bg-primary/10 border border-border/60 hover:border-primary/40 px-2.5 py-1 rounded-lg shadow-xs"
+                                title="Click date to open date toggle & reschedule"
+                              >
+                                <Clock className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                <span className="font-bold underline decoration-primary/40 underline-offset-2 group-hover:decoration-primary">
+                                  {formatBookingTime(cls, tutorTimezone)}
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-background text-primary border-primary/30 font-semibold ml-1">
+                                  Change Date ▾
+                                </Badge>
+                              </button>
                               {(cls.utcTiming ? new Date(cls.utcTiming).getTime() + 2 * 3600 * 1000 < Date.now() : isBookingPast(cls.timing)) && (
                                 <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-none ml-2">Past Class</Badge>
                               )}
