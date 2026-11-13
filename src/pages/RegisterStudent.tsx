@@ -558,8 +558,8 @@ const RegisterStudent = () => {
                       <SelectValue placeholder="Select Board" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ICSE">IB</SelectItem>
-                      <SelectItem value="ICSE">ISC</SelectItem>
+                      <SelectItem value="IB">IB</SelectItem>
+                      <SelectItem value="ISC">ISC</SelectItem>
                       <SelectItem value="ICSE">ICSE</SelectItem>
                       <SelectItem value="CBSE">CBSE</SelectItem>
                       <SelectItem value="State">State</SelectItem>
