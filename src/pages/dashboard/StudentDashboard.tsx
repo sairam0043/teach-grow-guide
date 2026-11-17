@@ -36,6 +36,8 @@ const STANDARD_CLASSES = [
   "Class 6", "Class 7", "Class 8", "Class 9", "Class 10",
   "Class 11", "Class 12", "College / University"
 ];
+
+const STUDENT_BOARD_OPTIONS = ["IB", "ISC", "ICSE", "CBSE", "State", "Not Applicable"];
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -147,6 +149,12 @@ const StudentDashboard = () => {
   const [profileStudentClass, setProfileStudentClass] = useState(
     user?.student_class || user?.user_metadata?.student_class || ""
   );
+  const [profileStudentBoard, setProfileStudentBoard] = useState(
+    user?.student_board || user?.user_metadata?.student_board || ""
+  );
+  const [profileStudentState, setProfileStudentState] = useState(
+    user?.student_state || user?.user_metadata?.student_state || ""
+  );
   const [profileInterestedSubject, setProfileInterestedSubject] = useState(
     user?.interested_subject || user?.user_metadata?.interested_subject || ""
   );
@@ -175,6 +183,8 @@ const StudentDashboard = () => {
       setProfileName(String(user.user_metadata?.full_name || user.full_name || "Student"));
       setProfilePhone(user.phone || "");
       setProfileStudentClass(user.student_class || user.user_metadata?.student_class || "");
+      setProfileStudentBoard(user.student_board || user.user_metadata?.student_board || "");
+      setProfileStudentState(user.student_state || user.user_metadata?.student_state || "");
       setProfileInterestedSubject(user.interested_subject || user.user_metadata?.interested_subject || "");
       const metaInt = user.subject_interests || user.user_metadata?.subject_interests;
       if (Array.isArray(metaInt)) {
@@ -480,12 +490,19 @@ const StudentDashboard = () => {
       cleanPhone = phoneCheck.fullPhone;
     }
 
+    if (profileStudentBoard === "State" && !profileStudentState.trim()) {
+      toast.error("Please enter your state.");
+      return;
+    }
+
     setIsUpdatingProfile(true);
     try {
       const response = await axios.put(`${API_URL}/auth/profile/${user.id}`, { 
         full_name: profileName, 
         phone: cleanPhone,
         student_class: profileStudentClass,
+        student_board: profileStudentBoard,
+        student_state: profileStudentBoard === "State" ? profileStudentState.trim() : "",
         student_name: user?.student_or_parent === "Parent" ? profileStudentName : undefined,
         interested_subject: profileInterestedSubject,
         subject_interests: profileSubjectInterests,
@@ -496,6 +513,8 @@ const StudentDashboard = () => {
           full_name: response.data.user.full_name,
           phone: response.data.user.phone,
           student_class: response.data.user.student_class,
+          student_board: response.data.user.student_board,
+          student_state: response.data.user.student_state,
           student_name: response.data.user.student_name,
           interested_subject: response.data.user.interested_subject,
           subject_interests: response.data.user.subject_interests,
@@ -1849,6 +1868,42 @@ const StudentDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="studentBoard" className="text-sm font-semibold">Board</Label>
+                    <Select
+                      value={profileStudentBoard}
+                      onValueChange={(value) => {
+                        setProfileStudentBoard(value);
+                        if (value !== "State") setProfileStudentState("");
+                      }}
+                    >
+                      <SelectTrigger id="studentBoard" className="bg-secondary/20 border-border/50">
+                        <SelectValue placeholder="Select your board" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STUDENT_BOARD_OPTIONS.map((board) => (
+                          <SelectItem key={board} value={board}>{board}</SelectItem>
+                        ))}
+                        {!STUDENT_BOARD_OPTIONS.includes(profileStudentBoard) && profileStudentBoard && (
+                          <SelectItem value={profileStudentBoard}>{profileStudentBoard}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {profileStudentBoard === "State" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="studentState" className="text-sm font-semibold">Which State?</Label>
+                      <Input
+                        id="studentState"
+                        value={profileStudentState}
+                        onChange={(e) => setProfileStudentState(e.target.value)}
+                        maxLength={100}
+                        placeholder="Enter your state"
+                        required
+                      />
+                    </div>
+                  )}
 
                   {/* Subject Interests Section */}
                   <div className="space-y-3 pt-2 border-t border-border/40">
