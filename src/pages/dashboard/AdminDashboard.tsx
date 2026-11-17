@@ -102,6 +102,12 @@ const STUDENT_HEARD_ABOUT_US_OPTIONS = [
   "Other"
 ];
 
+type StudentAdminNote = {
+  _id?: string;
+  text: string;
+  createdAt?: string;
+};
+
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useAuth();
@@ -134,6 +140,8 @@ const AdminDashboard = () => {
   const [editStudentTimezone, setEditStudentTimezone] = useState("Asia/Kolkata");
   const [editStudentHeardAboutUs, setEditStudentHeardAboutUs] = useState("");
   const [isSavingStudentProfile, setIsSavingStudentProfile] = useState(false);
+  const [studentAdminNote, setStudentAdminNote] = useState("");
+  const [isSavingStudentAdminNote, setIsSavingStudentAdminNote] = useState(false);
   const [selectedAssessmentPayment, setSelectedAssessmentPayment] = useState<any | null>(null);
   const [isAnswersDialogOpen, setIsAnswersDialogOpen] = useState(false);
   const [editedScores, setEditedScores] = useState<Record<string, number>>({});
@@ -418,7 +426,34 @@ const AdminDashboard = () => {
     setEditStudentInterestedSubject(student.interested_subject || student.interestedSubject || student.subject || "");
     setEditStudentTimezone(student.timezone || "Asia/Kolkata");
     setEditStudentHeardAboutUs(student.heard_about_us || student.heardAboutUs || "");
+    setStudentAdminNote("");
     setIsStudentDetailDialogOpen(true);
+  };
+
+  const handleAddStudentAdminNote = async () => {
+    if (!selectedStudentForDetail) return;
+    const studentId = selectedStudentForDetail._id || selectedStudentForDetail.id;
+    const text = studentAdminNote.trim();
+    if (!studentId || !text) return;
+
+    setIsSavingStudentAdminNote(true);
+    try {
+      const res = await axios.post(`${API_URL}/dashboard/admin/students/${studentId}/notes`, { text });
+      const updatedNotes: StudentAdminNote[] = [...(selectedStudentForDetail.adminNotes || []), res.data.note];
+      setStudents(prev => prev.map(student =>
+        (student._id || student.id) === studentId ? { ...student, adminNotes: updatedNotes } : student
+      ));
+      setSelectedStudentForDetail(prev =>
+        prev && (prev._id || prev.id) === studentId ? { ...prev, adminNotes: updatedNotes } : prev
+      );
+      setStudentAdminNote("");
+      toast.success("Student note saved.");
+    } catch (err: any) {
+      console.error("Error saving student note:", err);
+      toast.error(err.response?.data?.message || err.message || "Failed to save student note");
+    } finally {
+      setIsSavingStudentAdminNote(false);
+    }
   };
 
   const handleSaveStudentDetail = async () => {
@@ -975,7 +1010,6 @@ const AdminDashboard = () => {
       "Full Name",
       "Email",
       "Contact",
-      "Class / Grade",
       "Joined Date",
     ];
 
@@ -992,7 +1026,6 @@ const AdminDashboard = () => {
       student.full_name,
       student.email,
       student.phone,
-      student.student_class || student.studentClass,
       student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "",
     ]);
 
@@ -1863,7 +1896,7 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Full Name</TableHead>
                             <TableHead className="font-medium h-12">Email</TableHead>
                             <TableHead className="font-medium h-12">Contact</TableHead>
-                            <TableHead className="font-medium h-12">Class / Grade</TableHead>
+                            <TableHead className="font-medium h-12">Interested Subject</TableHead>
                             <TableHead className="font-medium h-12">Source</TableHead>
                             <TableHead className="font-medium h-12">Referral Code & Referrer</TableHead>
                             <TableHead className="font-medium h-12 text-right">Joined</TableHead>
@@ -1883,15 +1916,8 @@ const AdminDashboard = () => {
                               </TableCell>
                               <TableCell>{student.email || "–"}</TableCell>
                               <TableCell>{student.phone || "–"}</TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <Badge variant="outline" className="font-normal bg-secondary/20 block w-fit">{student.student_class || student.studentClass || "–"}</Badge>
-                                  {(student.interested_subject || student.interestedSubject || student.subject) && (
-                                    <span className="text-[11px] text-muted-foreground block truncate max-w-[140px]" title={student.interested_subject || student.interestedSubject || student.subject}>
-                                      📚 {student.interested_subject || student.interestedSubject || student.subject}
-                                    </span>
-                                  )}
-                                </div>
+                              <TableCell className="text-muted-foreground text-xs">
+                                {student.interested_subject || student.interestedSubject || student.subject || "–"}
                               </TableCell>
                               <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
                               <TableCell>
@@ -4695,6 +4721,12 @@ const AdminDashboard = () => {
                     </span>
                   </div>
                   <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Board</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {selectedStudentForDetail.student_board || selectedStudentForDetail.studentBoard || "–"}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Interested Subject(s)</span>
                     <span className="text-sm font-semibold text-foreground">
                       {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject ? (
@@ -4830,6 +4862,54 @@ const AdminDashboard = () => {
                     </div>
                   );
                 })()}
+
+                <section className="space-y-3 rounded-xl border border-border/60 bg-secondary/10 p-4">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-indigo-500" />
+                    <h4 className="text-sm font-bold text-foreground">Admin Notes &amp; Remarks</h4>
+                  </div>
+                  <div className="space-y-2">
+                    <Textarea
+                      value={studentAdminNote}
+                      onChange={(e) => setStudentAdminNote(e.target.value)}
+                      placeholder="Add a note about this student..."
+                      maxLength={5000}
+                      rows={3}
+                      disabled={isSavingStudentAdminNote}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAddStudentAdminNote}
+                        disabled={!studentAdminNote.trim() || isSavingStudentAdminNote}
+                        className="gap-1.5"
+                      >
+                        {isSavingStudentAdminNote ? (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+                        ) : (
+                          <><PlusCircle className="h-3.5 w-3.5" /> Add Note</>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="max-h-56 space-y-2 overflow-y-auto">
+                    {(selectedStudentForDetail.adminNotes || []).length > 0 ? (
+                      [...selectedStudentForDetail.adminNotes]
+                        .sort((a: StudentAdminNote, b: StudentAdminNote) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime())
+                        .map((note: StudentAdminNote) => (
+                          <div key={note._id || `${note.createdAt}-${note.text}`} className="rounded-lg border bg-background p-3">
+                            <p className="whitespace-pre-wrap break-words text-sm text-foreground">{note.text}</p>
+                            <time className="mt-2 block text-[11px] text-muted-foreground">
+                              {note.createdAt ? new Date(note.createdAt).toLocaleString() : "Date unavailable"}
+                            </time>
+                          </div>
+                        ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No notes have been added for this student.</p>
+                    )}
+                  </div>
+                </section>
 
                 {/* Dates / Metadata */}
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">

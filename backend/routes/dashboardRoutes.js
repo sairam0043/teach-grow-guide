@@ -342,6 +342,34 @@ router.get('/admin/students', async (req, res) => {
   }
 });
 
+// POST /api/dashboard/admin/students/:id/notes
+router.post('/admin/students/:id/notes', async (req, res) => {
+  try {
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    if (!text) {
+      return res.status(400).json({ message: 'Note text is required' });
+    }
+    if (text.length > 5000) {
+      return res.status(400).json({ message: 'Note text must be 5000 characters or fewer' });
+    }
+
+    const student = await User.findOne({ _id: req.params.id, role: 'student' });
+    if (!student) {
+      return res.status(404).json({ message: 'Student account not found' });
+    }
+
+    student.adminNotes.push({ text });
+    await student.save();
+
+    res.status(201).json({
+      message: 'Student note saved successfully',
+      note: student.adminNotes[student.adminNotes.length - 1].toObject()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PUT /api/dashboard/admin/students/:id
 router.put('/admin/students/:id', async (req, res) => {
   try {
