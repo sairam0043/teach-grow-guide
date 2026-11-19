@@ -1192,16 +1192,16 @@ const AdminDashboard = () => {
 
   return (
     <PageLayout>
-      <div className="container py-10 max-w-7xl">
-        <div className="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="container py-6 sm:py-10 max-w-7xl min-w-0 w-full overflow-x-hidden">
+        <div className="mb-8 sm:mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">Admin Dashboard</h1>
-            <p className="text-base text-muted-foreground mt-1.5">Manage platform operations, verify tutor credentials, and track ledger analytics.</p>
+            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">Admin Dashboard</h1>
+            <p className="text-xs sm:text-base text-muted-foreground mt-1.5">Manage platform operations, verify tutor credentials, and track ledger analytics.</p>
           </div>
-          <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
             <Button 
               asChild
-              className="h-10 gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+              className="h-9 sm:h-10 text-xs sm:text-sm gap-1.5 sm:gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
             >
               <Link to="/dashboard/hr">
                 <Landmark className="h-4 w-4" />
@@ -1213,7 +1213,7 @@ const AdminDashboard = () => {
               onClick={handleSendProfileEmails} 
               disabled={isSendingProfileEmails} 
               variant="default" 
-              className="h-10 gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+              className="h-9 sm:h-10 text-xs sm:text-sm gap-1.5 sm:gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
             >
               <Mail className={`h-4 w-4 ${isSendingProfileEmails ? 'animate-bounce' : ''}`} />
               Send Board & Class Reminder Emails
@@ -1222,7 +1222,7 @@ const AdminDashboard = () => {
               onClick={handleSendReferralEmails} 
               disabled={isSendingReferralEmails} 
               variant="default" 
-              className="h-10 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
+              className="h-9 sm:h-10 text-xs sm:text-sm gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-all duration-300 rounded-lg shadow-sm"
             >
               <Sparkles className={`h-4 w-4 ${isSendingReferralEmails ? 'animate-bounce' : ''}`} />
               Send Referral Program Emails
@@ -1231,7 +1231,7 @@ const AdminDashboard = () => {
               onClick={handleDownloadTutorsCSV} 
               disabled={loading || tutors.length === 0}
               variant="outline" 
-              className="h-10 gap-2 border-indigo-200/60 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-900/40 dark:hover:bg-indigo-950/20 transition-all duration-300 rounded-lg shadow-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-9 sm:h-10 text-xs sm:text-sm gap-1.5 sm:gap-2 border-indigo-200/60 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-900/40 dark:hover:bg-indigo-950/20 transition-all duration-300 rounded-lg shadow-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <Activity className="h-4 w-4 animate-spin text-indigo-500" />
@@ -1244,7 +1244,7 @@ const AdminDashboard = () => {
               onClick={fetchTutors} 
               disabled={loading} 
               variant="outline" 
-              className="h-10 gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-lg shadow-sm"
+              className="h-9 sm:h-10 text-xs sm:text-sm gap-1.5 sm:gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 rounded-lg shadow-sm"
             >
               <Activity className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh Platform Data
@@ -1423,20 +1423,20 @@ const AdminDashboard = () => {
                     </Button>
                   </div>
                 ) : (
-                  <div className="rounded-xl border shadow-sm overflow-hidden bg-card mt-4">
-                    <Table>
+                  <div className="rounded-xl border shadow-sm overflow-x-auto bg-card mt-4">
+                    <Table className="min-w-[900px]">
                       <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold border-b border-border/40">
                         <TableRow>
-                          <TableHead className="font-bold h-12">Tutor Profile</TableHead>
-                          <TableHead className="font-bold h-12">Email</TableHead>
-                          <TableHead className="font-bold h-12">Category</TableHead>
-                          <TableHead className="font-bold h-12">City</TableHead>
-                          <TableHead className="font-bold h-12">Referral Source</TableHead>
-                          <TableHead className="font-bold h-12">Subjects</TableHead>
-                          <TableHead className="font-bold h-12">Experience</TableHead>
-                          <TableHead className="font-bold h-12">Resume / CV</TableHead>
-                          <TableHead className="font-bold h-12">Applied</TableHead>
-                          <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Tutor Profile</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Email</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Category</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">City</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Referral Source</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Subjects</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Experience</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Resume / CV</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Applied</TableHead>
+                          <TableHead className="font-bold h-12 text-right px-6 whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1649,22 +1649,22 @@ const AdminDashboard = () => {
                     </Button>
                   </div>
                 ) : (
-                  <div className="rounded-xl border shadow-sm overflow-hidden bg-card mt-4">
-                    <Table>
+                  <div className="rounded-xl border shadow-sm overflow-x-auto bg-card mt-4">
+                    <Table className="min-w-[1000px]">
                       <TableHeader className="bg-secondary/30 uppercase text-[10px] tracking-wider text-muted-foreground font-bold border-b border-border/40">
                         <TableRow>
-                          <TableHead className="font-bold h-12">Tutor Profile</TableHead>
-                          <TableHead className="font-bold h-12">Category</TableHead>
-                          <TableHead className="font-bold h-12">City</TableHead>
-                          <TableHead className="font-bold h-12">Referral Source</TableHead>
-                          <TableHead className="font-bold h-12">Referrals (Completed/Invited)</TableHead>
-                          <TableHead className="font-bold h-12">Subjects/Boards/Classes</TableHead>
-                          <TableHead className="font-bold h-12">Status</TableHead>
-                          <TableHead className="font-bold h-12">Resume / CV</TableHead>
-                          <TableHead className="font-bold h-12 text-center">Verified</TableHead>
-                          <TableHead className="font-bold h-12 text-center">Featured</TableHead>
-                          <TableHead className="font-bold h-12">Joined</TableHead>
-                          <TableHead className="font-bold h-12 text-right px-6">Actions</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Tutor Profile</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Category</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">City</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Referral Source</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Referrals (Completed/Invited)</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Subjects/Boards/Classes</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Status</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Resume / CV</TableHead>
+                          <TableHead className="font-bold h-12 text-center whitespace-nowrap">Verified</TableHead>
+                          <TableHead className="font-bold h-12 text-center whitespace-nowrap">Featured</TableHead>
+                          <TableHead className="font-bold h-12 whitespace-nowrap">Joined</TableHead>
+                          <TableHead className="font-bold h-12 text-right px-6 whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1910,7 +1910,7 @@ const AdminDashboard = () => {
 
                   return (
                     <div className="rounded-xl border shadow-sm overflow-x-auto mt-4">
-                      <Table>
+                      <Table className="min-w-[850px]">
                         <TableHeader className="bg-secondary/50 uppercase text-xs">
                           <TableRow>
                             <TableHead className="font-medium h-12">Student ID</TableHead>
@@ -1928,9 +1928,9 @@ const AdminDashboard = () => {
                         <TableBody>
                           {filteredStudents.map((student) => (
                             <TableRow key={student._id || student.id} className="hover:bg-secondary/10 transition-colors">
-                              <TableCell className="font-mono text-xs text-muted-foreground">{String(student._id || student.id).slice(-8)}</TableCell>
+                              <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">{String(student._id || student.id).slice(-8)}</TableCell>
                               <TableCell 
-                                className="font-semibold text-foreground cursor-pointer hover:underline hover:text-primary transition-all" 
+                                className="font-semibold text-foreground cursor-pointer hover:underline hover:text-primary transition-all whitespace-nowrap" 
                                 onClick={() => handleViewStudentDetail(student)} 
                                 title="Click to view student details"
                               >
@@ -1948,8 +1948,8 @@ const AdminDashboard = () => {
                               <TableCell className="text-muted-foreground text-xs">
                                 {student.interested_subject || student.interestedSubject || student.subject || "–"}
                               </TableCell>
-                              <TableCell className="text-muted-foreground text-xs">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
-                              <TableCell>
+                              <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
+                              <TableCell className="whitespace-nowrap">
                                 {(() => {
                                   const usedCode = student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode;
                                   const referrer = student.referralInfo?.referrer;
@@ -1974,8 +1974,8 @@ const AdminDashboard = () => {
                                   return <span className="text-muted-foreground text-xs">Direct</span>;
                                 })()}
                               </TableCell>
-                              <TableCell className="text-right">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right whitespace-nowrap">{new Date(student.createdAt).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
                                 <Button 
                                   size="sm" 
                                   variant="ghost" 
@@ -4527,26 +4527,26 @@ const AdminDashboard = () => {
           if (!open) setIsEditingStudentProfile(false);
         }}
       >
-        <DialogContent className={`${isEditingStudentProfile ? "sm:max-w-lg" : "sm:max-w-md"} max-h-[90vh] overflow-y-auto transition-all`}>
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2">
-                <GraduationCap className="h-6 w-6 text-indigo-500" /> 
-                {isEditingStudentProfile ? "Edit Student Details" : "Student Profile"}
-              </span>
+        <DialogContent className={`${isEditingStudentProfile ? "sm:max-w-lg" : "sm:max-w-md"} w-[calc(100vw-2rem)] sm:w-full max-h-[90vh] overflow-y-auto transition-all p-4 sm:p-6`}>
+          <DialogHeader className="pr-10 sm:pr-12">
+            <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
+              <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                <GraduationCap className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-500 shrink-0" /> 
+                <span>{isEditingStudentProfile ? "Edit Student Details" : "Student Profile"}</span>
+              </DialogTitle>
               {!isEditingStudentProfile && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setIsEditingStudentProfile(true)}
-                  className="rounded-lg h-8 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 gap-1.5 shadow-sm"
+                  className="rounded-lg h-8 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 gap-1.5 shadow-sm shrink-0"
                 >
                   <Pencil className="h-3 w-3" /> Edit Details
                 </Button>
               )}
-            </DialogTitle>
-            <DialogDescription>
+            </div>
+            <DialogDescription className="text-xs sm:text-sm">
               {isEditingStudentProfile 
                 ? "Update student registration credentials, contact details, and grade level."
                 : "View detailed registration information for this student account."
@@ -4770,7 +4770,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* General details grid */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Email Address</span>
                     <span className="text-sm font-semibold text-foreground break-all">{selectedStudentForDetail.email || "–"}</span>
@@ -4786,17 +4786,6 @@ const AdminDashboard = () => {
                     </span>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Board</span>
-                    <span className="text-sm font-semibold text-foreground">
-                      {(() => {
-                        const board = selectedStudentForDetail.student_board || selectedStudentForDetail.studentBoard;
-                        const state = selectedStudentForDetail.student_state || selectedStudentForDetail.studentState;
-                        if (!board) return "–";
-                        return board === "State" && state ? `${board} (${state})` : board;
-                      })()}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Interested Subject(s)</span>
                     <span className="text-sm font-semibold text-foreground">
                       {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject ? (
@@ -4808,7 +4797,7 @@ const AdminDashboard = () => {
                       )}
                     </span>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 sm:col-span-2">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Time Zone</span>
                     <span className="text-sm font-semibold text-foreground">
                       {selectedStudentForDetail.timezone ? `${getTimeZoneAbbreviation(selectedStudentForDetail.timezone)} (${selectedStudentForDetail.timezone})` : 'IST (Asia/Kolkata)'}
@@ -4871,12 +4860,12 @@ const AdminDashboard = () => {
                       {hasReferral ? (
                         <div className="space-y-2 pt-0.5">
                           {/* Referral code applied */}
-                          <div className="flex items-center justify-between bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-card/90 dark:bg-card/70 p-2.5 rounded-lg border border-purple-200/60 dark:border-purple-900/40 gap-2">
                             <div className="space-y-0.5">
                               <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Referral Code Used</span>
                               <span className="text-xs text-muted-foreground">Code submitted at signup</span>
                             </div>
-                            <span className="font-mono font-bold text-sm tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-md border border-purple-200 dark:border-purple-800 shadow-sm select-all">
+                            <span className="font-mono font-bold text-sm tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-md border border-purple-200 dark:border-purple-800 shadow-sm select-all self-start sm:self-auto">
                               {usedCode || (referrer?.referralCode) || "APPLIED"}
                             </span>
                           </div>
@@ -4886,7 +4875,7 @@ const AdminDashboard = () => {
                             <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">
                               Referred By (Owner of Code)
                             </span>
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
                               <span className="text-sm font-bold text-foreground flex items-center gap-1.5">
                                 {referrerName || "Referred User"}
                               </span>
@@ -4906,18 +4895,18 @@ const AdminDashboard = () => {
                             {(referrerEmail || referrerPhone || referrer?.referralCode) && (
                               <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 border-t border-border/40">
                                 {referrerEmail && (
-                                  <span className="flex items-center gap-1">
-                                    <Mail className="h-3 w-3 text-muted-foreground" /> {referrerEmail}
+                                  <span className="flex items-center gap-1 break-all">
+                                    <Mail className="h-3 w-3 text-muted-foreground shrink-0" /> {referrerEmail}
                                   </span>
                                 )}
                                 {referrerPhone && (
                                   <span className="flex items-center gap-1">
-                                    <Phone className="h-3 w-3 text-muted-foreground" /> {referrerPhone}
+                                    <Phone className="h-3 w-3 text-muted-foreground shrink-0" /> {referrerPhone}
                                   </span>
                                 )}
                                 {referrer?.referralCode && (
                                   <span className="flex items-center gap-1 font-mono text-[11px]">
-                                    <Tag className="h-3 w-3 text-muted-foreground" /> {referrer.referralCode}
+                                    <Tag className="h-3 w-3 text-muted-foreground shrink-0" /> {referrer.referralCode}
                                   </span>
                                 )}
                               </div>
@@ -4982,7 +4971,7 @@ const AdminDashboard = () => {
                 </section>
 
                 {/* Dates / Metadata */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t text-xs text-muted-foreground">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-4 border-t text-xs text-muted-foreground">
                   <div>
                     <span>Joined Date:</span>
                     <span className="block font-medium text-foreground mt-0.5">
@@ -4991,7 +4980,7 @@ const AdminDashboard = () => {
                   </div>
                   <div>
                     <span>User ID:</span>
-                    <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all">
+                    <span className="block font-mono text-[10px] text-foreground mt-0.5 select-all break-all">
                       {selectedStudentForDetail._id || selectedStudentForDetail.id || "–"}
                     </span>
                   </div>
