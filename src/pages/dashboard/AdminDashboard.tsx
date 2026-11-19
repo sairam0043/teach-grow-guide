@@ -1023,6 +1023,7 @@ const AdminDashboard = () => {
       "Full Name",
       "Email",
       "Contact",
+      "Board",
       "Joined Date",
     ];
 
@@ -1039,6 +1040,11 @@ const AdminDashboard = () => {
       student.full_name,
       student.email,
       student.phone,
+      (() => {
+        const board = student.student_board || student.studentBoard;
+        const state = student.student_state || student.studentState;
+        return board === "State" && state ? `${board} (${state})` : board;
+      })(),
       student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "",
     ]);
 
@@ -1864,10 +1870,12 @@ const AdminDashboard = () => {
                       const name = (student.full_name || "").toLowerCase();
                       const email = (student.email || "").toLowerCase();
                       const phone = (student.phone || "").toLowerCase();
+                      const board = (student.student_board || student.studentBoard || "").toLowerCase();
+                      const state = (student.student_state || student.studentState || "").toLowerCase();
                       const refCode = (student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode || "").toLowerCase();
                       const referrerName = (student.referrerName || student.referralInfo?.referrer?.name || "").toLowerCase();
                       const referrerCode = (student.referrerCode || student.referralInfo?.referrer?.referralCode || "").toLowerCase();
-                      return name.includes(query) || email.includes(query) || phone.includes(query) || refCode.includes(query) || referrerName.includes(query) || referrerCode.includes(query);
+                      return name.includes(query) || email.includes(query) || phone.includes(query) || board.includes(query) || state.includes(query) || refCode.includes(query) || referrerName.includes(query) || referrerCode.includes(query);
                     });
 
                   if (loading) {
@@ -1909,6 +1917,7 @@ const AdminDashboard = () => {
                             <TableHead className="font-medium h-12">Full Name</TableHead>
                             <TableHead className="font-medium h-12">Email</TableHead>
                             <TableHead className="font-medium h-12">Contact</TableHead>
+                            <TableHead className="font-medium h-12">Board</TableHead>
                             <TableHead className="font-medium h-12">Interested Subject</TableHead>
                             <TableHead className="font-medium h-12">Source</TableHead>
                             <TableHead className="font-medium h-12">Referral Code & Referrer</TableHead>
@@ -1929,6 +1938,13 @@ const AdminDashboard = () => {
                               </TableCell>
                               <TableCell>{student.email || "–"}</TableCell>
                               <TableCell>{student.phone || "–"}</TableCell>
+                              <TableCell className="text-muted-foreground text-xs">
+                                {(() => {
+                                  const board = student.student_board || student.studentBoard;
+                                  const state = student.student_state || student.studentState;
+                                  return board === "State" && state ? `${board} (${state})` : board || "–";
+                                })()}
+                              </TableCell>
                               <TableCell className="text-muted-foreground text-xs">
                                 {student.interested_subject || student.interestedSubject || student.subject || "–"}
                               </TableCell>
