@@ -1023,7 +1023,7 @@ const AdminDashboard = () => {
       "Full Name",
       "Email",
       "Contact",
-      "Class / Grade",
+      "Board",
       "Joined Date",
     ];
 
@@ -1040,7 +1040,11 @@ const AdminDashboard = () => {
       student.full_name,
       student.email,
       student.phone,
-      student.student_class || student.studentClass,
+      (() => {
+        const board = student.student_board || student.studentBoard;
+        const state = student.student_state || student.studentState;
+        return board === "State" && state ? `${board} (${state})` : board;
+      })(),
       student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "",
     ]);
 
@@ -1866,10 +1870,12 @@ const AdminDashboard = () => {
                       const name = (student.full_name || "").toLowerCase();
                       const email = (student.email || "").toLowerCase();
                       const phone = (student.phone || "").toLowerCase();
+                      const board = (student.student_board || student.studentBoard || "").toLowerCase();
+                      const state = (student.student_state || student.studentState || "").toLowerCase();
                       const refCode = (student.usedReferralCode || student.referralInfo?.usedReferralCode || student.marketingRefCode || "").toLowerCase();
                       const referrerName = (student.referrerName || student.referralInfo?.referrer?.name || "").toLowerCase();
                       const referrerCode = (student.referrerCode || student.referralInfo?.referrer?.referralCode || "").toLowerCase();
-                      return name.includes(query) || email.includes(query) || phone.includes(query) || refCode.includes(query) || referrerName.includes(query) || referrerCode.includes(query);
+                      return name.includes(query) || email.includes(query) || phone.includes(query) || board.includes(query) || state.includes(query) || refCode.includes(query) || referrerName.includes(query) || referrerCode.includes(query);
                     });
 
                   if (loading) {
@@ -1907,15 +1913,16 @@ const AdminDashboard = () => {
                       <Table className="min-w-[850px]">
                         <TableHeader className="bg-secondary/50 uppercase text-xs">
                           <TableRow>
-                            <TableHead className="font-medium h-12 whitespace-nowrap">Student ID</TableHead>
-                            <TableHead className="font-medium h-12 whitespace-nowrap">Full Name</TableHead>
-                            <TableHead className="font-medium h-12 whitespace-nowrap">Email</TableHead>
-                            <TableHead className="font-medium h-12 whitespace-nowrap">Contact</TableHead>
-                            <TableHead className="font-medium h-12 whitespace-nowrap">Class / Grade</TableHead>
-                            <TableHead className="font-medium h-12 whitespace-nowrap">Source</TableHead>
-                            <TableHead className="font-medium h-12 whitespace-nowrap">Referral Code & Referrer</TableHead>
-                            <TableHead className="font-medium h-12 text-right whitespace-nowrap">Joined</TableHead>
-                            <TableHead className="font-medium h-12 text-right whitespace-nowrap">Actions</TableHead>
+                            <TableHead className="font-medium h-12">Student ID</TableHead>
+                            <TableHead className="font-medium h-12">Full Name</TableHead>
+                            <TableHead className="font-medium h-12">Email</TableHead>
+                            <TableHead className="font-medium h-12">Contact</TableHead>
+                            <TableHead className="font-medium h-12">Board</TableHead>
+                            <TableHead className="font-medium h-12">Interested Subject</TableHead>
+                            <TableHead className="font-medium h-12">Source</TableHead>
+                            <TableHead className="font-medium h-12">Referral Code & Referrer</TableHead>
+                            <TableHead className="font-medium h-12 text-right">Joined</TableHead>
+                            <TableHead className="font-medium h-12 text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1929,17 +1936,17 @@ const AdminDashboard = () => {
                               >
                                 {student.full_name || "–"}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap">{student.email || "–"}</TableCell>
-                              <TableCell className="whitespace-nowrap">{student.phone || "–"}</TableCell>
-                              <TableCell className="whitespace-nowrap">
-                                <div className="space-y-1">
-                                  <Badge variant="outline" className="font-normal bg-secondary/20 block w-fit">{student.student_class || student.studentClass || "–"}</Badge>
-                                  {(student.interested_subject || student.interestedSubject || student.subject) && (
-                                    <span className="text-[11px] text-muted-foreground block truncate max-w-[140px]" title={student.interested_subject || student.interestedSubject || student.subject}>
-                                      📚 {student.interested_subject || student.interestedSubject || student.subject}
-                                    </span>
-                                  )}
-                                </div>
+                              <TableCell>{student.email || "–"}</TableCell>
+                              <TableCell>{student.phone || "–"}</TableCell>
+                              <TableCell className="text-muted-foreground text-xs">
+                                {(() => {
+                                  const board = student.student_board || student.studentBoard;
+                                  const state = student.student_state || student.studentState;
+                                  return board === "State" && state ? `${board} (${state})` : board || "–";
+                                })()}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-xs">
+                                {student.interested_subject || student.interestedSubject || student.subject || "–"}
                               </TableCell>
                               <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{student.heard_about_us || student.heardAboutUs || "–"}</TableCell>
                               <TableCell className="whitespace-nowrap">
