@@ -93,6 +93,8 @@ const STUDENT_CLASS_OPTIONS = [
   "Other"
 ];
 
+const STUDENT_BOARD_OPTIONS = ["IB", "ISC", "ICSE", "CBSE", "State", "Not Applicable"];
+
 const STUDENT_HEARD_ABOUT_US_OPTIONS = [
   "Google Search",
   "Social Media (Instagram, Facebook, LinkedIn)",
@@ -134,6 +136,8 @@ const AdminDashboard = () => {
   const [editStudentEmail, setEditStudentEmail] = useState("");
   const [editStudentPhone, setEditStudentPhone] = useState("");
   const [editStudentClass, setEditStudentClass] = useState("");
+  const [editStudentBoard, setEditStudentBoard] = useState("");
+  const [editStudentState, setEditStudentState] = useState("");
   const [editStudentOrParent, setEditStudentOrParent] = useState("Student");
   const [editStudentChildName, setEditStudentChildName] = useState("");
   const [editStudentInterestedSubject, setEditStudentInterestedSubject] = useState("");
@@ -421,6 +425,8 @@ const AdminDashboard = () => {
     setEditStudentEmail(student.email || "");
     setEditStudentPhone(student.phone || "");
     setEditStudentClass(student.student_class || student.studentClass || "");
+    setEditStudentBoard(student.student_board || student.studentBoard || "");
+    setEditStudentState(student.student_state || student.studentState || "");
     setEditStudentOrParent(student.student_or_parent || "Student");
     setEditStudentChildName(student.student_name || "");
     setEditStudentInterestedSubject(student.interested_subject || student.interestedSubject || student.subject || "");
@@ -471,6 +477,11 @@ const AdminDashboard = () => {
       return;
     }
 
+    if (editStudentBoard === "State" && !editStudentState.trim()) {
+      toast.error("Please enter the student's state");
+      return;
+    }
+
     let cleanPhone = editStudentPhone.trim();
     if (cleanPhone) {
       const parsed = parsePhoneString(cleanPhone);
@@ -489,6 +500,8 @@ const AdminDashboard = () => {
         email: editStudentEmail.trim().toLowerCase(),
         phone: cleanPhone,
         student_class: editStudentClass,
+        student_board: editStudentBoard,
+        student_state: editStudentBoard === "State" ? editStudentState.trim() : "",
         student_or_parent: editStudentOrParent,
         student_name: editStudentOrParent === "Parent" ? editStudentChildName.trim() : "",
         interested_subject: editStudentInterestedSubject.trim(),
@@ -4601,6 +4614,42 @@ const AdminDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-foreground">Board</Label>
+                    <Select
+                      value={editStudentBoard}
+                      onValueChange={(value) => {
+                        setEditStudentBoard(value);
+                        if (value !== "State") setEditStudentState("");
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs sm:text-sm bg-background font-semibold">
+                        <SelectValue placeholder="Select board" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STUDENT_BOARD_OPTIONS.map((board) => (
+                          <SelectItem key={board} value={board}>{board}</SelectItem>
+                        ))}
+                        {!STUDENT_BOARD_OPTIONS.includes(editStudentBoard) && editStudentBoard && (
+                          <SelectItem value={editStudentBoard}>{editStudentBoard}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {editStudentBoard === "State" && (
+                    <div className="space-y-1 animate-in fade-in duration-150">
+                      <Label className="text-xs font-bold text-foreground">Which State? *</Label>
+                      <Input
+                        value={editStudentState}
+                        onChange={(e) => setEditStudentState(e.target.value)}
+                        maxLength={100}
+                        placeholder="Enter the student's state"
+                        className="h-9 text-xs sm:text-sm bg-background font-semibold"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-1">
                     <Label className="text-xs font-bold text-foreground">Interested Subject</Label>
