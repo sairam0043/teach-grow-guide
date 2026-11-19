@@ -4786,6 +4786,17 @@ const AdminDashboard = () => {
                     </span>
                   </div>
                   <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Board</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {(() => {
+                        const board = selectedStudentForDetail.student_board || selectedStudentForDetail.studentBoard;
+                        const state = selectedStudentForDetail.student_state || selectedStudentForDetail.studentState;
+                        if (!board) return "–";
+                        return board === "State" && state ? `${board} (${state})` : board;
+                      })()}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">Interested Subject(s)</span>
                     <span className="text-sm font-semibold text-foreground">
                       {selectedStudentForDetail.interested_subject || selectedStudentForDetail.interestedSubject || selectedStudentForDetail.subject ? (
