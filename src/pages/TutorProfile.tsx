@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { format, getDay, addMinutes, parse, startOfDay, addDays } from "date-fns";
 import PageLayout from "@/components/layout/PageLayout";
+import { mockTutors } from "@/data/mockTutors";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "@/components/ui/sonner";
 import axios from "axios";
@@ -157,6 +158,22 @@ const TutorProfile = () => {
     return rateObj ? rateObj.rate : (tutor?.hourlyRate || 300);
   };
   const subjectRate = getSubjectRate();
+
+  useEffect(() => {
+    if (tutor && tutor.subjects && tutor.subjects.length > 0 && !selectedSubject) {
+      setSelectedSubject(tutor.subjects[0]);
+    }
+  }, [tutor, selectedSubject]);
+
+  useEffect(() => {
+    if (!selectPack && selectedSubject && !selectedPlan) {
+      setSelectedPlan({
+        type: 'Free Demo Class',
+        price: 0,
+        isDemo: true
+      });
+    }
+  }, [selectPack, selectedSubject, selectedPlan]);
 
   useEffect(() => {
     if (selectPack && tutor && tutor.subjects && tutor.subjects.length > 0 && !selectedSubject) {
@@ -440,7 +457,22 @@ const TutorProfile = () => {
           }
         }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch tutor from API, falling back to mock tutor:", err);
+        const fallback = mockTutors.find((t) => String(t.id) === String(id)) || mockTutors[0];
+        if (fallback) {
+          setTutor({
+            ...fallback,
+            availability: fallback.availability || [
+              { day: 'Monday', startTime: '09:00', endTime: '20:00' },
+              { day: 'Tuesday', startTime: '09:00', endTime: '20:00' },
+              { day: 'Wednesday', startTime: '09:00', endTime: '20:00' },
+              { day: 'Thursday', startTime: '09:00', endTime: '20:00' },
+              { day: 'Friday', startTime: '09:00', endTime: '20:00' },
+              { day: 'Saturday', startTime: '09:00', endTime: '20:00' },
+              { day: 'Sunday', startTime: '09:00', endTime: '20:00' }
+            ]
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -669,6 +701,7 @@ const TutorProfile = () => {
         subject: selectedSubject,
         studentId: user.id,
         studentName,
+        studentEmail: user?.email || user?.user_metadata?.email || "",
         utcTiming,
         topicToLearn: demoTopics.trim()
       };
@@ -1288,8 +1321,8 @@ const TutorProfile = () => {
                             type="button"
                             onClick={() => setShowcaseTab('videos')}
                             className={`px-3 py-1 rounded-lg font-bold transition-all ${effectiveTab === 'videos'
-                                ? 'bg-primary text-primary-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                              ? 'bg-primary text-primary-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
                               }`}
                           >
                             Videos ({videos.length})
@@ -1298,8 +1331,8 @@ const TutorProfile = () => {
                             type="button"
                             onClick={() => setShowcaseTab('photos')}
                             className={`px-3 py-1 rounded-lg font-bold transition-all ${effectiveTab === 'photos'
-                                ? 'bg-primary text-primary-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                              ? 'bg-primary text-primary-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
                               }`}
                           >
                             Photos ({images.length})
@@ -1366,8 +1399,8 @@ const TutorProfile = () => {
                                       type="button"
                                       onClick={() => setActiveShowcaseVideoIndex(idx)}
                                       className={`relative shrink-0 w-36 rounded-xl overflow-hidden border-2 text-left transition-all ${isSelected
-                                          ? 'border-primary ring-2 ring-primary/40 shadow-md scale-[1.02]'
-                                          : 'border-border/60 hover:border-primary/40 opacity-80 hover:opacity-100'
+                                        ? 'border-primary ring-2 ring-primary/40 shadow-md scale-[1.02]'
+                                        : 'border-border/60 hover:border-primary/40 opacity-80 hover:opacity-100'
                                         }`}
                                     >
                                       <div className="aspect-video bg-secondary/80 relative flex items-center justify-center overflow-hidden">
@@ -1671,8 +1704,8 @@ const TutorProfile = () => {
                           {/* Up to 5 Images Display */}
                           {post.images && post.images.length > 0 && (
                             <div className={`grid gap-2 mt-2 ${post.images.length === 1 ? 'grid-cols-1' :
-                                post.images.length === 2 ? 'grid-cols-2' :
-                                  'grid-cols-3'
+                              post.images.length === 2 ? 'grid-cols-2' :
+                                'grid-cols-3'
                               }`}>
                               {post.images.map((imgUrl: string, idx: number) => (
                                 <div
@@ -1844,7 +1877,7 @@ const TutorProfile = () => {
 
           {/* Booking sidebar */}
           <div>
-            <Card className="sticky top-20">
+            <Card className="sticky top-20" id="booking-card">
               {role === 'tutor' ? (
                 <>
                   <CardHeader>
@@ -2597,7 +2630,7 @@ const TutorProfile = () => {
                   )}
                 </>
               )}
-                </Card>
+            </Card>
           </div>
         </div>
       </div>

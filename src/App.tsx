@@ -34,6 +34,7 @@ import ApproveBooking from "./pages/ApproveBooking";
 import TutorWelcome from "./pages/TutorWelcome";
 import GoogleCallback from "./pages/GoogleCallback";
 import CustomServiceChatbot from "@/components/CustomServiceChatbot";
+import PromoVideoGenerator from "./pages/PromoVideoGenerator";
 
 const queryClient = new QueryClient();
 
@@ -153,6 +154,8 @@ const App = () => {
                   <Route path="/tutors/:id" element={<TutorProfile />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/contact" element={<Contact />} />
+                  <Route path="/promo-video" element={<PromoVideoGenerator />} />
+                  <Route path="/create-video" element={<PromoVideoGenerator />} />
                   <Route path="/ai-program" element={<Navigate to="/" replace />} />
                   <Route 
                     path="/ai-program/enroll" 

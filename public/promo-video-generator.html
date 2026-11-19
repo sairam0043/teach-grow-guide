@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cuvasol 9:16 Promo Video Generator (WhatsApp-Ready)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;0,9..40,800&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #020617;
+      color: #f8fafc;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+    header {
+      width: 100%;
+      max-width: 1050px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid;
+    }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+    .badge-blue { background: rgba(99, 102, 241, 0.15); color: #818cf8; border-color: rgba(99, 102, 241, 0.3); }
+    .badge-teal { background: rgba(13, 148, 136, 0.15); color: #2dd4bf; border-color: rgba(13, 148, 136, 0.3); }
+    
+    .title-box {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .title-box h1 {
+      font-size: 32px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #34d399, #2dd4bf, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+    .title-box p {
+      color: #94a3b8;
+      font-size: 14px;
+    }
+
+    .main-grid {
+      width: 100%;
+      max-width: 1050px;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .main-grid { grid-template-columns: 1fr; justify-items: center; }
+    }
+
+    .player-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .phone-bezel {
+      background: linear-gradient(180deg, #1e293b, #0f172a);
+      border: 2px solid #334155;
+      padding: 10px;
+      border-radius: 36px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7), 0 0 30px rgba(13, 148, 136, 0.2);
+      position: relative;
+    }
+    canvas {
+      width: 340px;
+      height: 604px; /* 9:16 aspect ratio */
+      border-radius: 26px;
+      display: block;
+      background: #000;
+    }
+    .rec-badge {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      background: rgba(220, 38, 38, 0.9);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    .player-controls {
+      display: flex;
+      gap: 12px;
+      width: 340px;
+      margin-top: 16px;
+    }
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      border: none;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .btn-play {
+      flex: 1;
+      height: 44px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      background: #0d9488;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+    }
+    .btn-play:hover { background: #0f766e; }
+    .btn-play.playing { background: #d97706; }
+    .btn-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+    }
+    .btn-icon:hover { background: #334155; color: #fff; }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 18px;
+      padding: 20px;
+    }
+    .export-card {
+      background: linear-gradient(135deg, rgba(13, 148, 136, 0.15), rgba(15, 23, 42, 0.8));
+      border: 1px solid rgba(13, 148, 136, 0.4);
+    }
+    .btn-export {
+      width: 100%;
+      height: 48px;
+      background: linear-gradient(135deg, #10b981, #0d9488);
+      color: #020617;
+      font-weight: 800;
+      font-size: 16px;
+      border-radius: 12px;
+      margin-top: 14px;
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25);
+    }
+    .btn-export:hover { background: linear-gradient(135deg, #059669, #0f766e); }
+    .btn-export:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .timeline-box { display: flex; flex-direction: column; gap: 8px; }
+    .timeline-header { display: flex; justify-content: space-between; font-size: 13px; color: #94a3b8; }
+    input[type=range] { width: 100%; accent-color: #0d9488; cursor: pointer; }
+
+    .scene-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .scene-item {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .scene-item:hover { background: rgba(30, 41, 59, 0.8); }
+    .scene-item.active {
+      background: rgba(13, 148, 136, 0.2);
+      border-color: #0d9488;
+    }
+    .scene-top { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 4px; }
+    .scene-script { color: #cbd5e1; font-style: italic; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div style="font-weight: 800; font-size: 18px; color: #fff;">Cuvasol Studio</div>
+    <div style="display: flex; gap: 8px;">
+      <span class="badge badge-green">📱 9:16 Vertical</span>
+      <span class="badge badge-blue">⏱️ 35 Seconds</span>
+      <span class="badge badge-teal">💬 WhatsApp-Ready</span>
+    </div>
+  </header>
+
+  <div class="title-box">
+    <h1>Cuvasol "Book FREE Demo" 9:16 Video</h1>
+    <p>Actual Cuvasol website flows • Button zoom effects • English subtitles • Upbeat background music</p>
+  </div>
+
+  <div class="main-grid">
+    <!-- Left: Video Player -->
+    <div class="player-col">
+      <div class="phone-bezel">
+        <canvas id="videoCanvas" width="1080" height="1920"></canvas>
+        <div id="recBadge" class="rec-badge">● REC <span id="recPct">0</span>%</div>
+      </div>
+      <div class="player-controls">
+        <button id="playBtn" class="btn-play">▶ Play Video</button>
+        <button id="resetBtn" class="btn-icon" title="Reset to 0s">↺</button>
+      </div>
+    </div>
+
+    <!-- Right: Sidebar & Export Controls -->
+    <div class="sidebar">
+      <!-- Export -->
+      <div class="card export-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h3 style="font-size: 18px; font-weight: 800; color: #fff;">Export WhatsApp 9:16 Video</h3>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Renders 60 FPS in Full HD (1080x1920) with audio & subtitles.</p>
+          </div>
+          <span class="badge badge-green">Ready</span>
+        </div>
+        <button id="recordBtn" class="btn-export">🎥 Record & Download 9:16 Video</button>
+      </div>
+
+      <!-- Scrubber -->
+      <div class="card timeline-box">
+        <div class="timeline-header">
+          <span>Time: <strong id="timeDisplay" style="color: #fff;">0.0s</strong> / 35s</span>
+          <span id="pctDisplay">0%</span>
+        </div>
+        <input type="range" id="timeScrubber" min="0" max="35" step="0.1" value="0">
+      </div>
+
+      <!-- Audio & Subtitles -->
+      <div class="card">
+        <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #cbd5e1;">Audio & Narration</h4>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <span style="font-size: 13px; color: #94a3b8;">Upbeat BGM Music</span>
+          <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.25" style="width: 120px;">
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #94a3b8;">Voice-Over Narration</span>
+          <button id="voiceToggle" style="background:#1e293b; color:#34d399; padding:4px 12px; border-radius:8px; font-weight:700; font-size:12px;">Enabled</button>
+        </div>
+      </div>
+
+      <!-- Storyboard list -->
+      <div class="card">
+        <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 12px; color: #cbd5e1;">Storyboard Scenes (35 Seconds)</h4>
+        <div class="scene-list" id="sceneList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SCENES = [
+      { id: 1, start: 0, end: 5, title: "Cuvasol Intro & Logo", voiceover: "Welcome to Cuvasol! Already registered? Let's see how to book your FREE Demo Class.", subtitle: "Welcome to Cuvasol! Let's book your FREE Demo Class." },
+      { id: 2, start: 5, end: 10, title: "Student Login & Dashboard", voiceover: "First, log in to your Cuvasol student account.", subtitle: "First, log in to your Cuvasol student account." },
+      { id: 3, start: 10, end: 16, title: "Subject Selection Page", voiceover: "Choose your preferred subject based on your learning needs.", subtitle: "Choose your preferred subject based on your learning needs." },
+      { id: 4, start: 16, end: 22, title: "Tutor Profiles Exploration", voiceover: "Explore experienced tutors and select the right tutor for you.", subtitle: "Explore experienced tutors & select the right tutor for you." },
+      { id: 5, start: 22, end: 29, title: "Demo Booking Calendar", voiceover: "Select your preferred date and time, and confirm your FREE Demo Class.", subtitle: "Select preferred date & time, then confirm your FREE Demo!" },
+      { id: 6, start: 29, end: 35, title: "Grand Call to Action", voiceover: "That's it! Start your learning journey with Cuvasol. Book your FREE Demo today!", subtitle: "Start learning with Cuvasol. Book your FREE Demo today!" }
+    ];
+
+    const TOTAL_DURATION = 35;
+    const canvas = document.getElementById('videoCanvas');
+    const ctx = canvas.getContext('2d');
+    const playBtn = document.getElementById('playBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const pctDisplay = document.getElementById('pctDisplay');
+    const scrubber = document.getElementById('timeScrubber');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const voiceToggle = document.getElementById('voiceToggle');
+    const sceneListContainer = document.getElementById('sceneList');
+    const recBadge = document.getElementById('recBadge');
+    const recPct = document.getElementById('recPct');
+
+    let currentTime = 0;
+    let isPlaying = false;
+    let isRecording = false;
+    let voiceoverEnabled = true;
+    let lastStamp = performance.now();
+    let currentVoiceScene = -1;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+
+    // Preload logo and ACTUAL website screen recordings
+    const logoImg = new Image();
+    logoImg.src = './logo.png';
+    logoImg.onerror = () => { logoImg.src = '/logo.png'; };
+
+    const screens = {};
+    const screenFiles = {
+      scene1_home: './website-screens/scene1_home.png',
+      scene1_scroll: './website-screens/scene1_hero_scroll.png',
+      scene2_dashboard: './website-screens/scene2_dashboard.png',
+      scene3_subjects: './website-screens/scene3_subjects.png',
+      scene4_tutors: './website-screens/scene4_tutors.png',
+      scene5_booking: './website-screens/scene5_booking.png',
+      scene6_cta: './website-screens/scene6_cta.png'
+    };
+    Object.entries(screenFiles).forEach(([k, v]) => {
+      const im = new Image();
+      im.onload = () => {
+        screens[k] = im;
+        drawFrame(currentTime);
+      };
+      im.onerror = () => {
+        // Fallback to absolute if opened in dev server root
+        if (v.startsWith('.')) {
+          im.src = v.substring(1);
+        }
+      };
+      im.src = v;
+    });
+
+    // Populate scene list
+    SCENES.forEach(sc => {
+      const el = document.createElement('div');
+      el.className = 'scene-item';
+      el.id = 'scene-' + sc.id;
+      el.innerHTML = `
+        <div class="scene-top">
+          <span>Scene ${sc.id}: ${sc.title}</span>
+          <span style="color:#2dd4bf; font-family:monospace;">${sc.start}s - ${sc.end}s</span>
+        </div>
+        <div class="scene-script">"${sc.voiceover}"</div>
+      `;
+      el.onclick = () => {
+        currentTime = sc.start;
+        currentVoiceScene = -1;
+        drawFrame(currentTime);
+      };
+      sceneListContainer.appendChild(el);
+    });
+
+    // Web Audio Upbeat BGM
+    let audioCtx = null;
+    let bgmOscs = [];
+    function startBGM() {
+      const vol = parseFloat(volumeSlider.value);
+      if (vol <= 0) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        stopBGM();
+
+        const master = audioCtx.createGain();
+        master.gain.setValueAtTime(vol * 0.12, audioCtx.currentTime);
+        master.connect(audioCtx.destination);
+
+        const chords = [
+          [261.63, 329.63, 392.00, 523.25],
+          [220.00, 261.63, 329.63, 440.00],
+          [174.61, 220.00, 261.63, 349.23],
+          [196.00, 246.94, 293.66, 392.00]
+        ];
+        const tempo = 124;
+        const noteInt = 60 / tempo / 2;
+        const t0 = audioCtx.currentTime;
+
+        for (let b = 0; b < 20; b++) {
+          const chord = chords[b % chords.length];
+          for (let i = 0; i < 8; i++) {
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = i % 2 === 0 ? 'triangle' : 'sine';
+            osc.frequency.setValueAtTime(chord[i % chord.length], t0 + b * 4 * (60/tempo) + i * noteInt);
+            g.gain.setValueAtTime(0.001, t0 + b * 4 * (60/tempo) + i * noteInt);
+            g.gain.exponentialRampToValueAtTime(0.35, t0 + b * 4 * (60/tempo) + i * noteInt + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.001, t0 + b * 4 * (60/tempo) + (i + 0.8) * noteInt);
+            osc.connect(g);
+            g.connect(master);
+            osc.start(t0 + b * 4 * (60/tempo) + i * noteInt);
+            osc.stop(t0 + b * 4 * (60/tempo) + (i + 1) * noteInt);
+            bgmOscs.push(osc);
+          }
+        }
+      } catch(e) {}
+    }
+    function stopBGM() {
+      bgmOscs.forEach(o => { try{ o.stop(); }catch(e){} });
+      bgmOscs = [];
+    }
+
+    // Voiceover
+    function speakScene(idx) {
+      if (!voiceoverEnabled || !('speechSynthesis' in window)) return;
+      if (currentVoiceScene === idx) return;
+      window.speechSynthesis.cancel();
+      const sc = SCENES[idx];
+      if (!sc) return;
+      const u = new SpeechSynthesisUtterance(sc.voiceover);
+      u.rate = 1.05;
+      u.pitch = 1.05;
+      currentVoiceScene = idx;
+      window.speechSynthesis.speak(u);
+    }
+
+    // Rounded Rect helper
+    function roundRect(ctx, x, y, w, h, r, fill, stroke, strokeWidth) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+      if (stroke && strokeWidth > 0) {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = strokeWidth;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Main Draw Function (Renders the 1080x1920 Frame)
+    function drawFrame(t) {
+      const W = 1080;
+      const H = 1920;
+      ctx.save();
+
+      const activeIdx = SCENES.findIndex(s => t >= s.start && t < s.end);
+      const scene = activeIdx !== -1 ? SCENES[activeIdx] : SCENES[SCENES.length - 1];
+      const p = (t - scene.start) / (scene.end - scene.start);
+
+      // Highlight active scene in sidebar
+      document.querySelectorAll('.scene-item').forEach((el, idx) => {
+        el.classList.toggle('active', idx === activeIdx);
+      });
+
+      // Camera Scale & Pan
+      let scale = 1.0;
+      let offY = 0;
+      if (scene.id === 2) {
+        const ease = Math.min(Math.max((p - 0.2) / 0.6, 0), 1);
+        scale = 1.0 + ease * 0.35;
+        offY = -ease * (H * 0.12);
+      } else if (scene.id === 3) {
+        const ease = Math.min(Math.max((p - 0.2) / 0.6, 0), 1);
+        scale = 1.0 + ease * 0.3;
+        offY = -ease * (H * 0.08);
+      } else if (scene.id === 4) {
+        const ease = Math.min(Math.max((p - 0.25) / 0.55, 0), 1);
+        scale = 1.0 + ease * 0.38;
+        offY = -ease * (H * 0.16);
+      } else if (scene.id === 5) {
+        const ease = Math.min(Math.max((p - 0.2) / 0.6, 0), 1);
+        scale = 1.0 + ease * 0.32;
+        offY = -ease * (H * 0.15);
+      }
+
+      ctx.translate(W / 2, H / 2);
+      ctx.scale(scale, scale);
+      ctx.translate(-W / 2, -H / 2 + offY);
+
+      // Background
+      const bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, '#f4fbf9');
+      bg.addColorStop(0.5, '#ffffff');
+      bg.addColorStop(1, '#f3f0ff');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Grid mesh
+      ctx.strokeStyle = 'rgba(13, 148, 136, 0.06)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 48) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+      // ACTUAL WEBSITE SCREEN RENDERING HELPER (Pure website recording, no boxes, no emojis)
+      function drawActualScreen(img) {
+        if (!img || !img.complete || img.naturalWidth === 0) return false;
+        ctx.drawImage(img, 0, 0, W, H);
+        return true;
+      }
+
+      // SCENE RENDERS - PURE WEBSITE RECORDINGS
+      if (scene.id === 1) {
+        // Scene 1: Logo & Welcome (Actual Homepage Hero)
+        const homeImg = p > 0.45 ? (screens.scene1_scroll || screens.scene1_home) : screens.scene1_home;
+        drawActualScreen(homeImg);
+      } else if (scene.id === 2) {
+        // Scene 2: Student Dashboard (Actual Screen)
+        drawActualScreen(screens.scene2_dashboard);
+      } else if (scene.id === 3) {
+        // Scene 3: Subject Selection (Actual Screen)
+        drawActualScreen(screens.scene3_subjects);
+      } else if (scene.id === 4) {
+        // Scene 4: Tutor Profile Exploration (Actual Screen)
+        drawActualScreen(screens.scene4_tutors);
+      } else if (scene.id === 5) {
+        // Scene 5: Demo Booking Calendar & Slot Selection (Actual Screen)
+        drawActualScreen(screens.scene5_booking);
+      } else {
+        // Scene 6: Cuvasol CTA (Actual Screen)
+        drawActualScreen(screens.scene6_cta);
+      }
+
+      ctx.restore();
+
+      // Top Status Pill
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+      roundRect(ctx, W*0.25, 24, W*0.5, 48, 24, 'rgba(15, 23, 42, 0.75)', 'transparent', 0);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 20px "DM Sans"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`⏱️ ${Math.floor(t)}s / ${TOTAL_DURATION}s • ${scene.title}`, W/2, 48);
+
+      // Subtitles
+      const subY = H * 0.88;
+      ctx.font = 'bold 34px "DM Sans"';
+      const tw = ctx.measureText(scene.subtitle).width;
+      const bw = Math.min(tw + 80, W * 0.92);
+      roundRect(ctx, (W - bw)/2, subY - 40, bw, 80, 24, 'rgba(15, 23, 42, 0.90)', '#0d9488', 2);
+      ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(scene.subtitle, W/2, subY);
+
+      // Top progress bar
+      ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(0, 0, W, 8);
+      ctx.fillStyle = '#0d9488'; ctx.fillRect(0, 0, (t / TOTAL_DURATION)*W, 8);
+    }
+
+    // Animation Loop
+    function loop(stamp) {
+      const delta = (stamp - lastStamp) / 1000;
+      lastStamp = stamp;
+
+      if (isPlaying) {
+        currentTime += delta;
+        if (currentTime >= TOTAL_DURATION) {
+          currentTime = TOTAL_DURATION;
+          isPlaying = false;
+          playBtn.textContent = '▶ Play Video';
+          playBtn.classList.remove('playing');
+          stopBGM();
+          if (isRecording) stopRecording();
+        }
+
+        const activeIdx = SCENES.findIndex(s => currentTime >= s.start && currentTime < s.end);
+        if (activeIdx !== -1) speakScene(activeIdx);
+
+        drawFrame(currentTime);
+        timeDisplay.textContent = currentTime.toFixed(1) + 's';
+        scrubber.value = currentTime;
+        pctDisplay.textContent = Math.round((currentTime / TOTAL_DURATION)*100) + '%';
+        if (isRecording) {
+          recPct.textContent = Math.round((currentTime / TOTAL_DURATION)*100);
+        }
+      }
+
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // Controls
+    playBtn.onclick = () => {
+      if (isPlaying) {
+        isPlaying = false;
+        playBtn.textContent = '▶ Play Video';
+        playBtn.classList.remove('playing');
+        stopBGM();
+        if ('speechSynthesis' in window) window.speechSynthesis.pause();
+      } else {
+        if (currentTime >= TOTAL_DURATION) {
+          currentTime = 0;
+          currentVoiceScene = -1;
+        }
+        isPlaying = true;
+        playBtn.textContent = '⏸ Pause Video';
+        playBtn.classList.add('playing');
+        startBGM();
+        if ('speechSynthesis' in window) window.speechSynthesis.resume();
+      }
+    };
+
+    resetBtn.onclick = () => {
+      isPlaying = false;
+      playBtn.textContent = '▶ Play Video';
+      playBtn.classList.remove('playing');
+      currentTime = 0;
+      currentVoiceScene = -1;
+      stopBGM();
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      drawFrame(0);
+      timeDisplay.textContent = '0.0s';
+      scrubber.value = 0;
+      pctDisplay.textContent = '0%';
+    };
+
+    scrubber.oninput = (e) => {
+      currentTime = parseFloat(e.target.value);
+      currentVoiceScene = -1;
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      drawFrame(currentTime);
+      timeDisplay.textContent = currentTime.toFixed(1) + 's';
+      pctDisplay.textContent = Math.round((currentTime / TOTAL_DURATION)*100) + '%';
+    };
+
+    voiceToggle.onclick = () => {
+      voiceoverEnabled = !voiceoverEnabled;
+      voiceToggle.textContent = voiceoverEnabled ? 'Enabled' : 'Muted';
+      voiceToggle.style.color = voiceoverEnabled ? '#34d399' : '#94a3b8';
+    };
+
+    // Recording Export
+    recordBtn.onclick = () => {
+      try {
+        recordedChunks = [];
+        const stream = canvas.captureStream(60);
+        const options = {
+          mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm'
+        };
+        mediaRecorder = new MediaRecorder(stream, options);
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'Cuvasol-Book-FREE-Demo-9x16.webm';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          isRecording = false;
+          recBadge.style.display = 'none';
+          recordBtn.textContent = '🎥 Record & Download 9:16 Video';
+          recordBtn.disabled = false;
+          alert('🎬 9:16 Video downloaded successfully!');
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        recBadge.style.display = 'flex';
+        recordBtn.textContent = 'Recording in progress...';
+        recordBtn.disabled = true;
+
+        currentTime = 0;
+        currentVoiceScene = -1;
+        isPlaying = true;
+        playBtn.textContent = '⏸ Pause Video';
+        playBtn.classList.add('playing');
+        startBGM();
+      } catch(err) {
+        alert('Recording error: ' + err.message);
+      }
+    };
+
+    // Initial render
+    drawFrame(0);
+  </script>
+</body>
+</html>

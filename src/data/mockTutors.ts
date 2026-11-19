@@ -56,6 +56,15 @@ export const mockTutors: Tutor[] = [
     hourlyRate: 800,
     approvalStatus: "Approved",
     isVerified: true,
+    availability: [
+      { day: "Monday", startTime: "09:00", endTime: "20:00" },
+      { day: "Tuesday", startTime: "09:00", endTime: "20:00" },
+      { day: "Wednesday", startTime: "09:00", endTime: "20:00" },
+      { day: "Thursday", startTime: "09:00", endTime: "20:00" },
+      { day: "Friday", startTime: "09:00", endTime: "20:00" },
+      { day: "Saturday", startTime: "09:00", endTime: "20:00" },
+      { day: "Sunday", startTime: "09:00", endTime: "20:00" },
+    ],
     demoSlots: [
       { id: "d1", date: "2026-03-12", time: "10:00 AM", available: true },
       { id: "d2", date: "2026-03-12", time: "2:00 PM", available: true },
@@ -80,6 +89,15 @@ export const mockTutors: Tutor[] = [
     hourlyRate: 1000,
     approvalStatus: "Approved",
     isVerified: true,
+    availability: [
+      { day: "Monday", startTime: "09:00", endTime: "20:00" },
+      { day: "Tuesday", startTime: "09:00", endTime: "20:00" },
+      { day: "Wednesday", startTime: "09:00", endTime: "20:00" },
+      { day: "Thursday", startTime: "09:00", endTime: "20:00" },
+      { day: "Friday", startTime: "09:00", endTime: "20:00" },
+      { day: "Saturday", startTime: "09:00", endTime: "20:00" },
+      { day: "Sunday", startTime: "09:00", endTime: "20:00" },
+    ],
     demoSlots: [
       { id: "d4", date: "2026-03-12", time: "4:00 PM", available: true },
       { id: "d5", date: "2026-03-14", time: "10:00 AM", available: true },
