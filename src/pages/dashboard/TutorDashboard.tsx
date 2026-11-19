@@ -173,6 +173,11 @@ const TutorDashboard = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [expandedStudentNotesId, setExpandedStudentNotesId] = useState<string | null>(null);
+  const [studentNotes, setStudentNotes] = useState<Record<string, { _id: string; note: string; createdAt: string }[]>>({});
+  const [studentNoteDrafts, setStudentNoteDrafts] = useState<Record<string, string>>({});
+  const [loadingStudentNotesId, setLoadingStudentNotesId] = useState<string | null>(null);
+  const [savingStudentNoteId, setSavingStudentNoteId] = useState<string | null>(null);
 
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [checkingGoogle, setCheckingGoogle] = useState(true);
@@ -982,6 +987,68 @@ const TutorDashboard = () => {
 
   // Extract unique students
   const uniqueStudents = Array.from(new Map(enrolledClasses.map(cls => [cls.studentId, cls])).values());
+
+  const handleToggleStudentNotes = async (studentId: string) => {
+    if (expandedStudentNotesId === studentId) {
+      setExpandedStudentNotesId(null);
+      return;
+    }
+
+    setExpandedStudentNotesId(studentId);
+    setLoadingStudentNotesId(studentId);
+    try {
+      const tutorId = tutorProfile?._id || tutorProfile?.id;
+      const token = localStorage.getItem("auth_token");
+      if (!tutorId || !token) {
+        throw new Error("Tutor authentication is required to load student notes.");
+      }
+      const res = await axios.get(
+        `${API_URL}/dashboard/tutor/${tutorId}/students/${studentId}/notes`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setStudentNotes(prev => ({ ...prev, [studentId]: res.data.notes || [] }));
+    } catch (err: any) {
+      console.error("Failed to load student notes:", err);
+      toast.error(err.response?.data?.message || err.message || "Failed to load student notes.");
+    } finally {
+      setLoadingStudentNotesId(null);
+    }
+  };
+
+  const handleAddStudentNote = async (student: any) => {
+    const note = (studentNoteDrafts[student.studentId] || "").trim();
+    if (!note) {
+      toast.error("Write a note before saving.");
+      return;
+    }
+
+    const tutorId = tutorProfile?._id || tutorProfile?.id;
+    const token = localStorage.getItem("auth_token");
+    if (!tutorId || !token) {
+      toast.error("Tutor authentication is required to save student notes.");
+      return;
+    }
+
+    setSavingStudentNoteId(student.studentId);
+    try {
+      const res = await axios.post(
+        `${API_URL}/dashboard/tutor/${tutorId}/students/${student.studentId}/notes`,
+        { note },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setStudentNotes(prev => ({
+        ...prev,
+        [student.studentId]: [res.data.note, ...(prev[student.studentId] || [])]
+      }));
+      setStudentNoteDrafts(prev => ({ ...prev, [student.studentId]: "" }));
+      toast.success("Student note saved.");
+    } catch (err: any) {
+      console.error("Failed to save student note:", err);
+      toast.error(err.response?.data?.message || err.message || "Failed to save student note.");
+    } finally {
+      setSavingStudentNoteId(null);
+    }
+  };
 
   const photoSrc =
     resolveAssetUrl(tutorProfile?.photo) ||
@@ -1805,14 +1872,73 @@ const TutorDashboard = () => {
                 ) : (
                   <div className="grid gap-4 mt-4 sm:grid-cols-2 lg:grid-cols-3">
                     {uniqueStudents.map((cls: any) => (
-                      <div key={cls.studentId} className="flex items-center gap-4 bg-card p-4 rounded-xl border shadow-sm">
-                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-                          {cls.studentName.charAt(0).toUpperCase()}
+                      <div key={cls.studentId} className="bg-card p-4 rounded-xl border shadow-sm">
+                        <div className="flex items-center gap-4">
+                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0">
+                            {cls.studentName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-foreground">{cls.studentName}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Enrolled Subject: {cls.subject}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-foreground">{cls.studentName}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Enrolled Subject: {cls.subject}</p>
-                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-4 w-full"
+                          onClick={() => handleToggleStudentNotes(cls.studentId)}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          {expandedStudentNotesId === cls.studentId ? "Hide Notes & Remarks" : "Notes & Remarks"}
+                        </Button>
+
+                        {expandedStudentNotesId === cls.studentId && (
+                          <div className="mt-4 space-y-3 border-t pt-4">
+                            <Label htmlFor={`student-note-${cls.studentId}`} className="text-xs font-semibold">
+                              Add a note or remark
+                            </Label>
+                            <Textarea
+                              id={`student-note-${cls.studentId}`}
+                              value={studentNoteDrafts[cls.studentId] || ""}
+                              onChange={(e) => setStudentNoteDrafts(prev => ({ ...prev, [cls.studentId]: e.target.value }))}
+                              maxLength={3000}
+                              placeholder="Add a private note about this student..."
+                              className="min-h-[90px] text-sm"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="w-full"
+                              disabled={savingStudentNoteId === cls.studentId || !(studentNoteDrafts[cls.studentId] || "").trim()}
+                              onClick={() => handleAddStudentNote(cls)}
+                            >
+                              {savingStudentNoteId === cls.studentId ? (
+                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
+                              ) : (
+                                <><PlusCircle className="h-4 w-4 mr-2" /> Save Note</>
+                              )}
+                            </Button>
+
+                            <div className="space-y-2 pt-1">
+                              <p className="text-xs font-semibold text-muted-foreground">Previous notes</p>
+                              {loadingStudentNotesId === cls.studentId ? (
+                                <p className="text-xs text-muted-foreground">Loading notes...</p>
+                              ) : (studentNotes[cls.studentId] || []).length === 0 ? (
+                                <p className="text-xs text-muted-foreground">No notes yet.</p>
+                              ) : (
+                                (studentNotes[cls.studentId] || []).map((entry) => (
+                                  <div key={entry._id} className="rounded-lg bg-secondary/30 p-3">
+                                    <p className="text-sm whitespace-pre-wrap break-words">{entry.note}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-2">
+                                      {new Date(entry.createdAt).toLocaleString()}
+                                    </p>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

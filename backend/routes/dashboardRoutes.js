@@ -1,14 +1,66 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const User = require('../schemas/userSchema');
 const Tutor = require('../schemas/tutorSchema');
 const Booking = require('../schemas/bookingSchema');
+const TutorStudentNote = require('../schemas/tutorStudentNoteSchema');
 const CoursePayment = require('../schemas/coursePaymentSchema');
 const AdminAvailability = require('../schemas/adminAvailabilitySchema');
 const { syncStudentWalletAndReferrals } = require('../utils/referralWalletHelper');
 const { validateAndNormalizePhone } = require('../utils/phoneValidator');
 const { sendVerificationSlotBookedEmail } = require('../utils/emailService');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'teachgrow_jwt_secret_key';
+
+const requireTutorStudentAccess = async (req, res, next) => {
+  const authorization = req.headers.authorization || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication is required to access student notes' });
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired authentication token' });
+  }
+
+  if (!decoded || typeof decoded === 'string' || decoded.role !== 'tutor' || !decoded.userId) {
+    return res.status(403).json({ message: 'Only the assigned tutor can access these student notes' });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(req.params.tutorId) || !req.params.studentId.trim()) {
+    return res.status(400).json({ message: 'A valid tutor and student ID are required' });
+  }
+
+  try {
+    const tutor = await Tutor.findOne({
+      _id: req.params.tutorId,
+      userId: decoded.userId
+    }).select('_id');
+    if (!tutor) {
+      return res.status(403).json({ message: 'You can only access notes for your own students' });
+    }
+
+    const hasEnrollment = await Booking.exists({
+      tutorId: tutor._id,
+      studentId: req.params.studentId,
+      status: 'enrolled'
+    });
+    if (!hasEnrollment) {
+      return res.status(404).json({ message: 'Enrolled student not found for this tutor' });
+    }
+
+    req.tutorStudentNotesTutorId = tutor._id;
+    next();
+  } catch (err) {
+    console.error('[Tutor Student Notes] Access check failed:', err);
+    return res.status(500).json({ message: 'Unable to verify access to student notes' });
+  }
+};
 
 // /api/dashboard/admin
 router.get('/admin', async (req, res) => {
@@ -384,6 +436,8 @@ router.put('/admin/students/:id', async (req, res) => {
       email,
       phone,
       student_class,
+      student_board,
+      student_state,
       student_or_parent,
       student_name,
       interested_subject,
@@ -418,6 +472,14 @@ router.put('/admin/students/:id', async (req, res) => {
 
     if (student_class !== undefined) {
       student.student_class = student_class;
+    }
+
+    if (student_board !== undefined) {
+      student.student_board = student_board;
+    }
+
+    if (student_state !== undefined) {
+      student.student_state = student_state.trim();
     }
 
     if (student_or_parent !== undefined) {
@@ -616,6 +678,41 @@ router.get('/tutor/:tutorId/bookings', async (req, res) => {
     res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/tutor/:tutorId/students/:studentId/notes', requireTutorStudentAccess, async (req, res) => {
+  try {
+    const notes = await TutorStudentNote.find({
+      tutorId: req.tutorStudentNotesTutorId,
+      studentId: req.params.studentId
+    }).sort({ createdAt: -1 }).lean();
+    res.json({ notes });
+  } catch (err) {
+    console.error('[Tutor Student Notes] Fetch failed:', err);
+    res.status(500).json({ message: 'Failed to load student notes' });
+  }
+});
+
+router.post('/tutor/:tutorId/students/:studentId/notes', requireTutorStudentAccess, async (req, res) => {
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+  if (!note) {
+    return res.status(400).json({ message: 'Note text is required' });
+  }
+  if (note.length > 3000) {
+    return res.status(400).json({ message: 'Note text must be 3000 characters or fewer' });
+  }
+
+  try {
+    const savedNote = await TutorStudentNote.create({
+      tutorId: req.tutorStudentNotesTutorId,
+      studentId: req.params.studentId,
+      note
+    });
+    res.status(201).json({ note: savedNote });
+  } catch (err) {
+    console.error('[Tutor Student Notes] Save failed:', err);
+    res.status(500).json({ message: 'Failed to save student note' });
   }
 });
 
