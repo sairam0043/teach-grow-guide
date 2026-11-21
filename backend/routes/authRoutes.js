@@ -45,25 +45,30 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET || 'teachgrow_jwt_secret_key';
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Mock transporter for development (Logs OTP to console if no SMTP configured)
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.sendinblue.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
+const SMTP_USER = (process.env.SMTP_USER || '').trim();
+const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/[\s\n\r]+/g, '').trim();
+const DEFAULT_SENDER = (process.env.EMAIL_FROM || '"Cuvasol Support" <support@cuvasol.com>').replace(/^"|"$/g, '').trim();
+
 console.log('[Transporter] Initializing with:', {
-  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-  port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
-  user: process.env.SMTP_USER || 'dummy',
-  pass: process.env.SMTP_PASS ? 'SET (length: ' + process.env.SMTP_PASS.length + ')' : 'NOT_SET'
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  user: SMTP_USER,
+  pass: 'SET (length: ' + SMTP_PASS.length + ')'
 });
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-  port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
-  secure: process.env.SMTP_PORT == 465, // true for 465, false for other ports
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_PORT === 465,
   auth: {
-    user: (process.env.SMTP_USER || 'dummy').trim(),
-    pass: (process.env.SMTP_PASS || 'dummy').replace(/[\s\n\r]+/g, '').trim(),
+    user: SMTP_USER,
+    pass: SMTP_PASS,
   },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000,
 });
 
 // Verify transporter on startup
@@ -107,7 +112,7 @@ router.post('/send-signup-otp', async (req, res) => {
       console.log(`[DEVELOPMENT] EMAIL VERIFICATION OTP FOR ${email}: ${otp}`);
 
       await transporter.sendMail({
-        from: process.env.EMAIL_FROM || '"Cuvasol Support" <noreply@cuvasoltutor.com>',
+        from: DEFAULT_SENDER,
         to: email,
         subject: 'Email Verification OTP - Cuvasol',
         text: `Your OTP for email verification is: ${otp}. It is valid for 15 minutes.`,
@@ -480,7 +485,7 @@ router.post('/register', async (req, res) => {
       try {
         console.log(`[Auth] Attempting to send welcome email to student: ${email}`);
         await transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Support" <noreply@cuvasoltutor.com>',
+          from: DEFAULT_SENDER,
           to: email,
           subject: 'Welcome to Cuvasol - Your Account is Ready!',
           text: `Hello ${full_name},\n\nWelcome to Cuvasol! Your student account has been successfully created under the email address: ${email}.\n\nHere are a few things you can do next:\n- Browse qualified tutors and book a Free Demo session.\n- Register for the AI Future Skills Program assessment (₹100) to build core coding & AI skills.\n\nBest regards,\nCuvasol Support Team`,
@@ -711,38 +716,18 @@ router.post('/forgot-password', async (req, res) => {
 
     console.log(`[Forgot Password] SMTP Configuration (Production: ${isProduction}):`, JSON.stringify(smtpConfig, null, 2));
 
-    const smtpConfigured = Boolean(
-      process.env.SMTP_HOST &&
-      process.env.SMTP_PORT &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASS
-    );
-
-    if (!smtpConfigured) {
-      console.warn(`[Forgot Password] SMTP is NOT fully configured. Missing one or more of: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS`);
-      if (isProduction) {
-        console.error(`[Forgot Password] SMTP not configured in production. Failed to send OTP to: ${email}`);
-        return res.status(500).json({
-          message: 'Email service is not configured on server. Please contact support.'
-        });
-      }
-
-      console.log(`\n======================================================`);
-      console.log(`[DEVELOPMENT] PASSWORD RESET OTP FOR ${email}: ${otp}`);
-      console.log(`======================================================\n`);
-    } else {
-      console.log(`[Forgot Password] Attempting to send email to: ${email} using ${process.env.SMTP_HOST}`);
-      try {
-        await transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
-          to: email,
-          subject: 'Password Reset OTP',
-          text: `Your OTP for password reset is: ${otp}. It is valid for 15 minutes.`,
-          html: `<p>Your OTP for password reset is: <b>${otp}</b>.</p><p>It is valid for 15 minutes.</p>`,
-        });
-        console.log(`[Forgot Password] OTP email sent successfully to: ${email}`);
-      } catch (mailError) {
-        console.error(`[Forgot Password] Nodemailer Error for ${email}:`, mailError);
+    console.log(`[Forgot Password] Attempting to send email to: ${email} using ${SMTP_HOST}`);
+    try {
+      await transporter.sendMail({
+        from: DEFAULT_SENDER,
+        to: email,
+        subject: 'Password Reset OTP',
+        text: `Your OTP for password reset is: ${otp}. It is valid for 15 minutes.`,
+        html: `<p>Your OTP for password reset is: <b>${otp}</b>.</p><p>It is valid for 15 minutes.</p>`,
+      });
+      console.log(`[Forgot Password] OTP email sent successfully to: ${email}`);
+    } catch (mailError) {
+      console.error(`[Forgot Password] Nodemailer Error for ${email}:`, mailError);
         
         // In dev, we log the OTP to the console so testing can continue
         if (!isProduction) {
@@ -759,7 +744,6 @@ router.post('/forgot-password', async (req, res) => {
         // In production, we must throw to notify the user of the failure
         throw mailError;
       }
-    }
 
     res.json({ message: 'OTP sent to email successfully' });
   } catch (error) {
@@ -916,7 +900,7 @@ router.post('/contact', async (req, res) => {
     } else {
       console.log(`[Contact Form] Attempting to send contact form email to support@cuvasol.com`);
       await transporter.sendMail({
-        from: process.env.EMAIL_FROM || '"Cuvasol Contact Form" <noreply@cuvasoltutor.com>',
+        from: DEFAULT_SENDER,
         to: 'support@cuvasol.com',
         replyTo: email,
         subject: `[Contact Form] ${subject}`,

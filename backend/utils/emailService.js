@@ -4,14 +4,20 @@ const path = require('path');
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.sendinblue.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
+const SMTP_USER = (process.env.SMTP_USER || '').trim();
+const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/[\s\n\r]+/g, '').trim();
+const DEFAULT_SENDER = (process.env.EMAIL_FROM || '"Cuvasol Support" <support@cuvasol.com>').replace(/^"|"$/g, '').trim();
+
 const getTransporter = () => {
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp-relay.sendinblue.com',
-    port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 2525,
-    secure: Number(process.env.SMTP_PORT) === 465,
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
     auth: {
-      user: (process.env.SMTP_USER || '').trim(),
-      pass: (process.env.SMTP_PASS || '').replace(/[\s\n\r]+/g, '').trim(),
+      user: SMTP_USER,
+      pass: SMTP_PASS,
     },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
@@ -22,7 +28,7 @@ const getTransporter = () => {
 const sendEmail = async ({ to, subject, html, text }) => {
   const transporter = getTransporter();
   const mailOptions = {
-    from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <support@cuvasol.com>',
+    from: DEFAULT_SENDER,
     to,
     subject,
     text: text || html.replace(/<[^>]*>?/gm, ''),

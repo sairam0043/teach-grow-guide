@@ -8,22 +8,26 @@ const { generateMeetingLinkForBooking } = require('../utils/googleMeetService');
 const { rewardReferrerOnClassCompletion, refundWalletOnBookingCancel } = require('../utils/referralWalletHelper');
 const { SUPPORTED_CURRENCIES, convertInrToCurrency } = require('../utils/pricingService');
 
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.sendinblue.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
+const SMTP_USER = (process.env.SMTP_USER || '').trim();
+const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/[\s\n\r]+/g, '').trim();
+const DEFAULT_SENDER = (process.env.EMAIL_FROM || '"Cuvasol Support" <support@cuvasol.com>').replace(/^"|"$/g, '').trim();
+
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-  port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
-  secure: process.env.SMTP_PORT == 465,
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_PORT === 465,
   auth: {
-    user: (process.env.SMTP_USER || 'dummy').trim(),
-    pass: (process.env.SMTP_PASS || 'dummy').replace(/[\s\n\r]+/g, '').trim(),
+    user: SMTP_USER,
+    pass: SMTP_PASS,
   },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000,
 });
 
 const router = express.Router();
-
-const DEFAULT_SENDER = process.env.EMAIL_FROM || '"Cuvasol Support" <support@cuvasol.com>';
 
 const getFrontendUrl = (req) => {
   let origin = req && (req.headers.origin || req.headers.referer);
@@ -635,8 +639,8 @@ router.post('/:id/book', async (req, res) => {
       const tutorUser = await User.findById(tutor.userId);
       if (tutorUser && tutorUser.email) {
         console.log(`[Booking] Attempting to notify tutor: ${tutorUser.email}`);
-        transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+        await transporter.sendMail({
+          from: DEFAULT_SENDER,
           to: tutorUser.email,
           subject: 'New Demo Session Requested (Pending Approval)',
           text: `Hello ${tutor.name},\n\nStudent ${studentName} has requested a demo session for ${subject} at ${timing}.\n\nTopics to cover:\n"${(topicToLearn || '').trim()}"\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
@@ -649,11 +653,8 @@ router.post('/:id/book', async (req, res) => {
                  </div>
                  <p>Please log in to your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
                  <p>Best regards,<br/>Cuvasol Tutor Team</p>`,
-        }).then(() => {
-          console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
-        }).catch((mailError) => {
-          console.error('[Booking] Failed to send tutor notification:', mailError.message);
         });
+        console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
       } else {
         console.warn(`[Booking] Could not find email for tutor user: ${tutor.userId}`);
       }
@@ -714,8 +715,8 @@ router.post('/:id/book-verification-demo', async (req, res) => {
     try {
       const tutorUser = await User.findById(tutor.userId);
       if (tutorUser && tutorUser.email) {
-        transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+        await transporter.sendMail({
+          from: DEFAULT_SENDER,
           to: tutorUser.email,
           subject: 'Action Required: Verification Demo Class Requested',
           text: `Hello ${tutor.name},\n\nOur administrator has requested a verification demo class with you on ${timing}.\n\nPlease log in to your dashboard to Accept or Reject this request.\n\nBest regards,\nCuvasol Tutor Team`,
@@ -724,8 +725,6 @@ router.post('/:id/book-verification-demo', async (req, res) => {
                  <p>Our administrator has requested a verification demo class with you on <b>${timing}</b>.</p>
                  <p>Please log in to your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> to Accept or Reject this request.</p>
                  <p>Best regards,<br/>Cuvasol Tutor Team</p>`,
-        }).catch((mailError) => {
-          console.error('[Verification Booking] Failed to send email:', mailError.message);
         });
       }
     } catch (mailError) {
@@ -1159,17 +1158,14 @@ router.put('/booking/:bookingId/status', async (req, res) => {
             `;
 
           console.log(`[Booking] Sending status update email to: ${recipientEmail}`);
-          transporter.sendMail({
+          await transporter.sendMail({
             from: DEFAULT_SENDER,
             to: recipientEmail,
             subject: emailSubject,
             text: emailText,
             html: emailHtml
-          }).then(() => {
-            console.log(`[Booking] Status update email sent successfully.`);
-          }).catch((mailError) => {
-            console.error('[Booking] Failed to send student status update email:', mailError.message);
           });
+          console.log(`[Booking] Status update email sent successfully.`);
         }
       } catch (mailError) {
         console.error('[Booking] Failed to send student status update email:', mailError.message);
@@ -1203,17 +1199,14 @@ router.put('/booking/:bookingId/status', async (req, res) => {
                 </p>
               </div>
             `;
-            transporter.sendMail({
+            await transporter.sendMail({
               from: DEFAULT_SENDER,
               to: tutorUser.email,
               subject: emailSubject,
               text: emailText,
               html: emailHtml
-            }).then(() => {
-              console.log(`[Booking] Cancellation email sent to tutor successfully.`);
-            }).catch((mailError) => {
-              console.error('[Booking] Failed to send tutor cancellation email:', mailError.message);
             });
+            console.log(`[Booking] Cancellation email sent to tutor successfully.`);
           }
         }
       } catch (mailError) {
@@ -1293,26 +1286,31 @@ router.post('/booking/:bookingId/reschedule-request', async (req, res) => {
       if (initiatorRole === 'Student') {
         // Notify Tutor
         if (tutorUser && tutorUser.email) {
-          transporter.sendMail({
-            from: DEFAULT_SENDER,
-            to: tutorUser.email,
-            subject: `Action Required: Reschedule Requested by ${booking.studentName}`,
-            text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} has requested to reschedule their ${booking.subject} class from "${booking.timing}" to "${requestedTiming}".\n\nReason: ${reason || 'No reason specified.'}\n\nPlease log in to your dashboard to Accept or Decline this request:\n${frontendUrl}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-                <h2 style="color: #2563eb; text-align: center;">Class Reschedule Requested</h2>
-                <p>Hello <strong>${tutor.name}</strong>,</p>
-                <p>Student <strong>${booking.studentName}</strong> has requested to reschedule their <strong>${booking.subject}</strong> session.</p>
-                <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; border: 1px solid #bfdbfe; margin: 20px 0;">
-                  <p style="margin: 0 0 8px 0;"><strong>Original Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${booking.timing}</span></p>
-                  <p style="margin: 0 0 8px 0;"><strong>Requested New Timing:</strong> <span style="color: #2563eb; font-weight: bold;">${requestedTiming}</span></p>
-                  <p style="margin: 0;"><strong>Reason:</strong> ${reason || 'No reason provided.'}</p>
+          try {
+            await transporter.sendMail({
+              from: DEFAULT_SENDER,
+              to: tutorUser.email,
+              subject: `Action Required: Reschedule Requested by ${booking.studentName}`,
+              text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} has requested to reschedule their ${booking.subject} class from "${booking.timing}" to "${requestedTiming}".\n\nReason: ${reason || 'No reason specified.'}\n\nPlease log in to your dashboard to Accept or Decline this request:\n${frontendUrl}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #2563eb; text-align: center;">Class Reschedule Requested</h2>
+                  <p>Hello <strong>${tutor.name}</strong>,</p>
+                  <p>Student <strong>${booking.studentName}</strong> has requested to reschedule their <strong>${booking.subject}</strong> session.</p>
+                  <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; border: 1px solid #bfdbfe; margin: 20px 0;">
+                    <p style="margin: 0 0 8px 0;"><strong>Original Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${booking.timing}</span></p>
+                    <p style="margin: 0 0 8px 0;"><strong>Requested New Timing:</strong> <span style="color: #2563eb; font-weight: bold;">${requestedTiming}</span></p>
+                    <p style="margin: 0;"><strong>Reason:</strong> ${reason || 'No reason provided.'}</p>
+                  </div>
+                  <p>Please log in to your <a href="${frontendUrl}/dashboard/tutor" style="color: #2563eb; font-weight: bold;">Tutor Dashboard</a> to Accept or Decline this request.</p>
+                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
                 </div>
-                <p>Please log in to your <a href="${frontendUrl}/dashboard/tutor" style="color: #2563eb; font-weight: bold;">Tutor Dashboard</a> to Accept or Decline this request.</p>
-                <p>Best regards,<br/>Cuvasol Tutor Team</p>
-              </div>
-            `
-          }).catch(err => console.error('[Reschedule Email] Error sending to tutor:', err.message));
+              `
+            });
+            console.log(`[Reschedule Email] Successfully sent reschedule request email to tutor: ${tutorUser.email}`);
+          } catch (tutorErr) {
+            console.error('[Reschedule Email] Error sending to tutor:', tutorErr.message);
+          }
         }
       } else {
         // Notify Student when Tutor proposes a new date & time
@@ -1320,35 +1318,40 @@ router.post('/booking/:bookingId/reschedule-request', async (req, res) => {
         const { typeTitle, sessionName, isDemo } = getBookingSessionLabels(booking);
         console.log(`[Reschedule Email] Tutor proposed convenient time ${requestedTiming}. Student email: ${studentEmail || 'not found'}`);
         if (studentEmail) {
-          transporter.sendMail({
-            from: DEFAULT_SENDER,
-            to: studentEmail,
-            subject: `Action Required: Tutor ${booking.tutorName} Proposed a New Time for Your ${booking.subject} ${typeTitle}`,
-            text: `Hello ${booking.studentName},\n\nTutor ${booking.tutorName} has proposed a new convenient time for your ${booking.subject} ${sessionName}.\n\nProposed New Timing: ${requestedTiming}\nOriginal Timing: ${booking.timing}\n${reason ? `Note from Tutor: ${reason}\n` : ''}\nPlease log in to your Student Dashboard to review and click OK to confirm this time:\n${frontendUrl}/dashboard/student\n\nBest regards,\nCuvasol Tutor Team`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-                <h2 style="color: #2563eb; text-align: center;">Tutor Proposed a New Time for Your ${typeTitle}</h2>
-                <p>Hello <strong>${booking.studentName}</strong>,</p>
-                <p>Tutor <strong>${booking.tutorName}</strong> has proposed a convenient new date & time for your <strong>${booking.subject}</strong> ${sessionName}.</p>
-                <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; border: 1px solid #bfdbfe; margin: 20px 0;">
-                  <p style="margin: 0 0 8px 0;"><strong>Proposed New Timing:</strong> <span style="color: #1d4ed8; font-weight: bold; font-size: 16px;">${requestedTiming}</span></p>
-                  <p style="margin: 0 0 8px 0;"><strong>Original Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${booking.timing}</span></p>
-                  ${reason ? `<p style="margin: 0;"><strong>Note from Tutor:</strong> ${reason}</p>` : ''}
+          try {
+            await transporter.sendMail({
+              from: DEFAULT_SENDER,
+              to: studentEmail,
+              subject: `Action Required: Tutor ${booking.tutorName} Proposed a New Time for Your ${booking.subject} ${typeTitle}`,
+              text: `Hello ${booking.studentName},\n\nTutor ${booking.tutorName} has proposed a new convenient time for your ${booking.subject} ${sessionName}.\n\nProposed New Timing: ${requestedTiming}\nOriginal Timing: ${booking.timing}\n${reason ? `Note from Tutor: ${reason}\n` : ''}\nPlease log in to your Student Dashboard to review and click OK to confirm this time:\n${frontendUrl}/dashboard/student\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #2563eb; text-align: center;">Tutor Proposed a New Time for Your ${typeTitle}</h2>
+                  <p>Hello <strong>${booking.studentName}</strong>,</p>
+                  <p>Tutor <strong>${booking.tutorName}</strong> has proposed a convenient new date & time for your <strong>${booking.subject}</strong> ${sessionName}.</p>
+                  <div style="background-color: #eff6ff; padding: 16px; border-radius: 8px; border: 1px solid #bfdbfe; margin: 20px 0;">
+                    <p style="margin: 0 0 8px 0;"><strong>Proposed New Timing:</strong> <span style="color: #1d4ed8; font-weight: bold; font-size: 16px;">${requestedTiming}</span></p>
+                    <p style="margin: 0 0 8px 0;"><strong>Original Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${booking.timing}</span></p>
+                    ${reason ? `<p style="margin: 0;"><strong>Note from Tutor:</strong> ${reason}</p>` : ''}
+                  </div>
+                  <div style="text-align: center; margin: 25px 0;">
+                    <a href="${frontendUrl}/dashboard/student" 
+                       style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                      View & Confirm on Student Dashboard
+                    </a>
+                  </div>
+                  <p style="font-size: 13px; color: #6b7280;">Please log in to your student dashboard to review and click OK to confirm your ${sessionName} at this convenient time.</p>
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                  <p style="font-size: 11px; color: #999; text-align: center;">
+                    Best regards,<br/><strong>Cuvasol Tutor Team</strong>
+                  </p>
                 </div>
-                <div style="text-align: center; margin: 25px 0;">
-                  <a href="${frontendUrl}/dashboard/student" 
-                     style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                    View & Confirm on Student Dashboard
-                  </a>
-                </div>
-                <p style="font-size: 13px; color: #6b7280;">Please log in to your student dashboard to review and click OK to confirm your ${sessionName} at this convenient time.</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                <p style="font-size: 11px; color: #999; text-align: center;">
-                  Best regards,<br/><strong>Cuvasol Tutor Team</strong>
-                </p>
-              </div>
-            `
-          }).catch(err => console.error('[Reschedule Email] Error sending to student:', err.message));
+              `
+            });
+            console.log(`[Reschedule Email] Successfully sent reschedule proposal email to student: ${studentEmail}`);
+          } catch (studentErr) {
+            console.error('[Reschedule Email] Error sending to student:', studentErr.message);
+          }
         } else {
           console.warn(`[Reschedule Email] Could not resolve student email for booking ${booking._id}`);
         }
@@ -1427,66 +1430,76 @@ router.post('/booking/:bookingId/reschedule-confirm', async (req, res) => {
 
         // 1. Notify Student
         if (studentEmail) {
-          transporter.sendMail({
-            from: DEFAULT_SENDER,
-            to: studentEmail,
-            subject: `${typeTitle} Confirmed: ${booking.subject} with ${booking.tutorName} at ${booking.timing}`,
-            text: `Hello ${booking.studentName},\n\nGreat news! Your ${booking.subject} ${sessionName} with tutor ${booking.tutorName} has been confirmed for the updated time:\n\nConfirmed Timing: ${booking.timing}\nOriginal Timing: ${originalTiming}\nJoin Link: ${booking.meetingLink || `${frontendUrl}/dashboard/student`}\n\nBest regards,\nCuvasol Tutor Team`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-                <h2 style="color: #059669; text-align: center;">${typeTitle} Confirmed!</h2>
-                <p>Hello <strong>${booking.studentName}</strong>,</p>
-                <p>Great news! Your <strong>${booking.subject}</strong> ${sessionName} with tutor <strong>${booking.tutorName}</strong> is confirmed for the updated date and time.</p>
-                <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
-                  <p style="margin: 0 0 8px 0;"><strong>Confirmed Class Timing:</strong> <span style="color: #059669; font-weight: bold; font-size: 16px;">${booking.timing}</span></p>
-                  <p style="margin: 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${originalTiming}</span></p>
+          try {
+            await transporter.sendMail({
+              from: DEFAULT_SENDER,
+              to: studentEmail,
+              subject: `${typeTitle} Confirmed: ${booking.subject} with ${booking.tutorName} at ${booking.timing}`,
+              text: `Hello ${booking.studentName},\n\nGreat news! Your ${booking.subject} ${sessionName} with tutor ${booking.tutorName} has been confirmed for the updated time:\n\nConfirmed Timing: ${booking.timing}\nOriginal Timing: ${originalTiming}\nJoin Link: ${booking.meetingLink || `${frontendUrl}/dashboard/student`}\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #059669; text-align: center;">${typeTitle} Confirmed!</h2>
+                  <p>Hello <strong>${booking.studentName}</strong>,</p>
+                  <p>Great news! Your <strong>${booking.subject}</strong> ${sessionName} with tutor <strong>${booking.tutorName}</strong> is confirmed for the updated date and time.</p>
+                  <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
+                    <p style="margin: 0 0 8px 0;"><strong>Confirmed Class Timing:</strong> <span style="color: #059669; font-weight: bold; font-size: 16px;">${booking.timing}</span></p>
+                    <p style="margin: 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${originalTiming}</span></p>
+                  </div>
+                  <div style="text-align: center; margin: 25px 0;">
+                    <a href="${booking.meetingLink || `${frontendUrl}/dashboard/student`}" 
+                       style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                      ${booking.meetingLink && booking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Video Class'}
+                    </a>
+                  </div>
+                  <p>You can also join directly or review your session details anytime from your <a href="${frontendUrl}/dashboard/student" style="color: #059669; font-weight: bold;">Student Dashboard</a>.</p>
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                  <p style="font-size: 11px; color: #999; text-align: center;">
+                    Best regards,<br/><strong>Cuvasol Tutor Team</strong>
+                  </p>
                 </div>
-                <div style="text-align: center; margin: 25px 0;">
-                  <a href="${booking.meetingLink || `${frontendUrl}/dashboard/student`}" 
-                     style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                    ${booking.meetingLink && booking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Video Class'}
-                  </a>
-                </div>
-                <p>You can also join directly or review your session details anytime from your <a href="${frontendUrl}/dashboard/student" style="color: #059669; font-weight: bold;">Student Dashboard</a>.</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                <p style="font-size: 11px; color: #999; text-align: center;">
-                  Best regards,<br/><strong>Cuvasol Tutor Team</strong>
-                </p>
-              </div>
-            `
-          }).catch(err => console.error('[Reschedule Email] Error notifying student:', err.message));
+              `
+            });
+            console.log(`[Reschedule Email] Student notification sent to: ${studentEmail}`);
+          } catch (err) {
+            console.error('[Reschedule Email] Error notifying student:', err.message);
+          }
         }
 
         // 2. Notify Tutor
         if (tutorUser && tutorUser.email) {
-          transporter.sendMail({
-            from: DEFAULT_SENDER,
-            to: tutorUser.email,
-            subject: `${typeTitle} Confirmed: ${booking.subject} with ${booking.studentName} at ${booking.timing}`,
-            text: `Hello ${tutor.name},\n\nThe ${booking.subject} ${sessionName} with student ${booking.studentName} is confirmed for the updated time:\n\nConfirmed Timing: ${booking.timing}\nOriginal Timing: ${originalTiming}\nJoin Link: ${booking.meetingLink || `${frontendUrl}/dashboard/tutor`}\n\nBest regards,\nCuvasol Tutor Team`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-                <h2 style="color: #059669; text-align: center;">${typeTitle} Timing Confirmed</h2>
-                <p>Hello <strong>${tutor.name}</strong>,</p>
-                <p>The <strong>${booking.subject}</strong> ${sessionName} with student <strong>${booking.studentName}</strong> is confirmed for the updated time.</p>
-                <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
-                  <p style="margin: 0 0 8px 0;"><strong>Confirmed Timing:</strong> <span style="color: #059669; font-weight: bold; font-size: 16px;">${booking.timing}</span></p>
-                  <p style="margin: 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${originalTiming}</span></p>
+          try {
+            await transporter.sendMail({
+              from: DEFAULT_SENDER,
+              to: tutorUser.email,
+              subject: `${typeTitle} Confirmed: ${booking.subject} with ${booking.studentName} at ${booking.timing}`,
+              text: `Hello ${tutor.name},\n\nThe ${booking.subject} ${sessionName} with student ${booking.studentName} is confirmed for the updated time:\n\nConfirmed Timing: ${booking.timing}\nOriginal Timing: ${originalTiming}\nJoin Link: ${booking.meetingLink || `${frontendUrl}/dashboard/tutor`}\n\nBest regards,\nCuvasol Tutor Team`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                  <h2 style="color: #059669; text-align: center;">${typeTitle} Timing Confirmed</h2>
+                  <p>Hello <strong>${tutor.name}</strong>,</p>
+                  <p>The <strong>${booking.subject}</strong> ${sessionName} with student <strong>${booking.studentName}</strong> is confirmed for the updated time.</p>
+                  <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
+                    <p style="margin: 0 0 8px 0;"><strong>Confirmed Timing:</strong> <span style="color: #059669; font-weight: bold; font-size: 16px;">${booking.timing}</span></p>
+                    <p style="margin: 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${originalTiming}</span></p>
+                  </div>
+                  <div style="text-align: center; margin: 25px 0;">
+                    <a href="${booking.meetingLink || `${frontendUrl}/dashboard/tutor`}" 
+                       style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                      ${booking.meetingLink && booking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Video Class'}
+                    </a>
+                  </div>
+                  <p>You can view your updated calendar on your <a href="${frontendUrl}/dashboard/tutor" style="color: #059669; font-weight: bold;">Tutor Dashboard</a>.</p>
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                  <p style="font-size: 11px; color: #999; text-align: center;">
+                    Best regards,<br/><strong>Cuvasol Tutor Team</strong>
+                  </p>
                 </div>
-                <div style="text-align: center; margin: 25px 0;">
-                  <a href="${booking.meetingLink || `${frontendUrl}/dashboard/tutor`}" 
-                     style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                    ${booking.meetingLink && booking.meetingLink.includes('meet.google.com') ? 'Join Google Meet' : 'Join Video Class'}
-                  </a>
-                </div>
-                <p>You can view your updated calendar on your <a href="${frontendUrl}/dashboard/tutor" style="color: #059669; font-weight: bold;">Tutor Dashboard</a>.</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                <p style="font-size: 11px; color: #999; text-align: center;">
-                  Best regards,<br/><strong>Cuvasol Tutor Team</strong>
-                </p>
-              </div>
-            `
-          }).catch(err => console.error('[Reschedule Email] Error notifying tutor:', err.message));
+              `
+            });
+            console.log(`[Reschedule Email] Tutor notification sent to: ${tutorUser.email}`);
+          } catch (err) {
+            console.error('[Reschedule Email] Error notifying tutor:', err.message);
+          }
         }
       } catch (mailErr) {
         console.error('[Reschedule Email] Error:', mailErr.message);
@@ -1504,47 +1517,57 @@ router.post('/booking/:bookingId/reschedule-confirm', async (req, res) => {
       try {
         if (requestedByRole === 'Student') {
           if (studentEmail) {
-            transporter.sendMail({
-              from: DEFAULT_SENDER,
-              to: studentEmail,
-              subject: `Reschedule Request Declined: ${booking.subject}`,
-              text: `Hello ${booking.studentName},\n\nTutor ${booking.tutorName} was unable to accept your reschedule request for ${requestedTiming}.\n${declinedReason ? `Reason: ${declinedReason}\n` : ''}\nYour class remains scheduled for the original timing: ${booking.timing}.\n\nBest regards,\nCuvasol Tutor Team`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-                  <h2 style="color: #dc2626; text-align: center;">Reschedule Request Declined</h2>
-                  <p>Hello <strong>${booking.studentName}</strong>,</p>
-                  <p>Tutor <strong>${booking.tutorName}</strong> was unable to accept your reschedule request for <strong>${requestedTiming}</strong>.</p>
-                  ${declinedReason ? `<p><strong>Reason:</strong> ${declinedReason}</p>` : ''}
-                  <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca; margin: 20px 0;">
-                    <p style="margin: 0;"><strong>Active Class Timing:</strong> <span style="color: #dc2626; font-weight: bold;">${booking.timing}</span> (Unchanged)</p>
+            try {
+              await transporter.sendMail({
+                from: DEFAULT_SENDER,
+                to: studentEmail,
+                subject: `Reschedule Request Declined: ${booking.subject}`,
+                text: `Hello ${booking.studentName},\n\nTutor ${booking.tutorName} was unable to accept your reschedule request for ${requestedTiming}.\n${declinedReason ? `Reason: ${declinedReason}\n` : ''}\nYour class remains scheduled for the original timing: ${booking.timing}.\n\nBest regards,\nCuvasol Tutor Team`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                    <h2 style="color: #dc2626; text-align: center;">Reschedule Request Declined</h2>
+                    <p>Hello <strong>${booking.studentName}</strong>,</p>
+                    <p>Tutor <strong>${booking.tutorName}</strong> was unable to accept your reschedule request for <strong>${requestedTiming}</strong>.</p>
+                    ${declinedReason ? `<p><strong>Reason:</strong> ${declinedReason}</p>` : ''}
+                    <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca; margin: 20px 0;">
+                      <p style="margin: 0;"><strong>Active Class Timing:</strong> <span style="color: #dc2626; font-weight: bold;">${booking.timing}</span> (Unchanged)</p>
+                    </div>
+                    <p>Your session remains active at the original time. Please visit your <a href="${frontendUrl}/dashboard/student">Student Dashboard</a> to manage or join.</p>
+                    <p>Best regards,<br/>Cuvasol Tutor Team</p>
                   </div>
-                  <p>Your session remains active at the original time. Please visit your <a href="${frontendUrl}/dashboard/student">Student Dashboard</a> to manage or join.</p>
-                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
-                </div>
-              `
-            }).catch(err => console.error('[Reschedule Email] Error:', err.message));
+                `
+              });
+              console.log(`[Reschedule Email] Student decline notification sent to: ${studentEmail}`);
+            } catch (err) {
+              console.error('[Reschedule Email] Error:', err.message);
+            }
           }
         } else {
           if (tutorUser && tutorUser.email) {
-            transporter.sendMail({
-              from: DEFAULT_SENDER,
-              to: tutorUser.email,
-              subject: `Reschedule Request Declined by Student: ${booking.subject}`,
-              text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} was unable to accept your reschedule request for ${requestedTiming}.\n${declinedReason ? `Reason: ${declinedReason}\n` : ''}\nThe class remains scheduled for the original timing: ${booking.timing}.\n\nBest regards,\nCuvasol Tutor Team`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-                  <h2 style="color: #dc2626; text-align: center;">Reschedule Request Declined</h2>
-                  <p>Hello <strong>${tutor.name}</strong>,</p>
-                  <p>Student <strong>${booking.studentName}</strong> was unable to accept your reschedule request for <strong>${requestedTiming}</strong>.</p>
-                  ${declinedReason ? `<p><strong>Reason:</strong> ${declinedReason}</p>` : ''}
-                  <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca; margin: 20px 0;">
-                    <p style="margin: 0;"><strong>Active Class Timing:</strong> <span style="color: #dc2626; font-weight: bold;">${booking.timing}</span> (Unchanged)</p>
+            try {
+              await transporter.sendMail({
+                from: DEFAULT_SENDER,
+                to: tutorUser.email,
+                subject: `Reschedule Request Declined by Student: ${booking.subject}`,
+                text: `Hello ${tutor.name},\n\nStudent ${booking.studentName} was unable to accept your reschedule request for ${requestedTiming}.\n${declinedReason ? `Reason: ${declinedReason}\n` : ''}\nThe class remains scheduled for the original timing: ${booking.timing}.\n\nBest regards,\nCuvasol Tutor Team`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                    <h2 style="color: #dc2626; text-align: center;">Reschedule Request Declined</h2>
+                    <p>Hello <strong>${tutor.name}</strong>,</p>
+                    <p>Student <strong>${booking.studentName}</strong> was unable to accept your reschedule request for <strong>${requestedTiming}</strong>.</p>
+                    ${declinedReason ? `<p><strong>Reason:</strong> ${declinedReason}</p>` : ''}
+                    <div style="background-color: #fef2f2; padding: 15px; border-radius: 6px; border: 1px solid #fecaca; margin: 20px 0;">
+                      <p style="margin: 0;"><strong>Active Class Timing:</strong> <span style="color: #dc2626; font-weight: bold;">${booking.timing}</span> (Unchanged)</p>
+                    </div>
+                    <p>The session remains active at the original time. Please visit your <a href="${frontendUrl}/dashboard/tutor">Tutor Dashboard</a>.</p>
+                    <p>Best regards,<br/>Cuvasol Tutor Team</p>
                   </div>
-                  <p>The session remains active at the original time. Please visit your <a href="${frontendUrl}/dashboard/tutor">Tutor Dashboard</a>.</p>
-                  <p>Best regards,<br/>Cuvasol Tutor Team</p>
-                </div>
-              `
-            }).catch(err => console.error('[Reschedule Email] Error:', err.message));
+                `
+              });
+              console.log(`[Reschedule Email] Tutor decline notification sent to: ${tutorUser.email}`);
+            } catch (err) {
+              console.error('[Reschedule Email] Error:', err.message);
+            }
           }
         }
       } catch (mailErr) {
@@ -1646,68 +1669,78 @@ router.post('/booking/:bookingId/admin-reschedule', async (req, res) => {
       const studentEmail = await resolveStudentEmail(booking);
 
       if (tutorUser && tutorUser.email) {
-        transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
-          to: tutorUser.email,
-          subject: isVerificationDemo
-            ? `Verification Demo Class Rescheduled: ${requestedTiming}`
-            : `Class Rescheduled by Administrator: ${booking.subject}`,
-          text: isVerificationDemo
-            ? `Hello ${tutor.name},\n\nOur administrator has rescheduled your Verification Demo Class to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Notes: ${reason}\n` : ''}\nPlease log in to your dashboard to review and accept this session.\n\nBest regards,\nCuvasol Tutor Team`
-            : `Hello ${tutor.name},\n\nOur administrator has rescheduled the ${booking.subject} class with ${booking.studentName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
-          html: isVerificationDemo
-            ? `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-              <h2 style="color: #7c3aed; text-align: center;">Verification Demo Class Rescheduled</h2>
-              <p>Hello <strong>${tutor.name}</strong>,</p>
-              <p>Our administrator has rescheduled your <strong>Verification Demo Class</strong> session.</p>
-              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
-                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
-                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
-                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+        try {
+          await transporter.sendMail({
+            from: DEFAULT_SENDER,
+            to: tutorUser.email,
+            subject: isVerificationDemo
+              ? `Verification Demo Class Rescheduled: ${requestedTiming}`
+              : `Class Rescheduled by Administrator: ${booking.subject}`,
+            text: isVerificationDemo
+              ? `Hello ${tutor.name},\n\nOur administrator has rescheduled your Verification Demo Class to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Notes: ${reason}\n` : ''}\nPlease log in to your dashboard to review and accept this session.\n\nBest regards,\nCuvasol Tutor Team`
+              : `Hello ${tutor.name},\n\nOur administrator has rescheduled the ${booking.subject} class with ${booking.studentName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
+            html: isVerificationDemo
+              ? `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #7c3aed; text-align: center;">Verification Demo Class Rescheduled</h2>
+                <p>Hello <strong>${tutor.name}</strong>,</p>
+                <p>Our administrator has rescheduled your <strong>Verification Demo Class</strong> session.</p>
+                <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                  <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                  <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                  ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+                </div>
+                <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to review and accept this updated session time.</p>
+                <p>Best regards,<br/>Cuvasol Tutor Team</p>
               </div>
-              <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to review and accept this updated session time.</p>
-              <p>Best regards,<br/>Cuvasol Tutor Team</p>
-            </div>
+              `
+              : `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
+                <p>Hello <strong>${tutor.name}</strong>,</p>
+                <p>Our platform administrator has rescheduled your <strong>${booking.subject}</strong> session with <strong>${booking.studentName}</strong>.</p>
+                <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                  <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                  <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                  ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+                </div>
+                <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to view your updated schedule.</p>
+                <p>Best regards,<br/>Cuvasol Tutor Team</p>
+              </div>
             `
-            : `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-              <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
-              <p>Hello <strong>${tutor.name}</strong>,</p>
-              <p>Our platform administrator has rescheduled your <strong>${booking.subject}</strong> session with <strong>${booking.studentName}</strong>.</p>
-              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
-                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
-                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
-                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
-              </div>
-              <p>Please visit your <a href="${frontendUrl}/dashboard/tutor" style="color: #7c3aed; font-weight: bold;">Tutor Dashboard</a> to view your updated schedule.</p>
-              <p>Best regards,<br/>Cuvasol Tutor Team</p>
-            </div>
-          `
-        }).catch(err => console.error('[Admin Reschedule Email] Tutor error:', err.message));
+          });
+          console.log(`[Admin Reschedule Email] Tutor notification sent to: ${tutorUser.email}`);
+        } catch (err) {
+          console.error('[Admin Reschedule Email] Tutor error:', err.message);
+        }
       }
 
       if (studentEmail && !isVerificationDemo) {
-        transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
-          to: studentEmail,
-          subject: `Class Rescheduled by Administrator: ${booking.subject}`,
-          text: `Hello ${booking.studentName},\n\nOur administrator has rescheduled your ${booking.subject} class with tutor ${booking.tutorName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
-              <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
-              <p>Hello <strong>${booking.studentName}</strong>,</p>
-              <p>Our platform administrator has rescheduled your <strong>${booking.subject}</strong> session with tutor <strong>${booking.tutorName}</strong>.</p>
-              <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
-                <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
-                <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
-                ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+        try {
+          await transporter.sendMail({
+            from: DEFAULT_SENDER,
+            to: studentEmail,
+            subject: `Class Rescheduled by Administrator: ${booking.subject}`,
+            text: `Hello ${booking.studentName},\n\nOur administrator has rescheduled your ${booking.subject} class with tutor ${booking.tutorName} to ${requestedTiming} (Previous: ${oldTiming}).\n${reason ? `Reason: ${reason}\n` : ''}\nBest regards,\nCuvasol Tutor Team`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <h2 style="color: #7c3aed; text-align: center;">Class Rescheduled by Administrator</h2>
+                <p>Hello <strong>${booking.studentName}</strong>,</p>
+                <p>Our platform administrator has rescheduled your <strong>${booking.subject}</strong> session with tutor <strong>${booking.tutorName}</strong>.</p>
+                <div style="background-color: #f5f3ff; padding: 15px; border-radius: 6px; border: 1px solid #ddd6fe; margin: 20px 0;">
+                  <p style="margin: 0 0 8px 0;"><strong>New Class Timing:</strong> <span style="color: #7c3aed; font-weight: bold;">${requestedTiming}</span></p>
+                  <p style="margin: 0 0 8px 0;"><strong>Previous Timing:</strong> <span style="text-decoration: line-through; color: #64748b;">${oldTiming}</span></p>
+                  ${reason ? `<p style="margin: 0;"><strong>Notes:</strong> ${reason}</p>` : ''}
+                </div>
+                <p>Please visit your <a href="${frontendUrl}/dashboard/student" style="color: #7c3aed; font-weight: bold;">Student Dashboard</a> to join at the new time.</p>
+                <p>Best regards,<br/>Cuvasol Tutor Team</p>
               </div>
-              <p>Please visit your <a href="${frontendUrl}/dashboard/student" style="color: #7c3aed; font-weight: bold;">Student Dashboard</a> to join at the new time.</p>
-              <p>Best regards,<br/>Cuvasol Tutor Team</p>
-            </div>
-          `
-        }).catch(err => console.error('[Admin Reschedule Email] Student error:', err.message));
+            `
+          });
+          console.log(`[Admin Reschedule Email] Student notification sent to: ${studentEmail}`);
+        } catch (err) {
+          console.error('[Admin Reschedule Email] Student error:', err.message);
+        }
       }
     } catch (mailErr) {
       console.error('[Admin Reschedule Email] Error:', mailErr.message);
@@ -1908,8 +1941,8 @@ router.put('/:id/admin', async (req, res) => {
     if (status === 'approved' && tutor.userId && tutor.userId.email) {
       try {
         console.log(`[Admin Approval] Attempting to notify tutor of approval: ${tutor.userId.email}`);
-        transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+        await transporter.sendMail({
+          from: DEFAULT_SENDER,
           to: tutor.userId.email,
           subject: 'Tutor Profile Approved!',
           text: `Hello ${tutor.name},\n\nCongratulations! Your tutor profile on Cuvasol Tutor has been approved by the administrator.\n\nYou can now log in to your dashboard to set your availability slots, manage bookings, and start teaching!\n\nAccess your onboarding guide: ${getFrontendUrl(req)}/tutor/welcome\n\nBest regards,\nCuvasol Tutor Team`,
@@ -1938,19 +1971,16 @@ router.put('/:id/admin', async (req, res) => {
               </p>
             </div>
           `
-        }).then(() => {
-          console.log(`[Admin Approval] Tutor approval email sent to: ${tutor.userId.email}`);
-        }).catch((mailError) => {
-          console.error('[Admin Approval] Failed to send tutor approval email:', mailError.message);
         });
+        console.log(`[Admin Approval] Tutor approval email sent to: ${tutor.userId.email}`);
       } catch (mailError) {
         console.error('[Admin Approval] Failed to send tutor approval email:', mailError.message);
       }
     } else if (status === 'rejected' && tutor.userId && tutor.userId.email) {
       try {
         console.log(`[Admin Rejection] Attempting to notify tutor of rejection: ${tutor.userId.email}`);
-        transporter.sendMail({
-          from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+        await transporter.sendMail({
+          from: DEFAULT_SENDER,
           to: tutor.userId.email,
           subject: 'Tutor Profile Application Update',
           text: `Hello ${tutor.name},\n\nThank you for your interest in joining Cuvasol Tutor.\n\nUnfortunately, your tutor profile application has not been approved by the administrator at this time. Reason:\n${tutor.rejectionReason || 'Incomplete verification documents or profile guidelines'}\n\nYou can log in to your dashboard to update your profile details and re-submit them for review at any time.\n\nAccess your dashboard: ${getFrontendUrl(req)}/dashboard/tutor\n\nBest regards,\nCuvasol Tutor Team`,
@@ -1979,11 +2009,8 @@ router.put('/:id/admin', async (req, res) => {
               </p>
             </div>
           `
-        }).then(() => {
-          console.log(`[Admin Rejection] Tutor rejection email sent to: ${tutor.userId.email}`);
-        }).catch((mailError) => {
-          console.error('[Admin Rejection] Failed to send tutor rejection email:', mailError.message);
         });
+        console.log(`[Admin Rejection] Tutor rejection email sent to: ${tutor.userId.email}`);
       } catch (mailError) {
         console.error('[Admin Rejection] Failed to send tutor rejection email:', mailError.message);
       }

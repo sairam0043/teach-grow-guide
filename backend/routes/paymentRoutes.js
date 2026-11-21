@@ -42,17 +42,23 @@ const getFrontendUrl = (req) => {
 };
 
 // Brevo Mail Transporter
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.sendinblue.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
+const SMTP_USER = (process.env.SMTP_USER || '').trim();
+const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/[\s\n\r]+/g, '').trim();
+const DEFAULT_SENDER = (process.env.EMAIL_FROM || '"Cuvasol Support" <support@cuvasol.com>').replace(/^"|"$/g, '').trim();
+
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-  port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
-  secure: process.env.SMTP_PORT == 465,
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_PORT === 465,
   auth: {
-    user: (process.env.SMTP_USER || 'dummy').trim(),
-    pass: (process.env.SMTP_PASS || 'dummy').replace(/[\s\n\r]+/g, '').trim(),
+    user: SMTP_USER,
+    pass: SMTP_PASS,
   },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000,
 });
 
 // Configure Razorpay (Will only attempt initialization if keys exist)
@@ -251,7 +257,7 @@ router.post('/verify-payment', async (req, res) => {
           const isGoogleMeet = booking.meetingLink && booking.meetingLink.includes('meet.google.com');
           const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
           await transporter.sendMail({
-            from: process.env.EMAIL_FROM || '"Cuvasol Tutor" <noreply@cuvasoltutor.com>',
+            from: DEFAULT_SENDER,
             to: tutorUser.email,
             subject: 'New Course Enrollment Payment Successful',
             text: `Hello ${tutor.name},\n\nPayment of ₹${booking.amountPaid} has been received. Student ${booking.studentName} is successfully enrolled in your class for ${booking.subject} at ${booking.timing}.\n\nYou can join the private video room directly here: ${booking.meetingLink}\n\nBest regards,\nCuvasol Tutor Team`,
@@ -487,7 +493,7 @@ router.post('/verify-course-payment', async (req, res) => {
 
       console.log(`[Course Payments] Attempting to send confirmation email to student: ${coursePayment.studentEmail}`);
       await transporter.sendMail({
-        from: process.env.EMAIL_FROM || '"Cuvasol Course Support" <noreply@cuvasoltutor.com>',
+        from: DEFAULT_SENDER,
         to: coursePayment.studentEmail,
         subject: emailSubject,
         text: emailText,
@@ -568,7 +574,7 @@ router.post('/shortlist-student', async (req, res) => {
       `;
 
       await transporter.sendMail({
-        from: process.env.EMAIL_FROM || '"Cuvasol Course Support" <noreply@cuvasoltutor.com>',
+        from: DEFAULT_SENDER,
         to: coursePayment.studentEmail,
         subject: emailSubject,
         text: emailText,
