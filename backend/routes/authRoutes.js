@@ -49,7 +49,28 @@ const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.sendinblue.com';
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
 const SMTP_USER = (process.env.SMTP_USER || '').trim();
 const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/[\s\n\r]+/g, '').trim();
-const DEFAULT_SENDER = (process.env.EMAIL_FROM || '"Cuvasol Support" <support@cuvasol.com>').replace(/^"|"$/g, '').trim();
+
+const parseFromAddress = (fromStr) => {
+  if (!fromStr) return { name: 'Cuvasol Support', address: 'support@cuvasol.com' };
+  let clean = String(fromStr).trim();
+  while ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+    clean = clean.slice(1, -1).trim();
+  }
+  const match = clean.match(/^(.*?)(?:<([^>]+)>)?$/);
+  if (match) {
+    const rawName = (match[1] || '').replace(/["']/g, '').trim();
+    const rawEmail = (match[2] || (rawName.includes('@') ? rawName : '')).trim();
+    if (rawEmail) {
+      return {
+        name: rawName && rawName !== rawEmail ? rawName : 'Cuvasol Support',
+        address: rawEmail
+      };
+    }
+  }
+  return { name: 'Cuvasol Support', address: clean && clean.includes('@') ? clean : 'support@cuvasol.com' };
+};
+
+const DEFAULT_SENDER = parseFromAddress(process.env.EMAIL_FROM);
 
 console.log('[Transporter] Initializing with:', {
   host: SMTP_HOST,
