@@ -192,6 +192,16 @@ const AdminDashboard = () => {
     return "approvals";
   });
 
+  const navigateToTab = (tab: string) => {
+    setActiveTab(tab);
+    setTimeout(() => {
+      const tabsElement = document.getElementById("admin-tabs-container");
+      if (tabsElement) {
+        tabsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 60);
+  };
+
   const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
     const saved = sessionStorage.getItem("active_chat_user_id");
     if (saved) {
@@ -1262,7 +1272,7 @@ const AdminDashboard = () => {
           ].map((stat) => (
             <Card
               key={stat.label}
-              onClick={() => setActiveTab(stat.tab)}
+              onClick={() => navigateToTab(stat.tab)}
               className="border border-border/50 shadow-md hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] transition-all duration-300 bg-card/60 backdrop-blur-md cursor-pointer hover:border-primary/40 hover:bg-card/90 group"
             >
               <CardContent className="flex items-center gap-5 p-6">
@@ -1284,6 +1294,7 @@ const AdminDashboard = () => {
           ))}
         </div>
 
+        <div id="admin-tabs-container" className="scroll-mt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/40 p-1 rounded-xl shadow-sm border mb-4 h-auto justify-start w-full overflow-x-auto whitespace-nowrap">
             <TabsTrigger value="approvals" className="rounded-lg px-6 py-2.5 shrink-0 data-[state=active]:bg-card data-[state=active]:shadow-sm">
@@ -3361,6 +3372,7 @@ const AdminDashboard = () => {
             <CustomServiceRequestsViewer />
           </TabsContent>
         </Tabs>
+        </div>
       </div>
 
       {/* Referrer Details & Referred Students Modal */}

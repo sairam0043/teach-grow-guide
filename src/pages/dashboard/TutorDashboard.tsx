@@ -148,6 +148,16 @@ const TutorDashboard = () => {
     return "demos";
   });
 
+  const navigateToTab = (tab: string) => {
+    setActiveTab(tab);
+    setTimeout(() => {
+      const tabsElement = document.getElementById("tutor-tabs-container");
+      if (tabsElement) {
+        tabsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 60);
+  };
+
   const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
     const saved = sessionStorage.getItem("active_chat_user_id");
     if (saved) {
@@ -1152,7 +1162,7 @@ const TutorDashboard = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setActiveTab("profile")}
+                  onClick={() => navigateToTab("profile")}
                   className="w-full sm:w-auto border-amber-500/30 hover:bg-amber-500/10 text-foreground font-semibold text-xs rounded-xl h-9 gap-1.5 shadow-sm"
                 >
                   <Settings className="h-3.5 w-3.5" />
@@ -1160,7 +1170,7 @@ const TutorDashboard = () => {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => setActiveTab("messages")}
+                  onClick={() => navigateToTab("messages")}
                   className="w-full sm:w-auto bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl h-9 gap-1.5 shadow-md shadow-amber-600/20"
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
@@ -1179,7 +1189,7 @@ const TutorDashboard = () => {
               <span>Account Pending Approval</span>
               <Button
                 size="sm"
-                onClick={() => setActiveTab("verification")}
+                onClick={() => navigateToTab("verification")}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-8 px-3 rounded-lg shadow-sm gap-1.5"
               >
                 <Calendar className="h-3.5 w-3.5" /> Book Verification Slot with Admin
@@ -1208,7 +1218,7 @@ const TutorDashboard = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setActiveTab("profile")}
+                  onClick={() => navigateToTab("profile")}
                   className="mx-1 h-8 px-3 border-rose-200 dark:border-rose-900 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs shadow-sm inline-flex items-center gap-1.5 cursor-pointer align-middle transition-all"
                 >
                   <Settings className="h-3.5 w-3.5" />
@@ -1240,7 +1250,7 @@ const TutorDashboard = () => {
             </div>
             <Button
               size="sm"
-              onClick={() => setActiveTab("messages")}
+              onClick={() => navigateToTab("messages")}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm hover:shadow-indigo-500/20 shrink-0 gap-1.5 self-end sm:self-center"
             >
               <MessageSquare className="h-4 w-4" /> Open Messages
@@ -1257,7 +1267,7 @@ const TutorDashboard = () => {
           ].map((stat) => (
             <Card
               key={stat.label}
-              onClick={() => setActiveTab(stat.tab)}
+              onClick={() => navigateToTab(stat.tab)}
               className="border-none shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:bg-secondary/10"
             >
               <CardContent className="flex items-center gap-5 p-6">
@@ -1279,6 +1289,7 @@ const TutorDashboard = () => {
           ))}
         </div>
 
+        <div id="tutor-tabs-container" className="scroll-mt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/50 p-1 rounded-xl shadow-sm border mb-4 h-auto justify-start w-full overflow-x-auto whitespace-nowrap">
             <TabsTrigger value="demos" className="rounded-lg px-6 py-2.5 shrink-0">Demo Requests</TabsTrigger>
@@ -3808,6 +3819,7 @@ const TutorDashboard = () => {
             </Card>
           </TabsContent>
         </Tabs>
+        </div>
       </div>
 
       {/* Rejection Reason Dialog */}

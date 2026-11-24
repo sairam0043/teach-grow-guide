@@ -134,6 +134,16 @@ const StudentDashboard = () => {
     return "upcoming";
   });
 
+  const navigateToTab = (tab: string) => {
+    setActiveTab(tab);
+    setTimeout(() => {
+      const tabsElement = document.getElementById("student-tabs-container");
+      if (tabsElement) {
+        tabsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 60);
+  };
+
   const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>(() => {
     const saved = sessionStorage.getItem("active_chat_user_id");
     if (saved) {
@@ -580,7 +590,7 @@ const StudentDashboard = () => {
           ].map((stat, idx) => (
             <Card 
               key={stat.label} 
-              onClick={() => setActiveTab(stat.tab)}
+              onClick={() => navigateToTab(stat.tab)}
               className="border-none shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary hover:bg-secondary/10"
             >
               <CardContent className="flex items-center gap-4 p-5">
@@ -602,6 +612,7 @@ const StudentDashboard = () => {
           ))}
         </div>
 
+        <div id="student-tabs-container" className="scroll-mt-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <TabsList className="bg-secondary/50 p-1 rounded-xl shadow-sm border mb-4 w-full overflow-x-auto whitespace-nowrap justify-start h-auto">
             <TabsTrigger value="upcoming" className="rounded-lg px-6 py-2.5 shrink-0">My Classes</TabsTrigger>
@@ -2019,6 +2030,7 @@ const StudentDashboard = () => {
             </Card>
           </TabsContent>
         </Tabs>
+        </div>
       </div>
 
       {/* Rating Dialog */}
