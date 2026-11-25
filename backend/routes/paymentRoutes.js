@@ -68,6 +68,7 @@ const parseFromAddress = (fromStr) => {
 };
 
 const DEFAULT_SENDER = parseFromAddress(process.env.EMAIL_FROM);
+const ADMIN_NOTIFICATION_EMAIL = process.env.ADMIN_EMAIL || 'cuvasoltpl@gmail.com';
 
 const transporter = nodemailer.createTransport({
   host: SMTP_HOST,
@@ -268,15 +269,23 @@ router.post('/verify-payment', async (req, res) => {
       }
     }
 
-    // 3. Notify Tutor & Student via Brevo SMTP
+    // 3. Notify Tutor, Student & Admin via Brevo SMTP
     try {
       const tutor = await Tutor.findById(booking.tutorId);
+      const frontendUrl = getFrontendUrl(req);
+      const isGoogleMeet = booking.meetingLink && booking.meetingLink.includes('meet.google.com');
+      const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Video Room';
+      let studentEmail = (booking.studentEmail || '').trim().toLowerCase();
+      if (!studentEmail && booking.studentId) {
+        const studentUser = await User.findById(booking.studentId);
+        if (studentUser && studentUser.email) studentEmail = studentUser.email.trim().toLowerCase();
+      }
+
+      // A. Notify Tutor
       if (tutor) {
         const tutorUser = await User.findById(tutor.userId);
         if (tutorUser && tutorUser.email) {
           console.log(`[Payments] Attempting to send confirmation email to tutor: ${tutorUser.email}`);
-          const isGoogleMeet = booking.meetingLink && booking.meetingLink.includes('meet.google.com');
-          const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
           await transporter.sendMail({
             from: DEFAULT_SENDER,
             to: tutorUser.email,
@@ -288,10 +297,79 @@ router.post('/verify-payment', async (req, res) => {
                    <p>Student <b>${booking.studentName}</b> is officially enrolled in your course for <b>${booking.subject}</b> at <b>${booking.timing}</b>.</p>
                    <p>You can join the private video room directly by clicking the link below:</p>
                    <p><a href="${booking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${meetBtnText}</a></p>
-                   <p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
+                   <p>Or access your <a href="${frontendUrl}/dashboard/tutor">dashboard</a> for details.</p>`,
           });
           console.log(`[Payments] Tutor enrollment alert sent to: ${tutorUser.email}`);
         }
+      }
+
+      // B. Notify Student
+      if (studentEmail) {
+        console.log(`[Payments] Attempting to send confirmation email to student: ${studentEmail}`);
+        await transporter.sendMail({
+          from: DEFAULT_SENDER,
+          to: studentEmail,
+          subject: `Class Enrollment Confirmed: ${booking.subject} with ${booking.tutorName}`,
+          text: `Hello ${booking.studentName},\n\nYour payment of ₹${booking.amountPaid} was successful! You are now enrolled in ${booking.subject} with tutor ${booking.tutorName}.\n\nScheduled Timing: ${booking.timing}\nJoin Link: ${booking.meetingLink || `${frontendUrl}/dashboard/student`}\n\nBest regards,\nCuvasol Support Team`,
+          html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                   <h2 style="color: #059669; text-align: center;">Enrollment Confirmed!</h2>
+                   <p>Hello <strong>${booking.studentName}</strong>,</p>
+                   <p>Great news! Your payment of <strong>₹${booking.amountPaid}</strong> was successful, and you are officially enrolled in <strong>${booking.subject}</strong> with tutor <strong>${booking.tutorName}</strong>.</p>
+                   <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
+                     <p style="margin: 0 0 8px 0;"><strong>Subject:</strong> ${booking.subject}</p>
+                     <p style="margin: 0 0 8px 0;"><strong>Tutor:</strong> ${booking.tutorName}</p>
+                     <p style="margin: 0 0 8px 0;"><strong>Class Timing:</strong> <span style="color: #059669; font-weight: bold;">${booking.timing}</span></p>
+                     <p style="margin: 0;"><strong>Amount Paid:</strong> ₹${booking.amountPaid}</p>
+                   </div>
+                   <div style="text-align: center; margin: 25px 0;">
+                     <a href="${booking.meetingLink || `${frontendUrl}/dashboard/student`}" 
+                        style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                       ${meetBtnText}
+                     </a>
+                   </div>
+                   <p>You can also access your sessions and review details anytime from your <a href="${frontendUrl}/dashboard/student" style="color: #059669; font-weight: bold;">Student Dashboard</a>.</p>
+                   <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                   <p style="font-size: 11px; color: #999; text-align: center;">Best regards,<br/><strong>Cuvasol Tutor Team</strong></p>
+                 </div>`
+        });
+        console.log(`[Payments] Student enrollment confirmation sent to: ${studentEmail}`);
+      }
+
+      // C. Notify Admin (cuvasoltpl@gmail.com)
+      if (ADMIN_NOTIFICATION_EMAIL) {
+        console.log(`[Payments] Attempting to notify admin: ${ADMIN_NOTIFICATION_EMAIL}`);
+        await transporter.sendMail({
+          from: DEFAULT_SENDER,
+          to: ADMIN_NOTIFICATION_EMAIL,
+          subject: `[Admin Alert] New Class Booking Paid: ${booking.studentName} with ${booking.tutorName} (₹${booking.amountPaid})`,
+          text: `Hello Admin,\n\nA new class booking has been successfully paid and enrolled on Cuvasol!\n\nDetails:\n- Student: ${booking.studentName} (${studentEmail || 'N/A'})\n- Tutor: ${booking.tutorName}\n- Subject: ${booking.subject}\n- Timing: ${booking.timing}\n- Plan: ${booking.planType || 'Standard'}\n- Amount Paid: ₹${booking.amountPaid}\n- Meeting Link: ${booking.meetingLink || 'N/A'}\n\nCuvasol Automated Alert`,
+          html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                   <h2 style="color: #059669; text-align: center;">New Paid Class Enrollment</h2>
+                   <p>Hello <strong>Admin</strong>,</p>
+                   <p>A student has successfully enrolled and paid for a class on the Cuvasol platform.</p>
+                   <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 20px 0;">
+                     <h4 style="margin: 0 0 10px 0; color: #065f46;">Enrollment Summary:</h4>
+                     <ul style="line-height: 1.8; margin: 0; padding-left: 20px; color: #374151;">
+                       <li><strong>Student:</strong> ${booking.studentName} (${studentEmail || 'N/A'})</li>
+                       <li><strong>Tutor:</strong> ${booking.tutorName}</li>
+                       <li><strong>Subject:</strong> ${booking.subject}</li>
+                       <li><strong>Timing:</strong> ${booking.timing}</li>
+                       <li><strong>Plan:</strong> ${booking.planType || 'Standard'}</li>
+                       <li><strong>Amount Paid:</strong> <span style="color: #059669; font-weight: bold;">₹${booking.amountPaid}</span></li>
+                       <li><strong>Meeting Link:</strong> <a href="${booking.meetingLink}">${booking.meetingLink || 'N/A'}</a></li>
+                     </ul>
+                   </div>
+                   <div style="text-align: center; margin: 25px 0;">
+                     <a href="${frontendUrl}/dashboard/admin" 
+                        style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                       Open Admin Dashboard
+                     </a>
+                   </div>
+                   <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                   <p style="font-size: 11px; color: #999; text-align: center;">Cuvasol Platform Automated Notification</p>
+                 </div>`
+        });
+        console.log(`[Payments] Admin enrollment alert sent to: ${ADMIN_NOTIFICATION_EMAIL}`);
       }
     } catch (mailError) {
       console.error('[Payments] Failed to send enrollment notification:', mailError.message);
@@ -521,6 +599,32 @@ router.post('/verify-course-payment', async (req, res) => {
         html: emailHtml
       });
       console.log(`[Course Payments] Confirmation email sent successfully to ${coursePayment.studentEmail}`);
+
+      // Notify Admin of Course/Program Registration
+      if (ADMIN_NOTIFICATION_EMAIL) {
+        try {
+          console.log(`[Course Payments] Sending admin alert to: ${ADMIN_NOTIFICATION_EMAIL}`);
+          await transporter.sendMail({
+            from: DEFAULT_SENDER,
+            to: ADMIN_NOTIFICATION_EMAIL,
+            subject: `[Admin Alert] AI Program Registration Paid: ${coursePayment.studentName} (₹${coursePayment.amountPaid})`,
+            text: `Hello Admin,\n\nA new student has registered and paid for the AI Future Skills Program!\n\nDetails:\n- Student: ${coursePayment.studentName} (${coursePayment.studentEmail})\n- Phone: ${coursePayment.studentPhone || 'N/A'}\n- Amount Paid: ₹${coursePayment.amountPaid}\n- Assessment Status: ${coursePayment.assessmentStatus || 'Pending'}\n\nCuvasol Platform Alert`,
+            html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+                     <h3 style="color: #2563eb;">AI Program Registration Paid</h3>
+                     <p>A new student has registered and paid for the <strong>AI Future Skills Program</strong>.</p>
+                     <ul>
+                       <li><strong>Student:</strong> ${coursePayment.studentName} (${coursePayment.studentEmail})</li>
+                       <li><strong>Phone:</strong> ${coursePayment.studentPhone || 'N/A'}</li>
+                       <li><strong>Amount Paid:</strong> ₹${coursePayment.amountPaid}</li>
+                       <li><strong>Assessment Status:</strong> ${coursePayment.assessmentStatus || 'Pending'}</li>
+                     </ul>
+                   </div>`
+          });
+          console.log(`[Course Payments] Admin alert sent successfully to: ${ADMIN_NOTIFICATION_EMAIL}`);
+        } catch (adminErr) {
+          console.error('[Course Payments] Failed to send admin alert:', adminErr.message);
+        }
+      }
     } catch (mailError) {
       console.error('[Course Payments] Failed to send confirmation email:', mailError.message);
     }

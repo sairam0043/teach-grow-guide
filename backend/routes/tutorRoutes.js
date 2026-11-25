@@ -1037,16 +1037,37 @@ router.post('/:id/book-class', async (req, res) => {
           });
           console.log(`[Booking] Tutor notification email sent to: ${tutorUser.email}`);
         }
+
+        // Notify Admin of group class booking
+        if (ADMIN_NOTIFICATION_EMAIL) {
+          await transporter.sendMail({
+            from: DEFAULT_SENDER,
+            to: ADMIN_NOTIFICATION_EMAIL,
+            subject: `[Admin Alert] New Group Class Initiated: ${studentName} with ${tutor.name} (${subject})`,
+            text: `Hello Admin,\n\nA new group class has been initiated on Cuvasol!\n\nDetails:\n- Student: ${studentName} (${studentEmail || 'N/A'})\n- Tutor: ${tutor.name}\n- Subject: ${subject}\n- Timing: ${timing}\n- Plan: ${planType}\n- Invited Emails: ${otherStudentsEmails.join(', ')}\n\nCuvasol Automated Alert`,
+            html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+                     <h3 style="color: #7c3aed;">New Group Class Initiated</h3>
+                     <p>Student <strong>${studentName}</strong> has initiated a group class for <strong>${subject}</strong> with tutor <strong>${tutor.name}</strong>.</p>
+                     <ul>
+                       <li><strong>Timing:</strong> ${timing}</li>
+                       <li><strong>Plan:</strong> ${planType}</li>
+                       <li><strong>Invited Students:</strong> ${otherStudentsEmails.join(', ')}</li>
+                     </ul>
+                   </div>`
+          });
+        }
       } catch (mailError) {
-        console.error('[Booking] Failed to send tutor notification:', mailError.message);
+        console.error('[Booking] Failed to send group class notification:', mailError.message);
       }
     } else if (fullyPaidByWallet) {
-      // Notify Tutor & Student of successful 100% wallet enrollment
+      // Notify Tutor, Student & Admin of successful 100% wallet enrollment
       try {
         const tutorUser = await User.findById(tutor.userId);
+        const frontendUrl = getFrontendUrl(req);
+        const isGoogleMeet = newBooking.meetingLink && newBooking.meetingLink.includes('meet.google.com');
+        const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
+
         if (tutorUser && tutorUser.email) {
-          const isGoogleMeet = newBooking.meetingLink && newBooking.meetingLink.includes('meet.google.com');
-          const meetBtnText = isGoogleMeet ? 'Join Google Meet' : 'Join Jitsi Video Room';
           await transporter.sendMail({
             from: DEFAULT_SENDER,
             to: tutorUser.email,
@@ -1057,11 +1078,47 @@ router.post('/:id/book-class', async (req, res) => {
                    <p>Student <b>${studentName}</b> is officially enrolled in your course for <b>${subject}</b> at <b>${timing}</b>.</p>
                    <p>You can join the private video room directly by clicking the link below:</p>
                    <p><a href="${newBooking.meetingLink}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${meetBtnText}</a></p>
-                   <p>Or access your <a href="${getFrontendUrl(req)}/dashboard/tutor">dashboard</a> for details.</p>`,
+                   <p>Or access your <a href="${frontendUrl}/dashboard/tutor">dashboard</a> for details.</p>`,
+          });
+        }
+
+        if (studentEmail) {
+          await transporter.sendMail({
+            from: DEFAULT_SENDER,
+            to: studentEmail,
+            subject: `Class Enrollment Confirmed: ${subject} with ${tutor.name}`,
+            text: `Hello ${studentName},\n\nYou have successfully enrolled in ${subject} with tutor ${tutor.name} (paid via wallet credits).\n\nTiming: ${timing}\nJoin Link: ${newBooking.meetingLink || `${frontendUrl}/dashboard/student`}\n\nBest regards,\nCuvasol Tutor Team`,
+            html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+                     <h2 style="color: #059669; text-align: center;">Enrollment Confirmed!</h2>
+                     <p>Hello <strong>${studentName}</strong>,</p>
+                     <p>You are officially enrolled in <strong>${subject}</strong> with tutor <strong>${tutor.name}</strong> (paid with student wallet credits).</p>
+                     <p><strong>Timing:</strong> ${timing}</p>
+                     <p><a href="${newBooking.meetingLink || `${frontendUrl}/dashboard/student`}" style="background-color: #059669; color: white; padding: 10px 18px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">${meetBtnText}</a></p>
+                   </div>`
+          });
+        }
+
+        if (ADMIN_NOTIFICATION_EMAIL) {
+          await transporter.sendMail({
+            from: DEFAULT_SENDER,
+            to: ADMIN_NOTIFICATION_EMAIL,
+            subject: `[Admin Alert] Class Booking Confirmed via Wallet: ${studentName} with ${tutor.name} (₹${calculatedPrice})`,
+            text: `Hello Admin,\n\nA student has enrolled in a class using wallet credits!\n\nDetails:\n- Student: ${studentName} (${studentEmail || 'N/A'})\n- Tutor: ${tutor.name}\n- Subject: ${subject}\n- Timing: ${timing}\n- Plan: ${planType}\n- Amount: ₹${calculatedPrice}\n\nCuvasol Automated Alert`,
+            html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+                     <h3 style="color: #059669;">Class Booking Paid via Wallet</h3>
+                     <p>Student <strong>${studentName}</strong> has enrolled in a class using wallet credits.</p>
+                     <ul>
+                       <li><strong>Tutor:</strong> ${tutor.name}</li>
+                       <li><strong>Subject:</strong> ${subject}</li>
+                       <li><strong>Timing:</strong> ${timing}</li>
+                       <li><strong>Plan:</strong> ${planType}</li>
+                       <li><strong>Amount:</strong> ₹${calculatedPrice}</li>
+                     </ul>
+                   </div>`
           });
         }
       } catch (mailError) {
-        console.error('[Booking] Failed to send tutor wallet enrollment notification:', mailError.message);
+        console.error('[Booking] Failed to send wallet enrollment notifications:', mailError.message);
       }
     }
 
