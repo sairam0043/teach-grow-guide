@@ -154,7 +154,7 @@ const getBookingSessionLabels = (booking) => {
   }
 
   const planType = (booking.planType || '').trim();
-  const isDemo = (!planType || planType.toLowerCase() === 'free demo class' || planType.toLowerCase() === 'demo') && booking.status !== 'enrolled' && !(booking.amountPaid > 0);
+  const isDemo = (!planType || planType.toLowerCase().includes('demo')) && booking.status !== 'enrolled' && !(booking.amountPaid > 0);
 
   if (isDemo) {
     return {
@@ -1310,32 +1310,65 @@ router.put('/booking/:bookingId/status', async (req, res) => {
             html: emailHtml
           });
           console.log(`[Booking] Status update email sent successfully.`);
-
-          // If demo is confirmed, notify Admin as well
-          if (isDemo && isConfirmed && ADMIN_NOTIFICATION_EMAIL) {
-            try {
-              console.log(`[Booking] Sending demo confirmation alert to admin: ${ADMIN_NOTIFICATION_EMAIL}`);
-              await transporter.sendMail({
-                from: DEFAULT_SENDER,
-                to: ADMIN_NOTIFICATION_EMAIL,
-                subject: `[Admin Alert] Demo Class Confirmed: ${booking.studentName} with ${booking.tutorName}`,
-                text: `Hello Admin,\n\nTutor ${booking.tutorName} has ACCEPTED & CONFIRMED the demo class with student ${booking.studentName}!\n\nSubject: ${booking.subject}\nTiming: ${booking.timing}\nMeeting Link: ${booking.meetingLink || 'N/A'}\n\nCuvasol Platform Alert`,
-                html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-                         <h3 style="color: #059669;">Demo Class Confirmed by Tutor</h3>
-                         <p>Tutor <strong>${booking.tutorName}</strong> has accepted and confirmed the demo class with student <strong>${booking.studentName}</strong>.</p>
-                         <p><strong>Subject:</strong> ${booking.subject}</p>
-                         <p><strong>Timing:</strong> ${booking.timing}</p>
-                         <p><strong>Meeting Link:</strong> <a href="${booking.meetingLink}">${booking.meetingLink}</a></p>
-                       </div>`
-              });
-              console.log(`[Booking] Admin demo confirmation alert sent successfully.`);
-            } catch (adminErr) {
-              console.error('[Booking] Failed to notify admin of demo confirmation:', adminErr.message);
-            }
-          }
         }
       } catch (mailError) {
         console.error('[Booking] Failed to send student status update email:', mailError.message);
+      }
+
+      // Notify Admin whenever a tutor accepts (confirms) a demo class request
+      if (status === 'confirmed' && isDemo && ADMIN_NOTIFICATION_EMAIL) {
+        try {
+          console.log(`[Booking] Sending demo confirmation alert to admin: ${ADMIN_NOTIFICATION_EMAIL}`);
+          const studentEmail = (await resolveStudentEmail(booking)) || booking.studentEmail || 'N/A';
+          const tutor = await Tutor.findById(booking.tutorId);
+          const tutorUser = tutor?.userId ? await User.findById(tutor.userId) : null;
+          const frontendUrl = getFrontendUrl(req);
+
+          await transporter.sendMail({
+            from: DEFAULT_SENDER,
+            to: ADMIN_NOTIFICATION_EMAIL,
+            subject: `[Admin Alert] Demo Class Accepted: ${booking.studentName} with ${booking.tutorName} (${booking.subject})`,
+            text: `Hello Admin,\n\nTutor ${booking.tutorName} has ACCEPTED & CONFIRMED the demo class with student ${booking.studentName}!\n\nBooking Details:\n- Student: ${booking.studentName} (${studentEmail})\n- Tutor: ${booking.tutorName} (${tutorUser?.email || 'N/A'})\n- Subject: ${booking.subject}\n- Timing: ${booking.timing}\n- Meeting Link: ${booking.meetingLink || 'N/A'}\n- Status: Confirmed by Tutor\n\nView bookings: ${frontendUrl}/dashboard/admin\n\nCuvasol Platform Alert`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                <div style="background-color: #059669; color: white; padding: 16px; border-radius: 6px 6px 0 0; text-align: center;">
+                  <h2 style="margin: 0; font-size: 20px;">Demo Class Accepted by Tutor</h2>
+                </div>
+                <div style="padding: 20px 10px;">
+                  <p>Hello <strong>Admin</strong>,</p>
+                  <p>Tutor <strong>${booking.tutorName}</strong> has just <strong>accepted & confirmed</strong> a demo class request from student <strong>${booking.studentName}</strong>.</p>
+                  
+                  <div style="background-color: #f0fdf4; padding: 15px; border-radius: 6px; border: 1px solid #bbf7d0; margin: 15px 0;">
+                    <h4 style="margin-top: 0; color: #166534;">Demo Session Details:</h4>
+                    <ul style="line-height: 1.8; margin-bottom: 0; padding-left: 20px;">
+                      <li><strong>Student:</strong> ${booking.studentName} (${studentEmail})</li>
+                      <li><strong>Tutor:</strong> ${booking.tutorName} (${tutorUser?.email || 'N/A'})</li>
+                      <li><strong>Subject:</strong> ${booking.subject}</li>
+                      <li><strong>Timing:</strong> ${booking.timing}</li>
+                      <li><strong>Meeting Link:</strong> <a href="${booking.meetingLink || '#'}" style="color: #059669; font-weight: bold;">${booking.meetingLink || 'N/A'}</a></li>
+                      <li><strong>Status:</strong> <span style="color: #059669; font-weight: bold;">Accepted (Confirmed)</span></li>
+                    </ul>
+                  </div>
+
+                  <div style="text-align: center; margin: 25px 0;">
+                    <a href="${frontendUrl}/dashboard/admin" 
+                       style="background-color: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                      Open Admin Dashboard
+                    </a>
+                  </div>
+
+                  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                  <p style="font-size: 11px; color: #999; text-align: center;">
+                    Cuvasol Automated Platform Notification
+                  </p>
+                </div>
+              </div>
+            `
+          });
+          console.log(`[Booking] Admin demo acceptance alert sent successfully to: ${ADMIN_NOTIFICATION_EMAIL}`);
+        } catch (adminErr) {
+          console.error('[Booking] Failed to notify admin of demo confirmation:', adminErr.message);
+        }
       }
     }
 
@@ -1666,6 +1699,32 @@ router.post('/booking/:bookingId/reschedule-confirm', async (req, res) => {
             console.log(`[Reschedule Email] Tutor notification sent to: ${tutorUser.email}`);
           } catch (err) {
             console.error('[Reschedule Email] Error notifying tutor:', err.message);
+          }
+        }
+
+        // 3. If demo class reschedule is approved, notify Admin
+        const { isDemo: isRescheduleDemo } = getBookingSessionLabels(booking);
+        if (isRescheduleDemo && ADMIN_NOTIFICATION_EMAIL) {
+          try {
+            await transporter.sendMail({
+              from: DEFAULT_SENDER,
+              to: ADMIN_NOTIFICATION_EMAIL,
+              subject: `[Admin Alert] Demo Class Reschedule Accepted: ${booking.studentName} with ${booking.tutorName}`,
+              text: `Hello Admin,\n\nA demo class reschedule has been ACCEPTED & CONFIRMED on Cuvasol!\n\nDetails:\n- Student: ${booking.studentName} (${studentEmail || 'N/A'})\n- Tutor: ${booking.tutorName} (${tutorUser?.email || 'N/A'})\n- Subject: ${booking.subject}\n- New Timing: ${booking.timing}\n- Previous Timing: ${originalTiming}\n- Meeting Link: ${booking.meetingLink || 'N/A'}\n\nCuvasol Platform Alert`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+                  <h3 style="color: #059669;">Demo Class Reschedule Accepted</h3>
+                  <p>The demo class reschedule between student <strong>${booking.studentName}</strong> and tutor <strong>${booking.tutorName}</strong> has been confirmed.</p>
+                  <p><strong>Subject:</strong> ${booking.subject}</p>
+                  <p><strong>New Timing:</strong> ${booking.timing}</p>
+                  <p><strong>Previous Timing:</strong> ${originalTiming}</p>
+                  <p><strong>Meeting Link:</strong> <a href="${booking.meetingLink}">${booking.meetingLink}</a></p>
+                </div>
+              `
+            });
+            console.log(`[Reschedule Email] Admin demo reschedule notification sent to: ${ADMIN_NOTIFICATION_EMAIL}`);
+          } catch (admErr) {
+            console.error('[Reschedule Email] Error notifying admin of demo reschedule:', admErr.message);
           }
         }
       } catch (mailErr) {
