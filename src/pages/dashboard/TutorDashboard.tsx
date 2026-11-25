@@ -151,6 +151,19 @@ const TutorDashboard = () => {
   const navigateToTab = (tab: string) => {
     setActiveTab(tab);
     setTimeout(() => {
+      const trigger = document.querySelector(`[data-tab="${tab}"]`) as HTMLElement;
+      if (trigger) {
+        const tabsList = trigger.closest('[role="tablist"]') as HTMLElement;
+        if (tabsList) {
+          const listRect = tabsList.getBoundingClientRect();
+          const trigRect = trigger.getBoundingClientRect();
+          const targetLeft = Math.max(
+            0,
+            tabsList.scrollLeft + (trigRect.left - listRect.left) - (listRect.width / 2) + (trigRect.width / 2)
+          );
+          tabsList.scrollTo({ left: targetLeft, behavior: "smooth" });
+        }
+      }
       const tabsElement = document.getElementById("tutor-tabs-container");
       if (tabsElement) {
         tabsElement.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1815,7 +1828,7 @@ const TutorDashboard = () => {
                                   size="sm"
                                   variant="outline"
                                   className="w-full sm:w-auto text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 font-semibold text-xs"
-                                  onClick={() => setActiveTab("attendance")}
+                                  onClick={() => navigateToTab("attendance")}
                                 >
                                   <UserCheck className="h-3.5 w-3.5 mr-1" /> Class Attendance
                                 </Button>

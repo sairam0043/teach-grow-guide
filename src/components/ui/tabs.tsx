@@ -16,38 +16,47 @@ const TabsList = React.forwardRef<
     const container = innerRef.current;
     if (!container) return;
 
-    const scrollActiveIntoView = () => {
-      // Only scroll if the container is horizontally scrollable
+    const scrollActiveIntoView = (smooth = true) => {
+      const activeEl = container.querySelector<HTMLElement>('[data-state="active"]');
+      if (!activeEl) return;
+
       if (container.scrollWidth <= container.clientWidth) return;
 
-      const activeEl = container.querySelector<HTMLElement>('[data-state="active"]');
-      if (activeEl) {
-        const triggerLeft = activeEl.offsetLeft;
-        const triggerWidth = activeEl.offsetWidth;
-        const containerWidth = container.clientWidth;
+      const containerRect = container.getBoundingClientRect();
+      const activeRect = activeEl.getBoundingClientRect();
 
-        // Calculate offset to center the active trigger inside the container
-        const targetScrollLeft = triggerLeft - containerWidth / 2 + triggerWidth / 2;
+      const activeLeftInContainer = container.scrollLeft + (activeRect.left - containerRect.left);
+      const targetScrollLeft = Math.max(
+        0,
+        activeLeftInContainer - (container.clientWidth / 2) + (activeRect.width / 2)
+      );
 
-        if (typeof container.scrollTo === "function") {
-          container.scrollTo({
-            left: Math.max(0, targetScrollLeft),
-            behavior: "smooth",
-          });
-        } else {
-          container.scrollLeft = Math.max(0, targetScrollLeft);
-        }
+      if (smooth && typeof container.scrollTo === "function") {
+        container.scrollTo({
+          left: targetScrollLeft,
+          behavior: "smooth",
+        });
+      } else {
+        container.scrollLeft = targetScrollLeft;
       }
     };
 
     // Scroll active trigger into view on initial mount / render
-    const timer = setTimeout(scrollActiveIntoView, 60);
+    const timer = setTimeout(() => scrollActiveIntoView(false), 100);
+
+    let scrollDebounceTimer: any = null;
+    const debouncedScroll = () => {
+      if (scrollDebounceTimer) clearTimeout(scrollDebounceTimer);
+      scrollDebounceTimer = setTimeout(() => {
+        scrollActiveIntoView(true);
+      }, 50);
+    };
 
     // Observe changes to data-state attribute on children (when active tab changes)
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         if (m.type === "attributes" && m.attributeName === "data-state") {
-          scrollActiveIntoView();
+          debouncedScroll();
           break;
         }
       }
@@ -61,6 +70,7 @@ const TabsList = React.forwardRef<
 
     return () => {
       clearTimeout(timer);
+      if (scrollDebounceTimer) clearTimeout(scrollDebounceTimer);
       observer.disconnect();
     };
   }, []);
@@ -69,7 +79,7 @@ const TabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={innerRef}
       className={cn(
-        "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground scroll-smooth",
+        "relative inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
         className,
       )}
       {...props}

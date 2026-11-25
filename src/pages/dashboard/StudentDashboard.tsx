@@ -137,6 +137,19 @@ const StudentDashboard = () => {
   const navigateToTab = (tab: string) => {
     setActiveTab(tab);
     setTimeout(() => {
+      const trigger = document.querySelector(`[data-tab="${tab}"]`) as HTMLElement;
+      if (trigger) {
+        const tabsList = trigger.closest('[role="tablist"]') as HTMLElement;
+        if (tabsList) {
+          const listRect = tabsList.getBoundingClientRect();
+          const trigRect = trigger.getBoundingClientRect();
+          const targetLeft = Math.max(
+            0,
+            tabsList.scrollLeft + (trigRect.left - listRect.left) - (listRect.width / 2) + (trigRect.width / 2)
+          );
+          tabsList.scrollTo({ left: targetLeft, behavior: "smooth" });
+        }
+      }
       const tabsElement = document.getElementById("student-tabs-container");
       if (tabsElement) {
         tabsElement.scrollIntoView({ behavior: "smooth", block: "start" });
